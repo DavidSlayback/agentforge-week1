@@ -20,6 +20,28 @@
 
 [OpenEMR](https://open-emr.org) is a Free and Open Source electronic health records and medical practice management application. It features fully integrated electronic health records, practice management, scheduling, electronic billing, internationalization, free support, a vibrant community, and a whole lot more. It runs on Windows, Linux, Mac OS X, and many other platforms.
 
+## AgentForge local development setup
+
+This repository is the local OpenEMR substrate for AgentForge work. The repeatable local setup uses the pinned Docker Compose environment under `docker/development-easy-light`.
+
+Prerequisites: Docker Desktop with the Linux container engine enabled and Windows PowerShell.
+
+From the repository root:
+
+```powershell
+$env:Path = "C:\Program Files\Docker\Docker\resources\bin;" + $env:Path
+$env:COMPOSE_PROJECT_NAME = "agentforge-week1"
+docker compose -f docker/development-easy-light/docker-compose.yml up --detach --wait --wait-timeout 600
+```
+
+Open [http://localhost:8300](http://localhost:8300) and sign in to the local development instance with `admin` / `pass`. To load the realistic OpenEMR demo dataset, run this destructive reset command only against the isolated local development database:
+
+```powershell
+docker exec agentforge-week1-openemr-1 /root/devtools dev-reset-install-demodata
+```
+
+The local compose project exposes OpenEMR on ports 8300 (HTTP) and 9300 (HTTPS), phpMyAdmin on 8310, and MariaDB on 8320. These defaults are for local development only.
+
 ### Contributing
 
 OpenEMR is a leader in healthcare open source software and comprises a large and diverse community of software developers, medical providers and educators with a very healthy mix of both volunteers and professionals. [Join us and learn how to start contributing today!](https://open-emr.org/wiki/index.php/FAQ#How_do_I_begin_to_volunteer_for_the_OpenEMR_project.3F)
