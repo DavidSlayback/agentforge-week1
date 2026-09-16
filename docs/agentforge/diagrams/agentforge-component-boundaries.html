@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentForge component boundaries</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: #173247; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #dce5eb; }
+    #stage { width: 1600px; height: 1000px; position: relative; overflow: hidden; background: #f7fafc; }
+    .eyebrow { position: absolute; left: 88px; top: 64px; color: #28734a; font-size: 22px; font-weight: 750; letter-spacing: 2.5px; text-transform: uppercase; }
+    h1 { position: absolute; left: 84px; top: 94px; margin: 0; font-size: 54px; line-height: 1.05; letter-spacing: -1.8px; color: #173247; }
+    .subhead { position: absolute; left: 88px; top: 174px; margin: 0; color: #496474; font-size: 24px; }
+    .lane { position: absolute; top: 258px; height: 520px; border-radius: 26px; padding: 28px; }
+    .lane h2 { margin: 0; font-size: 20px; letter-spacing: 1.8px; text-transform: uppercase; }
+    .lane p { margin: 7px 0 0; font-size: 16px; color: #5a7180; }
+    .context { left: 64px; width: 380px; background: #e8f0f7; border: 2px solid #a9c3d4; }
+    .boundary { left: 438px; width: 744px; background: #e9f5ef; border: 2px solid #9bc9ad; }
+    .outputs { left: 1240px; width: 296px; background: #fff3d9; border: 2px solid #e8c878; }
+    .card { position: absolute; left: 28px; right: 28px; min-height: 108px; border-radius: 18px; padding: 20px 22px; background: rgba(255,255,255,.78); border: 1.5px solid rgba(49,90,117,.24); box-shadow: 0 8px 18px rgba(38,65,79,.08); }
+    .card strong { display: block; font-size: 22px; line-height: 1.15; }
+    .card span { display: block; margin-top: 9px; font-size: 16px; line-height: 1.25; color: #557180; }
+    .context .card { min-height: 118px; }
+    .context .card:nth-of-type(1) { top: 90px; }
+    .context .card:nth-of-type(2) { top: 228px; }
+    .context .card:nth-of-type(3) { top: 366px; }
+    .boundary .card { left: 28px; right: 28px; min-height: 78px; padding: 16px 20px; }
+    .boundary .card strong { font-size: 20px; }
+    .boundary .card span { margin-top: 5px; font-size: 15px; }
+    .boundary .card:nth-of-type(1) { top: 90px; }
+    .boundary .card:nth-of-type(2) { top: 190px; }
+    .boundary .card:nth-of-type(3) { top: 290px; }
+    .boundary .card:nth-of-type(4) { top: 390px; }
+    .outputs .card { left: 24px; right: 24px; }
+    .outputs .card:nth-of-type(1) { top: 112px; }
+    .outputs .card:nth-of-type(2) { top: 276px; }
+    .tag { display: inline-flex; margin-top: 20px; padding: 7px 11px; border-radius: 99px; background: #28734a; color: white; font-size: 14px; font-weight: 700; letter-spacing: .5px; }
+    .card span.tag { color: #fff; }
+    .boundary .tag { background: #173247; }
+    .outputs .tag { background: #9a6a00; }
+    .boundary-note { position: absolute; left: 70px; bottom: 54px; width: 1460px; padding: 19px 28px; border-radius: 16px; background: #173247; color: #f7fafc; font-size: 19px; }
+    .boundary-note b { color: #9ce0b6; }
+    svg { position: absolute; inset: 0; pointer-events: none; }
+    .flow { fill: none; stroke: #6d8794; stroke-width: 4; stroke-linecap: round; }
+    .flow.primary { stroke: #28734a; }
+    .flow-label { fill: #496474; font-size: 16px; font-weight: 700; text-anchor: middle; }
+    .small { font-size: 14px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main id="stage" aria-label="AgentForge component boundaries diagram">
+    <div class="eyebrow">AgentForge / personal explainer</div>
+    <h1>One safe path from chart to briefing</h1>
+    <p class="subhead">The server owns scope, evidence, and verification.</p>
+
+    <section class="lane context">
+      <h2>OpenEMR context</h2><p>trusted inputs already in the chart</p>
+      <div class="card"><strong>Authenticated clinician</strong><span>Existing session and ACL identity</span><span class="tag">who is asking</span></div>
+      <div class="card"><strong>Active patient</strong><span>Visible chart context and immutable UUID</span><span class="tag">whose chart</span></div>
+      <div class="card"><strong>Chart records</strong><span>Encounters, problems, medicines, notes, results</span><span class="tag">what is documented</span></div>
+    </section>
+
+    <section class="lane boundary">
+      <h2>AgentForge server boundary</h2><p>the only place orchestration and policy live</p>
+      <div class="card"><strong>Panel and request controller</strong><span>Fresh binding check before retrieval</span><span class="tag">bind</span></div>
+      <div class="card"><strong>Read-only adapter</strong><span>Fixed operations; no model URLs, SQL, or writes</span><span class="tag">allowlist</span></div>
+      <div class="card"><strong>Evidence and coverage ledger</strong><span>Record, date, author, source, outcome, attempts</span><span class="tag">normalize</span></div>
+      <div class="card"><strong>Reconciliation and verifier</strong><span>Latest field evidence, conflicts, staleness, withholding</span><span class="tag">verify</span></div>
+    </section>
+
+    <section class="lane outputs">
+      <h2>Safe outputs</h2><p>nothing reaches the physician unverified</p>
+      <div class="card"><strong>Physician briefing</strong><span>BLUF, evidence links, qualified gaps</span><span class="tag">display</span></div>
+      <div class="card"><strong>Local attempt trace</strong><span>Timing, retries, coverage, outcomes</span><span class="tag">observe</span></div>
+    </section>
+
+    <svg viewBox="0 0 1600 1000" aria-hidden="true">
+      <defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#28734a"/></marker></defs>
+      <path class="flow primary" marker-end="url(#arrow)" d="M416 420 C430 420 430 420 446 420"/>
+      <path class="flow primary" marker-end="url(#arrow)" d="M416 548 C430 548 430 548 446 548"/>
+      <path class="flow" marker-end="url(#arrow)" d="M416 674 C430 674 430 674 446 674"/>
+      <path class="flow primary" marker-end="url(#arrow)" d="M816 462 C910 462 910 448 1130 448"/>
+      <path class="flow primary" marker-end="url(#arrow)" d="M816 562 C930 562 930 510 1130 510"/>
+      <path class="flow primary" marker-end="url(#arrow)" d="M816 662 C960 662 960 578 1130 578"/>
+      <path class="flow primary" marker-end="url(#arrow)" d="M1184 500 C1204 500 1204 500 1240 500"/>
+      <path class="flow" marker-end="url(#arrow)" d="M1184 610 C1210 610 1210 690 1240 690"/>
+    </svg>
+    <div class="boundary-note"><b>Hard boundary:</b> AgentForge can summarize documented evidence and plans, but it cannot write to the chart or recommend a new clinical action.</div>
+  </main>
+  <script>
+    window.VIZ = { frames: 1, stage: "#stage", seek() {} };
+  </script>
+</body>
+</html>
