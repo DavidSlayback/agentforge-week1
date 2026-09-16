@@ -50,6 +50,25 @@ services:
       timeout: 5s
       retries: 3
 
+  agentforge:
+    restart: always
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: 8787
+      AGENTFORGE_FIXTURES: /app/docs/agentforge/fixtures/clinical-cases.json
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:8787/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      openemr:
+        condition: service_healthy
+
 volumes:
   logvolume01: {}
   sitevolume: {}

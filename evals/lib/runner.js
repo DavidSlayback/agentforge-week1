@@ -1,0 +1,8 @@
+const fs=require('node:fs'); const path=require('node:path'); const {evaluateCase,CRITICAL_FAILURE_CODES}=require('./oracles');
+function runGoldenSuite({fixturePath,responses}) { const fixtures=JSON.parse(fs.readFileSync(fixturePath,'utf8')).cases; const cases=[]; const issues=[];
+  for(const fixture of fixtures){ const response=responses[fixture.id]; if(!response){ const issue={code:'MISSING_RESPONSE',case_id:fixture.id}; issues.push(issue); cases.push({case_id:fixture.id,passed:false,issues:[issue]}); continue; } const result=evaluateCase(fixture,response); cases.push({case_id:fixture.id,...result}); issues.push(...result.issues.map((issue)=>({...issue,case_id:fixture.id}))); }
+  for(const id of Object.keys(responses)) if(!fixtures.some((fixture)=>fixture.id===id)) issues.push({code:'UNKNOWN_RESPONSE_CASE',case_id:id});
+  const critical=issues.filter((issue)=>CRITICAL_FAILURE_CODES.includes(issue.code)); return {total_cases:fixtures.length,passed_cases:cases.filter((item)=>item.passed).length,failed_cases:cases.filter((item)=>!item.passed).length,critical_failures:critical.length,gate_passed:issues.length===0,cases,issues};
+}
+if(require.main===module){ const fixturePath=path.resolve(process.cwd(),'docs/agentforge/fixtures/clinical-cases.json'); const fixtures=JSON.parse(fs.readFileSync(fixturePath,'utf8')).cases; const responsesPath=process.argv[2]; const responses=responsesPath?JSON.parse(fs.readFileSync(responsesPath,'utf8')):require('./reference').referenceResponses(fixtures); const report=runGoldenSuite({fixturePath,responses}); console.log(JSON.stringify(report,null,2)); if(!report.gate_passed) process.exitCode=1; }
+module.exports={runGoldenSuite};

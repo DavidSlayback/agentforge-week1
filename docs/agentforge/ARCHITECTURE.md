@@ -257,6 +257,15 @@ No first-release capability is intentionally unmapped to a use case.
 
 ## Stage 5 implementation slices
 
+### Checkpoint implementation status
+
+The current checkpoint slice implements the separate service, fixture adapter,
+deterministic provider, verifier, golden evaluator, and redacted local
+observability described below. Its root service UI is a synthetic demonstration
+surface. The OpenEMR-facing launcher and same-origin embedding remain explicit
+integration work: they must be added only after the service contract and scope
+checks pass, using a short-lived context rather than URL-based authorization.
+
 1. **Contracts and fixture adapter:** define strict request, evidence,
    coverage, briefing, and trace schemas; load only the synthetic corpus.
 2. **Deterministic reconciliation and verifier:** implement baseline selection,

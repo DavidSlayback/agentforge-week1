@@ -1,7 +1,7 @@
 # Vultr deployment
 
-This Compose file is suitable for the public Stage 2 demonstration only. It is
-not approved for real patient data.
+This Compose file is suitable for the public synthetic AgentForge checkpoint
+demonstration only. It is not approved for real patient data.
 
 ## Required secrets
 
@@ -15,8 +15,13 @@ OE_USER=admin
 OE_PASSWORD=<long-random-value>
 ```
 
-Do not commit this file. Start with `docker compose up -d` and verify the
-readiness health check before using the instance.
+Do not commit this file. Start with `docker compose up -d --build` and verify
+both OpenEMR readiness and `http://<host>:8787/ready` before using the instance.
+
+AgentForge is currently a separate service beside OpenEMR. The root service UI
+is the checkpoint launcher; it uses synthetic fixture context and must not be
+treated as an authorization mechanism. Same-origin proxying and a real
+OpenEMR session-bound launcher are final-deadline hardening work.
 
 ## Before any PHI
 

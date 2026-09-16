@@ -1,6 +1,6 @@
-# AgentForge Stage 5 planning handoff
+# AgentForge Stage 5 implementation handoff
 
-- Goal: Continue the AgentForge Clinical Co-Pilot work from the completed audit and Stage 4 user model; Stage 5 architecture planning is now documented and fixture-backed implementation can begin.
+- Goal: Continue the AgentForge Clinical Co-Pilot work from the completed audit and Stage 4 user model; Stage 5 implementation is active against `ARCHITECTURE.md`.
 - Scope and explicit exclusions: The current system is an OpenEMR substrate and demonstration deployment. No PHI, clinical write-back, or hosted LLM integration is authorized yet.
 - Last verified at: 2026-09-16, America/Chicago.
 - Current mechanism: Pinned OpenEMR and MariaDB Docker Compose services; AgentForge will remain read-only and clinician-reviewed unless a later decision explicitly changes that boundary.
@@ -12,6 +12,8 @@
   - Stage 5 architecture and integration plan in `docs/agentforge/ARCHITECTURE.md`, including observed OpenEMR seams, canonical contracts, safety invariants, and UC-1 through UC-5 traceability.
   - Visual architecture and request-lifecycle diagrams in `docs/agentforge/diagrams/`, plus the personal explainer PDF at `output/pdf/agentforge-personal-explainer.pdf`.
   - Synthetic fixture corpus in `docs/agentforge/fixtures/clinical-cases.json`.
+  - Early checkpoint boundary and interview-rationale requirement recorded in `PLANNING.md`.
+  - Separate Node service, fixture-backed briefing/follow-up flow, golden evaluator, and redacted observability implemented on the checkpoint branch.
   - Deployment hardening commit `e582cb9`: removed Composer credential literals from active development Compose files, made production credentials required, and denied dependency metadata and `.env` files in the Apache source configs.
 - Decisions and rationale:
   - The agent must not write to the EMR or silently alter chart text.
@@ -31,14 +33,15 @@
   - Configure a real domain, trusted TLS, and HTTP-to-HTTPS redirect before any PHI use.
   - Define identity/session binding, retrieval authorization, local trace storage, retention/deletion, incident response, and BAA/provider decisions before hosted PHI processing.
   - Build and test the Stage 5 agent against the synthetic fixtures before any live-data trial.
+  - Wire the service into an OpenEMR-facing launcher; the current root service UI is a standalone synthetic checkpoint surface.
+  - Build the container on the deployment host and verify the public AgentForge endpoint.
 - Blockers and owners: Credential revocation and infrastructure/provider compliance require David or the relevant account administrator. Stage 4 implementation can proceed locally with synthetic data.
 - Open work in priority order:
-  1. Review `docs/agentforge/USERS.md` against the Stage 4 hard gate and keep it as the source of truth.
-  2. Implement strict contracts and fixture-backed retrieval, reconciliation, evidence qualification, physician review, bounded retries, and local observability as described in `ARCHITECTURE.md`.
-  3. Add tests for authorization, missing/unverified claims, duplicates, stale fields, timeout/deadline behavior, patient switching, and retry accounting.
-  4. Add the OpenEMR custom-module shell only after fixture gates pass and the read-only binding is demonstrated.
-  5. Re-audit the new AgentForge layer and update the deployment only after the local gate passes.
-- Exact next action: Implement the fixture adapter, canonical contracts, and deterministic evaluator against `docs/agentforge/fixtures/clinical-cases.json`; do not connect live or deployed data.
+  1. Implement strict contracts and fixture-backed retrieval, reconciliation, evidence qualification, physician review, bounded retries, and local observability as described in `ARCHITECTURE.md`.
+  2. Add tests for authorization, missing/unverified claims, duplicates, stale fields, timeout/deadline behavior, patient switching, and retry accounting.
+  3. Add the OpenEMR custom-module shell only after fixture gates pass and the read-only binding is demonstrated.
+  4. Re-audit the new AgentForge layer and update the deployment only after the local gate passes.
+- Exact next action: Review and merge the checkpoint service/evaluation/observability slice, then add the minimal OpenEMR launcher before public deployment.
 - Refresh commands and links:
   - `git log -1 --oneline` and `git ls-remote origin refs/heads/main`
   - `docker compose -f docker/development-easy-light/docker-compose.yml ps`
