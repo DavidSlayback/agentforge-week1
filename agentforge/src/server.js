@@ -1,20 +1,30 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { FixtureAdapter } from './fixtureAdapter.js';
-import { DeterministicProvider } from './modelProvider.js';
+import { DeterministicProvider, OpenAICompatibleProvider } from './modelProvider.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { InMemoryTraceSink } from '../../observability/index.js';
 
-const service = new AgentForgeService({ adapter: new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath()), provider: new DeterministicProvider(), traceSink: new InMemoryTraceSink({ maxTraces: 100 }) });
+const provider = process.env.AGENTFORGE_MODEL_ENDPOINT ? new OpenAICompatibleProvider({ endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model' }) : new DeterministicProvider();
+const service = new AgentForgeService({ adapter: new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath()), provider, traceSink: new InMemoryTraceSink({ maxTraces: 100 }) });
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
+const tokenPayload = (token) => {
+  if (!token || !process.env.AGENTFORGE_DEMO_SECRET) return null;
+  const [encoded, signature] = token.split('.');
+  if (!encoded || !signature) return null;
+  const expected = crypto.createHmac('sha256', process.env.AGENTFORGE_DEMO_SECRET).update(encoded).digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  try { const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')); return payload.expires_at > Math.floor(Date.now() / 1000) ? payload : null; } catch { return null; }
+};
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok' });
     if (req.method === 'GET' && req.url === '/ready') return json(res, 200, { status: 'ready', dependencies: { retrieval: 'ready', model: 'ready', trace: 'ready' } });
-    if (req.method === 'GET' && req.url === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(`<!doctype html><title>AgentForge</title><main><h1>Prepare for visit</h1><p>Synthetic demonstration only. Use the API with an authorized fixture context.</p><form id="brief"><label>Patient <select name="patient_uuid"><option>fixture-patient-001</option><option>fixture-patient-002</option><option>fixture-patient-006</option></select></label><button>Prepare</button></form><pre id="out"></pre><script>brief.onsubmit=async(e)=>{e.preventDefault();const f=new FormData(e.target);const r=await fetch('/v1/briefings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({patient_uuid:f.get('patient_uuid'),case_id:f.get('patient_uuid')==='fixture-patient-001'?'complete_return_visit':f.get('patient_uuid')==='fixture-patient-006'?'partial_retrieval':'conflicting_latest_values',clinician_uuid:'fixture-physician-001',authorization:{status:'authorized',scope:'read-briefing'}})});out.textContent=JSON.stringify(await r.json(),null,2)};</script></main>`); }
-    let raw = ''; for await (const chunk of req) raw += chunk; const body = raw ? JSON.parse(raw) : {};
     if (req.method === 'GET' && req.url === '/v1/traces') return json(res, 200, service.traceSink?.list?.() || []);
-    if (req.method === 'POST' && req.url === '/v1/briefings') return json(res, 200, await service.prepare(body));
+    if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; const payload = tokenPayload(token); const patient = payload?.patient_uuid || ''; res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(`<!doctype html><title>AgentForge</title><main><h1>Prepare for visit</h1><p>Synthetic demonstration only. ${payload ? `Authorized patient context: ${patient}` : 'Use an authorized fixture context.'}</p><form id="brief"><input type="hidden" name="demo_token" value="${token}"><label>Patient <select name="patient_uuid" ${payload ? 'disabled' : ''}><option>${patient || 'fixture-patient-001'}</option><option>fixture-patient-002</option><option>fixture-patient-006</option></select></label><button>Prepare</button></form><pre id="out"></pre><script>const basePath=location.pathname.startsWith('/agentforge')?'/agentforge':'';brief.onsubmit=async(e)=>{e.preventDefault();const f=new FormData(e.target);const p=f.get('patient_uuid');const r=await fetch(basePath+'/v1/briefings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({patient_uuid:p,demo_token:f.get('demo_token'),case_id:p==='fixture-patient-001'?'complete_return_visit':p==='fixture-patient-006'?'partial_retrieval':'conflicting_latest_values',clinician_uuid:'fixture-physician-001',authorization:{status:'authorized',scope:'read-briefing'}})});out.textContent=JSON.stringify(await r.json(),null,2)};</script></main>`); }
+    let raw = ''; for await (const chunk of req) raw += chunk; const body = raw ? JSON.parse(raw) : {};
+    if (req.method === 'POST' && req.url === '/v1/briefings') { const token = tokenPayload(body.demo_token); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; return json(res, 200, await service.prepare(body)); }
     const match = req.url.match(/^\/v1\/conversations\/([^/]+)\/messages$/);
     if (req.method === 'POST' && match) return json(res, 200, await service.followUp(match[1], body));
     return json(res, 404, { error: 'not_found' });

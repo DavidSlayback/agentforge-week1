@@ -13,15 +13,18 @@ MYSQL_USER=openemr
 MYSQL_PASSWORD=<long-random-value>
 OE_USER=admin
 OE_PASSWORD=<long-random-value>
+AGENTFORGE_DEMO_SECRET=<long-random-value>
+AGENTFORGE_SERVICE_URL=http://<host>/agentforge
 ```
 
 Do not commit this file. Start with `docker compose up -d --build` and verify
 both OpenEMR readiness and `http://<host>:8787/ready` before using the instance.
 
-AgentForge is currently a separate service beside OpenEMR. The root service UI
-is the checkpoint launcher; it uses synthetic fixture context and must not be
-treated as an authorization mechanism. Same-origin proxying and a real
-OpenEMR session-bound launcher are final-deadline hardening work.
+AgentForge is currently a separate service beside OpenEMR. Caddy owns the
+public 80/443 entrypoints and routes `/agentforge` to the service while routing
+the root path to OpenEMR. The module launcher creates a five-minute signed
+synthetic context; it is not itself an authorization mechanism. The real
+OpenEMR session-bound adapter remains a final-deadline requirement before PHI.
 
 ## Before any PHI
 

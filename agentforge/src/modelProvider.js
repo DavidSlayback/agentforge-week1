@@ -10,7 +10,7 @@ export class DeterministicProvider {
 }
 
 export class OpenAICompatibleProvider {
-  constructor({ endpoint, apiKey, model }) { this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; }
+  constructor({ endpoint, apiKey, model }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async generate({ prompt }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');

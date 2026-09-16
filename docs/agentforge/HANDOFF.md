@@ -13,7 +13,7 @@
   - Visual architecture and request-lifecycle diagrams in `docs/agentforge/diagrams/`, plus the personal explainer PDF at `output/pdf/agentforge-personal-explainer.pdf`.
   - Synthetic fixture corpus in `docs/agentforge/fixtures/clinical-cases.json`.
   - Early checkpoint boundary and interview-rationale requirement recorded in `PLANNING.md`.
-  - Separate Node service, fixture-backed briefing/follow-up flow, golden evaluator, and redacted observability implemented on the checkpoint branch.
+  - Separate Node service, fixture-backed briefing/follow-up flow, golden evaluator, redacted observability, Caddy same-origin routing, and signed-context OpenEMR launcher implemented on the checkpoint branch.
   - Deployment hardening commit `e582cb9`: removed Composer credential literals from active development Compose files, made production credentials required, and denied dependency metadata and `.env` files in the Apache source configs.
 - Decisions and rationale:
   - The agent must not write to the EMR or silently alter chart text.
@@ -33,15 +33,17 @@
   - Configure a real domain, trusted TLS, and HTTP-to-HTTPS redirect before any PHI use.
   - Define identity/session binding, retrieval authorization, local trace storage, retention/deletion, incident response, and BAA/provider decisions before hosted PHI processing.
   - Build and test the Stage 5 agent against the synthetic fixtures before any live-data trial.
-  - Wire the service into an OpenEMR-facing launcher; the current root service UI is a standalone synthetic checkpoint surface.
-  - Build the container on the deployment host and verify the public AgentForge endpoint.
+  - Verify the OpenEMR module is activated in the deployed instance and exercise the signed launcher from an authenticated patient chart.
+  - Replace synthetic retrieval with the audited OpenEMR adapter before any PHI trial.
 - Blockers and owners: Credential revocation and infrastructure/provider compliance require David or the relevant account administrator. Stage 4 implementation can proceed locally with synthetic data.
 - Open work in priority order:
   1. Implement strict contracts and fixture-backed retrieval, reconciliation, evidence qualification, physician review, bounded retries, and local observability as described in `ARCHITECTURE.md`.
   2. Add tests for authorization, missing/unverified claims, duplicates, stale fields, timeout/deadline behavior, patient switching, and retry accounting.
   3. Add the OpenEMR custom-module shell only after fixture gates pass and the read-only binding is demonstrated.
   4. Re-audit the new AgentForge layer and update the deployment only after the local gate passes.
-- Exact next action: Review and merge the checkpoint service/evaluation/observability slice, then add the minimal OpenEMR launcher before public deployment.
+- Exact next action: fix/verify the deployed module filesystem permissions,
+  activate it in the authenticated OpenEMR UI, capture checkpoint evidence, and
+  keep live retrieval/PHI as final-deadline work.
 - Refresh commands and links:
   - `git log -1 --oneline` and `git ls-remote origin refs/heads/main`
   - `docker compose -f docker/development-easy-light/docker-compose.yml ps`

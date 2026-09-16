@@ -87,8 +87,10 @@ Q14 direction: the experience should be a compact paragraph or two with many use
   keep OpenEMR as the system of record and use synthetic data only.
 - Require fixture retrieval, deterministic evaluation mode, verification, and
   redacted local observability for the early checkpoint.
-- Defer same-origin proxying, live OpenEMR retrieval, PHI processing, trusted
-  TLS, load testing, cost modeling, and write-back. Each deferred item has a
-  migration path in `ARCHITECTURE.md`.
+- Include Caddy same-origin routing in the checkpoint deployment so the browser
+  does not depend on a separately exposed service port. Defer live OpenEMR
+  retrieval, PHI processing, trusted production TLS, load testing, cost
+  modeling, and write-back. Each deferred item has a migration path in
+  `ARCHITECTURE.md`.
 - Record every consequential decision with options, tradeoffs, evidence,
   limitations, and migration steps for interview preparation.

@@ -10,7 +10,7 @@ without coupling safety logic to PHP internals.
 
 ## Verified locally
 
-- Focused tests: 10 passed.
+- Focused tests: 11 passed.
 - Golden fixtures: 7/7 passed, 0 critical failures.
 - Service smoke test: `/health`, `/ready`, and a complete synthetic briefing
   request passed.
@@ -18,10 +18,10 @@ without coupling safety logic to PHP internals.
 
 ## Known checkpoint limitation
 
-The OpenEMR-facing launcher is not yet wired into the OpenEMR patient UI. The
-service root page is the current synthetic demonstration surface. The launcher,
-same-origin proxy, real OpenEMR retrieval, trusted TLS, and PHI controls remain
-explicit final-deadline integration work; they are not represented as complete.
+The launcher and same-origin proxy are now wired in the deployment bundle, but
+the deployed OpenEMR module still requires authenticated UI activation and
+manual exercise. Retrieval remains fixture-backed; trusted TLS, real OpenEMR
+retrieval, and PHI controls are not represented as complete.
 
 ## Interview talk track
 
@@ -33,5 +33,7 @@ explicit final-deadline integration work; they are not represented as complete.
   read-only behavior before returning a briefing.
 - Redacted local traces: preserve reconstruction value without making raw chart
   content the default observability payload.
-- Launcher deferred: proxying and session binding are higher-risk deployment
-  changes, so the service contract and scope checks are proven first.
+- Launcher status: Caddy routing and signed synthetic context are wired in the
+  deployment bundle. The remaining limitation is authenticated module
+  activation/exercise plus the migration to trusted TLS, real OpenEMR
+  retrieval, and PHI controls.

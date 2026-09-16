@@ -260,11 +260,12 @@ No first-release capability is intentionally unmapped to a use case.
 ### Checkpoint implementation status
 
 The current checkpoint slice implements the separate service, fixture adapter,
-deterministic provider, verifier, golden evaluator, and redacted local
-observability described below. Its root service UI is a synthetic demonstration
-surface. The OpenEMR-facing launcher and same-origin embedding remain explicit
-integration work: they must be added only after the service contract and scope
-checks pass, using a short-lived context rather than URL-based authorization.
+deterministic provider, verifier, golden evaluator, redacted local
+observability, Caddy same-origin routing, and a signed-context OpenEMR launcher.
+The service remains synthetic-only. The launcher uses a short-lived context and
+the service validates its signature; a URL patient ID is never treated as
+authorization. Real OpenEMR retrieval and PHI controls remain final-deadline
+gates.
 
 1. **Contracts and fixture adapter:** define strict request, evidence,
    coverage, briefing, and trace schemas; load only the synthetic corpus.
@@ -276,10 +277,10 @@ checks pass, using a short-lived context rather than URL-based authorization.
 4. **Fixture evaluator:** turn every expected disposition in
    `clinical-cases.json` into a pass/fail test, including authorization and
    patient-switch cases added to the harness.
-5. **OpenEMR adapter seam:** after fixture gates pass, add the custom module
-   shell and service-backed reads behind the same interface. Do not connect
-   live or deployed data until identity/session binding and read authorization
-   are demonstrated.
+5. **OpenEMR launcher seam:** the checkpoint includes the custom module shell,
+   Caddy route, and signed synthetic context handoff behind the same boundary.
+   The adapter remains fixture-backed; live OpenEMR reads require the final
+   identity/session and read-authorization gates.
 6. **Panel and follow-up UI:** render the verified result and source links;
    keep all chart mutations absent from the module surface.
 
