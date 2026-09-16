@@ -1,6 +1,6 @@
 # AgentForge Stage 4 handoff
 
-- Goal: Continue the AgentForge Clinical Co-Pilot work from the completed audit; Stage 4 is now documented and Stage 5 planning can begin.
+- Goal: Continue the AgentForge Clinical Co-Pilot work from the completed audit; Stage 5 implementation is active against `ARCHITECTURE.md`.
 - Scope and explicit exclusions: The current system is an OpenEMR substrate and demonstration deployment. No PHI, clinical write-back, or hosted LLM integration is authorized yet.
 - Last verified at: 2026-09-16, America/Chicago.
 - Current mechanism: Pinned OpenEMR and MariaDB Docker Compose services; AgentForge will remain read-only and clinician-reviewed unless a later decision explicitly changes that boundary.
@@ -11,6 +11,7 @@
   - Stage 4 target user and use cases in `docs/agentforge/USERS.md`, with explicit justification for the conversational-agent shape.
   - Synthetic fixture corpus in `docs/agentforge/fixtures/clinical-cases.json`.
   - Deployment hardening commit `e582cb9`: removed Composer credential literals from active development Compose files, made production credentials required, and denied dependency metadata and `.env` files in the Apache source configs.
+  - Stage 5 architecture and decision record in `docs/agentforge/ARCHITECTURE.md`, including UC-1 through UC-5 traceability and early/final migration boundaries.
 - Decisions and rationale:
   - The agent must not write to the EMR or silently alter chart text.
   - Evidence must be traceable with inline links and human-readable qualification when a claim cannot be verified.
@@ -37,7 +38,7 @@
   4. Implement fixture-backed retrieval, reconciliation, evidence qualification, physician review, bounded retries, and local observability.
   5. Add tests for authorization, missing/unverified claims, duplicates, stale fields, timeout/deadline behavior, and retry accounting.
   6. Re-audit the new AgentForge layer and update the deployment only after the local gate passes.
-- Exact next action: Start Stage 5 planning by deriving `ARCHITECTURE.md` from `AUDIT.md` and `USERS.md`, with a capability-to-use-case traceability table.
+- Exact next action: Implement the architecture/contracts slice, then dispatch disjoint TDD workstreams for core service, evaluations, observability, and deployment.
 - Refresh commands and links:
   - `git log -1 --oneline` and `git ls-remote origin refs/heads/main`
   - `docker compose -f docker/development-easy-light/docker-compose.yml ps`

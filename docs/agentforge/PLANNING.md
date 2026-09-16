@@ -1,6 +1,7 @@
 # Clinical Co-Pilot planning
 
-Status: interactive planning; implementation handoff not yet agreed.
+Status: Stage 5 implementation active; architecture and contracts are the
+source of truth for the early checkpoint slice.
 
 ## Confirmed with David
 
@@ -80,3 +81,17 @@ Q14 direction: the experience should be a compact paragraph or two with many use
 - Inherited GitHub Actions are disabled during setup. Review and enable scoped CI before implementation; disabled workflows are not CI validation.
 - OpenEMR has not been run, deployed, or fully audited in this fresh effort.
 - No final architecture or implementation handoff exists yet.
+
+## Early checkpoint implementation boundary
+
+- The early slice is a separate AgentForge service beside OpenEMR, launched
+  from a thin OpenEMR-facing entry point.
+- Fixture retrieval, deterministic evaluation mode, live-provider adapter,
+  verification, and redacted local observability are required now.
+- Same-origin proxying, real OpenEMR retrieval, PHI processing, trusted TLS,
+  load testing, cost modeling, and write-back are final-deadline or later
+  hardening work. Each has a migration path in `ARCHITECTURE.md`.
+- Work is organized as dependent PRs: architecture/contracts, core service,
+  evaluation, observability, deployment/launcher, and submission evidence.
+- Every consequential decision must have an interview-ready rationale tied to
+  the audit, use cases, evidence, tradeoff, and migration path.
