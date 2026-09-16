@@ -1,7 +1,4 @@
-# Use admin/pass as user/password credentials to login to openemr (from OE_USER and OE_PASS below)
-# MYSQL_HOST and MYSQL_ROOT_PASS are required for openemr
-# MYSQL_USER, MYSQL_PASS, OE_USER, OE_PASS are optional for openemr and
-#   if not provided, then default to openemr, openemr, admin, and pass respectively.
+# Supply all credentials through the environment; do not use repository defaults.
 services:
   mysql:
     restart: always
@@ -10,7 +7,7 @@ services:
     volumes:
     - databasevolume:/var/lib/mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
     healthcheck:
       test:
       - CMD
@@ -34,11 +31,11 @@ services:
     - sitevolume:/var/www/localhost/htdocs/openemr/sites
     environment:
       MYSQL_HOST: mysql
-      MYSQL_ROOT_PASS: root
-      MYSQL_USER: openemr
-      MYSQL_PASS: openemr
-      OE_USER: admin
-      OE_PASS: pass
+      MYSQL_ROOT_PASS: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASS: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      OE_USER: ${OE_USER:?OE_USER is required}
+      OE_PASS: ${OE_PASSWORD:?OE_PASSWORD is required}
     depends_on:
       mysql:
         condition: service_healthy
