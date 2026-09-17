@@ -257,6 +257,16 @@ No first-release capability is intentionally unmapped to a use case.
 
 ## Stage 5 implementation slices
 
+### Checkpoint implementation status
+
+The current checkpoint slice implements the separate service, fixture adapter,
+deterministic provider, verifier, golden evaluator, redacted local
+observability, Caddy same-origin routing, and a signed-context OpenEMR launcher.
+The service remains synthetic-only. The launcher uses a short-lived context and
+the service validates its signature; a URL patient ID is never treated as
+authorization. Real OpenEMR retrieval and PHI controls remain final-deadline
+gates.
+
 1. **Contracts and fixture adapter:** define strict request, evidence,
    coverage, briefing, and trace schemas; load only the synthetic corpus.
 2. **Deterministic reconciliation and verifier:** implement baseline selection,
@@ -267,10 +277,10 @@ No first-release capability is intentionally unmapped to a use case.
 4. **Fixture evaluator:** turn every expected disposition in
    `clinical-cases.json` into a pass/fail test, including authorization and
    patient-switch cases added to the harness.
-5. **OpenEMR adapter seam:** after fixture gates pass, add the custom module
-   shell and service-backed reads behind the same interface. Do not connect
-   live or deployed data until identity/session binding and read authorization
-   are demonstrated.
+5. **OpenEMR launcher seam:** the checkpoint includes the custom module shell,
+   Caddy route, and signed synthetic context handoff behind the same boundary.
+   The adapter remains fixture-backed; live OpenEMR reads require the final
+   identity/session and read-authorization gates.
 6. **Panel and follow-up UI:** render the verified result and source links;
    keep all chart mutations absent from the module surface.
 
@@ -282,6 +292,13 @@ write-capable code path. Stop before hosted-model integration until provider
 suitability, retention/deletion, access control, and BAA/compliance decisions
 are explicit. Stop before PHI until trusted TLS, secret rotation, backup /
 restore, incident response, and deployment review are complete.
+
+## Decision log
+
+The durable ADR-style rationale for the audit, grilling/planning sessions, and
+checkpoint implementation is maintained in `DECISIONS.md`. This document is
+the architecture source of truth; the decision log records why each boundary
+was selected and how it can migrate.
 
 ## Open decisions and measurements
 

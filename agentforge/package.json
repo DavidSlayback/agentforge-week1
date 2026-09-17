@@ -1,0 +1,6 @@
+{
+  "name": "agentforge-service",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test test/*.test.js", "start": "node src/server.js"}
+}

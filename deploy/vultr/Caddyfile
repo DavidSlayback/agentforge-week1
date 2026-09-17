@@ -1,0 +1,18 @@
+:80 {
+    handle_path /agentforge* {
+        reverse_proxy agentforge:8787
+    }
+    handle {
+        reverse_proxy openemr:80
+    }
+}
+
+:443 {
+    tls internal
+    handle_path /agentforge* {
+        reverse_proxy agentforge:8787
+    }
+    handle {
+        reverse_proxy openemr:80
+    }
+}

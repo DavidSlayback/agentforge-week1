@@ -1,0 +1,2 @@
+const test=require('node:test'); const assert=require('node:assert/strict'); const path=require('node:path'); const {analyze}=require('../lib/error-analysis');
+test('error analysis detects every injected critical defect',()=>{const result=analyze(path.resolve(__dirname,'../../docs/agentforge/fixtures/clinical-cases.json'));assert.equal(result.total_mutations,6);assert.equal(result.detected_mutations,6);assert.equal(result.missed_mutations,0);assert.equal(result.detection_rate,1);assert.equal(result.gate_passed,true);});

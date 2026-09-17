@@ -1,0 +1,1 @@
+{"name":"agentforge-evals","private":true,"scripts":{"test":"node --test test/*.test.js","run":"node lib/runner.js","run:reference":"node lib/runner.js","run:service":"node lib/runner.js --service http://127.0.0.1:8787","run:error-analysis":"node lib/error-analysis.js"},"type":"commonjs"}
