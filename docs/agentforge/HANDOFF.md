@@ -2,7 +2,7 @@
 
 - Goal: Continue the AgentForge Clinical Co-Pilot work from the completed audit and Stage 4 user model; Stage 5 implementation is active against `ARCHITECTURE.md`.
 - Scope and explicit exclusions: The current system is an OpenEMR substrate and demonstration deployment. No PHI, clinical write-back, or hosted LLM integration is authorized yet.
-- Last verified at: 2026-09-16, America/Chicago.
+- Last verified at: 2026-09-17, America/Chicago.
 - Current mechanism: Pinned OpenEMR and MariaDB Docker Compose services; AgentForge will remain read-only and clinician-reviewed unless a later decision explicitly changes that boundary.
 - Completed:
   - Stage 1 local OpenEMR setup and setup documentation.
@@ -36,7 +36,7 @@
   - Configure a real domain, trusted TLS, and HTTP-to-HTTPS redirect before any PHI use.
   - Define identity/session binding, retrieval authorization, local trace storage, retention/deletion, incident response, and BAA/provider decisions before hosted PHI processing.
   - Build and test the Stage 5 agent against the synthetic fixtures before any live-data trial.
-  - Verify the OpenEMR module is activated in the deployed instance and exercise the signed launcher from an authenticated patient chart.
+  - Replace the synthetic launcher mapping with the audited OpenEMR adapter and repeat the authenticated patient-isolation exercise.
   - Replace synthetic retrieval with the audited OpenEMR adapter before any PHI trial.
 - Blockers and owners: Credential revocation and infrastructure/provider compliance require David or the relevant account administrator. Stage 4 implementation can proceed locally with synthetic data.
 - Open work in priority order:
@@ -44,9 +44,9 @@
   2. Add tests for authorization, missing/unverified claims, duplicates, stale fields, timeout/deadline behavior, patient switching, and retry accounting.
   3. Add the OpenEMR custom-module shell only after fixture gates pass and the read-only binding is demonstrated.
   4. Re-audit the new AgentForge layer and update the deployment only after the local gate passes.
-- Exact next action: fix/verify the deployed module filesystem permissions,
-  activate it in the authenticated OpenEMR UI, capture checkpoint evidence, and
-  keep live retrieval/PHI as final-deadline work.
+- Exact next action: capture final checkpoint evidence (including the deployed
+  eval result, observability view, and one failure boundary), then keep live
+  retrieval/PHI, trusted TLS, and persistent telemetry as final-deadline work.
 - Refresh commands and links:
   - `git log -1 --oneline` and `git ls-remote origin refs/heads/main`
   - `docker compose -f docker/development-easy-light/docker-compose.yml ps`

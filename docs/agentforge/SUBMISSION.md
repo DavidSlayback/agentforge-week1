@@ -10,22 +10,28 @@ without coupling safety logic to PHP internals.
 
 ## Verified locally
 
-- Focused tests: 19 passed.
+- Focused tests: 20 passed.
 - Golden fixtures: 7/7 passed, 0 critical failures in both reference and
   actual-service modes; deployed-service result is captured in
   `evals/deployed-service-results.json`.
-- Service smoke test: `/health`, `/ready`, and a complete synthetic briefing
-  request passed.
+- Service smoke test: `/health`, dependency-aware `/ready`, and a complete
+  synthetic briefing request passed.
+- Hosted smoke test: the authenticated OpenEMR chart for synthetic `Test
+  Patient One` launched the active module, handed off a five-minute signed
+  context, and returned a qualified briefing for `fixture-patient-002`.
+- Error analysis: six injected critical defects detected, 6/6 (100%).
 - `git diff --check` passed.
 - `/observability` dashboard and `/v1/metrics` expose actual-run timing,
   retrieval attempts, verification/display outcomes, and redacted traces.
 
 ## Known checkpoint limitation
 
-The launcher and same-origin proxy are now wired in the deployment bundle, but
-the deployed OpenEMR module still requires authenticated UI activation and
-manual exercise. Retrieval remains fixture-backed; trusted TLS, real OpenEMR
-retrieval, and PHI controls are not represented as complete.
+The deployed OpenEMR module is active and has been exercised from an
+authenticated synthetic patient chart through the signed launcher to a
+qualified AgentForge briefing. Retrieval remains fixture-backed; trusted TLS,
+real OpenEMR retrieval, and PHI controls are not represented as complete.
+The launcher-to-fixture mapping is a named demo seam, not a production
+authorization implementation.
 
 ## Interview talk track
 
@@ -38,6 +44,6 @@ retrieval, and PHI controls are not represented as complete.
 - Redacted local traces: preserve reconstruction value without making raw chart
   content the default observability payload.
 - Launcher status: Caddy routing and signed synthetic context are wired in the
-  deployment bundle. The remaining limitation is authenticated module
-  activation/exercise plus the migration to trusted TLS, real OpenEMR
-  retrieval, and PHI controls.
+  deployment bundle. The migration target is trusted TLS, real OpenEMR
+  retrieval, and PHI controls; the checkpoint deliberately stops before those
+  production commitments.

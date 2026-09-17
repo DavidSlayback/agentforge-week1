@@ -122,3 +122,23 @@ migration path.
   OpenEMR performance.
 - **Migration:** Add cases by contract and add deployed load/economic suites at
   the final deadline without weakening the critical gate.
+
+## ADR-009: Match the deployed OpenEMR module seam explicitly
+
+- **Choice:** Keep the launcher dependent only on the module-loader-injected
+  event dispatcher and the deployed release's `SessionWrapperFactory` API;
+  generate the short-lived handoff token server-side from the authenticated
+  session, using the service's base64url HMAC contract.
+- **Alternatives:** Depend on newer OpenEMR kernel helpers; accept a patient ID
+  in the browser URL; or let the browser construct the authorization token.
+- **Tradeoff:** The module contains a small compatibility seam and the demo
+  remains synthetic, but the deployed integration is testable without making
+  URL context an authorization decision.
+- **Evidence:** The hosted OpenEMR release exposes the dispatcher in bootstrap
+  scope and provides `getWrapper()`, not the newer helper methods assumed by an
+  initial implementation. The live launcher now produced a signed context and
+  a qualified briefing for the synthetic patient.
+- **Limitation:** The PID-to-fixture mapping is explicitly demo-only and does
+  not prove OpenEMR retrieval or production authorization parity.
+- **Migration:** Replace the fixture mapping with an audited server-side
+  patient adapter and add release-compatibility tests before any PHI trial.

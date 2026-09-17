@@ -3,9 +3,8 @@
 require_once dirname(__FILE__, 5) . '/globals.php';
 
 use OpenEMR\Common\Session\SessionWrapperFactory;
-use OpenEMR\Core\OEGlobalsBag;
 
-$session = SessionWrapperFactory::getInstance()->getActiveSession();
+$session = SessionWrapperFactory::getInstance()->getWrapper();
 $pid = (string)($session->get('pid') ?? '');
 $user = (string)($session->get('authUserID') ?? '');
 $secret = (string)(getenv('AGENTFORGE_DEMO_SECRET') ?: '');
@@ -27,7 +26,7 @@ $payload = json_encode([
     'expires_at' => time() + 300,
 ], JSON_UNESCAPED_SLASHES);
 $encoded = rtrim(strtr(base64_encode($payload ?: '{}'), '+/', '-_'), '=');
-$signature = hash_hmac('sha256', $encoded, $secret);
+$signature = rtrim(strtr(base64_encode(hash_hmac('sha256', $encoded, $secret, true)), '+/', '-_'), '=');
 $token = $encoded . '.' . $signature;
 $url = $serviceUrl . '/?demo_token=' . rawurlencode($token);
 ?>
