@@ -13,3 +13,9 @@ withheld fields, then add an oracle only when the behavior is safety-critical.
 The critical gate currently covers patient mixing, unauthorized briefing,
 unsupported claims, discrepancy resolution, unqualified partial results, and
 write-capable behavior. Unit tests exercise each critical oracle failure path.
+
+Run `node evals/lib/error-analysis.js` to inject one defect for each critical
+failure class and verify that the independent oracle detects it. The resulting
+report separates baseline pass rate from mutation detection rate; it is error
+analysis of the evaluation harness, not a claim that production behavior is
+error-free.

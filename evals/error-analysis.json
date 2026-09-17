@@ -1,0 +1,17 @@
+{
+  "schema_version": "0.1",
+  "baseline": {"cases": 7, "reference_gate": "passed"},
+  "mutations": [
+    {"mutation": "patient_mixing", "expected_code": "PATIENT_MIXING", "detected": true, "observed_codes": ["PATIENT_MIXING"]},
+    {"mutation": "unauthorized_briefing", "expected_code": "UNAUTHORIZED_BRIEFING", "detected": true, "observed_codes": ["UNAUTHORIZED_BRIEFING"]},
+    {"mutation": "unsupported_claim", "expected_code": "UNSUPPORTED_CLAIM", "detected": true, "observed_codes": ["UNSUPPORTED_CLAIM"]},
+    {"mutation": "incorrect_discrepancy_resolution", "expected_code": "INCORRECT_DISCREPANCY_RESOLUTION", "detected": true, "observed_codes": ["INCORRECT_DISCREPANCY_RESOLUTION"]},
+    {"mutation": "unqualified_partial_result", "expected_code": "UNQUALIFIED_PARTIAL_RESULT", "detected": true, "observed_codes": ["UNQUALIFIED_PARTIAL_RESULT"]},
+    {"mutation": "write_capable_behavior", "expected_code": "WRITE_CAPABLE_BEHAVIOR", "detected": true, "observed_codes": ["WRITE_CAPABLE_BEHAVIOR"]}
+  ],
+  "total_mutations": 6,
+  "detected_mutations": 6,
+  "missed_mutations": 0,
+  "detection_rate": 1,
+  "gate_passed": true
+}
