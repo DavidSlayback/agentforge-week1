@@ -293,6 +293,13 @@ suitability, retention/deletion, access control, and BAA/compliance decisions
 are explicit. Stop before PHI until trusted TLS, secret rotation, backup /
 restore, incident response, and deployment review are complete.
 
+## Decision log
+
+The durable ADR-style rationale for the audit, grilling/planning sessions, and
+checkpoint implementation is maintained in `DECISIONS.md`. This document is
+the architecture source of truth; the decision log records why each boundary
+was selected and how it can migrate.
+
 ## Open decisions and measurements
 
 - Exact OpenEMR module endpoint and menu event wiring.

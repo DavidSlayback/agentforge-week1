@@ -14,6 +14,9 @@
   - Synthetic fixture corpus in `docs/agentforge/fixtures/clinical-cases.json`.
   - Early checkpoint boundary and interview-rationale requirement recorded in `PLANNING.md`.
   - Separate Node service, fixture-backed briefing/follow-up flow, golden evaluator, redacted observability, Caddy same-origin routing, and signed-context OpenEMR launcher implemented on the checkpoint branch.
+  - Reference and actual-service evaluation modes, critical-oracle tests,
+    dependency-aware readiness, metrics endpoint, minimal observability view,
+    and the running ADR-style decision log are now implemented.
   - Deployment hardening commit `e582cb9`: removed Composer credential literals from active development Compose files, made production credentials required, and denied dependency metadata and `.env` files in the Apache source configs.
 - Decisions and rationale:
   - The agent must not write to the EMR or silently alter chart text.

@@ -94,3 +94,6 @@ Q14 direction: the experience should be a compact paragraph or two with many use
   `ARCHITECTURE.md`.
 - Record every consequential decision with options, tradeoffs, evidence,
   limitations, and migration steps for interview preparation.
+- Maintain the running ADR-style record in `DECISIONS.md`; update it when a
+  planning decision becomes an implementation decision or a checkpoint
+  limitation changes.

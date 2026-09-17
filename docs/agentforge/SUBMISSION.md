@@ -10,11 +10,15 @@ without coupling safety logic to PHP internals.
 
 ## Verified locally
 
-- Focused tests: 11 passed.
-- Golden fixtures: 7/7 passed, 0 critical failures.
+- Focused tests: 19 passed.
+- Golden fixtures: 7/7 passed, 0 critical failures in both reference and
+  actual-service modes; deployed-service result is captured in
+  `evals/deployed-service-results.json`.
 - Service smoke test: `/health`, `/ready`, and a complete synthetic briefing
   request passed.
 - `git diff --check` passed.
+- `/observability` dashboard and `/v1/metrics` expose actual-run timing,
+  retrieval attempts, verification/display outcomes, and redacted traces.
 
 ## Known checkpoint limitation
 

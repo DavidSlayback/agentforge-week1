@@ -1,0 +1,124 @@
+# AgentForge decision log
+
+This is the running interview and implementation decision record. It captures
+decisions from the audit, grilling/planning sessions, and checkpoint work. Each
+entry states the choice, alternatives, tradeoff, evidence, limitation, and
+migration path.
+
+## ADR-001: Separate service boundary
+
+- **Choice:** Keep AgentForge as a separate service beside OpenEMR, with a thin
+  custom-module launcher.
+- **Alternatives:** Native PHP module containing orchestration; direct model
+  calls from OpenEMR routes.
+- **Tradeoff:** Adds deployment and network seams, but isolates verification,
+  provider replacement, and retrieval adapters from the OpenEMR monolith.
+- **Evidence:** The audit found mixed read/write OpenEMR routes and differing
+  identifier shapes; the architecture requires an allowlisted normalized
+  adapter.
+- **Limitation:** The checkpoint adapter is fixture-backed, not a live chart
+  adapter.
+- **Migration:** Implement an authenticated OpenEMR adapter behind the same
+  retrieval contract after session binding and PHI controls are reviewed.
+
+## ADR-002: Launcher plus same-origin routing
+
+- **Choice:** Use a module launcher for patient context and Caddy path routing
+  under `/agentforge`; do not expose the AgentForge port as the browser seam.
+- **Alternatives:** Direct cross-origin browser calls to port 8787; a native
+  same-origin PHP proxy.
+- **Tradeoff:** Caddy adds one deployment component, while the launcher keeps
+  OpenEMR-specific context handling small and replaceable.
+- **Evidence:** Direct public service exposure was unreliable; the Caddy route
+  made health, readiness, and briefing requests reachable through one origin.
+- **Limitation:** The hosted endpoint currently uses an IP and internal/self-
+  signed TLS rather than trusted production TLS.
+- **Migration:** Move to a real domain, trusted certificates, redirect HTTP to
+  HTTPS, and bind the launcher to the authenticated session server-side.
+
+## ADR-003: Deterministic provider before live model
+
+- **Choice:** Make the deterministic provider the default and keep an
+  OpenAI-compatible provider behind the same interface.
+- **Alternatives:** Start with a hosted model; test only mocked model calls.
+- **Tradeoff:** Less generative realism now, but reproducible safety evaluation
+  and zero provider/PHI exposure during the checkpoint.
+- **Evidence:** The product boundary is read-only and clinician-reviewed;
+  provider retention, BAA, and PHI decisions are not complete.
+- **Limitation:** Model quality and hosted-provider latency are not evaluated.
+- **Migration:** Add a provider-specific evaluation lane and compliance review
+  before sending any patient data to a hosted model.
+
+## ADR-004: Fixture adapter before OpenEMR adapter
+
+- **Choice:** Prove the domain contract, verifier, evals, and traces against
+  seven synthetic cases before connecting live records.
+- **Alternatives:** Build the OpenEMR API integration first; use ad hoc demo
+  records without a corpus.
+- **Tradeoff:** Delays live integration, but makes missing, conflicting, stale,
+  untrusted-note, duplicate, and partial-retrieval behavior reproducible.
+- **Evidence:** The audit identified source quality, identifier, and coverage
+  risks before implementation.
+- **Limitation:** Fixture success does not establish OpenEMR retrieval parity.
+- **Migration:** Add contract-parity tests comparing fixture and OpenEMR adapter
+  outputs without changing the verifier or model interface.
+
+## ADR-005: Read-only clinical boundary
+
+- **Choice:** AgentForge may retrieve and summarize evidence but cannot write
+  notes, diagnoses, medications, orders, appointments, or messages.
+- **Alternatives:** Allow write-back for a more complete demo; expose general
+  OpenEMR tools and rely on prompting.
+- **Tradeoff:** Smaller visible product surface, substantially smaller clinical
+  and authorization risk.
+- **Evidence:** The agreed workflow is physician preparation; the physician
+  remains the decision-maker.
+- **Limitation:** Follow-through is surfaced, not executed.
+- **Migration:** Treat write capability as a separate governed product with new
+  authorization, confirmation, audit, and evaluation requirements.
+
+## ADR-006: Verification before display
+
+- **Choice:** Verify patient scope, evidence grounding, coverage qualification,
+  and read-only operations before returning a displayable briefing.
+- **Alternatives:** Display model output with warnings; verify only selected
+  high-risk claims.
+- **Tradeoff:** Some useful output is withheld or qualified, but unsupported or
+  cross-patient content cannot silently reach the clinician panel.
+- **Evidence:** Patient mixing, discrepancy resolution, and partial retrieval
+  are explicit critical failure modes in the evaluation gate.
+- **Limitation:** The current verifier is intentionally narrow and deterministic.
+- **Migration:** Extend the contract and independent oracles as new use cases
+  are accepted; never bypass the display gate for a new provider.
+
+## ADR-007: Local redacted observability
+
+- **Choice:** Record bounded, redacted traces locally, with stage timing,
+  retrieval attempts, retries, model usage, verification, display outcome, and
+  aggregate metrics.
+- **Alternatives:** Raw application logs; hosted telemetry from day one; no
+  observability until production.
+- **Tradeoff:** Limited retention and dashboard sophistication, but lower data
+  exposure while still supporting reconstruction and failure analysis.
+- **Evidence:** The requirement calls for correlation IDs and actual-run
+  ordering/timing while PHI handling remains out of scope.
+- **Limitation:** The checkpoint store is in-memory and the dashboard is
+  intentionally minimal; restart loses traces.
+- **Migration:** Add a reviewed local persistent sink, retention/deletion rules,
+  alerts, and only then consider external telemetry.
+
+## ADR-008: Independent service-backed eval lane
+
+- **Choice:** Keep reference-fixture evaluation for oracle regression and add a
+  second mode that sends every case through the running service before applying
+  the same independent oracles.
+- **Alternatives:** Test only internal functions; evaluate only hand-authored
+  reference responses; use provider-specific qualitative review.
+- **Tradeoff:** Slightly more runtime and process orchestration, but it detects
+  wiring, serialization, routing, and service behavior regressions.
+- **Evidence:** The checkpoint requirement is an executable evaluation
+  framework, and the live service is the delivered artifact.
+- **Limitation:** Seven synthetic cases do not establish load, provider, or live
+  OpenEMR performance.
+- **Migration:** Add cases by contract and add deployed load/economic suites at
+  the final deadline without weakening the critical gate.
