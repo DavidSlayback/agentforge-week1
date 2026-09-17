@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
 import { AgentForgeService } from '../src/service.js';
 import { InMemoryTraceSink } from '../../observability/index.js';
 
-const adapter = new FixtureAdapter(path.resolve(process.cwd(), 'docs/agentforge/fixtures/clinical-cases.json'));
+const adapter = new FixtureAdapter(fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url)));
 const make = () => new AgentForgeService({ adapter, provider: new DeterministicProvider() });
 const request = (patient_uuid, extra = {}) => ({ patient_uuid, clinician_uuid: 'fixture-physician-001', authorization: { status: 'authorized', scope: 'read-briefing' }, correlation_id: 'test-correlation', ...extra });
 

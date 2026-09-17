@@ -8,9 +8,16 @@ evaluation runner, and redacted local traces. The service is deliberately
 separate from OpenEMR so the provider and retrieval seams can be replaced
 without coupling safety logic to PHP internals.
 
+Live deployment: `http://64.177.10.182/agentforge/`
+
+The local demo capture is a three-minute browser-only recording. It is silent
+so narration can be added during final editing.
+
 ## Verified locally
 
-- Focused tests: 20 passed.
+- AgentForge tests: 5 passed with `npm --prefix agentforge test`.
+- Evaluation tests: 10 passed with `npm --prefix evals test`.
+- Focused test total: 15 passed.
 - Golden fixtures: 7/7 passed, 0 critical failures in both reference and
   actual-service modes; deployed-service result is captured in
   `evals/deployed-service-results.json`.
@@ -23,6 +30,10 @@ without coupling safety logic to PHP internals.
 - `git diff --check` passed.
 - `/observability` dashboard and `/v1/metrics` expose actual-run timing,
   retrieval attempts, verification/display outcomes, and redacted traces.
+
+The package test commands resolve fixtures relative to the repository rather
+than the caller's working directory, so the documented commands are
+reproducible from a clean checkout.
 
 ## Known checkpoint limitation
 

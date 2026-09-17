@@ -1,5 +1,5 @@
-import path from 'node:path';
 import { correlationId, blockedResult, MAX_RETRIES } from './contracts.js';
+import { fileURLToPath } from 'node:url';
 
 function evidence(record, patientRef) {
   return { patient_ref: patientRef, source_ref: record.source_ref, record_type: record.field.split('.')[0], recorded_at: record.recorded_at, author: record.author, excerpt: typeof record.value === 'string' ? record.value.slice(0, 300) : JSON.stringify(record.value) };
@@ -50,4 +50,4 @@ export class AgentForgeService {
   }
 }
 
-export function defaultFixturePath() { return path.resolve(process.cwd(), 'docs/agentforge/fixtures/clinical-cases.json'); }
+export function defaultFixturePath() { return fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url)); }
