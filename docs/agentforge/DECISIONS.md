@@ -142,3 +142,39 @@ migration path.
   not prove OpenEMR retrieval or production authorization parity.
 - **Migration:** Replace the fixture mapping with an audited server-side
   patient adapter and add release-compatibility tests before any PHI trial.
+
+## ADR-010: Synthetic forever, production-grade controls
+
+- **Choice:** Keep AgentForge permanently synthetic, fixture-backed, and
+  read-only. Do not ingest real PHI or connect to a live clinical record
+  system. Build the same trust-boundary, failure-isolation, recovery,
+  retention, redaction, and operational controls expected of a real platform,
+  but exercise them against synthetic data and simulated external seams.
+- **Alternatives:** Introduce real PHI for realism; or keep the deployment as a
+  lightweight demo without production-like resilience.
+- **Tradeoff:** The product cannot claim clinical or HIPAA validation, but the
+  safety and resilience behaviors remain reproducible without exposing people
+  or records.
+- **Evidence:** Owner decision recorded 2026-09-18 after the AF-07 gate.
+- **Limitation:** Synthetic controls do not prove live OpenEMR authorization,
+  vendor compliance, or clinical safety.
+- **Migration:** Implement simulated session/patient binding, durable redacted
+  telemetry, retention/deletion, backup/restore, rollback, incident response,
+  credential rotation, and failure drills before expanding the demo surface.
+
+## ADR-011: Defer live provider selection
+
+- **Choice:** Keep the deterministic provider as the default and defer a live
+  agent/provider until the resilience and evaluation lanes are ready. A low-
+  cost approved vendor path, potentially through OpenRouter, remains a future
+  adapter decision rather than current authorization.
+- **Alternatives:** Add a hosted provider now for conversational realism; or
+  omit the provider seam entirely.
+- **Tradeoff:** Less realism in the current checkpoint, but no premature
+  retention, data-processing, cost, or provider-failure commitment.
+- **Evidence:** Owner decision recorded 2026-09-18; the approved vendor list is
+  available for the later provider lane.
+- **Limitation:** Provider quality, latency, and cost remain unmeasured.
+- **Migration:** Add a provider-specific evaluation and failure-policy lane
+  using synthetic inputs only, then choose a vendor and configuration under a
+  separate HITL review.

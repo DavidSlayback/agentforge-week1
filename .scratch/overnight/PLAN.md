@@ -2,7 +2,7 @@
 
 ## Scope
 
-This queue covers the complete AgentForge brief in `docs/agentforge/REQUIREMENTS.md`, the current architecture/audit/decision records, the deployed checkpoint, and the early evaluator feedback. It is intentionally larger than the immediate MVP recovery: the path continues through governed OpenEMR integration, provider review, operational maturity, deployed scale/cost evidence, final submission, interview defense, and explicitly approved external communication.
+This queue covers the complete AgentForge brief in `docs/agentforge/REQUIREMENTS.md`, the current architecture/audit/decision records, the deployed checkpoint, and the early evaluator feedback. It is intentionally larger than the immediate MVP recovery: the path continues through a production-like synthetic OpenEMR seam, deferred provider review, operational maturity, deployed scale/cost evidence, final submission, interview defense, and explicitly approved external communication.
 
 The GitLab parent is [#1](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/1). Child issues are #2–#16. This queue mirrors those issue boundaries.
 
@@ -10,7 +10,7 @@ The GitLab parent is [#1](https://labs.gauntletai.com/gauntletai/gauntlet/agentf
 
 - Current proof is synthetic/demo-only and fixture-backed.
 - The downloaded file named `Week 1 System Design Assignment.pdf` is an unrelated affiliate-link assignment. The AgentForge source PDF is not present in the workspace; `docs/agentforge/REQUIREMENTS.md` is the available requirements inventory supplied from that brief and is treated as the governing checklist.
-- No ticket authorizes PHI, clinical write-back, a HIPAA/compliance claim, a hosted model, or external publication without the explicit HITL gate that owns it.
+- No ticket authorizes PHI, clinical write-back, a HIPAA/compliance claim, or external publication. A hosted model remains deferred and requires the explicit provider HITL gate; all test data stays synthetic.
 
 ## Current state
 
@@ -18,14 +18,14 @@ Already strong: audit, architecture, ADRs, narrow workflow, deterministic provid
 
 Checkpoint gaps: trusted public URL/TLS, browser-visible multi-turn interaction, visible qualification/authorization states, evaluator discoverability, and externally exercised health/readiness/observability/eval gates.
 
-Future brief gaps: governed OpenEMR read path, provider/data-processing decision, durable observability/alerts/recovery, deployed load and cost evidence, production-ready release package, interview defense, and owner-approved social/external communication.
+Future brief gaps: production-like simulated OpenEMR identity/retrieval seam, deferred provider/data-processing decision, durable observability/alerts/recovery, deployed load and cost evidence, production-ready synthetic release package, interview defense, and owner-approved social/external communication.
 
 ## Execution strategy
 
 1. Resolve the full requirements/evidence baseline.
 2. Recover the public, conversational, safety-visible checkpoint in parallel lanes where the graph allows.
 3. Run the external early gate.
-4. Only then widen the trust boundary under explicit privacy/provider/OpenEMR decisions.
+4. Only then widen the simulated trust boundary under explicit provenance/provider/operations decisions; do not introduce PHI.
 5. Measure the governed system, assemble final evidence, rehearse the interview, and stop before external publication unless separately approved.
 
 ## Human boundaries
@@ -39,7 +39,7 @@ Migration mode preserved all 15 stable IDs, GitLab references, acceptance criter
 - **Unchanged tickets:** AF-01 through AF-15 as scopes and acceptance contracts; no renumbering or replacement.
 - **Modified tickets:** all AF-01–AF-15 ticket files, limited to migration metadata, verifier profiles, command/evidence requirements, and conflict/integration notes.
 - **Newly split tickets:** none.
-- **New HITL decisions:** source-of-truth confirmation for the unavailable AgentForge source PDF versus `REQUIREMENTS.md`; canonical hostname/trusted TLS; production privacy/PHI/provider/BAA boundary; authenticated OpenEMR environment; durable operations and scale-budget evidence; final release/interview/publication approval. Existing production tickets already carried most of these boundaries; migration makes them explicit.
+- **New HITL decisions:** source-of-truth confirmation for the unavailable AgentForge source PDF versus `REQUIREMENTS.md`; canonical hostname/trusted TLS; synthetic-only production boundary; deferred provider/BAA decision; simulated authenticated OpenEMR seam; durable operations and scale-budget evidence; final release/interview/publication approval. Existing production tickets already carried most of these boundaries; migration makes them explicit.
 - **AFK classification audit:** AF-03, AF-04, AF-05, and AF-06 remain AFK because each has a repository-owned deterministic test path and the external browser gate remains separately HITL. If implementation cannot supply the named black-box tests, downgrade that ticket to HITL before dispatch.
 - **Parallel lanes:** Wave 1 deployment, product UI, and contracts; Wave 2 safety UI and evaluator work may be developed separately but integrate serially because of shared UI surfaces. Later waves are intentionally serial HITL gates.
 - **Critical path:** AF-01 → AF-03 → AF-04 → AF-07 → AF-08 → AF-09 → AF-10 → AF-11 → AF-12 → AF-13 → AF-14 → AF-15, with AF-02 → AF-06 → AF-07 and AF-05 → AF-06 as parallel checkpoint branches.
@@ -77,6 +77,6 @@ David approved the migrated queue for local-only execution. AF-01 is recorded as
 | Correlation IDs, observability, dashboard, queue depth, alerts | AF-06, AF-10, AF-11 |
 | Health/readiness separation | AF-02, AF-06 |
 | Deployed load, infrastructure baselines, cost projections | AF-12 |
-| Authenticated OpenEMR and production trust boundary | AF-08, AF-09 |
+| Simulated authenticated OpenEMR and production-like trust boundary | AF-08, AF-09 |
 | Provider/data-processing/model failure policy | AF-08, AF-10 |
 | Early, final, interview, and social submission path | AF-07, AF-13, AF-14, AF-15 |
