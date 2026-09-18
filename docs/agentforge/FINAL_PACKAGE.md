@@ -26,7 +26,7 @@
 | Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
 | Final readback | READY FOR OWNER REVIEW | Billing, clean-profile sign-off, and final owner approval remain. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
-| Interview | DRAFT READY | Timed rehearsal against final evidence. |
+| Interview | READY FOR OWNER REVIEW | Timed rehearsal against final evidence. |
 | External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |
 
 ## Final release stop conditions

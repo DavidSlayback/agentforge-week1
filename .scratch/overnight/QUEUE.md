@@ -18,8 +18,8 @@ Parent: GitLab #1. Child issues are published and linked below.
 | AF-10 | [#11](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/11) | HITL | IMPLEMENTED-READY | AF-08, AF-09 | 6 | Yes | Owner provider/failure verifier |
 | AF-11 | [#12](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/12) | HITL | IMPLEMENTED-SYNTHETIC | AF-08, AF-09, AF-10 | 7 | Yes | Owner operations verifier |
 | AF-12 | [#13](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/13) | HITL | MEASURED-LOCAL | AF-09, AF-10, AF-11 | 8 | Yes | Owner load/cost verifier |
-| AF-13 | [#14](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/14) | HITL | READY-PENDING-EXTERNAL | AF-09, AF-10, AF-11, AF-12 | 9 | Yes | Owner clean-profile release verifier |
-| AF-14 | [#15](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/15) | HITL | DRAFT-READY | AF-19 | 10 | Yes | Owner interview rehearsal |
+| AF-13 | [#14](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/14) | HITL | READY-FOR-OWNER-REVIEW | AF-09, AF-10, AF-11, AF-12 | 9 | Yes | Owner clean-profile release verifier |
+| AF-14 | [#15](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/15) | HITL | READY-FOR-OWNER-REVIEW | AF-13 | 10 | Yes | Owner interview rehearsal |
 | AF-15 | [#16](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/16) | HITL | LOCAL-DRAFT-NO-PUBLISH | AF-19, AF-14 | 11 | Yes* | Owner communication decision |
 | AF-16 | local follow-on | HITL | READY-DOC-CLOSURE | AF-13 | 12 | Yes | Owner contract/claims verifier |
 | AF-17 | local follow-on | HITL | READY-DEPLOYED-OWNER-REVIEW | AF-12, AF-13, AF-16 | 13 | Yes | Deployed scale verifier |
