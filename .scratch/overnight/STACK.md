@@ -3,7 +3,7 @@
 **Mode:** local AFK execution with user-authorized Railway deployment mirror; no PR or merge opened. GitLab remains the issue/source-of-record.
 **Base branch:** `davidslayback/agentforge-checkpoint`  
 **Base commit:** `1711f73d405fc774d205530923b2c87920a1914a`  
-**Budget:** resumed phase: one AFK implementation ticket (AF-06), one active lane, one repair attempt, targeted tests before repository suites, stop at the next HITL boundary.
+**Budget:** one active resilience lane, one repair attempt, targeted tests before repository suites; stop before claiming AF-08 complete.
 
 | Ticket | Branch | Base | State | Commit | PR/push |
 | --- | --- | --- | --- | --- | --- |
@@ -13,5 +13,6 @@
 | AF-04 | `afk/AF-04-safety-ui` | `36d3036` | VERIFIED | `de3430b` | local only |
 | AF-02 | Railway deployment | `f180796` | VERIFIED | `agentforge-week1-production.up.railway.app` | external deployment; no PR/merge |
 | AF-06 | `afk/AF-06-evaluator-surface` | `f250daa` | VERIFIED | `e80ed6d` | pushed to GitHub mirror for Railway; no PR/merge |
+| AF-08 foundation | `afk/AF-08-resilience-foundation` | `297c10a` | TESTED — gate remains INCONCLUSIVE | pending | local only; no PR/merge |
 
-AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. AF-08 is the current HITL privacy/security gate. Do not start later tickets.
+AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. The AF-08 resilience foundation is locally tested, but AF-08 remains INCONCLUSIVE until external recovery, rollback, alert, and independent review evidence exists. Do not start AF-09.

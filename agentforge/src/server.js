@@ -8,11 +8,11 @@ import { DeterministicProvider, OpenAICompatibleProvider } from './modelProvider
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
-import { InMemoryTraceSink, createReadinessChecker } from '../../observability/index.js';
+import { FileTraceSink, createReadinessChecker } from '../../observability/index.js';
 
 const provider = process.env.AGENTFORGE_MODEL_ENDPOINT ? new OpenAICompatibleProvider({ endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model' }) : new DeterministicProvider();
 const adapter = new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
-const traceSink = new InMemoryTraceSink({ maxTraces: 100 });
+const traceSink = new FileTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000) });
 const service = new AgentForgeService({ adapter, provider, traceSink });
 const readiness = createReadinessChecker({ retrieval: adapter, model: provider, trace: { checkReady: async () => Boolean(traceSink.health()) } });
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

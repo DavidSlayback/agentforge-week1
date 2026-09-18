@@ -11,10 +11,11 @@
 - AF-06 evaluator/operations panel externally verified at the same origin; saved golden and mutation evidence are discoverable and all linked routes passed.
 - AF-07 owner sign-off recorded after a fresh-browser rehearsal: briefing, follow-up, blocked cross-patient probe, evaluator evidence, operational links, and synthetic-only limitations all passed.
 - AF-08 decision inputs recorded: synthetic forever, no PHI, provider deferred, and production-like resilience required; the gate remains inconclusive until resilience and independent evidence exist.
+- AF-08 resilience foundation tested locally: durable redacted traces, retention/deletion, isolated evaluator state, and restart persistence pass; external recovery/rollback/alert evidence remains open.
 
 ## Active plan
 
-1. Build and verify the production-like synthetic resilience controls required by AF-08.
+1. Continue AF-08 with backup/restore, rollback, incident/alert drills, and independent evidence.
 2. Do not start AF-09 until AF-08 is explicitly cleared.
 
 ## Recovery action
