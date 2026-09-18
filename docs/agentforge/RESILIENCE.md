@@ -25,6 +25,9 @@ write-back, or a hosted provider.
   and retention policy explicit rather than hidden in code.
 - `/v1/alerts` evaluates deterministic p95-latency, error-rate, and tool-failure
   rules with explicit thresholds from environment configuration.
+- `INCIDENT_RESPONSE.md` defines the owner, escalation, evidence, containment,
+  credential-action, recovery, and closure sequence; the local drill verifies
+  a synthetic retrieval failure fires the expected redacted alerts.
 - The service-backed golden test uses an isolated trace store so old test data
   cannot contaminate current evidence.
 
@@ -37,7 +40,9 @@ write-back, or a hosted provider.
 3. Exercise a failed deployment and document the rollback target, owner, and
    readback result. A local code test is not deployment rollback evidence.
 4. Trigger synthetic retrieval/tool failures and verify the alert rule, owner,
-   runbook, escalation, and recovery action.
+   runbook, escalation, and recovery action. The bounded local drill is
+   implemented; deployment alert delivery and external incident ownership are
+   still open.
 5. Rehearse incident handling using synthetic data only, including credential
    revocation/rotation and an audit record of the response.
 
