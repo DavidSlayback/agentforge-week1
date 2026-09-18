@@ -3,7 +3,7 @@
 **Mode:** local AFK execution with user-authorized Railway deployment mirror; no PR or merge opened. GitLab remains the issue/source-of-record.
 **Base branch:** `davidslayback/agentforge-checkpoint`  
 **Base commit:** `1711f73d405fc774d205530923b2c87920a1914a`  
-**Budget:** one active resilience lane, one repair attempt, targeted tests before repository suites; stop before claiming AF-08 owner sign-off.
+**Budget:** one active lane, one repair attempt, targeted tests before repository suites; stop before final external readback or publication.
 
 | Ticket | Branch | Base | State | Commit | PR/push |
 | --- | --- | --- | --- | --- | --- |
@@ -14,5 +14,7 @@
 | AF-02 | Railway deployment | `f180796` | VERIFIED | `agentforge-week1-production.up.railway.app` | external deployment; no PR/merge |
 | AF-06 | `afk/AF-06-evaluator-surface` | `f250daa` | VERIFIED | `e80ed6d` | pushed to GitHub mirror for Railway; no PR/merge |
 | AF-08 foundation | `afk/AF-08-resilience-foundation` | `297c10a` | LIVE/TESTED — ready for owner sign-off | `9eaa480` plus local evidence updates | local branch only; Railway active deployment `e133a557-9315-4872-af01-5dda1c4e26a6`, attached volume; no PR/merge |
+| AF-09–AF-12 continuation | `afk/AF-08-resilience-foundation` | `58520f9` | LOCAL IMPLEMENTED/MEASURED — synthetic only | `6d40adc` plus current local changes | local branch only; no PR/merge |
+| AF-13–AF-15 release path | same branch | current local candidate | PACKAGE READY; external readback/rehearsal pending | evidence/docs in progress | local draft; no publication |
 
-AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. The AF-08 deterministic alert route, rollback/redeploy evidence, alert-trigger readback, and attached-volume persistence are live. AF-08 is ready for owner sign-off; no independent reviewer is assumed for this synthetic checkpoint. Do not start AF-09 until sign-off.
+AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. AF-08 is signed off in GitLab #9. AF-09 through AF-12 are local synthetic implementation/evidence; AF-13 requires deployment of the final local candidate and clean-browser readback. No independent reviewer is assumed; owner verification is the applicable gate.

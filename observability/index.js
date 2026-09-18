@@ -98,6 +98,9 @@ class InMemoryTraceSink {
     const errors = this.traces.filter((trace) => trace.status !== 'success').length;
     const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
     const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
+    const retries = this.traces.reduce((total, trace) => total + (trace.retries?.total || 0), 0);
+    const providerFallbacks = this.traces.filter((trace) => trace.model?.provider_fallback === true).length;
+    const estimatedCostUsd = this.traces.reduce((total, trace) => total + Number(trace.model?.estimatedCostUsd || trace.model?.estimated_cost_usd || 0), 0);
     return {
       requests: this.traces.length,
       errors,
@@ -107,6 +110,9 @@ class InMemoryTraceSink {
       retrievalAttempts,
       toolFailures,
       toolFailureRate: retrievalAttempts ? toolFailures / retrievalAttempts : 0,
+      retries,
+      providerFallbacks,
+      estimatedCostUsd,
       verificationOutcomes: this.traces.reduce((outcomes, trace) => { const key = trace.verification?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
       displayOutcomes: this.traces.reduce((outcomes, trace) => { const key = trace.display?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
     };
@@ -141,9 +147,15 @@ class FileTraceSink extends InMemoryTraceSink {
 
   persist() {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temporaryPath = `${this.filePath}.${process.pid}.tmp`;
+    const temporaryPath = `${this.filePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
     fs.writeFileSync(temporaryPath, `${JSON.stringify(this.traces)}\n`, { encoding: 'utf8', mode: 0o600 });
-    fs.renameSync(temporaryPath, this.filePath);
+    try {
+      fs.renameSync(temporaryPath, this.filePath);
+    } catch (error) {
+      if (!['EPERM', 'EEXIST'].includes(error.code)) throw error;
+      fs.rmSync(this.filePath, { force: true });
+      fs.renameSync(temporaryPath, this.filePath);
+    }
   }
 
   prune(now) {

@@ -1,6 +1,6 @@
 # AgentForge AFK queue — approved execution
 
-**Planning state:** `NEEDS_HUMAN` at AF-08. AF-07 owner sign-off is recorded in GitLab #8; no PR or merge was opened. GitLab remains the issue/source-of-record.
+**Planning state:** `IMPLEMENTATION_IN_PROGRESS` at AF-13. AF-08 owner sign-off is recorded in GitLab #9; no PR or merge was opened. GitLab remains the issue/source-of-record.
 
 Parent: GitLab #1. Child issues are published and linked below.
 
@@ -13,24 +13,24 @@ Parent: GitLab #1. Child issues are published and linked below.
 | AF-05 | [#6](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/6) | AFK | VERIFIED | AF-01 | 1 | Yes | Contract/eval test runner |
 | AF-06 | [#7](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/7) | AFK | VERIFIED | AF-02, AF-05 | 2 | Yes | Fresh-profile route/link walk |
 | AF-07 | [#8](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/8) | HITL | VERIFIED | AF-02, AF-03, AF-04, AF-05, AF-06 | 3 | Yes | External release verifier |
-| AF-08 | [#9](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/9) | HITL | blocked | AF-01, AF-07 | 4 | Yes | Privacy/security reviewer |
-| AF-09 | [#10](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/10) | HITL | blocked | AF-08, AF-07 | 5 | Yes | Auth/parity integration verifier |
-| AF-10 | [#11](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/11) | HITL | blocked | AF-08, AF-09 | 6 | Yes | Provider failure/eval verifier |
-| AF-11 | [#12](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/12) | HITL | blocked | AF-08, AF-09, AF-10 | 7 | Yes | Operations/alert/recovery verifier |
-| AF-12 | [#13](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/13) | HITL | blocked | AF-09, AF-10, AF-11 | 8 | Yes | Independent load/cost reviewer |
-| AF-13 | [#14](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/14) | HITL | blocked | AF-09, AF-10, AF-11, AF-12 | 9 | Yes | Clean-profile release verifier |
-| AF-14 | [#15](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/15) | HITL | blocked | AF-13 | 10 | Yes | Interview rehearsal reviewer |
-| AF-15 | [#16](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/16) | HITL | blocked | AF-13, AF-14 | 11 | Yes* | External-communication reviewer |
+| AF-08 | [#9](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/9) | HITL | VERIFIED | AF-01, AF-07 | 4 | Yes | Owner sign-off/evidence verifier |
+| AF-09 | [#10](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/10) | HITL | IMPLEMENTED-SYNTHETIC | AF-08, AF-07 | 5 | Yes | Owner auth/parity verifier |
+| AF-10 | [#11](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/11) | HITL | IMPLEMENTED-READY | AF-08, AF-09 | 6 | Yes | Owner provider/failure verifier |
+| AF-11 | [#12](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/12) | HITL | IMPLEMENTED-SYNTHETIC | AF-08, AF-09, AF-10 | 7 | Yes | Owner operations verifier |
+| AF-12 | [#13](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/13) | HITL | MEASURED-LOCAL | AF-09, AF-10, AF-11 | 8 | Yes | Owner load/cost verifier |
+| AF-13 | [#14](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/14) | HITL | READY-PENDING-EXTERNAL | AF-09, AF-10, AF-11, AF-12 | 9 | Yes | Owner clean-profile release verifier |
+| AF-14 | [#15](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/15) | HITL | DRAFT-READY | AF-13 | 10 | Yes | Owner interview rehearsal |
+| AF-15 | [#16](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/16) | HITL | LOCAL-DRAFT-NO-PUBLISH | AF-13, AF-14 | 11 | Yes* | Owner communication decision |
 
-## First frontier
+## Current frontier
 
 - AF-02, AF-03, AF-04, AF-05, AF-06, and AF-07 are VERIFIED.
-- AF-08 is the next HITL privacy/security gate and is intentionally not executable by the AFK harness.
+- AF-08 is verified. AF-09 through AF-12 have local synthetic implementation/evidence; AF-13 is the next external release gate.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
 
-Current frontier: AF-08 privacy/security/compliance review. Stop here pending signed human disposition.
+Current frontier: AF-13 final external readback and release-package review. Do not claim the local candidate is deployed until the final URL is rebuilt and read back.
 
 ## Harness rule
 
-Do not dispatch AFK work past a HITL blocker. After each ticket, refresh this queue and its evidence; do not advance into AF-08 or later HITL work without the required human/external boundary.
+Do not auto-publish or infer external verification from local tests. After each ticket, refresh this queue and its evidence; AF-13 remains HITL because final deployment and clean-browser proof must match the local candidate.

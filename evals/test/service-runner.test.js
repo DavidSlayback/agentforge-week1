@@ -43,7 +43,7 @@ test('golden suite can evaluate the running AgentForge service', async () => {
     assert.ok(metrics.retrievalAttempts >= 7);
     const dashboard = await (await fetch('http://127.0.0.1:18788/observability')).text();
     assert.ok(dashboard.includes('AgentForge observability'));
-    assert.ok(dashboard.includes('basePath+"/v1/metrics"'));
+    assert.ok(dashboard.includes("basePath+'/v1/metrics'"));
   } finally {
     child.kill();
     fs.rmSync(root, { recursive: true, force: true });

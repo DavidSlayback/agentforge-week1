@@ -34,7 +34,7 @@ export class AgentForgeService {
     trace?.startStage('model');
     const prompt = `Prepare a read-only return-visit orientation for ${item.patient.display_name}. Use only these evidence-backed fields: ${claims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ')}. Do not recommend new clinical actions.`;
     const generated = await this.provider.generate({ patient: item.patient, claims, qualification, prompt }, { trace });
-    trace?.recordModelUsage({ provider: this.provider.name, model: this.provider.model, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens, estimatedCostUsd: generated.estimatedCostUsd });
+    trace?.recordModelUsage({ provider: this.provider.name, model: this.provider.model, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens, estimatedCostUsd: generated.estimatedCostUsd, provider_fallback: generated.provider_fallback, provider_status: generated.provider_status, provider_error_code: generated.provider_error_code });
     trace?.finishStage('model', { status: generated.provider_fallback ? 'fallback' : 'success', provider_status: generated.provider_status || 'primary' });
     response.text = generated.text;
     response.model = { provider: this.provider.name, model: this.provider.model, input_tokens: generated.inputTokens, output_tokens: generated.outputTokens, estimated_cost_usd: generated.estimatedCostUsd };

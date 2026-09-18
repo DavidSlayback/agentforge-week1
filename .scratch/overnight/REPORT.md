@@ -18,10 +18,13 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 - AF-08 foundation: added durable redacted traces, retention/deletion, restart persistence, isolated evaluator-state tests, and a bounded synthetic incident drill with a written response runbook; local checks pass, but the HITL gate remains open.
 - AF-08 foundation is deployed on the Railway canonical URL and its public route/API collection checks pass. Railway rollback succeeded, temporarily left no active deployment, and was recovered to the alert-enabled deployment; the live collection then passed.
 - Deployed `/v1/alerts` fired `tool_failure_rate` at `0.17142857142857143` after synthetic partial-retrieval traffic. Railway volume `agentforge-week1-volume` is mounted at `/data` with `AGENTFORGE_TRACE_PATH=/data/traces.json`; the sentinel trace survived a confirmed redeploy and the active deployment reported success.
+- AF-08 owner sign-off is recorded. Continued locally with AF-09 synthetic server-verified context, AF-10 provider retry/fallback, AF-11 expanded operational dashboard and Windows-safe trace persistence, and AF-12 reproducible load harness.
+- Signed synthetic load evidence: 100/100 requests at concurrency 10 and 500/500 at concurrency 50; raw reports are in `.scratch/overnight/evidence/load-10-signed-final.json` and `load-50-signed-final.json`.
+- Final package artifacts are `docs/agentforge/FINAL_PACKAGE.md`, `FINAL_INTERVIEW_PREP.md`, `FINAL_SOCIAL_DRAFT.md`, plus AF-13–AF-15 evidence files. The local candidate is not yet deployed; no push, PR, merge, or publication occurred.
 
 ## Current frontier
 
-- AF-06 and AF-07 are PASS/VERIFIED. AF-08 is the current HITL privacy/security gate; its synthetic-only policy and resilience evidence are complete, pending owner sign-off.
+- AF-08 is PASS/VERIFIED. AF-09–AF-12 are locally implemented/measured under the permanent synthetic boundary. AF-13 is the current external release-readback gate; AF-14 timed rehearsal and AF-15 publication/no-publish decision follow it.
 
 ## Evidence policy
 

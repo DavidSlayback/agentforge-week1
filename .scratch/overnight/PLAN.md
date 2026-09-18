@@ -63,7 +63,21 @@ The migrated queue passes structural planning gates: every ticket has acceptance
 
 ## Local execution reconciliation
 
-David approved the migrated queue for local-only execution. AF-01 is recorded as verified for this run using the existing requirements inventory, with the missing source PDF retained as a final-evidence limitation. The current executable AFK frontier is AF-03 and AF-05; AF-02 remains a HITL deployment gate. No remote mutation is authorized.
+David approved the migrated queue for local-only execution. AF-01 through AF-08 are recorded as verified for the checkpoint. AF-09 through AF-12 now have synthetic local implementation/evidence, while AF-13 remains the next HITL external-readback gate. No remote mutation is authorized.
+
+## Full-build execution update — 2026-09-18
+
+- AF-09: added server-verified signed synthetic context, strict patient/
+  clinician/scope binding, expiry/mismatch tests, and fixture parity evidence.
+- AF-10: added two retries plus deterministic fallback around the optional
+  provider interface; no live vendor was selected.
+- AF-11: extended the dashboard and metrics with retries, fallbacks, queue
+  depth, verification/display outcomes, and alert state; fixed concurrent
+  Windows trace persistence.
+- AF-12: added the reproducible load harness and measured signed synthetic
+  runs at concurrency 10 and 50 with zero errors.
+- AF-13–AF-15: created the final package, interview defense, and local-only
+  external draft; deployment readback and timed rehearsal remain HITL.
 
 ## Coverage map
 
