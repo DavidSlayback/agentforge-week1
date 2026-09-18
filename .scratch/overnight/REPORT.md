@@ -14,10 +14,11 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 - AF-02: verified the Railway canonical HTTPS origin `https://agentforge-week1-production.up.railway.app`; route matrix, API collection, and browser interaction passed.
 - AF-06: verified the deployed evaluator/operations panel, linked operational routes, saved golden/mutation evidence, and fresh-browser discoverability at the canonical origin.
 - AF-07: owner-approved the checkpoint after a fresh-browser briefing/follow-up rehearsal, blocked cross-patient probe, evaluator review, and synthetic-only limitation review.
+- AF-08: decision input recorded in GitLab #9 and local ADRs; remains INCONCLUSIVE pending production-like resilience implementation and independent evidence.
 
 ## Current frontier
 
-- AF-06 and AF-07 are PASS/VERIFIED. AF-08 is the current HITL privacy/security gate; the AFK harness must stop here.
+- AF-06 and AF-07 are PASS/VERIFIED. AF-08 is the current HITL privacy/security gate; its synthetic-only policy is decided, but resilience evidence is still required.
 
 ## Evidence policy
 

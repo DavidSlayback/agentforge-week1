@@ -10,10 +10,11 @@
 - AF-02 canonical Railway HTTPS origin externally verified at `https://agentforge-week1-production.up.railway.app`; route matrix and fresh-browser interaction passed.
 - AF-06 evaluator/operations panel externally verified at the same origin; saved golden and mutation evidence are discoverable and all linked routes passed.
 - AF-07 owner sign-off recorded after a fresh-browser rehearsal: briefing, follow-up, blocked cross-patient probe, evaluator evidence, operational links, and synthetic-only limitations all passed.
+- AF-08 decision inputs recorded: synthetic forever, no PHI, provider deferred, and production-like resilience required; the gate remains inconclusive until resilience and independent evidence exist.
 
 ## Active plan
 
-1. Resolve AF-08 through signed privacy/security/provenance/compliance review.
+1. Build and verify the production-like synthetic resilience controls required by AF-08.
 2. Do not start AF-09 until AF-08 is explicitly cleared.
 
 ## Recovery action
