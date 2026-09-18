@@ -19,11 +19,20 @@ function Invoke-AgentForge {
   } catch {
     $response = $_.Exception.Response
     if ($null -eq $response) { throw }
-    $reader = [IO.StreamReader]::new($response.GetResponseStream())
-    $text = $reader.ReadToEnd()
+    if ($response -is [System.Net.Http.HttpResponseMessage]) {
+      $text = [string]$_.ErrorDetails.Message
+      if ([string]::IsNullOrWhiteSpace($text)) {
+        try { $text = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() } catch { $text = '' }
+      }
+      $status = [int]$response.StatusCode
+    } else {
+      $reader = [IO.StreamReader]::new($response.GetResponseStream())
+      $text = $reader.ReadToEnd()
+      $status = [int]$response.StatusCode
+    }
     $parsed = $null
     try { $parsed = ConvertFrom-Json -InputObject ([string]$text) } catch { $parsed = $text }
-    return [pscustomobject]@{ status = [int]$response.StatusCode; body = $parsed; text = $text }
+    return [pscustomobject]@{ status = $status; body = $parsed; text = $text }
   }
 }
 

@@ -16,8 +16,8 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 - AF-07: owner-approved the checkpoint after a fresh-browser briefing/follow-up rehearsal, blocked cross-patient probe, evaluator review, and synthetic-only limitation review.
 - AF-08: decision input recorded in GitLab #9 and local ADRs; remains INCONCLUSIVE pending production-like resilience implementation and independent evidence.
 - AF-08 foundation: added durable redacted traces, retention/deletion, restart persistence, isolated evaluator-state tests, and a bounded synthetic incident drill with a written response runbook; local checks pass, but the HITL gate remains open.
-- AF-08 foundation is deployed on the Railway canonical URL and its public route/API collection checks pass; restart/rollback/alert drills remain unverified.
-- Deployed `/v1/alerts` now returns explicit threshold rules with `status: ok`; the local alert-trigger drill passes, while deployment alert delivery, rollback, and restart-persistence drills remain unverified.
+- AF-08 foundation is deployed on the Railway canonical URL and its public route/API collection checks pass. Railway rollback succeeded, temporarily left no active deployment, and was recovered to the alert-enabled deployment; the live collection then passed.
+- Deployed `/v1/alerts` fired `tool_failure_rate` at `0.17142857142857143` after synthetic partial-retrieval traffic. A Railway restart/redeploy readback retained the pre-existing seven traces and restored HTTP 200, but no explicit volume/off-host storage is configured, so durable-storage claims remain open.
 
 ## Current frontier
 

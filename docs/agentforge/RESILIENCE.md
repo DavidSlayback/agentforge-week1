@@ -33,6 +33,21 @@ write-back, or a hosted provider.
 
 ## Required drills before AF-08 can pass
 
+## Live Railway evidence (2026-09-18)
+
+- Railway rollback of a prior deployment reported success. The service briefly
+  showed no active deployment, then recovered to the alert-enabled deployment;
+  the public collection passed after recovery.
+- A synthetic partial-retrieval sequence caused `/v1/alerts` to return
+  `status: "firing"` with `tool_failure_rate` observed at
+  `0.17142857142857143`.
+- A Railway restart/redeploy readback retained the seven pre-existing redacted
+  traces and restored `/health` to HTTP 200.
+- Railway currently shows one replica, no explicit volume setting, and no
+  `AGENTFORGE_TRACE_PATH` variable. The deployed service therefore uses the
+  code default `/tmp/agentforge/traces.json`; the observed readback is not an
+  off-host durability guarantee.
+
 1. Run a retention/deletion drill and read back that expired and explicitly
    deleted traces are absent.
 2. Create a backup, destroy the active trace store, restore it, and compare
