@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBriefingResponse, validateFollowUpRequest, validatePrepareRequest } from '../src/contracts.js';
+import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest } from '../src/contracts.js';
 
 test('canonical request contracts distinguish valid denied requests from malformed input', () => {
   const denied = validatePrepareRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', authorization: { status: 'denied', scope: 'read-briefing' } });
@@ -26,4 +26,9 @@ test('follow-up contract permits only the signed demo context token as an extens
   assert.equal(valid.valid, true);
   const invalid = validateFollowUpRequest({ patient_uuid: 'fixture-patient-001', message: 'What changed?', clinician_uuid: 'fixture-physician-001', authorization: { status: 'authorized', scope: 'read-briefing' }, arbitrary_tool: 'nope' });
   assert.equal(invalid.valid, false);
+});
+
+test('follow-up contract represents bounded deadline outcomes without patient content', () => {
+  const result = validateFollowUpResponse({ contract_version: '0.1', correlation_id: 'corr-deadline', disposition: 'deadline-exceeded', patient: null, verification: { status: 'blocked' }, deadline: { outcome: 'deadline-exceeded', deadline_ms: 8000 } });
+  assert.equal(result.valid, true);
 });

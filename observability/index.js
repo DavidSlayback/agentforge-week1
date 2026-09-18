@@ -17,15 +17,22 @@ function clone(value) {
 }
 
 class TraceRecorder {
-  constructor({ correlationId, operation, scope = {}, clock = () => new Date().toISOString() }) {
+  constructor({ correlationId, operation, interactionType = 'briefing', deadlineMs = null, scope = {}, clock = () => new Date().toISOString() }) {
     this.correlationId = correlationId;
     this.operation = operation;
+    this.interactionType = interactionType;
+    this.deadlineMs = deadlineMs;
     this.scope = scope;
     this.clock = clock;
     this.startedAt = this.clock();
     this.stages = [];
     this.retries = [];
     this.retrieval = { attempts: [] };
+    this.latency = { acknowledgementMs: null };
+  }
+
+  markAcknowledged() {
+    this.latency.acknowledgementMs = Math.max(0, new Date(this.clock()) - new Date(this.startedAt));
   }
 
   startStage(name, attributes = {}) {
@@ -45,17 +52,32 @@ class TraceRecorder {
   setCoverage(value) { this.coverage = redactPayload(value); }
   setVerification(value) { this.verification = redactPayload(value); }
   setDisplay(value) { this.display = redactPayload(value); }
+  setCache(value) { this.cache = redactPayload(value); }
 
-  complete({ status }) {
+  complete({ status, deadlineOutcome = 'not_applicable' }) {
     const completedAt = this.clock();
+    const stageDuration = (names) => {
+      const stage = this.stages.find((item) => names.includes(item.name));
+      return stage ? stage.durationMs : null;
+    };
     return redactPayload({
-      schemaVersion: 1,
+      schemaVersion: 2,
       correlationId: this.correlationId,
       operation: this.operation,
+      interactionType: this.interactionType,
+      deadlineMs: this.deadlineMs,
+      deadlineOutcome,
       scope: this.scope,
       startedAt: this.startedAt,
       completedAt,
       durationMs: Math.max(0, new Date(completedAt) - new Date(this.startedAt)),
+      latencyMs: {
+        acknowledgement: this.latency.acknowledgementMs,
+        retrieval: stageDuration(['retrieval']),
+        synthesis: stageDuration(['synthesis', 'model']),
+        verification: stageDuration(['verification']),
+        display: stageDuration(['display']),
+      },
       stages: this.stages,
       retrieval: this.retrieval,
       retries: { total: this.retries.length, events: this.retries, exhausted: false },
@@ -63,6 +85,7 @@ class TraceRecorder {
       coverage: this.coverage || {},
       verification: this.verification || {},
       display: this.display || {},
+      cache: this.cache || { status: 'not_used' },
       status,
     });
   }
@@ -95,6 +118,14 @@ class InMemoryTraceSink {
   snapshot() {
     const durations = this.traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
     const percentile = (p) => durations.length ? durations[Math.min(durations.length - 1, Math.ceil(durations.length * p) - 1)] : 0;
+    const interactionTypes = [...new Set(this.traces.map((trace) => trace.interactionType || 'unknown'))];
+    const latencyByInteraction = Object.fromEntries(interactionTypes.map((interactionType) => {
+      const values = this.traces.filter((trace) => (trace.interactionType || 'unknown') === interactionType).map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
+      const byPercentile = (p) => values.length ? values[Math.min(values.length - 1, Math.ceil(values.length * p) - 1)] : 0;
+      return [interactionType, { p50: byPercentile(.5), p95: byPercentile(.95), p99: byPercentile(.99) }];
+    }));
+    const deadlineOutcomes = this.traces.reduce((outcomes, trace) => { const key = trace.deadlineOutcome || 'not_applicable'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
+    const cacheOutcomes = this.traces.reduce((outcomes, trace) => { const key = trace.cache?.status || 'not_used'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
     const errors = this.traces.filter((trace) => trace.status !== 'success').length;
     const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
     const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
@@ -106,6 +137,9 @@ class InMemoryTraceSink {
       errors,
       errorRate: this.traces.length ? errors / this.traces.length : 0,
       latencyMs: { p50: percentile(.5), p95: percentile(.95), p99: percentile(.99) },
+      latencyByInteraction,
+      deadlineOutcomes,
+      cacheOutcomes,
       queueDepth: 0,
       retrievalAttempts,
       toolFailures,

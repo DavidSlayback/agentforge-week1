@@ -5,8 +5,8 @@ export const MAX_RETRIES = 2;
 export const API_CONTRACTS = Object.freeze({
   prepareRequest: { required: ['patient_uuid', 'clinician_uuid', 'authorization'], optional: ['case_id', 'correlation_id', 'demo_token'], allowed: ['patient_uuid', 'clinician_uuid', 'authorization', 'case_id', 'correlation_id', 'demo_token'] },
   followUpRequest: { required: ['patient_uuid', 'message', 'clinician_uuid', 'authorization'], optional: ['demo_token'], allowed: ['patient_uuid', 'message', 'clinician_uuid', 'authorization', 'demo_token'] },
-  briefingResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'verification', 'operations'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification', 'text', 'model'] },
-  followUpResponse: { required: ['contract_version', 'correlation_id', 'patient', 'verification'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'text', 'evidence', 'qualification', 'operations', 'verification'] },
+  briefingResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'verification', 'operations'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification', 'text', 'model', 'deadline'] },
+  followUpResponse: { required: ['contract_version', 'correlation_id', 'patient', 'verification'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'text', 'evidence', 'qualification', 'operations', 'verification', 'deadline'] },
 });
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -62,15 +62,16 @@ function validateCommonResponse(value, required, allowed) {
 export function validateBriefingResponse(value) {
   const result = validateCommonResponse(value, API_CONTRACTS.briefingResponse.required, API_CONTRACTS.briefingResponse.allowed);
   if (!result.valid) return result;
-  if (!new Set(['complete', 'partial', 'qualified', 'blocked']).has(value.disposition)) result.issues.push('invalid_disposition');
+  if (!new Set(['complete', 'partial', 'qualified', 'blocked', 'deadline-exceeded']).has(value.disposition)) result.issues.push('invalid_disposition');
   return { valid: result.issues.length === 0, issues: result.issues };
 }
 
 export function validateFollowUpResponse(value) {
   const result = validateCommonResponse(value, API_CONTRACTS.followUpResponse.required, API_CONTRACTS.followUpResponse.allowed);
   if (!result.valid) return result;
-  if (value.disposition !== 'blocked' && typeof value.text !== 'string') result.issues.push('text_is_required_for_success');
-  if (value.disposition !== 'blocked' && !Array.isArray(value.evidence)) result.issues.push('evidence_is_required_for_success');
+  if (!new Set(['complete', 'partial', 'qualified', 'blocked', 'deadline-exceeded']).has(value.disposition)) result.issues.push('invalid_disposition');
+  if (!new Set(['blocked', 'deadline-exceeded']).has(value.disposition) && typeof value.text !== 'string') result.issues.push('text_is_required_for_success');
+  if (!new Set(['blocked', 'deadline-exceeded']).has(value.disposition) && !Array.isArray(value.evidence)) result.issues.push('evidence_is_required_for_success');
   return { valid: result.issues.length === 0, issues: result.issues };
 }
 
@@ -78,8 +79,8 @@ export function correlationId(value) {
   return value || `af-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function blockedResult(correlation_id, reason) {
-  return { contract_version: CONTRACT_VERSION, correlation_id, disposition: 'blocked', patient: null,
+export function blockedResult(correlation_id, reason, disposition = 'blocked') {
+  return { contract_version: CONTRACT_VERSION, correlation_id, disposition, patient: null,
     claims: [], withheld_fields: [], coverage: [], qualification: { required: true, reasons: [reason] },
     verification: { status: 'blocked' }, operations: [] };
 }
