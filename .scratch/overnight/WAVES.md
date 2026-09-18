@@ -14,10 +14,14 @@
 | 9 | release | AF-13 | Serial HITL final evidence and sign-off. |
 | 10 | interview | AF-14 | Serial HITL rehearsal. |
 | 11 | external | AF-15 | Serial HITL; draft may be prepared, publication remains separately authorized. |
+| 12 | contract-closure | AF-16 | Serial documentation/HITL claim reconciliation after the package exists. |
+| 13 | deployed-performance | AF-17 | External deployment and current-commit load evidence; cannot close locally. |
+| 14 | cost-architecture | AF-18 | Owner-reviewed spend/projection model after deployed measurements. |
+| 15 | final-readback | AF-19 | Final clean-profile readback and owner release decision. |
 
 ## Recommended integration order
 
-AF-01, then AF-02 + AF-03 + AF-05, then AF-04 + AF-06, AF-07, and the governed production chain AF-08 through AF-15.
+AF-01, then AF-02 + AF-03 + AF-05, then AF-04 + AF-06, AF-07, the governed synthetic chain AF-08 through AF-13, then AF-16, AF-17, AF-18, AF-19, AF-14, and AF-15.
 
 ## Conflict risks
 

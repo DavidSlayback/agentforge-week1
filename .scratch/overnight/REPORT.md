@@ -7,7 +7,7 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 ## Completed
 
 - Planning migration: preserved AF-01–AF-15 and upgraded verification requirements to explicit owner sign-off plus reproducible evidence; no independent reviewer is assumed.
-- AF-01: approved working evidence inventory recorded; original AgentForge source PDF remains unavailable.
+- AF-01: approved repository-stored requirements inventory recorded; the original AgentForge brief PDF is not stored in this repository.
 - AF-03: verified local multi-turn conversation surface at `c4c96c2`.
 - AF-05: verified strict contracts and runnable API collection at `8bf030a`.
 - AF-04: verified safety and patient-scope states at `de3430b`.
@@ -20,11 +20,11 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 - Deployed `/v1/alerts` fired `tool_failure_rate` at `0.17142857142857143` after synthetic partial-retrieval traffic. Railway volume `agentforge-week1-volume` is mounted at `/data` with `AGENTFORGE_TRACE_PATH=/data/traces.json`; the sentinel trace survived a confirmed redeploy and the active deployment reported success.
 - AF-08 owner sign-off is recorded. Continued locally with AF-09 synthetic server-verified context, AF-10 provider retry/fallback, AF-11 expanded operational dashboard and Windows-safe trace persistence, and AF-12 reproducible load harness.
 - Signed synthetic load evidence: 100/100 requests at concurrency 10 and 500/500 at concurrency 50; raw reports are in `.scratch/overnight/evidence/load-10-signed-final.json` and `load-50-signed-final.json`.
-- Final package artifacts are `docs/agentforge/FINAL_PACKAGE.md`, `FINAL_INTERVIEW_PREP.md`, `FINAL_SOCIAL_DRAFT.md`, plus AF-13–AF-15 evidence files. The local candidate is not yet deployed; no push, PR, merge, or publication occurred.
+- Final package artifacts are `docs/agentforge/FINAL_PACKAGE.md`, `FINAL_INTERVIEW_PREP.md`, `FINAL_SOCIAL_DRAFT.md`, plus AF-13–AF-19 evidence/ticket files. The local candidate is not yet deployed; no push, PR, merge, or publication occurred.
 
 ## Current frontier
 
-- AF-08 is PASS/VERIFIED. AF-09–AF-12 are locally implemented/measured under the permanent synthetic boundary. AF-13 is the current external release-readback gate; AF-14 timed rehearsal and AF-15 publication/no-publish decision follow it.
+- AF-08 is PASS/VERIFIED. AF-09–AF-12 are locally implemented/measured under the permanent synthetic boundary. AF-16 is ready for owner documentation review; AF-17 deployed scale, AF-18 cost, and AF-19 final readback remain blocked until the exact candidate is deployed.
 
 ## Evidence policy
 

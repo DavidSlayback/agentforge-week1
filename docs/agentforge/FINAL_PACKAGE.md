@@ -13,13 +13,17 @@
 
 | Gate | Current state | Final proof required |
 | --- | --- | --- |
-| Requirements/provenance | PASS with source-PDF limitation | State that `REQUIREMENTS.md` is the available brief inventory. |
+| Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
 | Public URL/TLS | PASS for prior Railway candidate | Re-run against the final deployed commit. |
 | Multi-turn browser agent | PASS in prior external checkpoint; strengthened locally | Clean-browser briefing, follow-up, reset, and blocked probe. |
 | Auth/scope seam | PASS synthetic local | Signed-context expiry/mismatch/scope tests and deployed readback. |
 | Provider lane | PASS failure-policy tests; vendor deferred | Keep deterministic default; do not add a vendor without owner decision. |
 | Operations | PASS local and prior Railway persistence | Final dashboard, alerts, traces, retention, and rollback readback. |
 | Load/cost | PASS local synthetic measurements | Do not relabel local measurements as Railway capacity. |
+| Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
+| Deployed scale | BLOCKED | Run 10/50 concurrency against the exact current deployment. |
+| Cost analysis | BLOCKED | Obtain spend/resource readback and review projections. |
+| Final readback | BLOCKED | Clean-profile test of the exact current commit. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
 | Interview | DRAFT READY | Timed rehearsal against final evidence. |
 | External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |

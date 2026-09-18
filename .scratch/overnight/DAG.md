@@ -20,7 +20,7 @@ AF-01
                            v
                          AF-12
                            v
-                         AF-13 ──> AF-14 ──> AF-15
+                         AF-13 ──> AF-16 ──> AF-17 ──> AF-18 ──> AF-19 ──> AF-14 ──> AF-15
 ```
 
 ## Edge reasons
@@ -38,15 +38,19 @@ AF-01
 - AF-08/09/10 -> AF-11: durable operational signals must represent the final trust and provider paths.
 - AF-09/10/11 -> AF-12: load/cost measurements depend on the actual governed dependencies and telemetry.
 - AF-09/10/11/12 -> AF-13: final claims require complete production-path and evidence coverage.
-- AF-13 -> AF-14: interview answers must match the final artifact.
-- AF-13/14 -> AF-15: external communication must use the final approved evidence and narrative.
+- AF-13 -> AF-16: final package language is the input to contract/source closure.
+- AF-12/13/16 -> AF-17: deployed scale evidence requires the stable harness and reconciled claims.
+- AF-17 -> AF-18: cost projections must use the measured deployment shape and resource assumptions.
+- AF-16/17/18 -> AF-19: final readback cannot freeze claims before contract, deployed, and cost evidence are complete.
+- AF-19 -> AF-14: interview answers must match the final current-commit artifact.
+- AF-19/14 -> AF-15: external communication must use the final approved evidence and narrative.
 
 ## Critical path
 
-AF-01 -> AF-03 -> AF-04 -> AF-07 -> AF-08 -> AF-09 -> AF-10 -> AF-11 -> AF-12 -> AF-13 -> AF-14 -> AF-15.
+AF-01 -> AF-03 -> AF-04 -> AF-07 -> AF-08 -> AF-09 -> AF-10 -> AF-11 -> AF-12 -> AF-13 -> AF-16 -> AF-17 -> AF-18 -> AF-19 -> AF-14 -> AF-15.
 
 The deployment and contract lanes can run in parallel with the conversation lane after AF-01, but the early gate waits for all of them. AF-02 -> AF-06 -> AF-07 and AF-05 -> AF-06 are the parallel checkpoint branches; AF-04 and AF-06 may be developed separately but require serial UI integration because they touch the same evaluator shell.
 
 ## Verification dependency
 
-Every edge also carries an evidence handoff: the downstream independent verifier must inspect the predecessor's recorded evidence, not only its issue state. A passing local test cannot satisfy AF-02, AF-07, AF-08, AF-09, AF-11, AF-12, AF-13, AF-14, or AF-15 without the listed external/runtime/human evidence.
+Every edge also carries an evidence handoff: the downstream owner verifier must inspect the predecessor's recorded evidence, not only its issue state. A passing local test cannot satisfy AF-02, AF-07, AF-08, AF-11, AF-12, AF-13, AF-14, AF-15, AF-17, or AF-19 without the listed external/runtime/human evidence.

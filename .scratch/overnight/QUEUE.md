@@ -1,6 +1,6 @@
 # AgentForge AFK queue — approved execution
 
-**Planning state:** `IMPLEMENTATION_IN_PROGRESS` at AF-13. AF-08 owner sign-off is recorded in GitLab #9; no PR or merge was opened. GitLab remains the issue/source-of-record.
+**Planning state:** `IMPLEMENTATION_IN_PROGRESS` at AF-16. AF-08 owner sign-off is recorded in GitLab #9; no PR or merge was opened. GitLab remains the issue/source-of-record.
 
 Parent: GitLab #1. Child issues are published and linked below.
 
@@ -19,18 +19,22 @@ Parent: GitLab #1. Child issues are published and linked below.
 | AF-11 | [#12](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/12) | HITL | IMPLEMENTED-SYNTHETIC | AF-08, AF-09, AF-10 | 7 | Yes | Owner operations verifier |
 | AF-12 | [#13](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/13) | HITL | MEASURED-LOCAL | AF-09, AF-10, AF-11 | 8 | Yes | Owner load/cost verifier |
 | AF-13 | [#14](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/14) | HITL | READY-PENDING-EXTERNAL | AF-09, AF-10, AF-11, AF-12 | 9 | Yes | Owner clean-profile release verifier |
-| AF-14 | [#15](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/15) | HITL | DRAFT-READY | AF-13 | 10 | Yes | Owner interview rehearsal |
-| AF-15 | [#16](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/16) | HITL | LOCAL-DRAFT-NO-PUBLISH | AF-13, AF-14 | 11 | Yes* | Owner communication decision |
+| AF-14 | [#15](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/15) | HITL | DRAFT-READY | AF-19 | 10 | Yes | Owner interview rehearsal |
+| AF-15 | [#16](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/16) | HITL | LOCAL-DRAFT-NO-PUBLISH | AF-19, AF-14 | 11 | Yes* | Owner communication decision |
+| AF-16 | local follow-on | HITL | READY-DOC-CLOSURE | AF-13 | 12 | Yes | Owner contract/claims verifier |
+| AF-17 | local follow-on | HITL | BLOCKED-DEPLOYED-EVIDENCE | AF-12, AF-13, AF-16 | 13 | Yes | Deployed scale verifier |
+| AF-18 | local follow-on | HITL | BLOCKED-COST-REVIEW | AF-17 | 14 | Yes | Owner cost/architecture verifier |
+| AF-19 | local follow-on | HITL | BLOCKED-FINAL-READBACK | AF-16, AF-17, AF-18 | 15 | Yes | Owner clean-profile release verifier |
 
 ## Current frontier
 
 - AF-02, AF-03, AF-04, AF-05, AF-06, and AF-07 are VERIFIED.
-- AF-08 is verified. AF-09 through AF-12 have local synthetic implementation/evidence; AF-13 is the next external release gate.
+- AF-08 is verified. AF-09 through AF-12 have local synthetic implementation/evidence; AF-16 is the next local documentation gate and AF-17 is the next deployed-evidence gate.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
 
-Current frontier: AF-13 final external readback and release-package review. Do not claim the local candidate is deployed until the final URL is rebuilt and read back.
+Current frontier: AF-16 documentation closure plus AF-17 deployed load/infrastructure evidence. AF-19 is the final current-commit readback gate. Do not claim the local candidate is deployed until the final URL is rebuilt and read back.
 
 ## Harness rule
 
-Do not auto-publish or infer external verification from local tests. After each ticket, refresh this queue and its evidence; AF-13 remains HITL because final deployment and clean-browser proof must match the local candidate.
+Do not auto-publish or infer external verification from local tests. After each ticket, refresh this queue and its evidence; AF-17 and AF-19 remain HITL because deployed scale and clean-browser proof must match the local candidate.

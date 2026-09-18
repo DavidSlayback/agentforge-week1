@@ -9,7 +9,7 @@ The GitLab parent is [#1](https://labs.gauntletai.com/gauntletai/gauntlet/agentf
 ## Evidence boundary
 
 - Current proof is synthetic/demo-only and fixture-backed.
-- The downloaded file named `Week 1 System Design Assignment.pdf` is an unrelated affiliate-link assignment. The AgentForge source PDF is not present in the workspace; `docs/agentforge/REQUIREMENTS.md` is the available requirements inventory supplied from that brief and is treated as the governing checklist.
+- The downloaded file named `Week 1 System Design Assignment.pdf` is an unrelated affiliate-link assignment. The original AgentForge PDF is not stored in this repository; `docs/agentforge/REQUIREMENTS.md` is the transcribed requirements inventory supplied from that brief and is treated as the governing checklist.
 - No ticket authorizes PHI, clinical write-back, a HIPAA/compliance claim, or external publication. A hosted model remains deferred and requires the explicit provider HITL gate; all test data stays synthetic.
 
 ## Current state
@@ -39,15 +39,15 @@ Migration mode preserved all 15 stable IDs, GitLab references, acceptance criter
 - **Unchanged tickets:** AF-01 through AF-15 as scopes and acceptance contracts; no renumbering or replacement.
 - **Modified tickets:** all AF-01–AF-15 ticket files, limited to migration metadata, verifier profiles, command/evidence requirements, and conflict/integration notes.
 - **Newly split tickets:** none.
-- **New HITL decisions:** source-of-truth confirmation for the unavailable AgentForge source PDF versus `REQUIREMENTS.md`; canonical hostname/trusted TLS; synthetic-only production boundary; deferred provider/BAA decision; simulated authenticated OpenEMR seam; durable operations and scale-budget evidence; final release/interview/publication approval. Existing production tickets already carried most of these boundaries; migration makes them explicit.
+- **New HITL decisions:** source-of-truth confirmation for the repository-stored requirements inventory versus the original brief; canonical hostname/trusted TLS; synthetic-only production boundary; deferred provider/BAA decision; simulated authenticated OpenEMR seam; durable operations and scale-budget evidence; final release/interview/publication approval. Existing production tickets already carried most of these boundaries; migration makes them explicit.
 - **AFK classification audit:** AF-03, AF-04, AF-05, and AF-06 remain AFK because each has a repository-owned deterministic test path and the external browser gate remains separately HITL. If implementation cannot supply the named black-box tests, downgrade that ticket to HITL before dispatch.
 - **Parallel lanes:** Wave 1 deployment, product UI, and contracts; Wave 2 safety UI and evaluator work may be developed separately but integrate serially because of shared UI surfaces. Later waves are intentionally serial HITL gates.
-- **Critical path:** AF-01 → AF-03 → AF-04 → AF-07 → AF-08 → AF-09 → AF-10 → AF-11 → AF-12 → AF-13 → AF-14 → AF-15, with AF-02 → AF-06 → AF-07 and AF-05 → AF-06 as parallel checkpoint branches.
+- **Critical path:** AF-01 → AF-03 → AF-04 → AF-07 → AF-08 → AF-09 → AF-10 → AF-11 → AF-12 → AF-13 → AF-16 → AF-17 → AF-18 → AF-19 → AF-14 → AF-15, with AF-02 → AF-06 → AF-07 and AF-05 → AF-06 as parallel checkpoint branches.
 - **First executable frontier:** AF-01 / GitLab #2 only, and it is HITL. No AFK ticket is executable until AF-01 is approved and complete.
 
 ## Quality-gate result
 
-The migrated queue passes structural planning gates: every ticket has acceptance criteria, verification, independent-verifier evidence, blockers with reasons, one wave/lane, conflict risk, and completion evidence; the graph is acyclic; the critical path and parallel integration order are explicit; and AFK tickets have deterministic repository commands or an explicit downgrade rule. The queue is `NEEDS_HUMAN` for execution because the first frontier is an unresolved HITL requirements/evidence decision and the user has not yet approved the migrated queue. Do not start `stacked-afk-loop`.
+The original migrated queue passed structural planning gates and was approved for local execution. The follow-on queue adds four explicit HITL closure gates; do not infer them from the earlier checkpoint evidence.
 
 ### Gate audit
 
@@ -63,7 +63,7 @@ The migrated queue passes structural planning gates: every ticket has acceptance
 
 ## Local execution reconciliation
 
-David approved the migrated queue for local-only execution. AF-01 through AF-08 are recorded as verified for the checkpoint. AF-09 through AF-12 now have synthetic local implementation/evidence, while AF-13 remains the next HITL external-readback gate. No remote mutation is authorized.
+David approved the migrated queue for local-only execution. AF-01 through AF-08 are recorded as verified for the checkpoint. AF-09 through AF-12 now have synthetic local implementation/evidence. AF-16 is the next local documentation gate; AF-17, AF-18, and AF-19 remain external/owner gates. No remote mutation is authorized.
 
 ## Full-build execution update — 2026-09-18
 
@@ -78,6 +78,10 @@ David approved the migrated queue for local-only execution. AF-01 through AF-08 
   runs at concurrency 10 and 50 with zero errors.
 - AF-13–AF-15: created the final package, interview defense, and local-only
   external draft; deployment readback and timed rehearsal remain HITL.
+- AF-16–AF-19: added the remaining assignment-closure gates for the required
+  `USER.md` pointer and 90–180-second workflow framing, deployed load and
+  infrastructure evidence, actual cost/projections, and final current-commit
+  clean-profile readback/sign-off.
 
 ## Coverage map
 
@@ -90,7 +94,7 @@ David approved the migrated queue for local-only execution. AF-01 through AF-08 
 | Strict contracts and runnable API collection | AF-05 |
 | Correlation IDs, observability, dashboard, queue depth, alerts | AF-06, AF-10, AF-11 |
 | Health/readiness separation | AF-02, AF-06 |
-| Deployed load, infrastructure baselines, cost projections | AF-12 |
+| Deployed load, infrastructure baselines, cost projections | AF-12, AF-17, AF-18 |
 | Simulated authenticated OpenEMR and production-like trust boundary | AF-08, AF-09 |
 | Provider/data-processing/model failure policy | AF-08, AF-10 |
-| Early, final, interview, and social submission path | AF-07, AF-13, AF-14, AF-15 |
+| Early, final, interview, and social submission path | AF-07, AF-13, AF-14, AF-15, AF-16, AF-19 |
