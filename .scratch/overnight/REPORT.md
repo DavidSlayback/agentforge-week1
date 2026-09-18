@@ -20,7 +20,7 @@ Local implementation plus user-authorized direct Vultr deployment readback. No p
 - Deployed `/v1/alerts` fired `tool_failure_rate` at `0.17142857142857143` after synthetic partial-retrieval traffic. Railway volume `agentforge-week1-volume` is mounted at `/data` with `AGENTFORGE_TRACE_PATH=/data/traces.json`; the sentinel trace survived a confirmed redeploy and the active deployment reported success.
 - AF-08 owner sign-off is recorded. Continued locally with AF-09 synthetic server-verified context, AF-10 provider retry/fallback, AF-11 expanded operational dashboard and Windows-safe trace persistence, and AF-12 reproducible load harness.
 - Signed synthetic load evidence: 100/100 requests at concurrency 10 and 500/500 at concurrency 50; raw reports are in `.scratch/overnight/evidence/load-10-signed-final.json` and `load-50-signed-final.json`.
-- Final package artifacts are `docs/agentforge/FINAL_PACKAGE.md`, `FINAL_INTERVIEW_PREP.md`, `FINAL_SOCIAL_DRAFT.md`, plus AF-13–AF-19 evidence/ticket files. The current candidate `dcdae5b` is deployed directly to Vultr at `http://64.177.10.182/agentforge/`; no push, PR, merge, or publication occurred.
+- Final package artifacts are `docs/agentforge/FINAL_PACKAGE.md`, `FINAL_INTERVIEW_PREP.md`, `FINAL_SOCIAL_DRAFT.md`, plus AF-13–AF-19 evidence/ticket files. The current candidate `1259fbb` is deployed directly to Vultr at `http://64.177.10.182/agentforge/`; no push, PR, merge, or publication occurred. The new conversational latency/cache/deadline contract is deployed and measured.
 
 ## Current frontier
 

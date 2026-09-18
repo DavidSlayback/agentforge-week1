@@ -9,7 +9,7 @@ URL is:
 `http://64.177.10.182/agentforge/`
 
 The Railway deployment is prior checkpoint evidence. The current local changes
-were deployed directly to Vultr at commit `dcdae5b`; the current route is HTTP
+were deployed directly to Vultr at commit `1259fbb`; the current route is HTTP
 with Caddy internal/self-signed TLS, so trusted HTTPS release remains open.
 No push, PR, merge, or publication occurred.
 
@@ -24,7 +24,8 @@ No push, PR, merge, or publication occurred.
   reset, and blocked cross-patient probing.
 - A configured provider can retry twice and fall back deterministically without
   making provider output an authorization or verification decision.
-- Redacted file-backed traces, metrics, alerts, retention/deletion,
+- Redacted file-backed traces, interaction-specific latency/cache/deadline
+  metrics, alerts, retention/deletion,
   backup/restore, rollback, and load evidence are inspectable.
 
 ## Verification commands
@@ -38,9 +39,11 @@ node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 10 --r
 node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 50 --requests 500 --out .scratch/overnight/evidence/load-50-final.json
 ```
 
-The current results are 20/20 AgentForge tests, 9/9 observability tests, 10/10
+The current results are 24/24 AgentForge tests, 10/10 observability tests, 10/10
 eval tests, zero deployed load errors, 100/100 at concurrency 10, and 500/500
-at concurrency 50 in signed synthetic mode.
+at concurrency 50 in signed synthetic mode. The deployed reports are
+`.scratch/overnight/evidence/load-deployed-next-10.json` and
+`.scratch/overnight/evidence/load-deployed-next-50.json`.
 
 ## Reviewer path
 
@@ -64,8 +67,9 @@ at concurrency 50 in signed synthetic mode.
 | Authenticated synthetic seam | `.scratch/overnight/evidence/AF-09.md` |
 | Provider failure policy | `.scratch/overnight/evidence/AF-10.md` |
 | Operations and recovery | `.scratch/overnight/evidence/AF-11.md`, `docs/agentforge/RESILIENCE.md` |
+| Conversational latency/cache contract | `docs/agentforge/CONVERSATIONAL_AGENT_HANDOFF.md`, commit `1259fbb`, deployed `/v1/metrics` |
 | Load and cost boundary | `.scratch/overnight/evidence/AF-12.md`, `docs/agentforge/LOAD_TEST.md` |
-| Current deployed scale | `.scratch/overnight/evidence/AF-17.md`, `.scratch/overnight/evidence/load-deployed-10.json`, `.scratch/overnight/evidence/load-deployed-50.json` |
+| Current deployed scale | `.scratch/overnight/evidence/AF-17.md`, `.scratch/overnight/evidence/load-deployed-next-10.json`, `.scratch/overnight/evidence/load-deployed-next-50.json` |
 | Final release checklist | `docs/agentforge/FINAL_PACKAGE.md` |
 | Interview defense | `docs/agentforge/FINAL_INTERVIEW_PREP.md` |
 | No-publish communication draft | `docs/agentforge/FINAL_SOCIAL_DRAFT.md` |

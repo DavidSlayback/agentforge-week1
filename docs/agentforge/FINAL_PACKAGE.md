@@ -5,7 +5,7 @@
 - Local branch: `afk/AF-08-resilience-foundation`
 - Source of record: GitLab issue #1 and child issues #2–#16
 - Current deployment evidence URL: `http://64.177.10.182/agentforge/`
-- Current candidate commit: `dcdae5b088131be8472c6ce6f1f3199225e1b8d8`
+- Current candidate commit: `1259fbb`
 - The prior Railway URL remains historical checkpoint evidence, not current-candidate proof.
 - Target deployment configuration must set `AGENTFORGE_AUTH_MODE=signed-demo`,
   `AGENTFORGE_SYNTHETIC_CONTEXT=true`, and a durable `AGENTFORGE_TRACE_PATH`.
@@ -22,7 +22,7 @@
 | Operations | PASS on current Vultr synthetic candidate | Dashboard, alerts, traces, and route matrix read back; TLS caveat remains. |
 | Load/cost | Deployed load PASS; billing BLOCKED | 10/50 reports are current Vultr evidence; obtain actual billing readback. |
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | READY FOR OWNER REVIEW | Review current Vultr load/resource evidence in AF-17. |
+| Deployed scale | READY FOR OWNER REVIEW | Review current Vultr load/resource evidence in AF-17, including interaction latency/cache/deadline metrics. |
 | Cost analysis | BLOCKED | Obtain spend/resource readback and review projections. |
 | Final readback | BLOCKED | Trusted HTTPS, billing, clean-profile sign-off, and final owner approval remain. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
