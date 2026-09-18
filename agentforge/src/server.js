@@ -11,6 +11,7 @@ import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
 import { FileTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
 
 const configuredProvider = process.env.AGENTFORGE_MODEL_ENDPOINT ? new OpenAICompatibleProvider({ endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model' }) : new DeterministicProvider();
+const publicBasePath = process.env.AGENTFORGE_PUBLIC_BASE_PATH || '';
 const provider = new ResilientProvider({ primary: configuredProvider, fallback: new DeterministicProvider() });
 const adapter = new SimulatedOpenEMRAdapter({ fixturePath: process.env.AGENTFORGE_FIXTURES || defaultFixturePath(), requireSignedContext: process.env.AGENTFORGE_AUTH_MODE === 'signed-demo' });
 const traceSink = new FileTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000) });
@@ -43,9 +44,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && req.url === '/evals/deployed-service-results.json') return json(res, 200, readEvidence('deployed-service-results.json'));
     if (req.method === 'GET' && req.url === '/evals/error-analysis.json') return json(res, 200, readEvidence('error-analysis.json'));
-    if (req.method === 'GET' && req.url === '/evals') { const golden = readEvidence('deployed-service-results.json'); const errorAnalysis = readEvidence('error-analysis.json'); return html(res, renderEvaluatorPage({ golden, errorAnalysis })); }
+    if (req.method === 'GET' && req.url === '/evals') { const golden = readEvidence('deployed-service-results.json'); const errorAnalysis = readEvidence('error-analysis.json'); return html(res, renderEvaluatorPage({ golden, errorAnalysis, basePath: publicBasePath })); }
     if (req.method === 'GET' && (req.url === '/observability' || req.url === '/observability/')) return html(res, observabilityPage);
-    if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; return html(res, renderAgentForgePage({ token, payload: tokenPayload(token) })); }
+    if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; return html(res, renderAgentForgePage({ token, payload: tokenPayload(token), publicBasePath })); }
     let raw = ''; for await (const chunk of req) raw += chunk;
     let body = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch { return json(res, 400, { error: 'invalid_json' }); }

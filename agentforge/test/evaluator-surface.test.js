@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { renderEvaluatorPage } from '../src/ui.js';
 
 const port = 18795;
 const agentforgeRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -32,4 +33,7 @@ test('evaluator panel exposes operational routes and saved evidence', async () =
   assert.equal(errorAnalysis.gate_passed, true);
   assert.equal(golden.total_cases, 7);
   assert.equal(errorAnalysis.total_mutations, 6);
+
+  const prefixed = renderEvaluatorPage({ golden: {}, errorAnalysis: {}, basePath: '/agentforge' });
+  for (const href of ['/health', '/ready', '/v1/metrics', '/v1/traces', '/v1/alerts', '/observability', '/evals/deployed-service-results.json', '/evals/error-analysis.json']) assert.match(prefixed, new RegExp(`href="/agentforge${href.replaceAll('/', '\\/')}"`));
 });

@@ -62,6 +62,7 @@ services:
       AGENTFORGE_AUTH_MODE: ${AGENTFORGE_AUTH_MODE:-signed-demo}
       AGENTFORGE_SYNTHETIC_CONTEXT: ${AGENTFORGE_SYNTHETIC_CONTEXT:-true}
       AGENTFORGE_TRACE_PATH: ${AGENTFORGE_TRACE_PATH:-/data/traces.json}
+      AGENTFORGE_PUBLIC_BASE_PATH: ${AGENTFORGE_PUBLIC_BASE_PATH:-/agentforge}
     volumes:
       - tracevolume:/data
     healthcheck:
