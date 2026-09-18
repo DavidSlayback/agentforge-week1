@@ -35,7 +35,7 @@ form{display:grid;gap:.6rem;margin:1rem 0}label{font-weight:650;display:grid;gap
 <script>
 (() => {
   const basePath = location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
-  const state = { conversationId: null, patient: null, demoToken: token };
+  const state = { conversationId: null, patient: null, demoToken: ${JSON.stringify(token).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026')} };
   const briefingForm = document.getElementById('briefing-form');
   const followupForm = document.getElementById('followup-form');
   const transcript = document.getElementById('transcript');

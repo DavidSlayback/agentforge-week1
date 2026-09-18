@@ -35,6 +35,8 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
     assert.match(page, /What changed since the last visit\?/);
     assert.match(page, /What plan items need follow-through\?/);
     assert.match(page, /Which records conflict\?/);
+    assert.match(page, /demoToken: ""/);
+    assert.doesNotMatch(page, /demoToken: token/);
     assert.doesNotMatch(page, /<pre id="out">/);
 
     const briefing = await fetch(`http://127.0.0.1:${port}/v1/briefings`, {

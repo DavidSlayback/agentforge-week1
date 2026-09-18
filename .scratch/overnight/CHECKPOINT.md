@@ -13,6 +13,7 @@
 - AF-08 decision inputs recorded: synthetic forever, no PHI, provider deferred, and production-like resilience required; owner sign-off is recorded.
 - AF-09 through AF-12 local continuation: signed synthetic context, provider retry/fallback, operational dashboard/trace persistence, and 10/50 concurrency load evidence are implemented and tested.
 - AF-08 resilience foundation tested locally and deployed: durable redacted traces, retention/deletion, backup/restore, alert evaluation and readback, a bounded synthetic incident drill, isolated evaluator state, Railway rollback/redeploy readback, attached-volume redeploy persistence, public route smoke, and API collection pass. Cross-region durability, off-host backup/restore, external notification delivery, and secret-manager readback remain future production-like work; independent review is not claimed or required.
+- 2026-09-18 local regression gate: AgentForge 20/20, observability 9/9, evals 10/10, and Vultr Compose configuration validation passed with required dummy interpolation values; no deployment claim was made.
 
 ## Active plan
 
