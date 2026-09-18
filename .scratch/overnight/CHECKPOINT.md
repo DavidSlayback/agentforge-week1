@@ -11,7 +11,7 @@
 - AF-06 evaluator/operations panel externally verified at the same origin; saved golden and mutation evidence are discoverable and all linked routes passed.
 - AF-07 owner sign-off recorded after a fresh-browser rehearsal: briefing, follow-up, blocked cross-patient probe, evaluator evidence, operational links, and synthetic-only limitations all passed.
 - AF-08 decision inputs recorded: synthetic forever, no PHI, provider deferred, and production-like resilience required; the gate remains inconclusive until resilience and independent evidence exist.
-- AF-08 resilience foundation tested locally and deployed: durable redacted traces, retention/deletion, backup/restore, isolated evaluator state, restart persistence, public route smoke, and API collection pass; external recovery/rollback/alert evidence remains open.
+- AF-08 resilience foundation tested locally and deployed: durable redacted traces, retention/deletion, backup/restore, alert evaluation, isolated evaluator state, restart persistence, public route smoke, and API collection pass; external recovery/rollback/alert evidence remains open.
 
 ## Active plan
 

@@ -23,6 +23,8 @@ write-back, or a hosted provider.
   recovery seam. Backup files are written with owner-only permissions.
 - `AGENTFORGE_TRACE_PATH` and `AGENTFORGE_TRACE_RETENTION_MS` make the storage
   and retention policy explicit rather than hidden in code.
+- `/v1/alerts` evaluates deterministic p95-latency, error-rate, and tool-failure
+  rules with explicit thresholds from environment configuration.
 - The service-backed golden test uses an isolated trace store so old test data
   cannot contaminate current evidence.
 

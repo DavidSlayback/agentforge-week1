@@ -8,11 +8,12 @@ import { DeterministicProvider, OpenAICompatibleProvider } from './modelProvider
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
-import { FileTraceSink, createReadinessChecker } from '../../observability/index.js';
+import { FileTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
 
 const provider = process.env.AGENTFORGE_MODEL_ENDPOINT ? new OpenAICompatibleProvider({ endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model' }) : new DeterministicProvider();
 const adapter = new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
 const traceSink = new FileTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000) });
+const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.1) };
 const service = new AgentForgeService({ adapter, provider, traceSink });
 const readiness = createReadinessChecker({ retrieval: adapter, model: provider, trace: { checkReady: async () => Boolean(traceSink.health()) } });
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -36,6 +37,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/ready') { const result = await readiness.ready(); return json(res, result.status === 'ready' ? 200 : 503, result); }
     if (req.method === 'GET' && req.url === '/v1/traces') return json(res, 200, traceSink.list());
     if (req.method === 'GET' && req.url === '/v1/metrics') return json(res, 200, traceSink.snapshot());
+    if (req.method === 'GET' && req.url === '/v1/alerts') return json(res, 200, evaluateAlerts(traceSink.snapshot(), alertThresholds));
     if (req.method === 'GET' && req.url === '/evals/deployed-service-results.json') return json(res, 200, readEvidence('deployed-service-results.json'));
     if (req.method === 'GET' && req.url === '/evals/error-analysis.json') return json(res, 200, readEvidence('error-analysis.json'));
     if (req.method === 'GET' && req.url === '/evals') { const golden = readEvidence('deployed-service-results.json'); const errorAnalysis = readEvidence('error-analysis.json'); return html(res, renderEvaluatorPage({ golden, errorAnalysis })); }

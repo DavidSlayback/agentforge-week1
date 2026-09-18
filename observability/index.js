@@ -96,13 +96,17 @@ class InMemoryTraceSink {
     const durations = this.traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
     const percentile = (p) => durations.length ? durations[Math.min(durations.length - 1, Math.ceil(durations.length * p) - 1)] : 0;
     const errors = this.traces.filter((trace) => trace.status !== 'success').length;
+    const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
+    const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
     return {
       requests: this.traces.length,
       errors,
       errorRate: this.traces.length ? errors / this.traces.length : 0,
       latencyMs: { p50: percentile(.5), p95: percentile(.95), p99: percentile(.99) },
       queueDepth: 0,
-      retrievalAttempts: this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0),
+      retrievalAttempts,
+      toolFailures,
+      toolFailureRate: retrievalAttempts ? toolFailures / retrievalAttempts : 0,
       verificationOutcomes: this.traces.reduce((outcomes, trace) => { const key = trace.verification?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
       displayOutcomes: this.traces.reduce((outcomes, trace) => { const key = trace.display?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
     };
@@ -205,8 +209,20 @@ class MetricsRegistry {
     const durations = this.traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
     const percentile = (p) => durations.length ? durations[Math.min(durations.length - 1, Math.ceil(durations.length * p) - 1)] : 0;
     const errors = this.traces.filter((trace) => trace.status !== 'success').length;
-    return { requests: this.traces.length, errors, errorRate: this.traces.length ? errors / this.traces.length : 0, latencyMs: { p50: percentile(.5), p95: percentile(.95) }, queueDepth: this.queueDepth };
+    const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
+    const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
+    return { requests: this.traces.length, errors, errorRate: this.traces.length ? errors / this.traces.length : 0, latencyMs: { p50: percentile(.5), p95: percentile(.95) }, queueDepth: this.queueDepth, retrievalAttempts, toolFailures, toolFailureRate: retrievalAttempts ? toolFailures / retrievalAttempts : 0 };
   }
+}
+
+function evaluateAlerts(snapshot, { p95LatencyMs = 2000, errorRate = 0.05, toolFailureRate = 0.1 } = {}) {
+  const rules = [
+    { id: 'p95_latency', metric: 'latencyMs.p95', threshold: p95LatencyMs, observed: snapshot.latencyMs?.p95 || 0, operator: '>', triggered: (snapshot.latencyMs?.p95 || 0) > p95LatencyMs },
+    { id: 'error_rate', metric: 'errorRate', threshold: errorRate, observed: snapshot.errorRate || 0, operator: '>', triggered: (snapshot.errorRate || 0) > errorRate },
+    { id: 'tool_failure_rate', metric: 'toolFailureRate', threshold: toolFailureRate, observed: snapshot.toolFailureRate || 0, operator: '>', triggered: (snapshot.toolFailureRate || 0) > toolFailureRate },
+  ];
+  const fired = rules.filter((rule) => rule.triggered).map((rule) => rule.id);
+  return { status: fired.length ? 'firing' : 'ok', fired, rules };
 }
 
 function createReadinessChecker(dependencies) {
@@ -230,4 +246,4 @@ function createReadinessChecker(dependencies) {
   };
 }
 
-module.exports = { redactPayload, TraceRecorder, InMemoryTraceSink, FileTraceSink, MetricsRegistry, createReadinessChecker };
+module.exports = { redactPayload, TraceRecorder, InMemoryTraceSink, FileTraceSink, MetricsRegistry, evaluateAlerts, createReadinessChecker };

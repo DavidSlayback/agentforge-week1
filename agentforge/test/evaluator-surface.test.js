@@ -21,7 +21,7 @@ test.after(() => child?.kill());
 
 test('evaluator panel exposes operational routes and saved evidence', async () => {
   const page = await fetch(`http://127.0.0.1:${port}/evals`).then((response) => response.text());
-  for (const href of ['/health', '/ready', '/v1/metrics', '/v1/traces', '/observability', '/evals/deployed-service-results.json', '/evals/error-analysis.json']) assert.match(page, new RegExp(`href="${href.replaceAll('/', '\\/')}"`));
+  for (const href of ['/health', '/ready', '/v1/metrics', '/v1/traces', '/v1/alerts', '/observability', '/evals/deployed-service-results.json', '/evals/error-analysis.json']) assert.match(page, new RegExp(`href="${href.replaceAll('/', '\\/')}"`));
   assert.match(page, /Golden evidence/);
   assert.match(page, /Mutation\/error analysis/);
   assert.match(page, /synthetic fixture and harness results/i);

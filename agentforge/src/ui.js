@@ -83,6 +83,7 @@ export function renderEvaluatorPage({ golden, errorAnalysis }) {
 <a href="/ready">Readiness</a><span>Retrieval, model, and trace dependencies; expected HTTP 200 when ready.</span>
 <a href="/v1/metrics">Metrics</a><span>Redacted request, error, latency, verification, and display counters.</span>
 <a href="/v1/traces">Traces</a><span>Redacted correlation-continuous trace records.</span>
+<a href="/v1/alerts">Alerts</a><span>Deterministic p95 latency, error-rate, and tool-failure rules with thresholds.</span>
 <a href="/observability">Observability view</a><span>Browser-readable metrics and trace dashboard.</span>
 </div></section>
 <section aria-labelledby="prompt-heading"><h2 id="prompt-heading">Safe sample prompts</h2><div class="prompts"><span>“What changed since the last visit?”</span><span>“What plan items need follow-through?”</span><span>“Which records conflict?”</span><span>Failure probes: partial retrieval, denied authorization, cross-patient scope, malformed request.</span></div></section>
