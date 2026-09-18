@@ -6,11 +6,11 @@ This repository contains the final-candidate path for a synthetic, read-only,
 production-shaped AgentForge checkpoint. The current deployed Vultr evidence
 URL is:
 
-`http://64.177.10.182/agentforge/`
+`https://dts-agentforge.64.177.10.182.nip.io/agentforge/`
 
 The Railway deployment is prior checkpoint evidence. The current local changes
-were deployed directly to Vultr at commit `1259fbb`; the current route is HTTP
-with Caddy internal/self-signed TLS, so trusted HTTPS release remains open.
+were deployed directly to Vultr at commit `1259fbb`; the current hostname uses
+Caddy-managed trusted HTTPS, with HTTP redirect readback.
 No push, PR, merge, or publication occurred.
 
 ## What the final candidate proves
@@ -47,8 +47,7 @@ at concurrency 50 in signed synthetic mode. The deployed reports are
 
 ## Reviewer path
 
-1. Open `http://64.177.10.182/agentforge/` in a clean browser; trusted HTTPS is
-   not yet available on this candidate.
+1. Open `https://dts-agentforge.64.177.10.182.nip.io/agentforge/` in a clean browser.
 2. Prepare `fixture-patient-001` and show the first assistant turn.
 3. Ask “What changed since the last visit?” and show the second turn.
 4. Prepare `fixture-patient-006` and show qualified partial retrieval and

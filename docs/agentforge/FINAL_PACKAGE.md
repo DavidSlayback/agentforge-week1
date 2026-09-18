@@ -4,7 +4,7 @@
 
 - Local branch: `afk/AF-08-resilience-foundation`
 - Source of record: GitLab issue #1 and child issues #2–#16
-- Current deployment evidence URL: `http://64.177.10.182/agentforge/`
+- Current deployment evidence URL: `https://dts-agentforge.64.177.10.182.nip.io/agentforge/`
 - Current candidate commit: `1259fbb`
 - The prior Railway URL remains historical checkpoint evidence, not current-candidate proof.
 - Target deployment configuration must set `AGENTFORGE_AUTH_MODE=signed-demo`,
@@ -15,7 +15,7 @@
 | Gate | Current state | Final proof required |
 | --- | --- | --- |
 | Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
-| Public URL/TLS | HTTP route PASS; trusted HTTPS BLOCKED | Configure/read back a trusted certificate and redirect. |
+| Public URL/TLS | PASS on current Vultr hostname | Trusted HTTPS certificate and HTTP redirect read back on `dts-agentforge.64.177.10.182.nip.io`. |
 | Multi-turn browser agent | PASS on current Vultr HTTP candidate | Clean-browser briefing, follow-up, reset, partial, and blocked probe captured. |
 | Auth/scope seam | PASS synthetic local | Signed-context expiry/mismatch/scope tests and deployed readback. |
 | Provider lane | PASS failure-policy tests; vendor deferred | Keep deterministic default; do not add a vendor without owner decision. |
@@ -24,7 +24,7 @@
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
 | Deployed scale | READY FOR OWNER REVIEW | Review current Vultr load/resource evidence in AF-17, including interaction latency/cache/deadline metrics. |
 | Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
-| Final readback | BLOCKED | Trusted HTTPS, billing, clean-profile sign-off, and final owner approval remain. |
+| Final readback | READY FOR OWNER REVIEW | Billing, clean-profile sign-off, and final owner approval remain. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
 | Interview | DRAFT READY | Timed rehearsal against final evidence. |
 | External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |
