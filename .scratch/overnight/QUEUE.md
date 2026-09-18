@@ -24,8 +24,8 @@ Parent: GitLab #1. Child issues are published and linked below.
 
 ## First frontier
 
-- AF-03 and AF-05 are READY after AF-01 was approved for this local run.
-- AF-02 remains HITL and blocks AF-06/AF-07, but does not block AF-03 or AF-05.
+- AF-03, AF-05, and AF-04 are VERIFIED for this local run.
+- AF-02 is the next HITL frontier and blocks AF-06/AF-07. No AFK ticket is currently eligible.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
 

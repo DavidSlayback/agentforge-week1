@@ -2,18 +2,19 @@
 
 ## Run boundary
 
-Local-only implementation. No remote mutation, push, PR, or merge. Budget: two AFK tickets, one active lane, one repair attempt per ticket.
+Local-only implementation. No remote mutation, push, PR, or merge. Budget: three AFK tickets, one active lane, one repair attempt per ticket.
 
 ## Completed
 
 - Planning migration: preserved AF-01–AF-15 and upgraded independent verification requirements.
 - AF-01: approved working evidence inventory recorded; original AgentForge source PDF remains unavailable.
+- AF-03: verified local multi-turn conversation surface at `c4c96c2`.
+- AF-05: verified strict contracts and runnable API collection at `8bf030a`.
+- AF-04: verified safety and patient-scope states at `de3430b`.
 
-## In progress
+## Current stop
 
-- AF-03 is VERIFIED locally at `c4c96c2`.
-- AF-05 is VERIFIED locally at `8bf030a` from base `6dbbac8`.
-- Local budget extended to three AFK tickets; AF-04 is now READY.
+- AF-02 is the next HITL deployment gate. No AFK ticket is eligible until canonical deployment/TLS evidence is resolved.
 
 ## Evidence policy
 
@@ -26,10 +27,6 @@ PASS. Local runtime evidence exists; external deployment/browser evidence remain
 ## AF-05 result
 
 PASS. Local API collection and readiness-failure evidence exist; deployed canonical-origin evidence remains intentionally open under AF-02/AF-07.
-
-## Current frontier
-
-AF-04 is implementing/testing on `afk/AF-04-safety-ui`. AF-02 remains the next HITL deployment boundary.
 
 ## AF-04 result
 
