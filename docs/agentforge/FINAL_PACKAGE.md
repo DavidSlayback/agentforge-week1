@@ -5,7 +5,7 @@
 - Local branch: `afk/AF-08-resilience-foundation`
 - Source of record: GitLab issue #1 and child issues #2–#16
 - Current deployment evidence URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
-- Current candidate commit: `1259fbb`
+- Current service commit: `1259fbb`; current proxy/config commit: `c3a63a3`
 - The prior Railway URL remains historical checkpoint evidence, not current-candidate proof.
 - Target deployment configuration must set `AGENTFORGE_AUTH_MODE=signed-demo`,
   `AGENTFORGE_SYNTHETIC_CONTEXT=true`, and a durable `AGENTFORGE_TRACE_PATH`.

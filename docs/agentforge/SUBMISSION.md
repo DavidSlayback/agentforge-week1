@@ -9,8 +9,9 @@ URL is:
 `https://dtstest.64.177.10.182.nip.io/agentforge/`
 
 The Railway deployment is prior checkpoint evidence. The current local changes
-were deployed directly to Vultr at commit `1259fbb`; the current hostname uses
-Caddy-managed trusted HTTPS, with HTTP redirect readback.
+were deployed directly to Vultr at service commit `1259fbb` with proxy/config
+commit `c3a63a3`; the current hostname uses Caddy-managed trusted HTTPS, with
+HTTP redirect readback.
 No push, PR, merge, or publication occurred.
 
 ## What the final candidate proves

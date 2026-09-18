@@ -42,6 +42,12 @@ and 500/500 at concurrency 50. p50/p95/p99 were 23.87/31.84/32.43 ms and
 159.96/178.33/186.83 ms respectively. These are local synthetic measurements,
 not production capacity, Railway SLOs, or cost guarantees.
 
+The current Vultr readback also completed 100/100 requests at concurrency 10
+and 500/500 at concurrency 50 with zero errors. The measured p50/p95/p99 were
+42.11/99.73/121.02 ms and 123.93/625.76/1725.39 ms respectively. These are
+bounded synthetic observations on the current 2-vCPU Vultr shape, not a
+production capacity guarantee or an attribution of all account spend.
+
 ## What remains deliberately limited?
 
 The deployment does not use live OpenEMR, PHI, clinical write-back, a hosted
