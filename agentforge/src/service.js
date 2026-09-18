@@ -1,4 +1,4 @@
-import { correlationId, blockedResult, MAX_RETRIES } from './contracts.js';
+import { CONTRACT_VERSION, correlationId, blockedResult, MAX_RETRIES } from './contracts.js';
 import { fileURLToPath } from 'node:url';
 
 function evidence(record, patientRef) {
@@ -23,7 +23,7 @@ export class AgentForgeService {
     const claims = item.records.filter((record) => !withheld.includes(record.field)).map((record) => ({ field: record.field, value: record.value, patient_ref: item.patient.patient_ref, source_ref: record.source_ref, evidence: [evidence(record, item.patient.patient_ref)], reassessment_documented: Boolean(record.reassessment_documented) }));
     const failed = retrieved.coverage.filter((group) => ['failed', 'timeout', 'unauthorized'].includes(group.status));
     const qualification = { required: Boolean(expected.qualification_required || failed.length), reasons: failed.length ? failed.map((group) => `${group.group}:${group.status}`) : (expected.qualification_required ? ['fixture_requires_qualification'] : []) };
-    const response = { contract_version: '0.1', correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: request.clinician_uuid, authorized: true }, patient: item.patient, disposition: expected.brief_disposition || (qualification.required ? 'qualified' : 'complete'), claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: 'retrieve_fixture' }] };
+    const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: request.clinician_uuid, authorized: true }, patient: item.patient, disposition: expected.brief_disposition || (qualification.required ? 'qualified' : 'complete'), claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: 'retrieve_fixture' }] };
     trace?.startStage('verification');
     const verification = (await import('./verifier.js')).verify({ patientRef: item.patient.patient_ref, claims, coverage: retrieved.coverage, qualification, operations: response.operations });
     trace?.finishStage('verification', { status: verification.status });
@@ -46,7 +46,7 @@ export class AgentForgeService {
   async followUp(id, request) {
     const conversation = this.conversations.get(id);
     if (!conversation || conversation.patientRef !== request.patient_uuid || request.authorization?.status !== 'authorized') return blockedResult(id, 'conversation_scope_invalid');
-    return { correlation_id: id, patient: conversation.response.patient, text: `Follow-up for ${conversation.patientRef}: ${request.message || 'No question supplied.'} See the cited evidence in the briefing.`, evidence: conversation.response.claims.flatMap((claim) => claim.evidence), verification: conversation.response.verification };
+    return { contract_version: CONTRACT_VERSION, correlation_id: id, disposition: 'complete', context: { patient_ref: conversation.patientRef, requester_ref: conversation.request.clinician_uuid, authorized: true }, patient: conversation.response.patient, text: `Follow-up for ${conversation.patientRef}: ${request.message || 'No question supplied.'} See the cited evidence in the briefing.`, evidence: conversation.response.claims.flatMap((claim) => claim.evidence), verification: conversation.response.verification };
   }
 }
 

@@ -60,6 +60,7 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
         authorization: { status: 'authorized', scope: 'read-briefing' },
       }),
     }).then((response) => response.json());
+    assert.equal(followUp.contract_version, '0.1');
     assert.equal(followUp.correlation_id, briefing.correlation_id);
     assert.equal(followUp.patient.patient_ref, 'fixture-patient-001');
     assert.match(followUp.text, /Follow-up for fixture-patient-001/);

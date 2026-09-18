@@ -4,6 +4,7 @@ import path from 'node:path';
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { DeterministicProvider, OpenAICompatibleProvider } from './modelProvider.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
+import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest } from './contracts.js';
 import { renderAgentForgePage } from './ui.js';
 import { InMemoryTraceSink, createReadinessChecker } from '../../observability/index.js';
 
@@ -14,6 +15,8 @@ const service = new AgentForgeService({ adapter, provider, traceSink });
 const readiness = createReadinessChecker({ retrieval: adapter, model: provider, trace: { checkReady: async () => Boolean(traceSink.health()) } });
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
+const invalidContract = (res, error, issues) => json(res, 400, { error, issues });
+const invalidResponse = (res, error, issues) => json(res, 500, { error, issues });
 const tokenPayload = (token) => {
   if (!token || !process.env.AGENTFORGE_DEMO_SECRET) return null;
   const [encoded, signature] = token.split('.');
@@ -30,10 +33,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/v1/metrics') return json(res, 200, traceSink.snapshot());
     if (req.method === 'GET' && (req.url === '/observability' || req.url === '/observability/')) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end('<!doctype html><title>AgentForge observability</title><main><h1>AgentForge observability</h1><pre id="metrics">Loading…</pre><h2>Recent redacted traces</h2><pre id="traces">Loading…</pre><script>const basePath=location.pathname.startsWith("/agentforge")?"/agentforge":"";Promise.all([fetch(basePath+"/v1/metrics").then(r=>r.json()),fetch(basePath+"/v1/traces").then(r=>r.json())]).then(([m,t])=>{metrics.textContent=JSON.stringify(m,null,2);traces.textContent=JSON.stringify(t,null,2)}).catch(error=>{metrics.textContent="Dashboard data unavailable: "+error})</script></main>'); }
     if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; return html(res, renderAgentForgePage({ token, payload: tokenPayload(token) })); }
-    let raw = ''; for await (const chunk of req) raw += chunk; const body = raw ? JSON.parse(raw) : {};
-    if (req.method === 'POST' && req.url === '/v1/briefings') { const token = tokenPayload(body.demo_token); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; return json(res, 200, await service.prepare(body)); }
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    let body = {};
+    try { body = raw ? JSON.parse(raw) : {}; } catch { return json(res, 400, { error: 'invalid_json' }); }
+    if (req.method === 'POST' && req.url === '/v1/briefings') { const validation = validatePrepareRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_prepare_request', validation.issues); const token = tokenPayload(body.demo_token); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.prepare(body); const responseValidation = validateBriefingResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_briefing_response', responseValidation.issues); }
     const match = req.url.match(/^\/v1\/conversations\/([^/]+)\/messages$/);
-    if (req.method === 'POST' && match) return json(res, 200, await service.followUp(match[1], body));
+    if (req.method === 'POST' && match) { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const result = await service.followUp(match[1], body); const responseValidation = validateFollowUpResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_response', responseValidation.issues); }
     return json(res, 404, { error: 'not_found' });
   } catch (error) { return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message }); }
 });
