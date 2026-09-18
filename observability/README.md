@@ -9,4 +9,6 @@ direct patient identifiers by default.
 records after `retentionMs`, writes with a temporary file and rename, and
 supports explicit `deleteAll()` cleanup. It is a local synthetic-checkpoint
 primitive, not a compliance claim or a replacement for a reviewed production
-telemetry backend.
+telemetry backend. `backup(path)` and `restore(path)` provide a checked local
+recovery seam; deployment storage, off-host backup, rollback orchestration, and
+restore drills remain separate operational evidence.

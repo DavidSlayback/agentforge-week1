@@ -122,9 +122,9 @@ class FileTraceSink extends InMemoryTraceSink {
     this.prune(this.clock());
   }
 
-  readFromDisk() {
+  readStore(filePath) {
     try {
-      const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       if (!Array.isArray(parsed)) throw new Error('TRACE_STORE_INVALID');
       return parsed.map(redactPayload);
     } catch (error) {
@@ -132,6 +132,8 @@ class FileTraceSink extends InMemoryTraceSink {
       throw error;
     }
   }
+
+  readFromDisk() { return this.readStore(this.filePath); }
 
   persist() {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
@@ -172,6 +174,24 @@ class FileTraceSink extends InMemoryTraceSink {
     this.traces = [];
     this.persist();
     return deleted;
+  }
+
+  backup(backupPath) {
+    if (!backupPath) throw new Error('TRACE_BACKUP_PATH_REQUIRED');
+    this.purgeExpired();
+    fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+    fs.copyFileSync(this.filePath, backupPath);
+    fs.chmodSync(backupPath, 0o600);
+    return { path: backupPath, records: this.traces.length };
+  }
+
+  restore(backupPath) {
+    if (!backupPath) throw new Error('TRACE_BACKUP_PATH_REQUIRED');
+    const restored = this.readStore(backupPath);
+    this.traces = restored;
+    this.prune(this.clock());
+    this.persist();
+    return { records: this.traces.length };
   }
 
   health() { return { status: 'ok', durable: true, retentionMs: this.retentionMs }; }
