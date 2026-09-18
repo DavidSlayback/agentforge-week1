@@ -11,10 +11,11 @@ Local-only implementation. No remote mutation, push, PR, or merge. Budget: three
 - AF-03: verified local multi-turn conversation surface at `c4c96c2`.
 - AF-05: verified strict contracts and runnable API collection at `8bf030a`.
 - AF-04: verified safety and patient-scope states at `de3430b`.
+- AF-02: verified the Railway canonical HTTPS origin `https://agentforge-week1-production.up.railway.app`; route matrix, API collection, and browser interaction passed.
 
-## Current stop
+## Current frontier
 
-- AF-02 is the next HITL deployment gate. No AFK ticket is eligible until canonical deployment/TLS evidence is resolved.
+- AF-06 is READY and is the next AFK implementation. AF-07 is the next HITL release gate.
 
 ## Evidence policy
 
@@ -27,6 +28,10 @@ PASS. Local runtime evidence exists; external deployment/browser evidence remain
 ## AF-05 result
 
 PASS. Local API collection and readiness-failure evidence exist; deployed canonical-origin evidence remains intentionally open under AF-02/AF-07.
+
+## AF-02 result
+
+PASS externally. Railway trusted HTTPS, route matrix, deployed API collection, and fresh-browser multi-turn/safety interaction passed. The Railway-generated domain is now the canonical evaluator origin for this checkpoint.
 
 ## AF-04 result
 
