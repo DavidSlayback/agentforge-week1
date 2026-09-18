@@ -14,12 +14,13 @@
 - AF-09 through AF-12 local continuation: signed synthetic context, provider retry/fallback, operational dashboard/trace persistence, and 10/50 concurrency load evidence are implemented and tested.
 - AF-08 resilience foundation tested locally and deployed: durable redacted traces, retention/deletion, backup/restore, alert evaluation and readback, a bounded synthetic incident drill, isolated evaluator state, Railway rollback/redeploy readback, attached-volume redeploy persistence, public route smoke, and API collection pass. Cross-region durability, off-host backup/restore, external notification delivery, and secret-manager readback remain future production-like work; independent review is not claimed or required.
 - 2026-09-18 local regression gate: AgentForge 20/20, observability 9/9, evals 10/10, and Vultr Compose configuration validation passed with required dummy interpolation values; no deployment claim was made.
+- 2026-09-18 current-candidate deployment: commit `dcdae5b` was rebuilt directly on Vultr. The `/agentforge` HTTP route, fresh browser flow, evaluator links, observability dashboard, health/readiness, and 10/50 deployed load runs passed; trusted HTTPS and billing readback remain open.
 
 ## Active plan
 
 1. Close AF-16 documentation/claim consistency.
 2. Deploy and externally read back the final local candidate for AF-17.
-3. Complete cost review, final readback, interview rehearsal, and no-publish decision through AF-18–AF-15.
+3. Obtain billing readback, fix/read back trusted HTTPS, then complete final readback, interview rehearsal, and no-publish decision through AF-18–AF-15.
 
 ## Recovery action
 

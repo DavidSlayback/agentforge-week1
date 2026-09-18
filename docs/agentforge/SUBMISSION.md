@@ -2,17 +2,16 @@
 
 ## Release position
 
-This repository contains the local final-candidate path for a synthetic,
-read-only, production-shaped AgentForge checkpoint. The last externally
-verified Railway URL is:
+This repository contains the final-candidate path for a synthetic, read-only,
+production-shaped AgentForge checkpoint. The current deployed Vultr evidence
+URL is:
 
-`https://agentforge-week1-production.up.railway.app`
+`http://64.177.10.182/agentforge/`
 
-The Railway deployment is a prior verified candidate. The post-AF-08 local
-changes (server-verified synthetic context, provider fallback, dashboard
-metrics, Windows-safe trace persistence, and load harness) must be deployed
-and read back before they are presented as the final Sunday artifact. No push,
-PR, merge, or external deployment is performed in this local-only run.
+The Railway deployment is prior checkpoint evidence. The current local changes
+were deployed directly to Vultr at commit `dcdae5b`; the current route is HTTP
+with Caddy internal/self-signed TLS, so trusted HTTPS release remains open.
+No push, PR, merge, or publication occurred.
 
 ## What the final candidate proves
 
@@ -39,12 +38,14 @@ node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 10 --r
 node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 50 --requests 500 --out .scratch/overnight/evidence/load-50-final.json
 ```
 
-The current local results are 20/20 AgentForge tests, 9/9 observability
-tests, 10/10 eval tests, and zero load errors in signed synthetic mode.
+The current results are 20/20 AgentForge tests, 9/9 observability tests, 10/10
+eval tests, zero deployed load errors, 100/100 at concurrency 10, and 500/500
+at concurrency 50 in signed synthetic mode.
 
 ## Reviewer path
 
-1. Open the canonical HTTPS URL in a clean browser.
+1. Open `http://64.177.10.182/agentforge/` in a clean browser; trusted HTTPS is
+   not yet available on this candidate.
 2. Prepare `fixture-patient-001` and show the first assistant turn.
 3. Ask “What changed since the last visit?” and show the second turn.
 4. Prepare `fixture-patient-006` and show qualified partial retrieval and
@@ -64,6 +65,7 @@ tests, 10/10 eval tests, and zero load errors in signed synthetic mode.
 | Provider failure policy | `.scratch/overnight/evidence/AF-10.md` |
 | Operations and recovery | `.scratch/overnight/evidence/AF-11.md`, `docs/agentforge/RESILIENCE.md` |
 | Load and cost boundary | `.scratch/overnight/evidence/AF-12.md`, `docs/agentforge/LOAD_TEST.md` |
+| Current deployed scale | `.scratch/overnight/evidence/AF-17.md`, `.scratch/overnight/evidence/load-deployed-10.json`, `.scratch/overnight/evidence/load-deployed-50.json` |
 | Final release checklist | `docs/agentforge/FINAL_PACKAGE.md` |
 | Interview defense | `docs/agentforge/FINAL_INTERVIEW_PREP.md` |
 | No-publish communication draft | `docs/agentforge/FINAL_SOCIAL_DRAFT.md` |

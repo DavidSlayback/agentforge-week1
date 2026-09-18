@@ -4,8 +4,9 @@
 
 - Local branch: `afk/AF-08-resilience-foundation`
 - Source of record: GitLab issue #1 and child issues #2–#16
-- Deployment URL to recheck: `https://agentforge-week1-production.up.railway.app`
-- Final local candidate must be identified by its commit and deployment readback.
+- Current deployment evidence URL: `http://64.177.10.182/agentforge/`
+- Current candidate commit: `dcdae5b088131be8472c6ce6f1f3199225e1b8d8`
+- The prior Railway URL remains historical checkpoint evidence, not current-candidate proof.
 - Target deployment configuration must set `AGENTFORGE_AUTH_MODE=signed-demo`,
   `AGENTFORGE_SYNTHETIC_CONTEXT=true`, and a durable `AGENTFORGE_TRACE_PATH`.
 
@@ -14,16 +15,16 @@
 | Gate | Current state | Final proof required |
 | --- | --- | --- |
 | Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
-| Public URL/TLS | PASS for prior Railway candidate | Re-run against the final deployed commit. |
-| Multi-turn browser agent | PASS in prior external checkpoint; strengthened locally | Clean-browser briefing, follow-up, reset, and blocked probe. |
+| Public URL/TLS | HTTP route PASS; trusted HTTPS BLOCKED | Configure/read back a trusted certificate and redirect. |
+| Multi-turn browser agent | PASS on current Vultr HTTP candidate | Clean-browser briefing, follow-up, reset, partial, and blocked probe captured. |
 | Auth/scope seam | PASS synthetic local | Signed-context expiry/mismatch/scope tests and deployed readback. |
 | Provider lane | PASS failure-policy tests; vendor deferred | Keep deterministic default; do not add a vendor without owner decision. |
-| Operations | PASS local and prior Railway persistence | Final dashboard, alerts, traces, retention, and rollback readback. |
-| Load/cost | PASS local synthetic measurements | Do not relabel local measurements as Railway capacity. |
+| Operations | PASS on current Vultr synthetic candidate | Dashboard, alerts, traces, and route matrix read back; TLS caveat remains. |
+| Load/cost | Deployed load PASS; billing BLOCKED | 10/50 reports are current Vultr evidence; obtain actual billing readback. |
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | BLOCKED | Run 10/50 concurrency against the exact current deployment. |
+| Deployed scale | READY FOR OWNER REVIEW | Review current Vultr load/resource evidence in AF-17. |
 | Cost analysis | BLOCKED | Obtain spend/resource readback and review projections. |
-| Final readback | BLOCKED | Clean-profile test of the exact current commit. |
+| Final readback | BLOCKED | Trusted HTTPS, billing, clean-profile sign-off, and final owner approval remain. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
 | Interview | DRAFT READY | Timed rehearsal against final evidence. |
 | External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |
