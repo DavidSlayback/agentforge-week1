@@ -4,7 +4,7 @@
 
 - Local branch: `afk/AF-08-resilience-foundation`
 - Source of record: GitLab issue #1 and child issues #2–#16
-- Current deployment evidence URL: `https://dts-agentforge.64.177.10.182.nip.io/agentforge/`
+- Current deployment evidence URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
 - Current candidate commit: `1259fbb`
 - The prior Railway URL remains historical checkpoint evidence, not current-candidate proof.
 - Target deployment configuration must set `AGENTFORGE_AUTH_MODE=signed-demo`,
@@ -15,7 +15,7 @@
 | Gate | Current state | Final proof required |
 | --- | --- | --- |
 | Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
-| Public URL/TLS | PASS on current Vultr hostname | Trusted HTTPS certificate and HTTP redirect read back on `dts-agentforge.64.177.10.182.nip.io`. |
+| Public URL/TLS | PASS on current Vultr hostname | Trusted HTTPS certificate and HTTP redirect read back on `dtstest.64.177.10.182.nip.io`. |
 | Multi-turn browser agent | PASS on current Vultr HTTP candidate | Clean-browser briefing, follow-up, reset, partial, and blocked probe captured. |
 | Auth/scope seam | PASS synthetic local | Signed-context expiry/mismatch/scope tests and deployed readback. |
 | Provider lane | PASS failure-policy tests; vendor deferred | Keep deterministic default; do not add a vendor without owner decision. |

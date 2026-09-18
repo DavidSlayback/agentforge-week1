@@ -16,7 +16,7 @@
 - 2026-09-18 local regression gate: AgentForge 20/20, observability 9/9, evals 10/10, and Vultr Compose configuration validation passed with required dummy interpolation values; no deployment claim was made.
 - 2026-09-18 current-candidate deployment: commit `1259fbb` was rebuilt directly on Vultr. The `/agentforge` route, fresh browser flow, evaluator links, interaction-specific observability fields, health/readiness, and 10/50 deployed load runs passed; trusted HTTPS and billing readback are now recorded.
 - 2026-09-18 billing readback: authenticated Vultr Billing shows $1.36 charges this month and $28.64 remaining credit. This is account-level spend, not deployment-attributed spend; projection review remains open.
-- 2026-09-18 trusted HTTPS readback: `https://dts-agentforge.64.177.10.182.nip.io/agentforge/` loaded in Chrome with a trusted Caddy-managed certificate; HTTP redirected to HTTPS.
+- 2026-09-18 trusted HTTPS readback: `https://dtstest.64.177.10.182.nip.io/agentforge/` loaded in Chrome with a trusted Caddy-managed certificate; HTTP redirected to HTTPS.
 
 ## Active plan
 

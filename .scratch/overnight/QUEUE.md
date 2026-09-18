@@ -33,7 +33,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
 
-Current frontier: owner review of AF-16/AF-17/AF-18, then AF-19 final release readback. The current candidate is deployed at Vultr at `https://dts-agentforge.64.177.10.182.nip.io/agentforge/`; trusted HTTPS and HTTP redirect are read back.
+Current frontier: owner review of AF-16/AF-17/AF-18, then AF-19 final release readback. The current candidate is deployed at Vultr at `https://dtstest.64.177.10.182.nip.io/agentforge/`; trusted HTTPS and HTTP redirect are read back.
 
 ## Harness rule
 

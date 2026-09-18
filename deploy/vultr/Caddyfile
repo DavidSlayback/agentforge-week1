@@ -1,4 +1,4 @@
-dts-agentforge.64.177.10.182.nip.io {
+dtstest.64.177.10.182.nip.io {
     handle_path /agentforge* {
         reverse_proxy agentforge:8787
     }
