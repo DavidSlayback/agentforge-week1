@@ -8,7 +8,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | AF-01 | [#2](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/2) | HITL | VERIFIED | None | 0 | Yes | Requirements/evidence reviewer |
 | AF-02 | [#3](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/3) | HITL | blocked | AF-01 | 1 | Yes | External route/TLS verifier |
-| AF-03 | [#4](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/4) | AFK | READY | AF-01 | 1 | Yes | Node service/UI-flow tests |
+| AF-03 | [#4](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/4) | AFK | VERIFIED | AF-01 | 1 | Yes | Node service/UI-flow tests |
 | AF-04 | [#5](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/5) | AFK | blocked | AF-03 | 2 | Yes | Safety-state test matrix |
 | AF-05 | [#6](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/6) | AFK | READY | AF-01 | 1 | Yes | Contract/eval test runner |
 | AF-06 | [#7](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/7) | AFK | blocked | AF-02, AF-05 | 2 | Yes | Fresh-profile route/link walk |
