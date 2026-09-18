@@ -16,6 +16,7 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 - AF-07: owner-approved the checkpoint after a fresh-browser briefing/follow-up rehearsal, blocked cross-patient probe, evaluator review, and synthetic-only limitation review.
 - AF-08: decision input recorded in GitLab #9 and local ADRs; remains INCONCLUSIVE pending production-like resilience implementation and independent evidence.
 - AF-08 foundation: added durable redacted traces, retention/deletion, restart persistence, and isolated evaluator-state tests; local checks pass, but the HITL gate remains open.
+- AF-08 foundation is deployed on the Railway canonical URL and its public route/API collection checks pass; restart/rollback/alert drills remain unverified.
 
 ## Current frontier
 

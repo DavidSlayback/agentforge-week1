@@ -13,6 +13,6 @@
 | AF-04 | `afk/AF-04-safety-ui` | `36d3036` | VERIFIED | `de3430b` | local only |
 | AF-02 | Railway deployment | `f180796` | VERIFIED | `agentforge-week1-production.up.railway.app` | external deployment; no PR/merge |
 | AF-06 | `afk/AF-06-evaluator-surface` | `f250daa` | VERIFIED | `e80ed6d` | pushed to GitHub mirror for Railway; no PR/merge |
-| AF-08 foundation | `afk/AF-08-resilience-foundation` | `297c10a` | TESTED — gate remains INCONCLUSIVE | pending | local only; no PR/merge |
+| AF-08 foundation | `afk/AF-08-resilience-foundation` | `297c10a` | DEPLOYED/TESTED — gate remains INCONCLUSIVE | `96ab09a` | pushed to GitHub mirror for Railway; no PR/merge |
 
-AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. The AF-08 resilience foundation is locally tested, but AF-08 remains INCONCLUSIVE until external recovery, rollback, alert, and independent review evidence exists. Do not start AF-09.
+AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. The AF-08 resilience foundation is deployed and externally route-tested, but AF-08 remains INCONCLUSIVE until recovery, rollback, alert, and independent review evidence exists. Do not start AF-09.
