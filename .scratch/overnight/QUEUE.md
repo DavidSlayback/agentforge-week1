@@ -24,7 +24,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 | AF-16 | local follow-on | HITL | READY-DOC-CLOSURE | AF-13 | 12 | Yes | Owner contract/claims verifier |
 | AF-17 | local follow-on | HITL | READY-DEPLOYED-OWNER-REVIEW | AF-12, AF-13, AF-16 | 13 | Yes | Deployed scale verifier |
 | AF-18 | local follow-on | HITL | READY-COST-OWNER-REVIEW | AF-17 | 14 | Yes | Owner cost/architecture verifier |
-| AF-19 | local follow-on | HITL | BLOCKED-FINAL-READBACK | AF-16, AF-17, AF-18 | 15 | Yes | Owner clean-profile release verifier |
+| AF-19 | local follow-on | HITL | READY-FOR-OWNER-REVIEW | AF-16, AF-17, AF-18 | 15 | Yes | Owner clean-profile release verifier |
 
 ## Current frontier
 
@@ -33,7 +33,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
 
-Current frontier: owner review of AF-16/AF-17/AF-18, then AF-19 final release readback. The current candidate is deployed at Vultr at `https://dtstest.64.177.10.182.nip.io/agentforge/`; trusted HTTPS and HTTP redirect are read back.
+Current frontier: owner review of AF-16/AF-17/AF-18/AF-19, then final submission and publish/no-publish closure. The current candidate is deployed at Vultr at `https://dtstest.64.177.10.182.nip.io/agentforge/`; trusted HTTPS and HTTP redirect are read back.
 
 ## Harness rule
 

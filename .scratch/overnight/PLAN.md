@@ -63,7 +63,7 @@ The original migrated queue passed structural planning gates and was approved fo
 
 ## Local execution reconciliation
 
-David approved the migrated queue for local implementation and subsequently authorized direct deployment readback. AF-01 through AF-08 are recorded as verified for the checkpoint. AF-09 through AF-12 now have synthetic local implementation/evidence. AF-16 and AF-17 have current evidence ready for owner review; AF-18 remains blocked on billing readback and AF-19 remains blocked on trusted HTTPS/final owner readback. No push, PR, merge, or publication is authorized by the current scope.
+David approved the migrated queue for local implementation and subsequently authorized direct deployment readback. AF-01 through AF-08 are recorded as verified for the checkpoint. AF-09 through AF-12 now have synthetic local implementation/evidence. AF-16 through AF-19 have current evidence ready for owner review. No push, PR, merge, or publication is authorized by the current scope.
 
 ## Full-build execution update — 2026-09-18
 
@@ -82,9 +82,10 @@ David approved the migrated queue for local implementation and subsequently auth
   `USER.md` pointer and 90–180-second workflow framing, deployed load and
   infrastructure evidence, actual cost/projections, and final current-commit
   clean-profile readback/sign-off.
-- Current closure evidence: commit `dcdae5b` was rebuilt directly on Vultr;
-  `/agentforge` browser, evaluator, observability, readiness, route, and 10/50
-  load checks pass. Trusted HTTPS and billing remain explicit HITL blockers.
+- Current closure evidence: service commit `1259fbb` and proxy/config commit
+  `c3a63a3` were read back on Vultr; `/agentforge` browser, evaluator,
+  observability, readiness, route, and 10/50 load checks pass. Trusted HTTPS
+  and account-level billing are recorded; owner review remains the HITL gate.
 
 ## Coverage map
 

@@ -15,7 +15,7 @@ Local implementation plus user-authorized direct Vultr deployment readback. No p
 - AF-06: verified the deployed evaluator/operations panel, linked operational routes, saved golden/mutation evidence, and fresh-browser discoverability at the canonical origin.
 - AF-07: owner-approved the checkpoint after a fresh-browser briefing/follow-up rehearsal, blocked cross-patient probe, evaluator review, and synthetic-only limitation review.
 - AF-08: decision input recorded in GitLab #9 and local ADRs; implementation/runtime evidence is ready for owner sign-off.
-- AF-08 foundation: added durable redacted traces, retention/deletion, restart persistence, isolated evaluator-state tests, and a bounded synthetic incident drill with a written response runbook; local checks pass, but the HITL gate remains open.
+- AF-08 foundation: added durable redacted traces, retention/deletion, restart persistence, isolated evaluator-state tests, and a bounded synthetic incident drill with a written response runbook; local checks pass and the owner sign-off is recorded.
 - AF-08 foundation is deployed on the Railway canonical URL and its public route/API collection checks pass. Railway rollback succeeded, temporarily left no active deployment, and was recovered to the alert-enabled deployment; the live collection then passed.
 - Deployed `/v1/alerts` fired `tool_failure_rate` at `0.17142857142857143` after synthetic partial-retrieval traffic. Railway volume `agentforge-week1-volume` is mounted at `/data` with `AGENTFORGE_TRACE_PATH=/data/traces.json`; the sentinel trace survived a confirmed redeploy and the active deployment reported success.
 - AF-08 owner sign-off is recorded. Continued locally with AF-09 synthetic server-verified context, AF-10 provider retry/fallback, AF-11 expanded operational dashboard and Windows-safe trace persistence, and AF-12 reproducible load harness.
@@ -25,7 +25,7 @@ Local implementation plus user-authorized direct Vultr deployment readback. No p
 
 ## Current frontier
 
-- AF-08 is PASS/VERIFIED. AF-09–AF-12 are locally implemented/measured under the permanent synthetic boundary. AF-16 and AF-17 are ready for owner review; AF-18 remains blocked on billing readback, and AF-19 remains blocked on trusted HTTPS, billing, and final owner readback.
+- AF-08 is PASS/VERIFIED. AF-09–AF-12 are locally implemented/measured under the permanent synthetic boundary. AF-16 through AF-19 have current evidence ready for owner review; no independent reviewer is assumed.
 
 ## Evidence policy
 

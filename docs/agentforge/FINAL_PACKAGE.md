@@ -19,7 +19,7 @@
 | Multi-turn browser agent | PASS on current Vultr HTTP candidate | Clean-browser briefing, follow-up, reset, partial, and blocked probe captured. |
 | Auth/scope seam | PASS synthetic local | Signed-context expiry/mismatch/scope tests and deployed readback. |
 | Provider lane | PASS failure-policy tests; vendor deferred | Keep deterministic default; do not add a vendor without owner decision. |
-| Operations | PASS on current Vultr synthetic candidate | Dashboard, alerts, traces, and route matrix read back; TLS caveat remains. |
+| Operations | PASS on current Vultr synthetic candidate | Dashboard, alerts, traces, and route matrix read back over the trusted HTTPS hostname. |
 | Load/cost | Deployed load PASS; billing readback PASS; projections REVIEW | Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
 | Deployed scale | READY FOR OWNER REVIEW | Review current Vultr load/resource evidence in AF-17, including interaction latency/cache/deadline metrics. |

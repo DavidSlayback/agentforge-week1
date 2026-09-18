@@ -3,7 +3,7 @@
 **Mode:** local AFK execution with user-authorized direct Vultr deployment readback; no push, PR, or merge opened. GitLab remains the issue/source-of-record.
 **Base branch:** `davidslayback/agentforge-checkpoint`  
 **Base commit:** `1711f73d405fc774d205530923b2c87920a1914a`  
-**Budget:** one active lane, one repair attempt, targeted tests before repository suites; stop before final external readback or publication.
+**Budget:** one active lane, one repair attempt, targeted tests before repository suites; stop before owner sign-off or publication.
 
 | Ticket | Branch | Base | State | Commit | PR/push |
 | --- | --- | --- | --- | --- | --- |
@@ -17,6 +17,6 @@
 | AF-09–AF-12 continuation | `afk/AF-08-resilience-foundation` | `58520f9` | LOCAL IMPLEMENTED/MEASURED — synthetic only | `6d40adc` plus current local changes | local branch only; no PR/merge |
 | AF-13–AF-15 release path | same branch | current local candidate | PACKAGE READY; external readback/rehearsal pending | evidence/docs in progress | local draft; no publication |
 | AF-16–AF-17 closure path | same branch | `dcdae5b` / Vultr image `sha256:49f5915f...` | DOC and deployed scale evidence ready for owner review | local tickets/evidence plus current Vultr readback | direct deployment; no push/PR/merge |
-| AF-18–AF-19 closure path | same branch | current Vultr candidate | billing, trusted HTTPS, and final owner readback blocked | local only | no publication |
+| AF-18–AF-19 closure path | same branch | current Vultr candidate | billing/readback evidence ready; owner closure remains | local only | no publication |
 
-AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. AF-08 is signed off in GitLab #9. AF-09 through AF-12 are local synthetic implementation/evidence. AF-16 and AF-17 now have current local/deployed evidence; AF-18–AF-19 remain the billing, trusted-HTTPS, and final current-commit readback gates. No independent reviewer is assumed; owner verification is the applicable gate.
+AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. AF-08 is signed off in GitLab #9. AF-09 through AF-12 are local synthetic implementation/evidence. AF-16 through AF-19 now have current local/deployed evidence; owner verification and the publish/no-publish decision remain. No independent reviewer is assumed; owner verification is the applicable gate.
