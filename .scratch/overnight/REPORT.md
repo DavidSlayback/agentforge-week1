@@ -2,7 +2,7 @@
 
 ## Run boundary
 
-Local implementation plus the user-authorized Railway deployment mirror. No PR or merge. GitLab remains the issue/source-of-record. Budget: one active lane, one repair attempt per ticket.
+Local implementation plus user-authorized direct Vultr deployment readback. No push, PR, or merge. GitLab remains the issue/source-of-record. Budget: one active lane, one repair attempt per ticket.
 
 ## Completed
 

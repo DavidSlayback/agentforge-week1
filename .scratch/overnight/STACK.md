@@ -1,6 +1,6 @@
 # AgentForge local AFK stack
 
-**Mode:** local AFK execution with user-authorized Railway deployment mirror; no PR or merge opened. GitLab remains the issue/source-of-record.
+**Mode:** local AFK execution with user-authorized direct Vultr deployment readback; no push, PR, or merge opened. GitLab remains the issue/source-of-record.
 **Base branch:** `davidslayback/agentforge-checkpoint`  
 **Base commit:** `1711f73d405fc774d205530923b2c87920a1914a`  
 **Budget:** one active lane, one repair attempt, targeted tests before repository suites; stop before final external readback or publication.

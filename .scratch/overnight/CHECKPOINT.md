@@ -1,6 +1,6 @@
 # AgentForge AFK checkpoint
 
-**State:** `IMPLEMENTATION_IN_PROGRESS` at AF-16; AF-08 is signed off and AF-09 through AF-12 have local synthetic evidence.
+**State:** `HITL_REVIEW` at AF-16/AF-17; AF-08 is signed off, AF-09 through AF-12 have local synthetic evidence, and AF-17 has current Vultr deployed evidence.
 
 ## Completed
 
@@ -24,4 +24,4 @@
 
 ## Recovery action
 
-Read `QUEUE.md`, `STACK.md`, this file, the ticket evidence files, and `DECISIONS.md`; inspect `git status --short --branch`; resume at AF-16 for contract closure, then AF-17 deployed evidence.
+Read `QUEUE.md`, `STACK.md`, this file, the ticket evidence files, and `DECISIONS.md`; inspect `git status --short --branch`; resume at AF-18 billing readback, then trusted HTTPS/final readback.

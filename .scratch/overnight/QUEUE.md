@@ -1,6 +1,6 @@
 # AgentForge AFK queue — approved execution
 
-**Planning state:** `IMPLEMENTATION_IN_PROGRESS` at AF-16. AF-08 owner sign-off is recorded in GitLab #9; no PR or merge was opened. GitLab remains the issue/source-of-record.
+**Planning state:** `HITL_REVIEW` at AF-16/AF-17 with AF-18 billing readback next. AF-08 owner sign-off is recorded in GitLab #9; no PR or merge was opened. GitLab remains the issue/source-of-record.
 
 Parent: GitLab #1. Child issues are published and linked below.
 
