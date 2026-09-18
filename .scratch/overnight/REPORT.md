@@ -13,6 +13,7 @@ Local-only implementation. No remote mutation, push, PR, or merge. Budget: two A
 
 - AF-03 is VERIFIED locally at `c4c96c2`.
 - AF-05 is VERIFIED locally at `8bf030a` from base `6dbbac8`.
+- Local budget extended to three AFK tickets; AF-04 is now READY.
 
 ## Evidence policy
 
@@ -25,3 +26,7 @@ PASS. Local runtime evidence exists; external deployment/browser evidence remain
 ## AF-05 result
 
 PASS. Local API collection and readiness-failure evidence exist; deployed canonical-origin evidence remains intentionally open under AF-02/AF-07.
+
+## Current frontier
+
+AF-04 is the active local frontier. AF-02 remains the next HITL deployment boundary.
