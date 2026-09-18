@@ -1,6 +1,6 @@
 # AgentForge AFK queue — approved execution
 
-**Planning state:** `NEEDS_HUMAN` at AF-07. Local edits/commits and the user-authorized Railway deployment mirror are complete for AF-06; no PR or merge was opened. GitLab remains the issue/source-of-record.
+**Planning state:** `NEEDS_HUMAN` at AF-08. AF-07 owner sign-off is recorded in GitLab #8; no PR or merge was opened. GitLab remains the issue/source-of-record.
 
 Parent: GitLab #1. Child issues are published and linked below.
 
@@ -12,7 +12,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 | AF-04 | [#5](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/5) | AFK | VERIFIED | AF-03 | 2 | Yes | Safety-state test matrix |
 | AF-05 | [#6](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/6) | AFK | VERIFIED | AF-01 | 1 | Yes | Contract/eval test runner |
 | AF-06 | [#7](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/7) | AFK | VERIFIED | AF-02, AF-05 | 2 | Yes | Fresh-profile route/link walk |
-| AF-07 | [#8](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/8) | HITL | blocked | AF-02, AF-03, AF-04, AF-05, AF-06 | 3 | Yes | External release verifier |
+| AF-07 | [#8](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/8) | HITL | VERIFIED | AF-02, AF-03, AF-04, AF-05, AF-06 | 3 | Yes | External release verifier |
 | AF-08 | [#9](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/9) | HITL | blocked | AF-01, AF-07 | 4 | Yes | Privacy/security reviewer |
 | AF-09 | [#10](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/10) | HITL | blocked | AF-08, AF-07 | 5 | Yes | Auth/parity integration verifier |
 | AF-10 | [#11](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/11) | HITL | blocked | AF-08, AF-09 | 6 | Yes | Provider failure/eval verifier |
@@ -24,13 +24,13 @@ Parent: GitLab #1. Child issues are published and linked below.
 
 ## First frontier
 
-- AF-02, AF-03, AF-04, AF-05, and AF-06 are VERIFIED.
-- AF-07 is the next HITL release gate and is intentionally not executable by the AFK harness.
+- AF-02, AF-03, AF-04, AF-05, AF-06, and AF-07 are VERIFIED.
+- AF-08 is the next HITL privacy/security gate and is intentionally not executable by the AFK harness.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
 
-Current frontier: AF-07 external release verification. Stop here pending fresh human/external evidence.
+Current frontier: AF-08 privacy/security/compliance review. Stop here pending signed human disposition.
 
 ## Harness rule
 
-Do not dispatch AFK work past a HITL blocker. After each ticket, refresh this queue and its evidence; do not advance into AF-07 or later HITL work without the required human/external boundary.
+Do not dispatch AFK work past a HITL blocker. After each ticket, refresh this queue and its evidence; do not advance into AF-08 or later HITL work without the required human/external boundary.

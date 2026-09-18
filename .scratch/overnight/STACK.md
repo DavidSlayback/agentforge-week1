@@ -14,4 +14,4 @@
 | AF-02 | Railway deployment | `f180796` | VERIFIED | `agentforge-week1-production.up.railway.app` | external deployment; no PR/merge |
 | AF-06 | `afk/AF-06-evaluator-surface` | `f250daa` | VERIFIED | `e80ed6d` | pushed to GitHub mirror for Railway; no PR/merge |
 
-AF-02 and AF-06 are externally verified at `https://agentforge-week1-production.up.railway.app`. AF-07 is the current HITL release gate. Do not start later tickets.
+AF-02, AF-06, and AF-07 are externally verified at `https://agentforge-week1-production.up.railway.app`; AF-07 is closed in GitLab #8. AF-08 is the current HITL privacy/security gate. Do not start later tickets.
