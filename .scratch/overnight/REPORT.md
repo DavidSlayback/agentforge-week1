@@ -2,7 +2,7 @@
 
 ## Run boundary
 
-Local-only implementation. No remote mutation, push, PR, or merge. Budget: three AFK tickets, one active lane, one repair attempt per ticket.
+Local implementation plus the user-authorized Railway deployment mirror. No PR or merge. GitLab remains the issue/source-of-record. Budget: one active lane, one repair attempt per ticket.
 
 ## Completed
 
@@ -12,10 +12,11 @@ Local-only implementation. No remote mutation, push, PR, or merge. Budget: three
 - AF-05: verified strict contracts and runnable API collection at `8bf030a`.
 - AF-04: verified safety and patient-scope states at `de3430b`.
 - AF-02: verified the Railway canonical HTTPS origin `https://agentforge-week1-production.up.railway.app`; route matrix, API collection, and browser interaction passed.
+- AF-06: verified the deployed evaluator/operations panel, linked operational routes, saved golden/mutation evidence, and fresh-browser discoverability at the canonical origin.
 
 ## Current frontier
 
-- AF-06 is READY and is the next AFK implementation. AF-07 is the next HITL release gate.
+- AF-06 is PASS/VERIFIED. AF-07 is the current HITL release gate; the AFK harness must stop here.
 
 ## Evidence policy
 
@@ -35,4 +36,8 @@ PASS externally. Railway trusted HTTPS, route matrix, deployed API collection, a
 
 ## AF-04 result
 
-PASS locally at `de3430b`; local safety-state evidence exists. The next action is the AF-02 external deployment/TLS decision.
+PASS locally at `de3430b`; local safety-state evidence exists. The next action was the AF-02 external deployment/TLS decision.
+
+## AF-06 result
+
+PASS at `e80ed6d`, externally verified at the Railway canonical origin. The evaluator panel exposes operational routes and saved reports, and the browser route/link walk passed. The next action is the AF-07 external release-verification decision.
