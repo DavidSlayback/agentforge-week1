@@ -17,6 +17,11 @@ node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 
 The harness fails if any request is non-2xx or cannot be completed. The report
 is a measured synthetic deployment result, not a production capacity claim.
 
+For a strict candidate run, set `AGENTFORGE_AUTH_MODE=signed-demo`,
+`AGENTFORGE_SYNTHETIC_CONTEXT=true`, and provide `AGENTFORGE_DEMO_SECRET`.
+The deployment bundle defaults to those synthetic settings and mounts a durable
+trace volume at `/data`.
+
 ## Cost model boundary
 
 The deterministic provider has zero provider spend. A hosted provider remains

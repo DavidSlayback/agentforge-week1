@@ -6,6 +6,8 @@
 - Source of record: GitLab issue #1 and child issues #2–#16
 - Deployment URL to recheck: `https://agentforge-week1-production.up.railway.app`
 - Final local candidate must be identified by its commit and deployment readback.
+- Target deployment configuration must set `AGENTFORGE_AUTH_MODE=signed-demo`,
+  `AGENTFORGE_SYNTHETIC_CONTEXT=true`, and a durable `AGENTFORGE_TRACE_PATH`.
 
 ## Gate matrix
 
