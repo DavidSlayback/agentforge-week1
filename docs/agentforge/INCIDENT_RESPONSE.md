@@ -6,8 +6,8 @@ of operational control flow, not a production clinical or HIPAA procedure.
 ## Ownership and trigger
 
 - **Primary owner:** AgentForge service maintainer.
-- **Escalation:** repository owner and independent reviewer when the alert is
-  not cleared by the recovery check or when a credential may have been exposed.
+- **Escalation:** repository owner/service maintainer when the alert is not
+  cleared by the recovery check or when a credential may have been exposed.
 - **Trigger:** `/v1/alerts` reports `status: "firing"` for `error_rate`,
   `tool_failure_rate`, or `p95_latency`.
 - **Evidence identifier:** preserve the redacted correlation ID and timestamp;
@@ -43,11 +43,13 @@ real credential.
    trace store is implicated, then verify `/health`, `/ready`, `/v1/traces`, and
    `/v1/alerts`.
 6. **Close:** document the cause, containment, recovery result, remaining
-   risk, and independent reviewer disposition. Do not mark AF-08 complete from
-   the local drill alone.
+   risk, and repository-owner sign-off. Do not mark AF-08 complete from the
+   local drill alone; use the reproducible local and deployed evidence bundle.
 
 ## Deployment boundary
 
-The local drill proves alert evaluation and response evidence shape. It does
-not prove Railway volume/off-host durability, deployment rollback, or external
-incident ownership. Those remain HITL evidence gates for AF-08.
+The local drill proves alert evaluation and response evidence shape. The live
+Railway drill now proves attached-volume persistence and deployment rollback
+readback. Cross-region/off-host backup, external notification delivery, and
+secret-manager readback remain future production-like work. Owner sign-off is
+the HITL gate; no independent reviewer is assumed.

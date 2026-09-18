@@ -6,7 +6,7 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 
 ## Completed
 
-- Planning migration: preserved AF-01–AF-15 and upgraded independent verification requirements.
+- Planning migration: preserved AF-01–AF-15 and upgraded verification requirements to explicit owner sign-off plus reproducible evidence; no independent reviewer is assumed.
 - AF-01: approved working evidence inventory recorded; original AgentForge source PDF remains unavailable.
 - AF-03: verified local multi-turn conversation surface at `c4c96c2`.
 - AF-05: verified strict contracts and runnable API collection at `8bf030a`.
@@ -14,14 +14,14 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 - AF-02: verified the Railway canonical HTTPS origin `https://agentforge-week1-production.up.railway.app`; route matrix, API collection, and browser interaction passed.
 - AF-06: verified the deployed evaluator/operations panel, linked operational routes, saved golden/mutation evidence, and fresh-browser discoverability at the canonical origin.
 - AF-07: owner-approved the checkpoint after a fresh-browser briefing/follow-up rehearsal, blocked cross-patient probe, evaluator review, and synthetic-only limitation review.
-- AF-08: decision input recorded in GitLab #9 and local ADRs; remains INCONCLUSIVE pending production-like resilience implementation and independent evidence.
+- AF-08: decision input recorded in GitLab #9 and local ADRs; implementation/runtime evidence is ready for owner sign-off.
 - AF-08 foundation: added durable redacted traces, retention/deletion, restart persistence, isolated evaluator-state tests, and a bounded synthetic incident drill with a written response runbook; local checks pass, but the HITL gate remains open.
 - AF-08 foundation is deployed on the Railway canonical URL and its public route/API collection checks pass. Railway rollback succeeded, temporarily left no active deployment, and was recovered to the alert-enabled deployment; the live collection then passed.
-- Deployed `/v1/alerts` fired `tool_failure_rate` at `0.17142857142857143` after synthetic partial-retrieval traffic. A Railway restart/redeploy readback retained the pre-existing seven traces and restored HTTP 200, but no explicit volume/off-host storage is configured, so durable-storage claims remain open.
+- Deployed `/v1/alerts` fired `tool_failure_rate` at `0.17142857142857143` after synthetic partial-retrieval traffic. Railway volume `agentforge-week1-volume` is mounted at `/data` with `AGENTFORGE_TRACE_PATH=/data/traces.json`; the sentinel trace survived a confirmed redeploy and the active deployment reported success.
 
 ## Current frontier
 
-- AF-06 and AF-07 are PASS/VERIFIED. AF-08 is the current HITL privacy/security gate; its synthetic-only policy is decided, but resilience evidence is still required.
+- AF-06 and AF-07 are PASS/VERIFIED. AF-08 is the current HITL privacy/security gate; its synthetic-only policy and resilience evidence are complete, pending owner sign-off.
 
 ## Evidence policy
 

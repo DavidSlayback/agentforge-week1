@@ -107,6 +107,27 @@ migration path.
 - **Migration:** Add a reviewed local persistent sink, retention/deletion rules,
   alerts, and only then consider external telemetry.
 
+For the deployed Railway checkpoint, ADR-009 supersedes the in-memory limitation
+with the implemented file-backed sink and attached-volume configuration.
+
+### ADR-009: Railway attached-volume trace persistence
+
+- **Choice:** Keep traces redacted and local to the service boundary, but use
+  the implemented file-backed sink with Railway
+  `AGENTFORGE_TRACE_PATH=/data/traces.json` on an attached volume for the
+  deployed synthetic checkpoint.
+- **Alternatives:** Keep the default `/tmp` store; add hosted telemetry; add a
+  second deployment provider through Vultr.
+- **Tradeoff:** The volume proves persistence across the exercised redeploy
+  without adding a provider boundary, but it is not cross-region durability or
+  an off-host backup system.
+- **Evidence:** Railway volume `agentforge-week1-volume` is mounted at `/data`,
+  and correlation `af-1789742039771-a2a58e89b05cb8` survived the confirmed
+  redeploy with its patient scope redacted.
+- **Migration:** Add scheduled/off-host backup and restore, external alert
+  delivery, and secret-manager readback only if the scope moves beyond the
+  synthetic checkpoint.
+
 ## ADR-008: Independent service-backed eval lane
 
 - **Choice:** Keep reference-fixture evaluation for oracle regression and add a

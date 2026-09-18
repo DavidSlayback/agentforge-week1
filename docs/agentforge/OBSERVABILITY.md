@@ -4,7 +4,9 @@ The checkpoint exposes `/agentforge/observability`, `/agentforge/v1/metrics`,
 and `/agentforge/v1/traces`. The default trace payload is bounded and redacted.
 It includes correlation ID, ordered stage timing, retrieval attempts, retries,
 model token/cost fields when supplied, coverage, verification, and display
-outcomes. The deployed checkpoint uses in-memory storage; restart loses traces.
+outcomes. Local runs default to a file-backed synthetic store under `/tmp`;
+the Railway deployment overrides this with `/data/traces.json` on an attached
+volume, and the exercised redeploy retained the sentinel trace.
 
 ## Initial alert definitions
 

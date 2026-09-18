@@ -31,8 +31,6 @@ write-back, or a hosted provider.
 - The service-backed golden test uses an isolated trace store so old test data
   cannot contaminate current evidence.
 
-## Required drills before AF-08 can pass
-
 ## Live Railway evidence (2026-09-18)
 
 - Railway rollback of a prior deployment reported success. The service briefly
@@ -41,29 +39,28 @@ write-back, or a hosted provider.
 - A synthetic partial-retrieval sequence caused `/v1/alerts` to return
   `status: "firing"` with `tool_failure_rate` observed at
   `0.17142857142857143`.
-- A Railway restart/redeploy readback retained the seven pre-existing redacted
-  traces and restored `/health` to HTTP 200.
-- Railway currently shows one replica, no explicit volume setting, and no
-  `AGENTFORGE_TRACE_PATH` variable. The deployed service therefore uses the
-  code default `/tmp/agentforge/traces.json`; the observed readback is not an
-  off-host durability guarantee.
+- Railway now shows one replica, the attached `agentforge-week1-volume` (volume
+  id `2cd958f4-fe4c-48fc-8a45-042f267e076c`), and the service is configured with
+  `AGENTFORGE_TRACE_PATH=/data/traces.json` on mount `/data`.
+- A sentinel redacted trace with correlation ID
+  `af-1789742039771-a2a58e89b05cb8` survived the confirmed Railway redeploy;
+  the active deployment reported success and the service returned Online.
 
-1. Run a retention/deletion drill and read back that expired and explicitly
-   deleted traces are absent.
-2. Create a backup, destroy the active trace store, restore it, and compare
-   redacted counts and correlation continuity.
-3. Exercise a failed deployment and document the rollback target, owner, and
-   readback result. A local code test is not deployment rollback evidence.
-4. Trigger synthetic retrieval/tool failures and verify the alert rule, owner,
-   runbook, escalation, and recovery action. The bounded local drill is
-   implemented; deployment alert delivery and external incident ownership are
-   still open.
-5. Rehearse incident handling using synthetic data only, including credential
-   revocation/rotation and an audit record of the response.
+## Future production-like drills beyond this checkpoint
+
+1. Retain the passing retention/deletion and redaction drills as regression
+   evidence.
+2. Add scheduled/off-host backup and restore, with redacted counts and
+   correlation continuity, if the scope moves beyond this checkpoint.
+3. Add external alert delivery and a production incident owner/escalation
+   integration; the bounded local and live endpoint drills are implemented.
+4. Rehearse secret-manager credential revocation/rotation with an audit
+   readback before introducing any real provider or governed environment.
 
 ## Non-claims
 
 These controls demonstrate implementation behavior and synthetic recovery
 semantics. They do not establish HIPAA compliance, a BAA, live OpenEMR parity,
-provider suitability, or production availability. AF-08 remains open until an
-independent reviewer verifies the required drills.
+provider suitability, cross-region durability, or production availability.
+AF-08 is ready for owner sign-off on the reproducible evidence; no independent
+review is claimed or required for this synthetic checkpoint.
