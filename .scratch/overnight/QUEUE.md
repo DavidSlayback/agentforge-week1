@@ -10,7 +10,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 | AF-02 | [#3](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/3) | HITL | blocked | AF-01 | 1 | Yes | External route/TLS verifier |
 | AF-03 | [#4](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/4) | AFK | VERIFIED | AF-01 | 1 | Yes | Node service/UI-flow tests |
 | AF-04 | [#5](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/5) | AFK | blocked | AF-03 | 2 | Yes | Safety-state test matrix |
-| AF-05 | [#6](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/6) | AFK | READY | AF-01 | 1 | Yes | Contract/eval test runner |
+| AF-05 | [#6](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/6) | AFK | VERIFIED | AF-01 | 1 | Yes | Contract/eval test runner |
 | AF-06 | [#7](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/7) | AFK | blocked | AF-02, AF-05 | 2 | Yes | Fresh-profile route/link walk |
 | AF-07 | [#8](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/8) | HITL | blocked | AF-02, AF-03, AF-04, AF-05, AF-06 | 3 | Yes | External release verifier |
 | AF-08 | [#9](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/9) | HITL | blocked | AF-01, AF-07 | 4 | Yes | Privacy/security reviewer |
@@ -28,6 +28,8 @@ Parent: GitLab #1. Child issues are published and linked below.
 - AF-02 remains HITL and blocks AF-06/AF-07, but does not block AF-03 or AF-05.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
+
+Current stop: AF-02 is the next HITL deployment gate; AF-04 is also blocked until the UI safety-state verifier boundary is approved. No further AFK ticket is eligible under this run's budget.
 
 ## Harness rule
 

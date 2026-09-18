@@ -1,6 +1,6 @@
 # AgentForge AFK checkpoint
 
-**State:** `READY` AF-05 from verified AF-03 stack tip; `NEEDS_HUMAN` remains at AF-02/AF-04 after the local AFK budget or any safety/verification boundary.
+**State:** `NEEDS_HUMAN` at AF-02/AF-04 after the two-ticket local budget; no further ticket is eligible in this run.
 
 ## Completed
 
@@ -10,10 +10,9 @@
 
 ## Active plan
 
-1. Implement AF-05 locally on a branch from the AF-03 stack tip, preserving AF-03 changes.
-2. Run review, targeted tests, independent verifier, and local commit for AF-05.
-3. Stop before AF-02/AF-04/AF-06 because they require HITL/external browser or a new UI integration boundary.
+1. If resuming, resolve AF-02's deployment boundary and AF-04's UI safety-state verification boundary.
+2. Refresh the queue from those decisions before dispatching more work.
 
 ## Recovery action
 
-Read `QUEUE.md`, `STACK.md`, this file, the ticket evidence files, and `DECISIONS.md`; inspect `git status --short --branch`; resume with the first incomplete AFK ticket whose blockers are verified.
+Read `QUEUE.md`, `STACK.md`, this file, the ticket evidence files, and `DECISIONS.md`; inspect `git status --short --branch`; resume only after the HITL blocker is resolved.

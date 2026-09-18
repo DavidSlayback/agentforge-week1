@@ -11,7 +11,8 @@ Local-only implementation. No remote mutation, push, PR, or merge. Budget: two A
 
 ## In progress
 
-- AF-03 is VERIFIED locally at `c4c96c2`; AF-05 is READY from that stack tip.
+- AF-03 is VERIFIED locally at `c4c96c2`.
+- AF-05 is VERIFIED locally at `8bf030a` from base `6dbbac8`.
 
 ## Evidence policy
 
@@ -20,3 +21,7 @@ Every verified ticket must have `.scratch/overnight/evidence/AF-XX.md` mapping e
 ## AF-03 result
 
 PASS. Local runtime evidence exists; external deployment/browser evidence remains intentionally open under AF-02/AF-07.
+
+## AF-05 result
+
+PASS. Local API collection and readiness-failure evidence exist; deployed canonical-origin evidence remains intentionally open under AF-02/AF-07.
