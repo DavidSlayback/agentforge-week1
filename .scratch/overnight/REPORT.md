@@ -13,10 +13,11 @@ Local implementation plus the user-authorized Railway deployment mirror. No PR o
 - AF-04: verified safety and patient-scope states at `de3430b`.
 - AF-02: verified the Railway canonical HTTPS origin `https://agentforge-week1-production.up.railway.app`; route matrix, API collection, and browser interaction passed.
 - AF-06: verified the deployed evaluator/operations panel, linked operational routes, saved golden/mutation evidence, and fresh-browser discoverability at the canonical origin.
+- AF-07: owner-approved the checkpoint after a fresh-browser briefing/follow-up rehearsal, blocked cross-patient probe, evaluator review, and synthetic-only limitation review.
 
 ## Current frontier
 
-- AF-06 is PASS/VERIFIED. AF-07 is the current HITL release gate; the AFK harness must stop here.
+- AF-06 and AF-07 are PASS/VERIFIED. AF-08 is the current HITL privacy/security gate; the AFK harness must stop here.
 
 ## Evidence policy
 
@@ -41,3 +42,7 @@ PASS locally at `de3430b`; local safety-state evidence exists. The next action w
 ## AF-06 result
 
 PASS at `e80ed6d`, externally verified at the Railway canonical origin. The evaluator panel exposes operational routes and saved reports, and the browser route/link walk passed. The next action is the AF-07 external release-verification decision.
+
+## AF-07 result
+
+PASS. Owner sign-off was received after a fresh Chrome Incognito rehearsal at the canonical Railway URL. UI polish is a deferred non-blocking follow-up; no checkpoint behavior was reopened.
