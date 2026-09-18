@@ -29,3 +29,8 @@ deferred, so no vendor price is treated as an observed cost. Any future cost
 projection must state provider price, token assumptions, request mix, Railway
 resource tier, storage/egress assumptions, and the architecture changes at
 100/1K/10K/100K users.
+
+The current scale/cost artifact is `docs/agentforge/COST_MODEL.md`. It records
+the observed Vultr/account charges separately from the synthetic zero-provider
+cost and gives the required architecture changes and cost equations for each
+scale tier.

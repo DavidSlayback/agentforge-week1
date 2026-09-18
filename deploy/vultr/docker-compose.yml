@@ -30,7 +30,7 @@ services:
       OE_USER: ${OE_USER:?OE_USER is required}
       OE_PASS: ${OE_PASSWORD:?OE_PASSWORD is required}
       AGENTFORGE_DEMO_SECRET: ${AGENTFORGE_DEMO_SECRET:-}
-      AGENTFORGE_SERVICE_URL: ${AGENTFORGE_SERVICE_URL:-http://127.0.0.1:8787}
+      AGENTFORGE_SERVICE_URL: ${AGENTFORGE_SERVICE_URL:?AGENTFORGE_SERVICE_URL is required}
     depends_on:
       mysql:
         condition: service_healthy

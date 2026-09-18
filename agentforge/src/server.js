@@ -11,7 +11,7 @@ import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
 import { PreparationCache } from './preparationCache.js';
 import { FileTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
 
-const configuredProvider = process.env.AGENTFORGE_MODEL_ENDPOINT ? new OpenAICompatibleProvider({ endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model' }) : new DeterministicProvider();
+const configuredProvider = process.env.AGENTFORGE_MODEL_ENDPOINT ? new OpenAICompatibleProvider({ endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model', timeoutMs: Number(process.env.AGENTFORGE_MODEL_TIMEOUT_MS || 8000), siteUrl: process.env.AGENTFORGE_MODEL_SITE_URL || '', siteName: process.env.AGENTFORGE_MODEL_SITE_NAME || 'AgentForge' }) : new DeterministicProvider();
 const publicBasePath = process.env.AGENTFORGE_PUBLIC_BASE_PATH || '';
 const provider = new ResilientProvider({ primary: configuredProvider, fallback: new DeterministicProvider() });
 const adapter = new SimulatedOpenEMRAdapter({ fixturePath: process.env.AGENTFORGE_FIXTURES || defaultFixturePath(), requireSignedContext: process.env.AGENTFORGE_AUTH_MODE === 'signed-demo' });
