@@ -39,6 +39,11 @@ write-back, or a hosted provider.
 - A synthetic partial-retrieval sequence caused `/v1/alerts` to return
   `status: "firing"` with `tool_failure_rate` observed at
   `0.17142857142857143`.
+- The simulated OpenEMR seam rejects missing, expired, mismatched, or
+  non-`read-briefing` signed contexts before retrieval; matching contexts keep
+  clinician and patient scope server-side.
+- A failing provider is retried twice and then falls back to the deterministic
+  provider, with retry and fallback status retained in the redacted trace.
 - Railway now shows one replica, the attached `agentforge-week1-volume` (volume
   id `2cd958f4-fe4c-48fc-8a45-042f267e076c`), and the service is configured with
   `AGENTFORGE_TRACE_PATH=/data/traces.json` on mount `/data`.

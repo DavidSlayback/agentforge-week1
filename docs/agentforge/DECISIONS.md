@@ -199,3 +199,37 @@ with the implemented file-backed sink and attached-volume configuration.
 - **Migration:** Add a provider-specific evaluation and failure-policy lane
   using synthetic inputs only, then choose a vendor and configuration under a
   separate HITL review.
+
+## ADR-012: Simulated authenticated OpenEMR seam
+
+- **Choice:** Implement the OpenEMR boundary as a server-verified signed
+  synthetic session around the existing fixture adapter. The service binds
+  patient, clinician, and `read-briefing` scope from the verified context;
+  browser-supplied identifiers do not establish authorization.
+- **Alternatives:** Keep trusting the request body; connect a live OpenEMR API;
+  or create a second browser-only authorization path.
+- **Tradeoff:** The synthetic seam exercises identity, expiry, scope, mismatch,
+  and isolation behavior without PHI, but does not prove OpenEMR OAuth or
+  release-specific permission parity.
+- **Evidence:** `agentforge/src/accessContext.js`,
+  `agentforge/src/openemrAdapter.js`, and the authenticated adapter tests.
+- **Limitation:** `/v1/demo-context` is an explicitly synthetic context issuer;
+  it is not an OpenEMR identity provider.
+- **Migration:** Keep the same adapter contract for future simulated upstream
+  work; do not replace it with live records under this scope.
+
+## ADR-013: Provider retries with deterministic fallback
+
+- **Choice:** Put an optional OpenAI-compatible provider behind a two-retry
+  wrapper with a deterministic synthetic fallback. Record retry and fallback
+  status in redacted traces; never display an unverified provider result.
+- **Alternatives:** Make a hosted provider mandatory; silently swallow provider
+  errors; or remove the provider seam until late release work.
+- **Tradeoff:** The deployed checkpoint remains reproducible and resilient to a
+  provider outage, while provider quality, cost, and terms remain unapproved.
+- **Evidence:** `ResilientProvider` tests prove timeout retry and fallback;
+  service traces retain the provider stage and retry events.
+- **Limitation:** No approved vendor is selected and no PHI may enter a
+  provider path.
+- **Migration:** Select one approved vendor only after a data-processing,
+  retention, cost, and failure-policy review using synthetic inputs.

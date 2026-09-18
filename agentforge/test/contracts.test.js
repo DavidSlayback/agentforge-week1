@@ -20,3 +20,10 @@ test('canonical follow-up and briefing responses reject missing contract fields'
   assert.equal(invalidResponse.valid, false);
   assert.ok(invalidResponse.issues.includes('claims_is_required'));
 });
+
+test('follow-up contract permits only the signed demo context token as an extension', () => {
+  const valid = validateFollowUpRequest({ patient_uuid: 'fixture-patient-001', message: 'What changed?', clinician_uuid: 'fixture-physician-001', authorization: { status: 'authorized', scope: 'read-briefing' }, demo_token: 'encoded.signature' });
+  assert.equal(valid.valid, true);
+  const invalid = validateFollowUpRequest({ patient_uuid: 'fixture-patient-001', message: 'What changed?', clinician_uuid: 'fixture-physician-001', authorization: { status: 'authorized', scope: 'read-briefing' }, arbitrary_tool: 'nope' });
+  assert.equal(invalid.valid, false);
+});

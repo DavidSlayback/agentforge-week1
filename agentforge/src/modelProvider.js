@@ -20,3 +20,22 @@ export class OpenAICompatibleProvider {
     return { text: data.choices?.[0]?.message?.content || '', inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0, estimatedCostUsd: 0 };
   }
 }
+
+export class ResilientProvider {
+  constructor({ primary, fallback = new DeterministicProvider(), maxRetries = 2 }) { this.primary = primary; this.fallback = fallback; this.maxRetries = maxRetries; this.name = primary.name; this.model = primary.model; }
+  async checkReady() { return Boolean(await this.fallback.checkReady()) && (await this.primary.checkReady().catch(() => false) || this.fallback.name === 'deterministic'); }
+  async generate(args, { trace } = {}) {
+    let lastError = null;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+      try {
+        const result = await this.primary.generate(args);
+        return { ...result, provider_status: 'primary', provider_fallback: false };
+      } catch (error) {
+        lastError = error;
+        trace?.recordRetry({ stage: 'model', attempt: attempt + 1, errorCode: error.message || 'MODEL_ERROR' });
+      }
+    }
+    const result = await this.fallback.generate(args);
+    return { ...result, provider_status: 'fallback', provider_fallback: true, provider_error_code: lastError?.message || 'MODEL_UNAVAILABLE' };
+  }
+}

@@ -23,6 +23,7 @@ $patientRef = 'fixture-patient-' . str_pad((string)$fixtureNumber, 3, '0', STR_P
 $payload = json_encode([
     'patient_uuid' => $patientRef,
     'clinician_uuid' => $user,
+    'scope' => 'read-briefing',
     'expires_at' => time() + 300,
 ], JSON_UNESCAPED_SLASHES);
 $encoded = rtrim(strtr(base64_encode($payload ?: '{}'), '+/', '-_'), '=');

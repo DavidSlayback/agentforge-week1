@@ -4,7 +4,7 @@ export const MAX_RETRIES = 2;
 
 export const API_CONTRACTS = Object.freeze({
   prepareRequest: { required: ['patient_uuid', 'clinician_uuid', 'authorization'], optional: ['case_id', 'correlation_id', 'demo_token'], allowed: ['patient_uuid', 'clinician_uuid', 'authorization', 'case_id', 'correlation_id', 'demo_token'] },
-  followUpRequest: { required: ['patient_uuid', 'message', 'clinician_uuid', 'authorization'], optional: [], allowed: ['patient_uuid', 'message', 'clinician_uuid', 'authorization'] },
+  followUpRequest: { required: ['patient_uuid', 'message', 'clinician_uuid', 'authorization'], optional: ['demo_token'], allowed: ['patient_uuid', 'message', 'clinician_uuid', 'authorization', 'demo_token'] },
   briefingResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'verification', 'operations'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification', 'text', 'model'] },
   followUpResponse: { required: ['contract_version', 'correlation_id', 'patient', 'verification'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'text', 'evidence', 'qualification', 'operations', 'verification'] },
 });
@@ -40,6 +40,7 @@ export function validateFollowUpRequest(value) {
     typeIssue(issues, value.authorization, 'scope', 'string');
   }
   if (isRecord(value.authorization)) unknownFields(issues, value.authorization, ['status', 'scope']);
+  if ('demo_token' in value && typeof value.demo_token !== 'string') issues.push('demo_token_must_be_string');
   return { valid: issues.length === 0, issues };
 }
 

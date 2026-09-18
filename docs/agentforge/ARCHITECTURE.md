@@ -259,13 +259,22 @@ No first-release capability is intentionally unmapped to a use case.
 
 ### Checkpoint implementation status
 
-The current checkpoint slice implements the separate service, fixture adapter,
-deterministic provider, verifier, golden evaluator, redacted local
-observability, Caddy same-origin routing, and a signed-context OpenEMR launcher.
-The service remains synthetic-only. The launcher uses a short-lived context and
-the service validates its signature; a URL patient ID is never treated as
-authorization. Real OpenEMR retrieval and PHI controls remain final-deadline
-gates.
+The current checkpoint slice implements the separate service, simulated
+OpenEMR adapter, deterministic provider, provider retry/fallback policy,
+verifier, golden evaluator, redacted local observability, Caddy same-origin
+routing, and a signed-context OpenEMR launcher. The service remains
+synthetic-only. The launcher uses a short-lived context and the service
+validates its signature, patient binding, clinician binding, and read-only
+scope; a URL patient ID is never treated as authorization. The optional
+`/v1/demo-context` route is an explicit synthetic context issuer for evaluator
+rehearsal, not a live identity provider.
+
+The provider interface is failure-shaped: a configured OpenAI-compatible
+provider may be retried twice, then the deterministic provider is used as a
+visible fallback. Retry and fallback outcomes are recorded without raw prompt,
+response, or patient content. No hosted vendor or PHI processing is approved.
+Real OpenEMR retrieval and PHI controls remain out of scope permanently for
+this synthetic build.
 
 1. **Contracts and fixture adapter:** define strict request, evidence,
    coverage, briefing, and trace schemas; load only the synthetic corpus.
@@ -279,8 +288,8 @@ gates.
    patient-switch cases added to the harness.
 5. **OpenEMR launcher seam:** the checkpoint includes the custom module shell,
    Caddy route, and signed synthetic context handoff behind the same boundary.
-   The adapter remains fixture-backed; live OpenEMR reads require the final
-   identity/session and read-authorization gates.
+   The simulated adapter enforces the verified context; the data remains
+   fixture-backed forever.
 6. **Panel and follow-up UI:** render the verified result and source links;
    keep all chart mutations absent from the module surface.
 
