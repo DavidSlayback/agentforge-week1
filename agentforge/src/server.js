@@ -1,11 +1,13 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { DeterministicProvider, OpenAICompatibleProvider } from './modelProvider.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest } from './contracts.js';
-import { renderAgentForgePage } from './ui.js';
+import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
 import { InMemoryTraceSink, createReadinessChecker } from '../../observability/index.js';
 
 const provider = process.env.AGENTFORGE_MODEL_ENDPOINT ? new OpenAICompatibleProvider({ endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model' }) : new DeterministicProvider();
@@ -13,6 +15,9 @@ const adapter = new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFix
 const traceSink = new InMemoryTraceSink({ maxTraces: 100 });
 const service = new AgentForgeService({ adapter, provider, traceSink });
 const readiness = createReadinessChecker({ retrieval: adapter, model: provider, trace: { checkReady: async () => Boolean(traceSink.health()) } });
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const evalsRoot = path.join(projectRoot, 'evals');
+const readEvidence = (name) => JSON.parse(fs.readFileSync(path.join(evalsRoot, name), 'utf8'));
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
 const invalidContract = (res, error, issues) => json(res, 400, { error, issues });
@@ -31,6 +36,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/ready') { const result = await readiness.ready(); return json(res, result.status === 'ready' ? 200 : 503, result); }
     if (req.method === 'GET' && req.url === '/v1/traces') return json(res, 200, traceSink.list());
     if (req.method === 'GET' && req.url === '/v1/metrics') return json(res, 200, traceSink.snapshot());
+    if (req.method === 'GET' && req.url === '/evals/deployed-service-results.json') return json(res, 200, readEvidence('deployed-service-results.json'));
+    if (req.method === 'GET' && req.url === '/evals/error-analysis.json') return json(res, 200, readEvidence('error-analysis.json'));
+    if (req.method === 'GET' && req.url === '/evals') { const golden = readEvidence('deployed-service-results.json'); const errorAnalysis = readEvidence('error-analysis.json'); return html(res, renderEvaluatorPage({ golden, errorAnalysis })); }
     if (req.method === 'GET' && (req.url === '/observability' || req.url === '/observability/')) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end('<!doctype html><title>AgentForge observability</title><main><h1>AgentForge observability</h1><pre id="metrics">Loading…</pre><h2>Recent redacted traces</h2><pre id="traces">Loading…</pre><script>const basePath=location.pathname.startsWith("/agentforge")?"/agentforge":"";Promise.all([fetch(basePath+"/v1/metrics").then(r=>r.json()),fetch(basePath+"/v1/traces").then(r=>r.json())]).then(([m,t])=>{metrics.textContent=JSON.stringify(m,null,2);traces.textContent=JSON.stringify(t,null,2)}).catch(error=>{metrics.textContent="Dashboard data unavailable: "+error})</script></main>'); }
     if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; return html(res, renderAgentForgePage({ token, payload: tokenPayload(token) })); }
     let raw = ''; for await (const chunk of req) raw += chunk;

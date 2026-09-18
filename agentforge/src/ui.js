@@ -30,7 +30,7 @@ form{display:grid;gap:.6rem;margin:1rem 0}label{font-weight:650;display:grid;gap
 <form id="followup-form" class="hidden"><label for="followup-input">Ask a follow-up</label><input id="followup-input" name="message" autocomplete="off" placeholder="What changed since the last visit?"><div class="samples" aria-label="Safe sample follow-ups"><button type="button" class="secondary" data-prompt="What changed since the last visit?">Documented changes</button><button type="button" class="secondary" data-prompt="What plan items need follow-through?">Plan follow-through</button><button type="button" class="secondary" data-prompt="Which records conflict?">Conflicting records</button></div><button type="submit">Send follow-up</button></form>
 <button id="cross-patient-probe" class="secondary hidden" type="button">Probe cross-patient block</button>
 <p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button>
-<details><summary>Evaluator notes</summary><p>Ask only about documented changes, plan follow-through, or conflicting records. Every displayed claim includes its supporting evidence. Partial retrieval is qualified; denied or cross-patient context is blocked.</p></details>
+<details><summary>Evaluator notes</summary><p>Ask only about documented changes, plan follow-through, or conflicting records. Every displayed claim includes its supporting evidence. Partial retrieval is qualified; denied or cross-patient context is blocked.</p><p><a href="/evals">Open evaluator panel</a></p></details>
 </main>
 <script>
 (() => {
@@ -68,4 +68,26 @@ form{display:grid;gap:.6rem;margin:1rem 0}label{font-weight:650;display:grid;gap
   reset.addEventListener('click', () => { state.conversationId = null; state.patient = null; transcript.innerHTML = '<li id="empty-state">Prepare a briefing to start the conversation.</li>'; followupForm.classList.add('hidden'); crossPatientProbe.classList.add('hidden'); setStatus('Conversation reset.'); });
 })();
 </script></body></html>`;
+}
+
+export function renderEvaluatorPage({ golden, errorAnalysis }) {
+  const goldenGate = golden?.gate_passed ? 'PASSED' : 'FAILED';
+  const errorGate = errorAnalysis?.gate_passed ? 'PASSED' : 'FAILED';
+  const rate = Math.round(Number(errorAnalysis?.detection_rate || 0) * 100);
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgentForge evaluator panel</title>
+<style>body{font-family:system-ui,sans-serif;max-width:68rem;margin:2rem auto;padding:0 1rem;color:#17202a;background:#f7f9fb}main{background:#fff;border:1px solid #d9e2ec;border-radius:.75rem;padding:1.25rem;box-shadow:0 2px 8px #17202a12}.badge{display:inline-block;border-radius:999px;padding:.2rem .55rem;font-size:.8rem;font-weight:650;background:#e8f1fb;color:#174a7e}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.65rem}.card{border:1px solid #d9e2ec;border-radius:.5rem;padding:.7rem}.value{display:block;font-size:1.35rem;font-weight:700}.muted{color:#52606d;font-size:.9rem}.pass{color:#087443}.warn{color:#6b4e00;background:#fff8df;border-left:4px solid #d49b00;padding:.75rem}.links,.prompts{display:grid;gap:.4rem}.links a{font-weight:650}.links span{color:#52606d;font-size:.9rem}</style></head>
+<body><main id="evaluator-panel"><header><h1>AgentForge evaluator panel</h1><p><span class="badge">Synthetic evidence</span> Same-origin operational links and saved evaluation reports.</p></header>
+<section aria-labelledby="ops-heading"><h2 id="ops-heading">Operational surfaces</h2><div class="links">
+<a href="/health">Health</a><span>Liveness only; expected HTTP 200.</span>
+<a href="/ready">Readiness</a><span>Retrieval, model, and trace dependencies; expected HTTP 200 when ready.</span>
+<a href="/v1/metrics">Metrics</a><span>Redacted request, error, latency, verification, and display counters.</span>
+<a href="/v1/traces">Traces</a><span>Redacted correlation-continuous trace records.</span>
+<a href="/observability">Observability view</a><span>Browser-readable metrics and trace dashboard.</span>
+</div></section>
+<section aria-labelledby="prompt-heading"><h2 id="prompt-heading">Safe sample prompts</h2><div class="prompts"><span>“What changed since the last visit?”</span><span>“What plan items need follow-through?”</span><span>“Which records conflict?”</span><span>Failure probes: partial retrieval, denied authorization, cross-patient scope, malformed request.</span></div></section>
+<section aria-labelledby="golden-heading"><h2 id="golden-heading">Golden evidence</h2><div class="cards"><div class="card"><span class="value">${golden?.total_cases ?? '—'}</span><span class="muted">total cases</span></div><div class="card"><span class="value pass">${golden?.passed_cases ?? '—'}</span><span class="muted">passed</span></div><div class="card"><span class="value">${golden?.failed_cases ?? '—'}</span><span class="muted">failed</span></div><div class="card"><span class="value">${golden?.critical_failures ?? '—'}</span><span class="muted">critical failures</span></div><div class="card"><span class="value pass">${goldenGate}</span><span class="muted">golden gate</span></div></div><p><a href="/evals/deployed-service-results.json">Saved deployed-service report</a></p></section>
+<section aria-labelledby="mutation-heading"><h2 id="mutation-heading">Mutation/error analysis</h2><div class="cards"><div class="card"><span class="value">${errorAnalysis?.total_mutations ?? '—'}</span><span class="muted">mutations</span></div><div class="card"><span class="value pass">${errorAnalysis?.detected_mutations ?? '—'}</span><span class="muted">detected</span></div><div class="card"><span class="value">${errorAnalysis?.missed_mutations ?? '—'}</span><span class="muted">missed</span></div><div class="card"><span class="value pass">${rate}%</span><span class="muted">detection rate</span></div><div class="card"><span class="value pass">${errorGate}</span><span class="muted">mutation gate</span></div></div><p><a href="/evals/error-analysis.json">Saved error-analysis report</a></p></section>
+<p class="warn"><strong>Limitations:</strong> these are synthetic fixture and harness results. They demonstrate contract sensitivity and observable behavior; they do not prove clinical safety, OpenEMR authorization parity, provider suitability, or production PHI compliance.</p>
+</main></body></html>`;
 }
