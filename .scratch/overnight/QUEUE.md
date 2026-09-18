@@ -23,7 +23,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 | AF-15 | [#16](https://labs.gauntletai.com/gauntletai/gauntlet/agentforge-week1/-/work_items/16) | HITL | LOCAL-DRAFT-NO-PUBLISH | AF-19, AF-14 | 11 | Yes* | Owner communication decision |
 | AF-16 | local follow-on | HITL | READY-DOC-CLOSURE | AF-13 | 12 | Yes | Owner contract/claims verifier |
 | AF-17 | local follow-on | HITL | READY-DEPLOYED-OWNER-REVIEW | AF-12, AF-13, AF-16 | 13 | Yes | Deployed scale verifier |
-| AF-18 | local follow-on | HITL | BLOCKED-COST-REVIEW | AF-17 | 14 | Yes | Owner cost/architecture verifier |
+| AF-18 | local follow-on | HITL | READY-COST-OWNER-REVIEW | AF-17 | 14 | Yes | Owner cost/architecture verifier |
 | AF-19 | local follow-on | HITL | BLOCKED-FINAL-READBACK | AF-16, AF-17, AF-18 | 15 | Yes | Owner clean-profile release verifier |
 
 ## Current frontier
@@ -33,7 +33,7 @@ Parent: GitLab #1. Child issues are published and linked below.
 
 `*` AF-15 is on the complete-brief critical path but is not a prerequisite for implementation or technical release; publication remains optional and explicitly authorized.
 
-Current frontier: owner review of AF-16/AF-17, then AF-18 billing readback and AF-19 final release readback. The current candidate is deployed at Vultr over HTTP; do not claim trusted HTTPS release until the certificate path is fixed and read back.
+Current frontier: owner review of AF-16/AF-17/AF-18, then AF-19 final release readback. The current candidate is deployed at Vultr over HTTP; do not claim trusted HTTPS release until a canonical hostname and certificate path are fixed and read back.
 
 ## Harness rule
 
