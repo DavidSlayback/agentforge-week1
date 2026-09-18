@@ -52,6 +52,8 @@ if ($crossPatient.body.disposition -ne 'blocked' -or $null -ne $crossPatient.bod
 $invalid = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 42; clinician_uuid = 'fixture-physician-001'; authorization = @{ status = 'authorized'; scope = 'read-briefing' } }) 400 'invalid briefing request'
 $metrics = Assert-Status (Invoke-AgentForge 'GET' '/v1/metrics' $null) 200 'metrics'
 $traces = Assert-Status (Invoke-AgentForge 'GET' '/v1/traces' $null) 200 'traces'
+$alerts = Assert-Status (Invoke-AgentForge 'GET' '/v1/alerts' $null) 200 'alerts'
+if ($alerts.body.status -notin @('ok', 'firing')) { throw 'alerts did not return a recognized status' }
 $observability = Assert-Status (Invoke-AgentForge 'GET' '/observability' $null) 200 'observability'
 
 [pscustomobject]@{
@@ -66,5 +68,6 @@ $observability = Assert-Status (Invoke-AgentForge 'GET' '/observability' $null) 
   invalid_request = $invalid.status
   metrics = $metrics.status
   traces = $traces.status
+  alerts = $alerts.status
   observability = $observability.status
 } | ConvertTo-Json -Compress
