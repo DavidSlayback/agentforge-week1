@@ -10,6 +10,6 @@
 | AF-01 | n/a | base | VERIFIED (approval recorded) | n/a | none |
 | AF-03 | `afk/AF-03-conversation` | `1711f73d405fc774d205530923b2c87920a1914a` | VERIFIED | `c4c96c2` | local only |
 | AF-05 | `afk/AF-05-contracts` | `6dbbac8` | VERIFIED | `8bf030a` | local only |
-| AF-04 | not dispatched | `97bfd11` | READY | n/a | local only |
+| AF-04 | `afk/AF-04-safety-ui` | `36d3036` | VERIFIED | `de3430b` | local only |
 
 AF-02 is HITL and blocks AF-06/AF-07 but does not block AF-03 or AF-05. The two AFK tickets share contract/service surfaces enough to use one active implementation lane and serial local integration.

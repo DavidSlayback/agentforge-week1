@@ -29,4 +29,8 @@ PASS. Local API collection and readiness-failure evidence exist; deployed canoni
 
 ## Current frontier
 
-AF-04 is the active local frontier. AF-02 remains the next HITL deployment boundary.
+AF-04 is implementing/testing on `afk/AF-04-safety-ui`. AF-02 remains the next HITL deployment boundary.
+
+## AF-04 result
+
+PASS locally at `de3430b`; local safety-state evidence exists. The next action is the AF-02 external deployment/TLS decision.
