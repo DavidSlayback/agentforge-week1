@@ -1,17 +1,23 @@
 # AgentForge release-readiness evidence map
 
 **Checkpoint:** 2026-09-19, America/Chicago  
-**Candidate commit:** `e02495f` (`feat: add visual observability dashboard and PHP parity gate`)  
+**Candidate commit:** `33cb9e0` (`docs: add release readiness evidence map`)
 **Decision:** Conditionally ready locally; not externally ready until the exact
 candidate is deployed and read back.  
 **Boundary:** Synthetic-only, read-only, clinician-reviewed. No PHI, live
 clinical records, or clinical write-back.
 
+**Owner authorization — 2026-09-19:** David explicitly authorized deployment,
+runtime inspection, and verification against the owner-controlled Vultr
+synthetic environment. This remains bounded by the project boundary: no PHI,
+no live clinical records, no clinical write-back, no provider migration before
+the final OpenRouter step, and no demo/submission upload.
+
 ## Evidence matrix
 
 | Requirement | Implementation proof | Runtime proof | External proof | Status / smallest next action |
 |---|---|---|---|---|
-| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `77/77` application/eval/observability tests; `7/7` golden cases | Existing public health/readiness only; dashboard is stale | Partial: deploy `e02495f`, then run clean-browser briefing and follow-up. |
+| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `77/77` application/eval/observability tests; `7/7` golden cases | Existing public health/readiness only; dashboard is stale | Partial: deploy `33cb9e0`, then run clean-browser briefing and follow-up. |
 | Authorization and PHP launcher seam | `accessContext.js`, PHP launcher, parity test | `2/2` PHP parity/lint tests; PHP 8.4.25 installed | Public runtime has not been checked against this commit | Local complete; refresh exact deployed candidate. |
 | Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Golden safety gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete for synthetic checkpoint. |
 | Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public page still contains the old JSON `<pre>` view | Blocked on deployment: read back the visual page externally. |
@@ -28,7 +34,7 @@ node --test scripts/test/*.test.mjs
 node evals/lib/runner.js
 ```
 
-Observed results for `e02495f`: `77/77`, `4/4`, and `7/7` passed.
+Observed results for `33cb9e0`: `77/77`, `4/4`, and `7/7` passed.
 
 ## Current external snapshot
 
