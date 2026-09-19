@@ -1,9 +1,10 @@
 # AgentForge release-readiness evidence map
 
 **Checkpoint:** 2026-09-19, America/Chicago  
-**Candidate commit:** `b9f287a` (`refactor: bound cache and load tooling`)
-**Decision:** Conditionally ready locally; not externally ready until the exact
-candidate is deployed and read back.  
+**Candidate commit:** `e68c43c` (`feat: add dormant OpenRouter provider mode`)
+**Decision:** Conditionally ready for the synthetic checkpoint; the exact
+candidate is now deployed and read back, with the remaining load and packaging
+limitations recorded below.  
 **Boundary:** Synthetic-only, read-only, clinician-reviewed. No PHI, live
 clinical records, or clinical write-back.
 
@@ -101,6 +102,17 @@ so this failure mode is reproducible rather than a hanging process.
 The provider configuration now includes a dormant OpenRouter lane. The public
 runtime remains on `AGENTFORGE_PROVIDER_MODE=qwen`; the OpenRouter credential is
 stored only in the server-side `.env` and was not exercised during verification.
+
+## Final candidate readback — 2026-09-19
+
+Commit `e68c43c` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
+The deployed AgentForge image is `sha256:80f1a690aa6bc8ccd9ee46c307095e0d589b6003a0e1eb48c605375a04037723`;
+the container reports healthy. Public readback passed `/health`, `/ready`,
+`/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` with HTTP 200.
+The full API collection also passed complete and partial briefing, follow-up,
+blocked authorization and cross-patient cases, invalid request rejection, and
+all observability routes. The active provider mode read back as Qwen; the
+OpenRouter key was present only as a redacted server-side environment value.
 
 ## Release gate
 
