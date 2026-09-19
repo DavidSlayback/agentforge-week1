@@ -54,7 +54,7 @@ test('OpenEMR REST adapter filters overbroad patient-history responses by patien
     accessToken: 'synthetic-token',
     fetchImpl: async (url) => {
       if (url.endsWith('/patient/patient-uuid')) return { ok: true, status: 200, async json() { return { data: [{ uuid: 'patient-uuid', pid: 17, fname: 'Synthetic', lname: 'Patient' }] }; } };
-      if (url.endsWith('/medical_problem')) return { ok: true, status: 200, async json() { return { data: [{ uuid: 'keep', patient_uuid: 'patient-uuid', title: 'Keep' }, { uuid: 'leak', patient_uuid: 'other-patient', title: 'Do not include' }] }; } };
+      if (url.endsWith('/medical_problem')) return { ok: true, status: 200, async json() { return { data: [{ uuid: 'keep', patient_uuid: 'patient-uuid', title: 'Keep' }, { uuid: 'leak', patient_uuid: 'other-patient', title: 'Do not include' }, { uuid: 'conflicting-pid', patient_uuid: 'patient-uuid', pid: 18, title: 'Do not include' }] }; } };
       if (url.endsWith('/allergy')) return { ok: true, status: 200, async json() { return { data: [{ uuid: 'allergy-keep', pid: 17, title: 'Keep' }, { uuid: 'allergy-leak', pid: 18, title: 'Do not include' }] }; } };
       if (url.endsWith('/encounter')) return { ok: true, status: 200, async json() { return { data: [{ uuid: 'enc-keep', patient_uuid: 'patient-uuid', reason: 'Keep' }, { uuid: 'enc-no-identity', reason: 'Do not include' }] }; } };
       if (url.endsWith('/medication')) return { ok: true, status: 200, async json() { return { data: [] }; } };
@@ -64,6 +64,7 @@ test('OpenEMR REST adapter filters overbroad patient-history responses by patien
   });
   const retrieved = await adapter.retrieve(await adapter.getCase('patient-uuid'));
   assert.deepEqual(retrieved.records.map((record) => record.source_ref), ['openemr-patient-patient-uuid', 'enc-keep', 'keep', 'allergy-keep']);
+  assert.equal(retrieved.records.some((record) => record.source_ref === 'conflicting-pid'), false);
   assert.equal(retrieved.coverage.find((group) => group.group === 'problems').records, 1);
   assert.equal(retrieved.coverage.find((group) => group.group === 'allergies').records, 1);
   assert.equal(retrieved.coverage.find((group) => group.group === 'encounters').records, 1);

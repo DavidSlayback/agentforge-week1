@@ -211,11 +211,12 @@ function mappedRecord(field, value, record, index, group) {
 
 /** Fail closed when any chart row lacks or disagrees with patient identity. */
 function rowBelongsToPatient(record, patient, group) {
-  const rowRef = record.puuid || record.patient_uuid || record.patient_ref;
-  const rowPid = record.pid || record.patient_id;
-  if (rowRef) return String(rowRef).toLowerCase() === String(patient.patient_ref).toLowerCase();
-  if (rowPid && patient.pid) return String(rowPid) === String(patient.pid);
-  return false;
+  const rowRefs = [record.puuid, record.patient_uuid, record.patient_ref].filter((value) => value !== undefined && value !== null && String(value));
+  const rowPids = [record.pid, record.patient_id].filter((value) => value !== undefined && value !== null && String(value));
+  if (!rowRefs.length && !rowPids.length) return false;
+  if (rowRefs.some((value) => String(value).toLowerCase() !== String(patient.patient_ref).toLowerCase())) return false;
+  if (rowPids.some((value) => patient.pid === undefined || patient.pid === null || String(patient.pid) === '' || String(value) !== String(patient.pid))) return false;
+  return true;
 }
 
 function slug(value) { return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unknown'; }
