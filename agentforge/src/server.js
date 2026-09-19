@@ -33,6 +33,7 @@ const adapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGEN
 // operational metadata, not raw briefing or chart content.
 const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.1) };
+const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
 const service = new AgentForgeService({ adapter, provider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000) });
 // `/ready` reports configured dependency checks, not provider reachability,
@@ -61,7 +62,7 @@ const server = http.createServer(async (req, res) => {
     // their current safety boundary, not a production access policy.
     if (req.method === 'GET' && req.url === '/v1/traces') return json(res, 200, traceSink.list());
     if (req.method === 'GET' && req.url === '/v1/metrics') return json(res, 200, traceSink.snapshot());
-    if (req.method === 'GET' && req.url === '/v1/alerts') return json(res, 200, evaluateAlerts(traceSink.snapshot(), alertThresholds));
+    if (req.method === 'GET' && req.url === '/v1/alerts') return json(res, 200, evaluateAlerts(traceSink.snapshot({ windowMs: alertWindowMs }), alertThresholds));
     if (req.method === 'GET' && req.url.startsWith('/v1/demo-context')) {
       if (liveOpenEMR) return json(res, 404, { error: 'openemr_context_required' });
       if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });

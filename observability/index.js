@@ -18,6 +18,14 @@ function clone(value) {
 }
 
 const isOperationalError = (trace) => trace.status === 'failure' || trace.status === 'deadline-exceeded';
+const tracesInWindow = (traces, windowMs, now) => {
+  if (!Number.isFinite(windowMs)) return traces;
+  const cutoff = now - windowMs;
+  return traces.filter((trace) => {
+    const completedAt = Date.parse(trace.completedAt || trace.storedAt || '');
+    return Number.isFinite(completedAt) && completedAt >= cutoff && completedAt <= now;
+  });
+};
 
 class TraceRecorder {
   constructor({ correlationId, operation, interactionType = 'briefing', deadlineMs = null, scope = {}, clock = () => new Date().toISOString() }) {
@@ -118,31 +126,33 @@ class InMemoryTraceSink {
 
   list() { return clone(this.traces); }
 
-  snapshot() {
-    const durations = this.traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
+  snapshot({ windowMs = null, now = Date.now() } = {}) {
+    const traces = tracesInWindow(this.traces, windowMs, now);
+    const durations = traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
     const percentile = (p) => durations.length ? durations[Math.min(durations.length - 1, Math.ceil(durations.length * p) - 1)] : 0;
-    const interactionTypes = [...new Set(this.traces.map((trace) => trace.interactionType || 'unknown'))];
+    const interactionTypes = [...new Set(traces.map((trace) => trace.interactionType || 'unknown'))];
     const latencyByInteraction = Object.fromEntries(interactionTypes.map((interactionType) => {
-      const values = this.traces.filter((trace) => (trace.interactionType || 'unknown') === interactionType).map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
+      const values = traces.filter((trace) => (trace.interactionType || 'unknown') === interactionType).map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
       const byPercentile = (p) => values.length ? values[Math.min(values.length - 1, Math.ceil(values.length * p) - 1)] : 0;
       return [interactionType, { p50: byPercentile(.5), p95: byPercentile(.95), p99: byPercentile(.99) }];
     }));
-    const deadlineOutcomes = this.traces.reduce((outcomes, trace) => { const key = trace.deadlineOutcome || 'not_applicable'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
-    const cacheOutcomes = this.traces.reduce((outcomes, trace) => { const key = trace.cache?.status || 'not_used'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
-    const errors = this.traces.filter(isOperationalError).length;
-    const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
-    const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
-    const retries = this.traces.reduce((total, trace) => total + (trace.retries?.total || 0), 0);
-    const providerFallbacks = this.traces.filter((trace) => trace.model?.provider_fallback === true).length;
-    const estimatedCostUsd = this.traces.reduce((total, trace) => total + Number(trace.model?.estimatedCostUsd || trace.model?.estimated_cost_usd || 0), 0);
+    const deadlineOutcomes = traces.reduce((outcomes, trace) => { const key = trace.deadlineOutcome || 'not_applicable'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
+    const cacheOutcomes = traces.reduce((outcomes, trace) => { const key = trace.cache?.status || 'not_used'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
+    const errors = traces.filter(isOperationalError).length;
+    const retrievalAttempts = traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
+    const toolFailures = traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
+    const retries = traces.reduce((total, trace) => total + (trace.retries?.total || 0), 0);
+    const providerFallbacks = traces.filter((trace) => trace.model?.provider_fallback === true).length;
+    const estimatedCostUsd = traces.reduce((total, trace) => total + Number(trace.model?.estimatedCostUsd || trace.model?.estimated_cost_usd || 0), 0);
     return {
-      requests: this.traces.length,
+      requests: traces.length,
       errors,
-      errorRate: this.traces.length ? errors / this.traces.length : 0,
+      errorRate: traces.length ? errors / traces.length : 0,
       latencyMs: { p50: percentile(.5), p95: percentile(.95), p99: percentile(.99) },
       latencyByInteraction,
       deadlineOutcomes,
       cacheOutcomes,
+      windowMs,
       queueDepth: 0,
       retrievalAttempts,
       toolFailures,
@@ -150,8 +160,8 @@ class InMemoryTraceSink {
       retries,
       providerFallbacks,
       estimatedCostUsd,
-      verificationOutcomes: this.traces.reduce((outcomes, trace) => { const key = trace.verification?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
-      displayOutcomes: this.traces.reduce((outcomes, trace) => { const key = trace.display?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
+      verificationOutcomes: traces.reduce((outcomes, trace) => { const key = trace.verification?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
+      displayOutcomes: traces.reduce((outcomes, trace) => { const key = trace.display?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
     };
   }
 
@@ -396,13 +406,14 @@ class MetricsRegistry {
   constructor() { this.traces = []; this.queueDepth = 0; }
   setQueueDepth(value) { this.queueDepth = value; }
   observe(trace) { this.traces.push(trace); }
-  snapshot() {
-    const durations = this.traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
+  snapshot({ windowMs = null, now = Date.now() } = {}) {
+    const traces = tracesInWindow(this.traces, windowMs, now);
+    const durations = traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
     const percentile = (p) => durations.length ? durations[Math.min(durations.length - 1, Math.ceil(durations.length * p) - 1)] : 0;
-    const errors = this.traces.filter(isOperationalError).length;
-    const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
-    const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
-    return { requests: this.traces.length, errors, errorRate: this.traces.length ? errors / this.traces.length : 0, latencyMs: { p50: percentile(.5), p95: percentile(.95) }, queueDepth: this.queueDepth, retrievalAttempts, toolFailures, toolFailureRate: retrievalAttempts ? toolFailures / retrievalAttempts : 0 };
+    const errors = traces.filter(isOperationalError).length;
+    const retrievalAttempts = traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
+    const toolFailures = traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
+    return { requests: traces.length, errors, errorRate: traces.length ? errors / traces.length : 0, latencyMs: { p50: percentile(.5), p95: percentile(.95) }, queueDepth: this.queueDepth, retrievalAttempts, toolFailures, toolFailureRate: retrievalAttempts ? toolFailures / retrievalAttempts : 0, windowMs };
   }
 }
 
