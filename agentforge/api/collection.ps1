@@ -49,6 +49,12 @@ if ($ExpectNotReady) {
   [pscustomobject]@{ base_url = $base; health = $health.status; ready = $ready.status; readiness_status = $ready.body.status } | ConvertTo-Json -Compress
   exit 0
 }
+if ($ready.body.status -ne 'ready') { throw "ready returned HTTP 200 without ready status: $($ready.text)" }
+$dependencies = if ($ready.body.dependencies) { $ready.body.dependencies } elseif ($ready.body.checks) { $ready.body.checks } else { $null }
+if ($null -eq $dependencies) { throw "ready response omitted dependency states: $($ready.text)" }
+foreach ($dependency in $dependencies.PSObject.Properties) {
+  if ($dependency.Value.status -ne 'ready') { throw "ready dependency '$($dependency.Name)' is not ready: $($ready.text)" }
+}
 $completeContext = Assert-Status (Invoke-AgentForge 'GET' '/v1/demo-context?patient_uuid=fixture-patient-001' $null) 200 'complete demo context'
 $partialContext = Assert-Status (Invoke-AgentForge 'GET' '/v1/demo-context?patient_uuid=fixture-patient-006' $null) 200 'partial demo context'
 $briefing = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 'fixture-patient-001'; case_id = 'complete_return_visit'; clinician_uuid = 'fixture-physician-001'; demo_token = $completeContext.body.demo_token }) 200 'briefing'
@@ -72,6 +78,7 @@ $observability = Assert-Status (Invoke-AgentForge 'GET' '/observability' $null) 
   base_url = $base
   health = $health.status
   ready = $ready.status
+  readiness_status = $ready.body.status
   briefing = $briefing.body.disposition
   partial = $partial.body.disposition
   follow_up_correlation_id = $followUp.body.correlation_id
