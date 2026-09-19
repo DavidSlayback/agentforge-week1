@@ -34,17 +34,16 @@
 - The earlier `/agentforge/ready` 503 was resolved by rotating the server-only model credential and increasing the model request timeout to 15 seconds; the current readback returns 200 with configuration, retrieval, model, and trace all ready. No key value is stored in the repository.
 - A clean-browser synthetic briefing completed through `openai-responses` with `qwen3.6-flash`, `primary` provider status, passed verification, three evidence items, and 11,578 ms duration. The operational snapshot has zero request errors and zero pending/dropped exports. `/v1/alerts` now evaluates a five-minute window (`windowMs=300000`) and no longer fires on the retained 24,021 ms historical fallback traces; `/v1/metrics` intentionally continues to expose retained-history aggregates.
 - The normal external API collection now passes end to end: health 200, readiness 200, complete and partial briefings, follow-up, blocked authorization and cross-patient cases, invalid request 400, metrics, traces, alerts, and observability all returned their expected results. The collection now fails closed on incomplete readiness dependencies and unsafe provider readback; intentional blocked/invalid cases no longer inflate `error_rate`; the live snapshot reports `errors=0` and `errorRate=0`. The signed synthetic load harness likewise fails closed unless it can acquire context and receive complete briefings. The collection's fresh Qwen and retrieval-failure traffic legitimately fires the bounded-window `p95_latency` and `tool_failure_rate` rules; the retained historical fallback traces are not part of that alert decision.
-- This proves the reachable synthetic/read-only workflow can use the configured Qwen lane after server-only credential rotation. It does not prove PHP executable parity, real OpenEMR identity/session semantics, PHI readiness, production authorization, a live external dashboard, or release readiness for the mixed working tree.
+- This proves the reachable synthetic/read-only workflow can use the configured Qwen lane after server-only credential rotation. PHP 8.4 is now installed locally and the launcher passes syntax validation; executable cross-runtime authorization parity still requires a focused parity run. This does not prove real OpenEMR identity/session semantics, PHI readiness, production authorization, a live visual dashboard, or release readiness for the mixed working tree.
 
 ## Why this checkpoint stops before packaging
 
 This is an intentional evidence boundary, not a local implementation failure:
 
 - The Node and PHP authorization implementations have matching field order,
-  compact JSON, base64url, HMAC-SHA-256, and five-minute expiry rules, but PHP
-  is not installed in this environment. Static source parity can be reported;
-  executable cross-runtime parity cannot be claimed until PHP or an equivalent
-  verified runtime is available.
+  compact JSON, base64url, HMAC-SHA-256, and five-minute expiry rules. PHP 8.4
+  is now installed and the launcher syntax-checks successfully; executable
+  cross-runtime parity remains a separate verification task.
 - The selected B authorization runtime paths now have a fresh Vultr synthetic
   readback. This is narrower than packaging the mixed checkout and does not
   prove PHP executable parity, real OpenEMR identity/session semantics, or
@@ -86,7 +85,8 @@ The prior audit indicates that the project became stronger as a synthetic resili
 - Deployed 10/50-concurrency evidence, infrastructure baselines, cost projections for 100/1K/10K/100K users, final current-commit readback, interview/demo readiness, and publication decisions require explicit evidence or owner disposition.
 - The local/default provider remains deterministic. Historical Vultr evidence records an explicitly authorized synthetic-only Qwen3.6 Flash evaluation lane. Provider spending, retention, data-processing, and PHI suitability remain unresolved; that deployed lane is not a production authorization.
 - Synthetic OpenEMR seams are not equivalent to real OpenEMR integration, PHI readiness, BAA coverage, or production compliance.
-- A JSON/browser observability surface is not automatically the assignment’s required live dashboard; map the exact requirement to observable evidence.
+- A JSON/browser observability surface is not the required visual dashboard. The
+  visual dashboard is now an explicit implementation and readback requirement.
 
 Treat these as audit hypotheses until refreshed against the source assignment, current branch, deployed target, and evidence files.
 
@@ -114,7 +114,7 @@ The prior audit reported these results, subject to fresh readback:
 The rebuilt plan must begin with assignment coverage, not architecture expansion:
 
 1. Lock the verified requirements matrix and scope boundary.
-2. Resolve all frontloaded human decisions: source-of-truth assignment, required artifact naming, provider/model and budget, privacy/data-retention boundary, deployment target, domain/TLS, external access, load-test authorization, interview/demo timing, and publication/no-publication.
+2. Resolve all frontloaded human decisions: source-of-truth assignment, required artifact naming, provider/model and budget, privacy/data-retention boundary, deployment target, domain/TLS, external access, load-test authorization, interview/demo timing, and publication/no-publication. Owner direction is now synthetic-only/no-PHI, Qwen-until-final-OpenRouter-migration, and visual-dashboard-required.
 3. Close documentation and claim consistency.
 4. Close missing implementation and test requirements in vertical slices.
 5. Run independent ticket verification from clean state.

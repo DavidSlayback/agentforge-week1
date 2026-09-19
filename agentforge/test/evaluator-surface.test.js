@@ -27,6 +27,12 @@ test('evaluator panel exposes operational routes and saved evidence', async () =
   assert.match(page, /Mutation\/error analysis/);
   assert.match(page, /synthetic fixture and harness results/i);
 
+  const dashboard = await fetch(`http://127.0.0.1:${port}/observability`).then((response) => response.text());
+  for (const id of ['metric-cards', 'latency-bars', 'verification-bars', 'alerts', 'traces']) assert.match(dashboard, new RegExp(`id="${id}"`));
+  assert.match(dashboard, /Runtime dashboard/);
+  assert.match(dashboard, /synthetic data only/i);
+  assert.doesNotMatch(dashboard, /<pre id="alerts"/);
+
   const golden = await fetch(`http://127.0.0.1:${port}/evals/deployed-service-results.json`).then((response) => response.json());
   const errorAnalysis = await fetch(`http://127.0.0.1:${port}/evals/error-analysis.json`).then((response) => response.json());
   assert.equal(golden.gate_passed, true);

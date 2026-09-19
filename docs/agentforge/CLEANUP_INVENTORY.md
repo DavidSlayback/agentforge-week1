@@ -68,7 +68,7 @@ The following were present and deliberately moved, not deleted. Their content, d
 
 Completed: verified the assignment source; refreshed Git/worktree/file/deployment endpoint state; inventoried docs, code, evidence, branches, deployments, and untracked media; created and refreshed the plain-English explainer and requirements matrix; ran the three local test suites; created the claim-consistency Wayfinder map and decision tickets; verified seeded synthetic OpenEMR E2E behavior without PHI; extracted and retired the historical overnight queue; moved 29 generated/support artifacts to the recoverable local archive outside the repository; published the current implementation stack as GitLab issues and stacked draft merge requests.
 
-Not done by design: delete user artifacts, edit the historical queue, merge the draft stack, activate a provider beyond the authorized synthetic lane, or load PHI. Executable Node/PHP authorization parity is not claimed because PHP is unavailable; broader release, production identity, compliance, and clinical-safety claims remain open.
+Not done by design: delete user artifacts, edit the historical queue, merge the draft stack, activate a provider beyond the authorized synthetic lane, or load PHI. PHP 8.4 is now installed and the launcher syntax-checks; executable Node/PHP authorization parity still needs a focused run. The visual dashboard remains an open required deliverable; broader release, production identity, compliance, and clinical-safety claims remain open.
 
 ## Durable checkpoint
 

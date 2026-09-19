@@ -318,3 +318,25 @@ failure-policy evidence.
   redacted OTLP exporter with an owner-approved Langfuse Cloud project or a
   resized dedicated host. Do not change the redaction contract or activate
   PHI processing as part of that migration.
+
+## ADR-017: Require a visual dashboard and defer OpenRouter to finalization
+
+- **Choice:** Build and browser-verify a visual operational dashboard as a
+  required checkpoint deliverable. Keep the current Qwen3.6 Flash synthetic
+  lane during dashboard implementation and validation; migrate to OpenRouter
+  only at the final provider step.
+- **Alternatives:** Treat the JSON observability page as sufficient, switch
+  providers now, or broaden the project into PHI/clinical integration.
+- **Tradeoff:** Dashboard work is additional implementation, while delaying
+  the provider swap keeps current evidence stable and makes the final provider
+  comparison explicit.
+- **Boundary:** AgentForge remains synthetic-only, read-only, and
+  clinician-reviewed. No PHI, live clinical records, or clinical write-back is
+  in scope.
+- **Evidence required:** A visual dashboard showing request volume, errors,
+  p50/p95/p99 latency, retrieval/tool attempts, retries, queue depth,
+  verification/display outcomes, provider fallback, bounded alert state, and
+  three actionable alerts, driven by synthetic traffic and redacted metadata.
+- **Migration:** After dashboard readback and final demo preparation, configure
+  OpenRouter through the existing provider interface, rerun the synthetic
+  evaluation and failure gates, and refresh the final evidence bundle.
