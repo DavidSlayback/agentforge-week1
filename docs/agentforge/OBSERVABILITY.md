@@ -34,6 +34,11 @@ the trace stream as safety evidence but are not operational errors. The error
 rate counts service `failure` and `deadline-exceeded` outcomes; this keeps
 negative safety probes from generating a false service-failure alert.
 
+`/v1/alerts` evaluates the p95, error-rate, and tool-failure rules over the
+latest five minutes and returns `windowMs: 300000` so the active measurement
+window is explicit. `/v1/metrics` remains a retained-history aggregate for
+diagnosis and evidence; it is not the alert window.
+
 1. **High p95 latency:** alert when briefing p95 exceeds the agreed baseline
    for five minutes. Inspect stage timing; first isolate retrieval/provider
    latency, then reduce concurrency or disable the live provider if needed.
