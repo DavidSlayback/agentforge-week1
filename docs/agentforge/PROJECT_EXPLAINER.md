@@ -46,11 +46,11 @@ Fresh local checks on this branch, verified 2026-09-18, pass:
 
 - AgentForge service and seam tests: **50/50**;
 - evaluation tests: **10/10**; and
-- observability tests: **13/13** (73/73 combined), including the Langfuse exporter boundary and bounded-outage behavior.
+- observability tests: **14/14** (74/74 combined), including the Langfuse exporter boundary, bounded-outage behavior, and blocked-outcome error classification.
 
 The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. After a server-only model credential rotation and a 15-second model timeout, the selected Vultr runtime serves the synthetic workflow through the configured Qwen lane and `/ready` returns 200. This is not PHI or production-provider evidence.
 
-On 2026-09-19, strict HTTPS and a clean browser verified the externally reachable briefing and follow-up workflow. The current readback returned HTTP 200 for `/health`, `/ready`, and `/observability`; the latest briefing trace used `openai-responses` with `qwen3.6-flash`, primary status, passed verification, and 11,578 ms duration. The normal external API collection also passed its complete, partial, follow-up, blocked, invalid-request, and observability checks. Aggregate metrics retain five earlier fallbacks and a firing p95-latency alert; the collection's intentional blocked/invalid checks also produce an expected error-rate alert. These are candidate-scoped observations, not full release proof: exact deployment identity, PHP executable parity, production identity semantics, external dashboard equivalence, PHI readiness, and clinical usefulness remain open.
+On 2026-09-19, strict HTTPS and a clean browser verified the externally reachable briefing and follow-up workflow. The current readback returned HTTP 200 for `/health`, `/ready`, and `/observability`; the latest briefing trace used `openai-responses` with `qwen3.6-flash`, primary status, passed verification, and 11,578 ms duration. The normal external API collection also passed its complete, partial, follow-up, blocked, invalid-request, and observability checks. Blocked safety outcomes are now excluded from operational error rate; the live snapshot reports zero errors, while the p95 alert remains due to retained historical fallback traces. These are candidate-scoped observations, not full release proof: exact deployment identity, PHP executable parity, production identity semantics, external dashboard equivalence, PHI readiness, and clinical usefulness remain open.
 
 ## Status by area
 

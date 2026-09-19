@@ -50,7 +50,7 @@
 
 ## Reconciliation notes
 
-- Fresh local proof on 2026-09-19 is AgentForge **50/50**, evals **10/10**, and observability **13/13** (**73/73 combined**). Counts of 20/20, 24/24, 25/25, 34/34, 48/48, 49/49, 54/54, 68/68, 71/71, and 72/72 in older handoff/overnight evidence are retained as historical snapshots only.
+- Fresh local proof on 2026-09-19 is AgentForge **50/50**, evals **10/10**, and observability **14/14** (**74/74 combined**). Counts of 20/20, 24/24, 25/25, 34/34, 48/48, 49/49, 54/54, 68/68, 71/71, 72/72, and 73/73 in older handoff/overnight evidence are retained as historical snapshots only.
 
 - `USER.md` now points to canonical `USERS.md`; this resolves the brief's filename inconsistency without duplicating the user model.
 - Railway evidence is earlier checkpoint evidence. The selected Vultr runtime has same-day synthetic readback for the externally reachable workflow and current primary Qwen success after server-only credential rotation; this remains candidate-scoped proof, not PHI or production release evidence.

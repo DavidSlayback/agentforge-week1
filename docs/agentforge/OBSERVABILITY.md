@@ -29,6 +29,11 @@ self-hosted Langfuse services are required for this path.
 These are operational rules for the final deployment. They are documented now
 so the dashboard fields have an explicit response contract.
 
+Blocked authorization, patient-scope, and invalid-request outcomes remain in
+the trace stream as safety evidence but are not operational errors. The error
+rate counts service `failure` and `deadline-exceeded` outcomes; this keeps
+negative safety probes from generating a false service-failure alert.
+
 1. **High p95 latency:** alert when briefing p95 exceeds the agreed baseline
    for five minutes. Inspect stage timing; first isolate retrieval/provider
    latency, then reduce concurrency or disable the live provider if needed.
