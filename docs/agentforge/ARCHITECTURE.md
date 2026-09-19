@@ -198,11 +198,12 @@ verified user-context binding still match.
 
 ### Evidence record
 
-Each record contains `field`, `value`, `recorded_at`, `author` (nullable),
-`source_ref`, `record_type`, `patient_uuid`, and
-`reassessment_documented`. Narrative text is data and remains untrusted. The
-renderer may quote a bounded excerpt, but control instructions embedded in a
-note never affect routing, authorization, reconciliation, or disposition.
+Each claim contains `field`, `value`, `patient_ref`, `source_ref`, a non-empty
+`evidence` array, and optional `reassessment_documented`. Each evidence item
+contains `patient_ref`, `source_ref`, `record_type`, `recorded_at`, `author`,
+and a bounded `excerpt`. Narrative text is data and remains untrusted. The
+renderer may quote only that bounded excerpt, but control instructions embedded
+in a note never affect routing, authorization, reconciliation, or disposition.
 
 ### Coverage outcome
 

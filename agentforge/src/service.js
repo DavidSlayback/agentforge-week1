@@ -1,4 +1,4 @@
-import { CONTRACT_VERSION, correlationId, blockedResult, isCoverageFailure, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse } from './contracts.js';
+import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageFailure, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse } from './contracts.js';
 import { fileURLToPath } from 'node:url';
 import { PreparationCache } from './preparationCache.js';
 
@@ -26,7 +26,6 @@ function evidence(record, patientRef) {
   return { patient_ref: patientRef, source_ref: record.source_ref, record_type: record.field.split('.')[0], recorded_at: record.recorded_at, author: record.author, excerpt: typeof record.value === 'string' ? record.value.slice(0, 300) : JSON.stringify(record.value) };
 }
 
-/** Hash client-controlled conversation IDs before they enter traces. */
 /** Orchestrates the read-only authorization, retrieval, verification, and display boundary. */
 export class AgentForgeService {
   constructor({ adapter, provider, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000 }) {
@@ -193,7 +192,7 @@ function followUpFromBriefing(id, briefing, message) {
 
 /** Map wire fields to coverage groups and fail closed for unavailable data. */
 function recordIsCovered(record, coverage) {
-  const group = recordGroup(record);
+  const group = coverageGroupForField(record.field);
   const status = coverage.find((item) => item.group === group);
   return Boolean(status && status.status === 'success' && status.records > 0 && !isCoverageFailure(status.status));
 }
@@ -201,11 +200,6 @@ function recordIsCovered(record, coverage) {
 /** Never relabel a source record whose explicit patient identity disagrees. */
 function recordBelongsToPatient(record, patientRef) {
   return !record?.patient_ref || String(record.patient_ref) === String(patientRef);
-}
-
-function recordGroup(record) {
-  const root = String(record.field || '').split('.')[0];
-  return { encounter: 'encounters', medication: 'medications', problem: 'problems', allergy: 'allergies', note: 'notes', identity: 'identity' }[root] || root;
 }
 
 export function defaultFixturePath() { return fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url)); }

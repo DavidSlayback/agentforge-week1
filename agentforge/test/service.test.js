@@ -78,6 +78,20 @@ test('uses a server-owned preparation cache and records interaction latency', as
   assert.equal(sink.snapshot().latencyByInteraction.cache_followup.p95, traces[1].durationMs);
 });
 
+test('bounds preparation cache entries and removes expired state', () => {
+  let now = 0;
+  const cache = new PreparationCache({ ttlMs: 10, maxEntries: 2, now: () => now });
+  const entry = (correlationId) => ({ correlationId, patientRef: 'patient', clinicianRef: 'clinician', verifiedContext: {}, request: {}, response: {} });
+  cache.put(entry('first'));
+  cache.put(entry('second'));
+  cache.put(entry('third'));
+  assert.equal(cache.get('first').status, 'miss');
+  assert.equal(cache.get('second').status, 'hit');
+  now = 11;
+  assert.equal(cache.get('second').status, 'stale');
+  assert.equal(cache.get('third').status, 'stale');
+});
+
 test('stale preparation cache refreshes through a bounded fresh retrieval', async () => {
   let now = 0;
   const cache = new PreparationCache({ ttlMs: 10, now: () => now });

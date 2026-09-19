@@ -36,30 +36,19 @@
 - The normal external API collection now passes end to end: health 200, readiness 200, complete and partial briefings, follow-up, blocked authorization and cross-patient cases, invalid request 400, metrics, traces, alerts, and observability all returned their expected results. The collection now fails closed on incomplete readiness dependencies and unsafe provider readback; intentional blocked/invalid cases no longer inflate `error_rate`; the live snapshot reports `errors=0` and `errorRate=0`. The signed synthetic load harness likewise fails closed unless it can acquire context and receive complete briefings. The collection's fresh Qwen and retrieval-failure traffic legitimately fires the bounded-window `p95_latency` and `tool_failure_rate` rules; the retained historical fallback traces are not part of that alert decision.
 - This proves the reachable synthetic/read-only workflow can use the configured Qwen lane after server-only credential rotation. PHP 8.4 is installed locally and the launcher passes syntax validation plus executable Node/PHP parity. The current authorized candidate `6fd69eb` was rebuilt on Vultr; the deployed image is healthy, its dashboard/server source hashes match the committed tree after Windows line-ending normalization, and the public visual dashboard plus API collection were read back successfully. This still does not prove real OpenEMR identity/session semantics, PHI readiness, production authorization, clinical usefulness, provider migration, or submission readiness.
 
-## Why this checkpoint stops before packaging
-
-This is an intentional evidence boundary, not a local implementation failure:
+## Remaining release boundaries
 
 - The Node and PHP authorization implementations have matching field order,
   compact JSON, base64url, HMAC-SHA-256, and five-minute expiry rules. PHP 8.4
-  is now installed and the launcher syntax-checks successfully; executable
-  cross-runtime parity remains a separate verification task.
-- The selected B authorization runtime paths now have a fresh Vultr synthetic
-  readback. This is narrower than packaging the mixed checkout and does not
-  prove PHP executable parity, real OpenEMR identity/session semantics, or
-  production authorization.
-- Packaging is paused because the checkout contains mixed user-owned changes,
-  deletions, generated artifacts, and untracked media. Selecting files for a
-  stacked PR from that state risks committing unrelated work; no reset,
-  checkout, or destructive cleanup is authorized.
-- TLS, redirect behavior, current host identity, and current commit/image are
-  external claims that require fresh readback against the exact packaged
-  revision. Historical observations remain useful evidence, but cannot serve
-  as current release proof.
-- Provider activation beyond the already authorized synthetic lane, PHI, chart
-  writes, and release remain outside the authorized boundary. The verified
-  local and selected deployed result is synthetic, read-only, and
-  clinician-reviewed.
+  is installed; syntax validation and executable cross-runtime parity pass.
+- The current deployed proof is synthetic, read-only, and clinician-reviewed.
+  It does not prove real OpenEMR identity/session semantics, PHI readiness,
+  production authorization, clinical usefulness, or compliance.
+- The current candidate has fresh public dashboard and workflow readback. Load
+  evidence must remain labeled as bounded synthetic observations, and CPU,
+  memory, database saturation, and provider cost are not capacity claims.
+- Provider activation beyond the already authorized synthetic Qwen lane, PHI,
+  chart writes, publication, and final OpenRouter migration remain owner-gated.
 
 ## First phase: cleanup and rebaseline
 

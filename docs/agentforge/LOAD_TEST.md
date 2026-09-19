@@ -16,7 +16,9 @@ node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 
 
 The harness fails if signed-context acquisition fails, any request is non-2xx,
 or a successful response is not a complete briefing. The report is a measured
-synthetic deployment result, not a production capacity claim.
+synthetic deployment result, not a production capacity claim. Each request has
+a bounded 60-second client timeout by default; override it with
+`--timeout-ms` when the provider contract requires a different budget.
 
 The load-harness argument regression is covered by:
 

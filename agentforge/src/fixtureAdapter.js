@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { authorizeRequest } from './accessContext.js';
+import { coverageGroupForField } from './contracts.js';
 
 export class FixtureAdapter {
   constructor(path) { this.cases = JSON.parse(fs.readFileSync(path, 'utf8')).cases; }
@@ -11,16 +12,11 @@ export class FixtureAdapter {
   }
   retrieve(item) {
     const successfulGroups = new Set(item.retrieval.filter((group) => group.status === 'success' && (group.records || 0) > 0).map((group) => group.group));
-    const records = item.records.filter((record) => successfulGroups.has(recordGroup(record)));
+    const records = item.records.filter((record) => successfulGroups.has(coverageGroupForField(record.field)));
     return { records, coverage: item.retrieval.map((group) => ({
       group: group.group, status: group.status, records: group.records || 0,
       attempts: group.attempts || 1, error_class: group.error_class || null
     })) };
   }
   async checkReady() { return true; }
-}
-
-function recordGroup(record) {
-  const [root] = String(record.field || '').split('.');
-  return { encounter: 'encounters', medication: 'medications', problem: 'problems', allergy: 'allergies', note: 'notes', identity: 'identity' }[root] || root;
 }

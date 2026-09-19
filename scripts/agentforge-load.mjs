@@ -19,6 +19,7 @@ const parsePositiveInteger = (value, flag) => {
 const baseUrl = String(args['base-url'] || process.env.AGENTFORGE_BASE_URL || 'http://127.0.0.1:8787').replace(/\/$/, '');
 const concurrency = parsePositiveInteger(args.concurrency ?? 10, '--concurrency');
 const totalRequests = parsePositiveInteger(args.requests ?? 100, '--requests');
+const requestTimeoutMs = parsePositiveInteger(args['timeout-ms'] ?? 60000, '--timeout-ms');
 const patient = String(args.patient || 'fixture-patient-001');
 const startedAt = new Date().toISOString();
 
@@ -30,7 +31,7 @@ const percentile = (values, p) => {
 
 async function getDemoToken() {
   try {
-    const response = await fetch(`${baseUrl}/v1/demo-context?patient_uuid=${encodeURIComponent(patient)}`);
+    const response = await fetch(`${baseUrl}/v1/demo-context?patient_uuid=${encodeURIComponent(patient)}`, { signal: AbortSignal.timeout(requestTimeoutMs) });
     if (!response.ok) return undefined;
     return (await response.json()).demo_token;
   } catch {
@@ -54,6 +55,7 @@ const worker = async () => {
       const response = await fetch(`${baseUrl}/v1/briefings`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        signal: AbortSignal.timeout(requestTimeoutMs),
         body: JSON.stringify({
           patient_uuid: patient,
           case_id: 'complete_return_visit',
@@ -79,14 +81,14 @@ const wallDurationMs = Math.round((performance.now() - wallStarted) * 100) / 100
 const latencies = results.map((result) => result.latencyMs);
 const errors = results.filter((result) => result.status < 200 || result.status >= 300 || result.error);
 let metrics;
-try { metrics = await fetch(`${baseUrl}/v1/metrics`).then((response) => response.json()); } catch { metrics = null; }
+try { metrics = await fetch(`${baseUrl}/v1/metrics`, { signal: AbortSignal.timeout(requestTimeoutMs) }).then((response) => response.json()); } catch { metrics = null; }
 
 const report = {
   schema_version: '0.1',
   started_at: startedAt,
   completed_at: new Date().toISOString(),
   base_url: baseUrl,
-  workload: { requests: totalRequests, concurrency, patient, provider_mode: 'signed-synthetic-context' },
+  workload: { requests: totalRequests, concurrency, timeout_ms: requestTimeoutMs, patient, provider_mode: 'signed-synthetic-context' },
   timing: { wall_duration_ms: wallDurationMs, throughput_requests_per_second: Number((totalRequests / (wallDurationMs / 1000)).toFixed(3)), p50_ms: percentile(latencies, 0.5), p95_ms: percentile(latencies, 0.95), p99_ms: percentile(latencies, 0.99) },
   outcome: { completed: results.length, successful: results.length - errors.length, errors: errors.length, error_rate: results.length ? errors.length / results.length : 0 },
   service_metrics_after_run: metrics,
