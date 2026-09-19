@@ -72,6 +72,28 @@ repository, browser URL, traces, or prompt data. Readiness must still report a
 configured-provider outage as not ready; fallback availability does not count
 as provider health.
 
+## Dormant OpenRouter mode
+
+The provider seam also supports an OpenAI-compatible OpenRouter lane. Keep it
+dormant by leaving `AGENTFORGE_PROVIDER_MODE=qwen`; the active Qwen lane is
+unchanged. Configure these values only in the server-side root `.env` when the
+final provider switch is authorized:
+
+```dotenv
+AGENTFORGE_PROVIDER_MODE=qwen
+AGENTFORGE_OPENROUTER_ENDPOINT=https://openrouter.ai/api/v1/chat/completions
+AGENTFORGE_OPENROUTER_API_KEY=<server-only-openrouter-key>
+AGENTFORGE_OPENROUTER_MODEL=<approved-openrouter-model>
+AGENTFORGE_OPENROUTER_SITE_URL=https://<canonical-host>/agentforge
+AGENTFORGE_OPENROUTER_SITE_NAME=AgentForge
+AGENTFORGE_OPENROUTER_TIMEOUT_MS=8000
+```
+
+To switch lanes, set `AGENTFORGE_PROVIDER_MODE=openrouter`, supply an approved
+model, and redeploy the AgentForge service. Do not put the key in the
+repository, browser URL, traces, or prompt data. Run the full evaluation,
+failure, API-collection, and dashboard readback gates after switching.
+
 ## Optional self-hosted Langfuse lane
 
 The AgentForge container can export redacted operational spans to a separately

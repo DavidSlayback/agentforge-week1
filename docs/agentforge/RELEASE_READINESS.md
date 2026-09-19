@@ -22,7 +22,7 @@ the final OpenRouter step, and no demo/submission upload.
 | Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Golden safety gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete for synthetic checkpoint. |
 | Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public browser shows the same visual dashboard and redacted trace panels | Done for synthetic checkpoint. |
 | Metrics and alert semantics | `/v1/metrics`, `/v1/alerts`, bounded-window evaluator | Three alert rules render locally; tool-failure alert fires over active synthetic window | Public endpoint exists but page is stale | Partial: verify dashboard and alert state after deployment. |
-| Provider lane | Qwen remains configured behind existing provider seam; deterministic fallback retained | Provider tests and current Qwen-compatible local behavior | Current public runtime is healthy; exact candidate/provider identity unverified | Keep Qwen through dashboard verification; OpenRouter is final migration only. |
+| Provider lane | Qwen remains active behind the provider seam; dormant OpenRouter mode is configured server-side; deterministic fallback retained | Provider tests and current Qwen-compatible local behavior | Current public runtime is healthy; OpenRouter is not called | Keep Qwen through submission evidence; switch to OpenRouter only in the final authorized migration step. |
 | Observability redaction | Redacted trace sink and dashboard rendering | Observability tests pass; browser shows metadata only | Public redaction readback remains candidate-scoped | Partial: verify deployed dashboard contains no sensitive content. |
 | Submission/demo artifacts | Existing submission/interview docs and user-owned media | Not re-recorded or mutated | No external upload/share performed | Owner-owned final step; do not alter media here. |
 
@@ -97,6 +97,10 @@ as passing: the 10-concurrent run was stopped after the Qwen lane exceeded a
 practical runtime budget, and the 50-concurrent smoke run exposed the same
 tail-latency/capacity issue. The load harness now has a bounded client timeout
 so this failure mode is reproducible rather than a hanging process.
+
+The provider configuration now includes a dormant OpenRouter lane. The public
+runtime remains on `AGENTFORGE_PROVIDER_MODE=qwen`; the OpenRouter credential is
+stored only in the server-side `.env` and was not exercised during verification.
 
 ## Release gate
 

@@ -17,8 +17,16 @@ import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../..
  * REST or synthetic-fixture retrieval mode. External providers are wrapped
  * with retries and deterministic fallback.
  */
-const providerOptions = { endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model', timeoutMs: Number(process.env.AGENTFORGE_MODEL_TIMEOUT_MS || 8000) };
-const configuredProvider = process.env.AGENTFORGE_MODEL_ENDPOINT ? (process.env.AGENTFORGE_MODEL_PROTOCOL === 'dashscope-multimodal' ? new DashScopeMultimodalProvider(providerOptions) : process.env.AGENTFORGE_MODEL_PROTOCOL === 'responses' ? new OpenAIResponsesProvider(providerOptions) : new OpenAICompatibleProvider({ ...providerOptions, siteUrl: process.env.AGENTFORGE_MODEL_SITE_URL || '', siteName: process.env.AGENTFORGE_MODEL_SITE_NAME || 'AgentForge' })) : new DeterministicProvider();
+const providerMode = process.env.AGENTFORGE_PROVIDER_MODE || 'qwen';
+const openRouterMode = providerMode === 'openrouter';
+const providerOptions = openRouterMode
+  ? { endpoint: process.env.AGENTFORGE_OPENROUTER_ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions', apiKey: process.env.AGENTFORGE_OPENROUTER_API_KEY, model: process.env.AGENTFORGE_OPENROUTER_MODEL || '', timeoutMs: Number(process.env.AGENTFORGE_OPENROUTER_TIMEOUT_MS || 8000) }
+  : { endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model', timeoutMs: Number(process.env.AGENTFORGE_MODEL_TIMEOUT_MS || 8000) };
+const configuredProvider = openRouterMode
+  ? new OpenAICompatibleProvider({ ...providerOptions, siteUrl: process.env.AGENTFORGE_OPENROUTER_SITE_URL || '', siteName: process.env.AGENTFORGE_OPENROUTER_SITE_NAME || 'AgentForge' })
+  : process.env.AGENTFORGE_MODEL_ENDPOINT
+    ? (process.env.AGENTFORGE_MODEL_PROTOCOL === 'dashscope-multimodal' ? new DashScopeMultimodalProvider(providerOptions) : process.env.AGENTFORGE_MODEL_PROTOCOL === 'responses' ? new OpenAIResponsesProvider(providerOptions) : new OpenAICompatibleProvider({ ...providerOptions, siteUrl: process.env.AGENTFORGE_MODEL_SITE_URL || '', siteName: process.env.AGENTFORGE_MODEL_SITE_NAME || 'AgentForge' }))
+    : new DeterministicProvider();
 const publicBasePath = process.env.AGENTFORGE_PUBLIC_BASE_PATH || '';
 const provider = new ResilientProvider({ primary: configuredProvider, fallback: new DeterministicProvider() });
 const openEMRMode = process.env.AGENTFORGE_OPENEMR_MODE || 'synthetic';
@@ -40,7 +48,7 @@ const service = new AgentForgeService({ adapter, provider, traceSink, cache: pre
 // `/ready` reports configured dependency checks, not provider reachability,
 // output quality, or production compliance. `/health` is process liveness.
 const readiness = createReadinessChecker({
-  configuration: { checkReady: async () => validOpenEMRMode && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
+  configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
   retrieval: adapter,
   model: provider,
   trace: { checkReady: async () => traceSink.health().status === 'ok' },

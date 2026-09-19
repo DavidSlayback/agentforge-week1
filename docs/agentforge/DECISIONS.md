@@ -340,3 +340,14 @@ failure-policy evidence.
 - **Migration:** After dashboard readback and final demo preparation, configure
   OpenRouter through the existing provider interface, rerun the synthetic
   evaluation and failure gates, and refresh the final evidence bundle.
+
+## ADR-018: Keep OpenRouter switchable but dormant
+
+- **Choice:** Add a server-only OpenRouter configuration lane behind
+  `AGENTFORGE_PROVIDER_MODE`, while leaving `qwen` active for the current
+  checkpoint and submission evidence.
+- **Reason:** This preserves the verified runtime and allows the final provider
+  migration to be a bounded configuration change followed by a fresh gate run.
+- **Boundary:** The API key stays in the remote root `.env`; it is never written
+  to the repository, browser URL, traces, or prompt data. No OpenRouter request
+  is made until the final migration step is authorized.
