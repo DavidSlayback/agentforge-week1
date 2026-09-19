@@ -30,6 +30,13 @@ test('follow-up contract permits only the signed demo context token as an extens
   assert.equal(invalid.valid, false);
 });
 
+test('follow-up contract rejects empty required strings', () => {
+  const invalid = validateFollowUpRequest({ patient_uuid: ' ', message: '', clinician_uuid: 'fixture-physician-001' });
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.issues.includes('patient_uuid_must_be_non_empty_string'));
+  assert.ok(invalid.issues.includes('message_must_be_non_empty_string'));
+});
+
 test('follow-up contract represents bounded deadline outcomes without patient content', () => {
   const result = validateFollowUpResponse({ contract_version: '0.1', correlation_id: 'corr-deadline', disposition: 'deadline-exceeded', patient: null, verification: { status: 'blocked' }, deadline: { outcome: 'deadline-exceeded', deadline_ms: 8000 } });
   assert.equal(result.valid, true);

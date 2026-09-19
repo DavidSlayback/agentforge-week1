@@ -162,7 +162,7 @@ export function validateFollowUpRequest(value) {
   if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
   unknownFields(issues, value, API_CONTRACTS.followUpRequest.allowed);
   requiredFields(issues, value, API_CONTRACTS.followUpRequest.required);
-  for (const field of ['patient_uuid', 'message', 'clinician_uuid']) if (field in value) typeIssue(issues, value, field, 'string');
+  for (const field of ['patient_uuid', 'message', 'clinician_uuid']) if (field in value) nonEmptyString(issues, value, field);
   if ('demo_token' in value && typeof value.demo_token !== 'string') issues.push('demo_token_must_be_string');
   return { valid: issues.length === 0, issues };
 }

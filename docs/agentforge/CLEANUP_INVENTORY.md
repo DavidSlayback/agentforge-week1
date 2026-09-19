@@ -11,7 +11,7 @@ PHI, clinical write-back, or provider activation.
 | --- | --- | --- |
 | Original assignment PDF | `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf`, 249,370 bytes; extracted `document.md`, 24,813 bytes | Verified source outside repo; preserve path/provenance, do not copy into the repository without an explicit artifact decision. |
 | Repository requirements inventory | `docs/agentforge/REQUIREMENTS.md` | Current transcription; not completion evidence by itself. |
-| Active branch | `davidslayback/agentforge-stack-03-deploy-evidence` at `c7d8efa` | Current local source state; published to the private staging project as a draft stacked review. |
+| Active branch | `davidslayback/agentforge-stack-03-deploy-evidence` at `b350ced` | Current local source state; published to the private staging project as a draft stacked review. |
 | Working tree | Clean after the current stack | Generated/support artifacts remain in the recoverable local archive; no user-owned changes were discarded. |
 | Worktrees | Main checkout; detached `3ef3` at `297c10a`; diagrams worktree at `32c8f9d` | Useful historical/parallel state; no mutation or cleanup performed. |
 | Remotes | Group `gitlab` project is protected/Developer-blocked; private staging project `davidslayback/agentforge-week1-staging` holds the current issues and draft MRs; `origin` is the David fork; `upstream` is the Gauntlet OpenEMR base | Current provenance map; remote state not treated as release proof. |

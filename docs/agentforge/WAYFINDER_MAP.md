@@ -33,7 +33,7 @@ production, or clinical-safety evidence.
 ## Notes
 
 - The original brief was read from `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf`; `docs/agentforge/REQUIREMENTS.md` is a transcription, not the source.
-- The active checkout is `davidslayback/agentforge-stack-03-deploy-evidence` at `c7d8efa`; the working tree is clean. The implementation stack is published in the private `davidslayback/agentforge-week1-staging` project.
+- The active checkout is `davidslayback/agentforge-stack-03-deploy-evidence` at `b350ced`; the working tree is clean. The implementation stack is published in the private `davidslayback/agentforge-week1-staging` project.
 - The former `.scratch/overnight/` queue is summarized in [`HISTORICAL_QUEUE_SUMMARY.md`](HISTORICAL_QUEUE_SUMMARY.md) and retired; it must not define new implementation.
 - The current execution source is GitLab issues [#1](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/work_items/1), [#2](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/work_items/2), and [#3](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/work_items/3), with stacked draft MRs [!65](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/65), [!66](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/66), and [!67](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/67). The older program #17/#18–#26 references are historical.
 - Evidence labels below mean: **code** = current source readback; **local** = repository tests/evidence; **runtime** = external deployment observation; **owner** = a human decision or custody/readback requirement.
@@ -65,7 +65,7 @@ production, or clinical-safety evidence.
 | Alerts | Deterministic p95, error-rate, and tool-failure rules are evaluated by `/v1/alerts`; response guidance is documented. [`index.js`](../../observability/index.js:264-272), [`OBSERVABILITY.md`](OBSERVABILITY.md:11-32), [`INCIDENT_RESPONSE.md`](OBSERVABILITY.md:6-55) | code + local drill | Alert evaluation exists; time-window and delivery semantics remain open. |
 | Contracts | Strict unknown-field validators live in `contracts.js`; `ARCHITECTURE.md` and the API collection describe the same signed-context request shape. [`contracts.js`](../../agentforge/src/contracts.js:5-75), [`api/README.md`](../../agentforge/api/README.md:3-25) | code + contract/eval tests + PowerShell parse | The executable validator remains authoritative; no body authorization, arbitrary mode, or client-supplied baseline fields are accepted. |
 | Load and cost | Reports and planning model describe deterministic synthetic runs, one host, account-level billing, and tiered architecture envelopes. [`COST_MODEL.md`](COST_MODEL.md:6-69), [`LOAD_TEST.md`](LOAD_TEST.md:1-30) | deferred | Revisit only after a live conversational agent exists; do not spend review effort on synthetic capacity or unattributed billing now. |
-| Deployment and release | Vultr and Railway artifacts coexist; the current stack is `c7d8efa` and the selected Vultr runtime has same-day synthetic readback. [`PROJECT_EXPLAINER.md`](PROJECT_EXPLAINER.md:43-69), [`HISTORICAL_QUEUE_SUMMARY.md`](HISTORICAL_QUEUE_SUMMARY.md) | runtime evidence is candidate-scoped | The stack is reviewable but not merged; PHI, production identity, external dashboard, and clinical-safety claims remain out of scope. |
+| Deployment and release | Vultr and Railway artifacts coexist; the current published stack is `b350ced` and the selected Vultr runtime has same-day synthetic readback. [`PROJECT_EXPLAINER.md`](PROJECT_EXPLAINER.md:43-69), [`HISTORICAL_QUEUE_SUMMARY.md`](HISTORICAL_QUEUE_SUMMARY.md) | runtime evidence is candidate-scoped | The stack is reviewable but not merged; PHI, production identity, external dashboard, and clinical-safety claims remain out of scope. |
 
 ## Cleanup and claim findings
 
@@ -84,7 +84,7 @@ production, or clinical-safety evidence.
 - How synthetic seed/rollback custody should be documented and reproduced in future environments.
 - External consumer review and versioning of the now-reconciled request/response contract.
 - Whether the required dashboard must be an external observability product or whether a deployed browser/JSON surface is acceptable, and how queue depth is measured.
-- Whether the current `c7d8efa` stack and selected Vultr runtime should be treated as the final assignment candidate after review.
+- Whether the current `b350ced` stack and selected Vultr runtime should be treated as the final assignment candidate after review.
 - Provider/model budget, retention/deletion, and data-processing terms for any scope beyond the authorized synthetic Qwen3.6 lane.
 - Load, scale, and cost interpretation. These remain deferred until a live conversational agent exists.
 - Langfuse same-VM capacity disposition: the owner-controlled Vultr VM is 2 vCPU/3.8 GiB RAM/75 GiB disk, below Langfuse's published 4-core/16-GiB VM guidance; activation requires a larger VM or explicit demo-only risk acceptance.

@@ -16,7 +16,7 @@
 
 ## Publication update — 2026-09-19
 
-- The clean implementation stack is `c7d8efa` on
+- The clean implementation stack is `b350ced` on
   `davidslayback/agentforge-stack-03-deploy-evidence`.
 - It is published in the private `davidslayback/agentforge-week1-staging`
   project as GitLab issues #1–#3 and stacked draft merge requests !65–!67.
