@@ -11,7 +11,8 @@ The normal run exercises health, ready, complete briefing, partial briefing,
 follow-up continuity, denied authorization, cross-patient blocking, malformed
 request rejection, metrics, traces, deterministic alerts, and observability. It
 prints a compact JSON result and exits non-zero on any unexpected status or
-response contract.
+selected response invariant. Full response-shape validation remains owned by
+the service contract tests.
 
 To exercise readiness failure, start the service with an unconfigured provider
 (`AGENTFORGE_MODEL_ENDPOINT` set but no API key), then run:

@@ -1,7 +1,7 @@
 # AgentForge release-readiness evidence map
 
 **Checkpoint:** 2026-09-19, America/Chicago  
-**Candidate commit:** `33cb9e0` (`docs: add release readiness evidence map`)
+**Candidate commit:** `b9f287a` (`refactor: bound cache and load tooling`)
 **Decision:** Conditionally ready locally; not externally ready until the exact
 candidate is deployed and read back.  
 **Boundary:** Synthetic-only, read-only, clinician-reviewed. No PHI, live
@@ -17,10 +17,10 @@ the final OpenRouter step, and no demo/submission upload.
 
 | Requirement | Implementation proof | Runtime proof | External proof | Status / smallest next action |
 |---|---|---|---|---|
-| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `77/77` application/eval/observability tests; `7/7` golden cases | Existing public health/readiness only; dashboard is stale | Partial: deploy `33cb9e0`, then run clean-browser briefing and follow-up. |
+| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `78/78` application/eval/observability tests; `7/7` golden cases | Public collection and browser dashboard readback pass | Done for synthetic checkpoint; provider latency remains a capacity concern. |
 | Authorization and PHP launcher seam | `accessContext.js`, PHP launcher, parity test | `2/2` PHP parity/lint tests; PHP 8.4.25 installed | Public runtime has not been checked against this commit | Local complete; refresh exact deployed candidate. |
 | Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Golden safety gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete for synthetic checkpoint. |
-| Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public page still contains the old JSON `<pre>` view | Blocked on deployment: read back the visual page externally. |
+| Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public browser shows the same visual dashboard and redacted trace panels | Done for synthetic checkpoint. |
 | Metrics and alert semantics | `/v1/metrics`, `/v1/alerts`, bounded-window evaluator | Three alert rules render locally; tool-failure alert fires over active synthetic window | Public endpoint exists but page is stale | Partial: verify dashboard and alert state after deployment. |
 | Provider lane | Qwen remains configured behind existing provider seam; deterministic fallback retained | Provider tests and current Qwen-compatible local behavior | Current public runtime is healthy; exact candidate/provider identity unverified | Keep Qwen through dashboard verification; OpenRouter is final migration only. |
 | Observability redaction | Redacted trace sink and dashboard rendering | Observability tests pass; browser shows metadata only | Public redaction readback remains candidate-scoped | Partial: verify deployed dashboard contains no sensitive content. |
@@ -34,7 +34,7 @@ node --test scripts/test/*.test.mjs
 node evals/lib/runner.js
 ```
 
-Observed results for `33cb9e0`: `77/77`, `4/4`, and `7/7` passed.
+Observed results for `b9f287a`: `78/78`, `4/4`, and `7/7` passed; helper/PHP/provider tests remain `4/4`.
 
 ## Current external snapshot
 
@@ -42,8 +42,8 @@ Read-only checks against `https://dtstest.64.177.10.182.nip.io/agentforge`:
 
 - `/health`: 200 / `ok`
 - `/ready`: 200 / `ready`
-- `/observability`: reachable, but still the old JSON view
-- Visual dashboard from `e02495f`: not deployed
+- `/observability`: 200, visual dashboard read back in a clean browser
+- Visual dashboard from `b9f287a`: deployed and verified below
 
 Before the owner authorization recorded above, no deployment, provider
 migration, demo upload, submission, or PHI action was authorized by this
@@ -76,8 +76,31 @@ The runtime remained synthetic-only and on the existing Qwen lane; no PHI,
 provider migration, clinical write-back, demo upload, or submission action was
 performed.
 
+## Current candidate refresh — 2026-09-19
+
+The cleanup candidate `b9f287a` was rebuilt and redeployed. The current
+AgentForge image is healthy with digest
+`sha256:921302382891b2a9c63ac21ac269b32abe4f4f567ddd594c329d1cc9eabcd99e`.
+The public API collection passed again with complete and partial briefings,
+follow-up, blocked authorization and cross-patient cases, invalid request,
+metrics, traces, alerts, and observability.
+
+Bounded public Qwen load observations using the current candidate:
+
+- 10 concurrent / 10 requests: 10/10 successful, 0% errors, p50 12.2s,
+  p95/p99 26.1s, 0.383 requests/second.
+- 50 concurrent / 50 requests: 47/50 successful, 6% client timeout errors,
+  p50 29.1s, p95/p99 45.0s, 1.111 requests/second.
+
+The assignment's larger 100-request and 500-request workloads are not claimed
+as passing: the 10-concurrent run was stopped after the Qwen lane exceeded a
+practical runtime budget, and the 50-concurrent smoke run exposed the same
+tail-latency/capacity issue. The load harness now has a bounded client timeout
+so this failure mode is reproducible rather than a hanging process.
+
 ## Release gate
 
 The deployment/readback gate is complete for this synthetic checkpoint. The
-remaining release decision is owner-controlled packaging/submission work and,
-at the very end, the separately requested OpenRouter provider migration.
+remaining release decision is owner-controlled packaging/submission work, the
+provider-capacity fix or explicit acceptance of the Qwen latency, and at the
+very end the separately requested OpenRouter provider migration.
