@@ -12,3 +12,12 @@ primitive, not a compliance claim or a replacement for a reviewed production
 telemetry backend. `backup(path)` and `restore(path)` provide a checked local
 recovery seam; deployment storage, off-host backup, rollback orchestration, and
 restore drills remain separate operational evidence.
+
+When `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY` are
+present, `LangfuseTraceSink` asynchronously exports the already-redacted trace
+as one OTLP span to Langfuse v4. The local file sink remains authoritative for
+tests and recovery; Langfuse ingestion is not part of request correctness or
+readiness. Export concurrency is bounded by `LANGFUSE_MAX_PENDING_EXPORTS` so
+an outage cannot create unbounded fetch work. Credentials are read only from
+the environment and are never put in trace attributes, logs, or repository
+files.

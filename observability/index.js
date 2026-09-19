@@ -1,8 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 const REDACTED = '[REDACTED]';
-const SENSITIVE = /(patient|chart|prompt|response|text|excerpt|note|dob|address|phone|email|author)/i;
+const SENSITIVE = /(patient|clinician|chart|prompt|response|text|excerpt|note|dob|address|phone|email|author|source[_-]?ref)/i;
 
 function redactPayload(value) {
   if (Array.isArray(value)) return value.map(redactPayload);
@@ -162,6 +163,8 @@ class FileTraceSink extends InMemoryTraceSink {
     this.filePath = filePath;
     this.retentionMs = retentionMs;
     this.clock = clock;
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    this.lastPersistError = null;
     this.traces = this.readFromDisk();
     this.prune(this.clock());
   }
@@ -180,15 +183,20 @@ class FileTraceSink extends InMemoryTraceSink {
   readFromDisk() { return this.readStore(this.filePath); }
 
   persist() {
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temporaryPath = `${this.filePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
-    fs.writeFileSync(temporaryPath, `${JSON.stringify(this.traces)}\n`, { encoding: 'utf8', mode: 0o600 });
     try {
-      fs.renameSync(temporaryPath, this.filePath);
+      const temporaryPath = `${this.filePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+      fs.writeFileSync(temporaryPath, `${JSON.stringify(this.traces)}\n`, { encoding: 'utf8', mode: 0o600 });
+      try {
+        fs.renameSync(temporaryPath, this.filePath);
+      } catch (error) {
+        if (!['EPERM', 'EEXIST'].includes(error.code)) throw error;
+        fs.rmSync(this.filePath, { force: true });
+        fs.renameSync(temporaryPath, this.filePath);
+      }
+      this.lastPersistError = null;
     } catch (error) {
-      if (!['EPERM', 'EEXIST'].includes(error.code)) throw error;
-      fs.rmSync(this.filePath, { force: true });
-      fs.renameSync(temporaryPath, this.filePath);
+      this.lastPersistError = 'TRACE_STORE_WRITE_FAILED';
+      throw error;
     }
   }
 
@@ -244,7 +252,142 @@ class FileTraceSink extends InMemoryTraceSink {
     return { records: this.traces.length };
   }
 
-  health() { return { status: 'ok', durable: true, retentionMs: this.retentionMs }; }
+  health() {
+    let writable = true;
+    try { fs.accessSync(path.dirname(this.filePath), fs.constants.W_OK); } catch { writable = false; }
+    return { status: writable && !this.lastPersistError ? 'ok' : 'not_ready', durable: true, writable, retentionMs: this.retentionMs, errorCode: writable ? this.lastPersistError : 'TRACE_STORE_UNAVAILABLE' };
+  }
+}
+
+/**
+ * Export already-redacted AgentForge traces to Langfuse's v4 OTLP endpoint.
+ * The exporter sends operational metadata only; local persistence remains the
+ * fail-safe when Langfuse is unavailable.
+ */
+class LangfuseOtelExporter {
+  constructor({
+    baseUrl = process.env.LANGFUSE_BASE_URL,
+    publicKey = process.env.LANGFUSE_PUBLIC_KEY,
+    secretKey = process.env.LANGFUSE_SECRET_KEY,
+    timeoutMs = Number(process.env.LANGFUSE_TIMEOUT_MS || 3000),
+    fetchImpl = globalThis.fetch,
+    idFactory = (bytes) => crypto.randomBytes(bytes).toString('hex'),
+    now = () => Date.now(),
+  } = {}) {
+    this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
+    this.publicKey = publicKey || '';
+    this.secretKey = secretKey || '';
+    this.timeoutMs = timeoutMs;
+    this.fetchImpl = fetchImpl;
+    this.idFactory = idFactory;
+    this.now = now;
+    this.lastExport = null;
+    this.lastErrorCode = null;
+  }
+
+  isConfigured() {
+    return Boolean(this.baseUrl && this.publicKey && this.secretKey && typeof this.fetchImpl === 'function');
+  }
+
+  status() {
+    return { configured: this.isConfigured(), lastExport: this.lastExport, lastErrorCode: this.lastErrorCode };
+  }
+
+  /** Send one safe OTLP span without throwing into the request lifecycle. */
+  async export(trace) {
+    if (!this.isConfigured()) return { status: 'disabled' };
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const safeTrace = operationalTrace(trace);
+      const traceId = this.idFactory(16);
+      const spanId = this.idFactory(8);
+      const attributes = [
+        otelAttribute('service.name', 'agentforge'),
+        otelAttribute('agentforge.operation', safeTrace.operation || 'unknown'),
+        otelAttribute('agentforge.status', safeTrace.status || 'unknown'),
+        otelAttribute('agentforge.correlation_id', safeTrace.correlationId || 'unknown'),
+        otelAttribute('agentforge.trace', JSON.stringify(safeTrace)),
+      ];
+      const response = await this.fetchImpl(`${this.baseUrl}/api/public/otel/v1/traces`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          authorization: `Basic ${Buffer.from(`${this.publicKey}:${this.secretKey}`).toString('base64')}`,
+          'content-type': 'application/json',
+          'x-langfuse-ingestion-version': '4',
+        },
+        body: JSON.stringify({
+          resourceSpans: [{
+            resource: { attributes: [otelAttribute('service.name', 'agentforge')] },
+            scopeSpans: [{ spans: [{ name: safeTrace.operation || 'agentforge.request', traceId, spanId, startTimeUnixNano: toUnixNanos(safeTrace.startedAt, this.now), endTimeUnixNano: toUnixNanos(safeTrace.completedAt, this.now), attributes }] }],
+          }],
+        }),
+      });
+      if (!response?.ok) throw new Error(`HTTP_${response?.status || 'UNKNOWN'}`);
+      this.lastExport = 'success';
+      this.lastErrorCode = null;
+      return { status: 'exported' };
+    } catch (error) {
+      const errorCode = error?.name === 'AbortError' ? 'TIMEOUT' : String(error?.message || 'EXPORT_FAILED').split(':')[0].slice(0, 64);
+      this.lastExport = 'failure';
+      this.lastErrorCode = errorCode;
+      return { status: 'failed', errorCode };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+/**
+ * Durable local traces plus optional asynchronous Langfuse export. Langfuse
+ * is never part of readiness or response correctness.
+ */
+class LangfuseTraceSink extends FileTraceSink {
+  constructor({ exporter = new LangfuseOtelExporter(), onExportError = () => {}, maxPendingExports = Number(process.env.LANGFUSE_MAX_PENDING_EXPORTS || 16), ...options } = {}) {
+    super(options);
+    this.exporter = exporter;
+    this.onExportError = onExportError;
+    this.maxPendingExports = Math.max(1, maxPendingExports);
+    this.pendingExports = 0;
+    this.droppedExports = 0;
+  }
+
+  record(trace) {
+    super.record(trace);
+    if (!this.exporter?.isConfigured?.()) return;
+    if (this.pendingExports >= this.maxPendingExports) {
+      this.droppedExports += 1;
+      this.onExportError({ correlationId: trace.correlationId, errorCode: 'EXPORT_QUEUE_FULL' });
+      return;
+    }
+    this.pendingExports += 1;
+    Promise.resolve(this.exporter.export(trace)).then((result) => {
+      if (result?.status === 'failed') this.onExportError({ correlationId: trace.correlationId, errorCode: result.errorCode });
+    }).catch(() => this.onExportError({ correlationId: trace.correlationId, errorCode: 'EXPORT_FAILED' })).finally(() => { this.pendingExports -= 1; });
+  }
+
+  snapshot() {
+    const snapshot = super.snapshot();
+    const langfuse = this.exporter?.status?.() || { configured: false };
+    return {
+      ...snapshot,
+      queueDepth: this.pendingExports,
+      telemetry: {
+        backend: 'local_file',
+        exporterConfigured: Boolean(langfuse.configured),
+        lastExport: langfuse.lastExport || null,
+        lastErrorCode: langfuse.lastErrorCode || null,
+        pendingExports: this.pendingExports,
+        droppedExports: this.droppedExports,
+        maxPendingExports: this.maxPendingExports,
+      },
+    };
+  }
+
+  health() {
+    return { ...super.health(), langfuse: { ...(this.exporter?.status?.() || { configured: false }), pendingExports: this.pendingExports, droppedExports: this.droppedExports, maxPendingExports: this.maxPendingExports } };
+  }
 }
 
 class MetricsRegistry {
@@ -292,4 +435,39 @@ function createReadinessChecker(dependencies) {
   };
 }
 
-module.exports = { redactPayload, TraceRecorder, InMemoryTraceSink, FileTraceSink, MetricsRegistry, evaluateAlerts, createReadinessChecker };
+function otelAttribute(key, value) {
+  return { key, value: { stringValue: String(value) } };
+}
+
+/** Keep the external trace contract narrower than the local redacted record. */
+function operationalTrace(trace = {}) {
+  const pick = (value, keys) => Object.fromEntries(keys.filter((key) => value?.[key] !== undefined).map((key) => [key, value[key]]));
+  return {
+    schemaVersion: trace.schemaVersion,
+    correlationId: trace.correlationId,
+    operation: trace.operation,
+    interactionType: trace.interactionType,
+    startedAt: trace.startedAt,
+    completedAt: trace.completedAt,
+    deadlineMs: trace.deadlineMs,
+    deadlineOutcome: trace.deadlineOutcome,
+    durationMs: trace.durationMs,
+    latencyMs: pick(trace.latencyMs, ['acknowledgement', 'retrieval', 'synthesis', 'verification', 'display']),
+    stages: Array.isArray(trace.stages) ? trace.stages.map((stage) => pick(stage, ['name', 'sequence', 'durationMs', 'status', 'provider_status'])) : [],
+    retrieval: { attempts: Array.isArray(trace.retrieval?.attempts) ? trace.retrieval.attempts.map((attempt) => pick(attempt, ['adapter', 'group', 'status', 'attempts', 'errorCode'])) : [] },
+    retries: { total: trace.retries?.total || 0, exhausted: Boolean(trace.retries?.exhausted) },
+    model: pick(trace.model, ['provider', 'provider_name', 'model', 'model_name', 'totalTokens', 'inputTokens', 'outputTokens', 'estimatedCostUsd', 'provider_fallback', 'provider_status', 'provider_error_code']),
+    coverage: pick(trace.coverage, ['status', 'groups']),
+    verification: pick(trace.verification, ['status', 'evidence_grounding', 'patient_scope', 'read_only']),
+    display: pick(trace.display, ['status']),
+    cache: pick(trace.cache, ['status']),
+    status: trace.status,
+  };
+}
+
+function toUnixNanos(value, now) {
+  const milliseconds = Date.parse(value || '');
+  return String(Number.isFinite(milliseconds) ? Math.max(0, milliseconds) * 1_000_000 : Math.max(0, now()) * 1_000_000);
+}
+
+module.exports = { redactPayload, TraceRecorder, InMemoryTraceSink, FileTraceSink, LangfuseOtelExporter, LangfuseTraceSink, MetricsRegistry, evaluateAlerts, createReadinessChecker };

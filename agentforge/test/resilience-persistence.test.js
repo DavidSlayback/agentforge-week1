@@ -12,7 +12,7 @@ const port = 18796;
 async function startServer(tracePath) {
   const child = spawn(process.execPath, ['src/server.js'], {
     cwd: agentforgeRoot,
-    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: '', AGENTFORGE_TRACE_PATH: tracePath },
+    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_TRACE_PATH: tracePath },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -39,6 +39,7 @@ test('redacted traces survive a service restart through the configured store', a
   let child;
   try {
     child = await startServer(tracePath);
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((result) => result.json());
     const response = await fetch(`http://127.0.0.1:${port}/v1/briefings`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -46,7 +47,7 @@ test('redacted traces survive a service restart through the configured store', a
         patient_uuid: 'fixture-patient-001',
         case_id: 'complete_return_visit',
         clinician_uuid: 'fixture-physician-001',
-        authorization: { status: 'authorized', scope: 'read-briefing' },
+        demo_token: context.demo_token,
       }),
     });
     assert.equal(response.status, 200);
