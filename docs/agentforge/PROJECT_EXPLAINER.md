@@ -44,9 +44,9 @@ The current code is a separate Node service under `agentforge/`. The main seams 
 
 Fresh local checks on this branch, verified 2026-09-18, pass:
 
-- AgentForge service and seam tests: **49/49**;
+- AgentForge service and seam tests: **50/50**;
 - evaluation tests: **10/10**; and
-- observability tests: **13/13** (72/72 combined), including the Langfuse exporter boundary and bounded-outage behavior.
+- observability tests: **13/13** (73/73 combined), including the Langfuse exporter boundary and bounded-outage behavior.
 
 The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. Current Vultr readback after activating the authorized synthetic Qwen3.6 Flash lane recorded `/health`, `/ready`, and the operational page returning 200 plus a verified synthetic briefing; this is not PHI or production-provider evidence.
 

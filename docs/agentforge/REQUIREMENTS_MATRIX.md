@@ -6,7 +6,7 @@
 
 | Requirement | Source | Artifact / implementation | Verification | Status | Remaining gap |
 | --- | --- | --- | --- | --- | --- |
-| Clinical co-pilot embedded in OpenEMR and grounded in selected chart | pp. 2, 4, 7 | `USERS.md`, `ARCHITECTURE.md`, `agentforge/src/openemrAdapter.js`, module launcher | 49/49 local AgentForge tests; seeded synthetic OpenEMR corpus; current selected Vultr synthetic readback | Partial | Synthetic E2E is verified; PHI, production identity semantics, compliance, and clinician usefulness remain open. |
+| Clinical co-pilot embedded in OpenEMR and grounded in selected chart | pp. 2, 4, 7 | `USERS.md`, `ARCHITECTURE.md`, `agentforge/src/openemrAdapter.js`, module launcher | 50/50 local AgentForge tests; seeded synthetic OpenEMR corpus; current selected Vultr synthetic readback | Partial | Synthetic E2E is verified; PHI, production identity semantics, compliance, and clinician usefulness remain open. |
 | Start from Gauntlet OpenEMR base | p. 4 | `upstream` remote; repository history | `git remote -v`, history | Done for provenance | Literal fork-network/public provenance needs owner disposition. |
 | Run locally with sample patient data | p. 5 | OpenEMR compose docs; synthetic corpus and fixtures | Local tests; full seeded OpenEMR/AgentForge path exercised on Vultr | Done for synthetic checkpoint | Reproducible local seed/readback procedure should be documented if this becomes a handoff requirement. |
 | Public deployment reachable for submissions | pp. 4–5, 9 | `SUBMISSION.md`, `deploy/vultr`, Vultr readback | Current `/health`, `/ready`, and `/observability` GETs returned 200; synthetic briefing verified | Partial | Full submission/browser/API/evidence custody and owner release decision remain open. |
@@ -20,7 +20,7 @@
 | Key metrics with rationale | p. 3 | `KEY_METRICS.md`, `OBSERVABILITY.md` | Document inspection; observability tests | Done for checkpoint | Prove success with real target users/runtime if making product claims. |
 | Demo data only | p. 3 | Fixtures and safety docs | Tests; no PHI authorized | Done | Preserve synthetic-only boundary. |
 | Agentic chatbot: multi-turn conversation and justified tool use | p. 7 | `agentforge/src/service.js`, `ui.js` | Conversation/UI tests; synthetic Vultr browser E2E | Done synthetic | Full current-candidate follow-up and clinician-usefulness evidence remains open. |
-| Verify every response before display | p. 7 | `verifier.js`, contracts, evals | 10/10 evals; 49/49 AgentForge tests | Done synthetic | No PHI or production clinical correctness claim. |
+| Verify every response before display | p. 7 | `verifier.js`, contracts, evals | 10/10 evals; 50/50 AgentForge tests | Done synthetic | No PHI or production clinical correctness claim. |
 | Enforce requester authorization and patient scope | pp. 2–3, 8 | `accessContext.js`, `openemrAdapter.js` | Access-context, adapter, and seeded synthetic E2E tests | Done synthetic | Validate real production role/session semantics only if PHI scope is later authorized. |
 | Predictable failure and partial-data behavior | pp. 3–4, 8 | Coverage statuses, service, UI, fixtures | Golden/eval and service tests | Done synthetic | External failure drill must match current deployment. |
 | Evaluations cover boundaries and document failure modes | p. 8 | `evals/`, `error-analysis.json`, fixture corpus | 10/10 evals; injected defects detected | Done synthetic | Add/maintain assignment trace as requirements evolve. |
@@ -50,7 +50,7 @@
 
 ## Reconciliation notes
 
-- Fresh local proof on 2026-09-19 is AgentForge **49/49**, evals **10/10**, and observability **13/13** (**72/72 combined**). Counts of 20/20, 24/24, 25/25, 34/34, 48/48, 54/54, 68/68, and 71/71 in older handoff/overnight evidence are retained as historical snapshots only.
+- Fresh local proof on 2026-09-19 is AgentForge **50/50**, evals **10/10**, and observability **13/13** (**73/73 combined**). Counts of 20/20, 24/24, 25/25, 34/34, 48/48, 49/49, 54/54, 68/68, 71/71, and 72/72 in older handoff/overnight evidence are retained as historical snapshots only.
 
 - `USER.md` now points to canonical `USERS.md`; this resolves the brief's filename inconsistency without duplicating the user model.
 - Railway evidence is earlier checkpoint evidence. The selected Vultr runtime has same-day synthetic readback for the current stack; this remains candidate-scoped proof, not PHI or production release evidence.

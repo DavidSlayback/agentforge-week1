@@ -8,7 +8,7 @@
 ## Post-rebaseline update — 2026-09-18
 
 - The assignment source, inventory, explainer, requirements matrix, and Wayfinder map were refreshed against current code and evidence.
-- Fresh local proof on 2026-09-19 is 49/49 AgentForge tests, 10/10 evals, 13/13 observability tests, and 72/72 combined. The latest three observability cases cover Langfuse redaction, continuity, and bounded export pressure.
+- Fresh local proof on 2026-09-19 is 50/50 AgentForge tests, 10/10 evals, 13/13 observability tests, and 73/73 combined. The latest three observability cases cover Langfuse redaction, continuity, and bounded export pressure.
 - B authorization hardening is implemented in the published stack: signed context is immutable and expiry is rechecked at authorization time; live adapter defaults require the OpenEMR module issuer, session authentication, clinician role, and read scope. Current Vultr readback proves only the selected synthetic/read-only path, not production identity semantics.
 - Vultr readback verifies server-only OAuth user-context retrieval and seeded synthetic records. It also records the Alibaba-compatible `qwen3.6-flash` lane activated for no-PHI synthetic evaluation; the local/default behavior remains deterministic with fallback.
 - ADR-015 selects the production-grade authorization direction for future readiness: per-request synthetic user-context token or introspection semantics, with subject, active-patient, read scope, expiry/revocation, and role-denial checks. This is a simulated boundary only; no PHI, chart writes, or production authorization claim is permitted.

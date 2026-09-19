@@ -35,8 +35,8 @@ PHI, clinical write-back, or provider activation.
 
 | Item | Classification | Evidence / disposition |
 | --- | --- | --- |
-| `agentforge/src/*` service, contracts, adapters, provider, verifier, UI | Current implementation | Preserved; behavior covered by fresh 49/49 AgentForge tests. Qwen3.6 activation remains limited to the authorized synthetic Vultr evaluation lane; no PHI or clinical write-back is allowed. |
-| `agentforge/test/*` | Current verification | Fresh AgentForge service/seam run: 49/49; full combined repository run: 72/72. |
+| `agentforge/src/*` service, contracts, adapters, provider, verifier, UI | Current implementation | Preserved; behavior covered by fresh 50/50 AgentForge tests. Qwen3.6 activation remains limited to the authorized synthetic Vultr evaluation lane; no PHI or clinical write-back is allowed. |
+| `agentforge/test/*` | Current verification | Fresh AgentForge service/seam run: 50/50; full combined repository run: 73/73. |
 | `evals/*` and `docs/agentforge/fixtures/*` | Current synthetic evidence | Fresh `npm --prefix evals test`: 10/10; fixtures remain synthetic and must not be loaded as PHI. |
 | `observability/*` | Current synthetic operational evidence | Fresh `node --test observability/test/*.test.js`: 13/13, including Langfuse redaction, continuity, and bounded export-pressure tests. |
 | `scripts/agentforge-load.mjs`, API collection, deployment compose/config | Current tooling | Preserved; use only with explicit candidate/environment identity. |
