@@ -379,8 +379,8 @@ class LangfuseTraceSink extends FileTraceSink {
     }).catch(() => this.onExportError({ correlationId: trace.correlationId, errorCode: 'EXPORT_FAILED' })).finally(() => { this.pendingExports -= 1; });
   }
 
-  snapshot() {
-    const snapshot = super.snapshot();
+  snapshot(options = {}) {
+    const snapshot = super.snapshot(options);
     const langfuse = this.exporter?.status?.() || { configured: false };
     return {
       ...snapshot,
@@ -424,7 +424,7 @@ function evaluateAlerts(snapshot, { p95LatencyMs = 2000, errorRate = 0.05, toolF
     { id: 'tool_failure_rate', metric: 'toolFailureRate', threshold: toolFailureRate, observed: snapshot.toolFailureRate || 0, operator: '>', triggered: (snapshot.toolFailureRate || 0) > toolFailureRate },
   ];
   const fired = rules.filter((rule) => rule.triggered).map((rule) => rule.id);
-  return { status: fired.length ? 'firing' : 'ok', fired, rules };
+  return { status: fired.length ? 'firing' : 'ok', fired, rules, windowMs: snapshot.windowMs ?? null };
 }
 
 function createReadinessChecker(dependencies) {
