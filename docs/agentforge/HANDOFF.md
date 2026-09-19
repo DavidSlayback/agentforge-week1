@@ -22,16 +22,18 @@
 - It is published in the private `davidslayback/agentforge-week1-staging`
   project as GitLab issues #1–#3 and stacked draft merge requests !65–!67.
 - The selected Vultr runtime has fresh synthetic/read-only readback for health,
-  readiness, the operational page, and one verified briefing. The stack remains
-  unmerged; PHI, clinical write-back, and provider activation beyond the
-  authorized synthetic lane remain prohibited.
+  the operational page, and the browser briefing/follow-up workflow. Its
+  readiness check is currently blocked by the model dependency; the stack
+  remains unmerged, and PHI, clinical write-back, and provider activation
+  beyond the authorized synthetic lane remain prohibited.
 
 ## Deployment readback — 2026-09-19
 
-- The selected runtime slice was redeployed to the existing Vultr VM at `64.177.10.182` using a server-side rollback copy. The transfer included the current `agentforge/src`, observability sink, PHP launcher, Caddyfile, and main Compose definition only; the server `.env`, secrets, trace volume, MySQL, and OpenEMR containers were not replaced.
-- Fresh black-box readback passed: `/agentforge/health` 200, `/agentforge/ready` 200, `/agentforge/observability` 200, and one signed synthetic briefing returned HTTP 200 with `complete` disposition, `passed` verification, and three claims.
-- Fresh operational readback showed zero errors, zero pending exports, zero dropped exports, and the local file sink as the active backend. The named `agentforge-observability` network exists; no Langfuse container was activated.
-- This proves the current selected runtime slice on the synthetic/read-only path. It does not prove PHP executable parity, real OpenEMR identity/session semantics, PHI readiness, production authorization, a live external dashboard, or release readiness for the mixed working tree.
+- The selected runtime slice was read back at `https://dtstest.64.177.10.182.nip.io/agentforge/` on 2026-09-19 at approximately 17:46 CDT. HTTP redirects to HTTPS (308), strict HTTPS serves the app (200), `/agentforge/health` returns 200, and `/agentforge/observability` returns 200.
+- A clean-browser synthetic workflow completed a briefing and the follow-up “What changed since the last visit?” with complete disposition, passed verification, and three evidence items. This verifies the externally reachable read-only demo path, not exact current-commit deployment identity.
+- `/agentforge/ready` returned 503 with `configuration`, `retrieval`, and `trace` ready but `model` not ready. The documented API collection passed its explicit `-ExpectNotReady` mode with health 200 and readiness 503.
+- The operational snapshot returned zero request errors, four provider fallbacks, zero pending and dropped telemetry exports, and a firing `p95_latency` alert (24,021 ms observed against a 2,000 ms threshold). Redacted traces identify model fallback errors without exposing patient content. No provider or server state was changed during this readback.
+- This proves a reachable synthetic/read-only workflow with a meaningful dependency failure surfaced by readiness. It does not prove PHP executable parity, real OpenEMR identity/session semantics, PHI readiness, production authorization, a live external dashboard, or release readiness for the mixed working tree.
 
 ## Why this checkpoint stops before packaging
 
