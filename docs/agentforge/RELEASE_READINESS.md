@@ -45,13 +45,39 @@ Read-only checks against `https://dtstest.64.177.10.182.nip.io/agentforge`:
 - `/observability`: reachable, but still the old JSON view
 - Visual dashboard from `e02495f`: not deployed
 
-No deployment, provider migration, demo upload, submission, or PHI action is
-authorized by this checkpoint.
+Before the owner authorization recorded above, no deployment, provider
+migration, demo upload, submission, or PHI action was authorized by this
+checkpoint.
+
+## Authorized deployment readback — 2026-09-19
+
+Owner authorization was exercised for the synthetic Vultr target. Commit
+`6fd69eb` was archived to `/opt/agentforge-week1` without overwriting the
+server-side `.env`, and the AgentForge image rebuilt successfully. The deployed
+image identity was `sha256:4649a2635617acb33cfc605cd60e8fa35c20e3ee8d4c18c2c77b52326aff6e16`
+and the container health state was `healthy` at `2026-09-19T22:58:16Z`.
+
+Public readback at
+`https://dtstest.64.177.10.182.nip.io/agentforge/` passed at approximately
+`2026-09-19T22:59Z`: HTTP redirected to HTTPS with `308`; `/health` and
+`/ready` returned `200`; all four readiness dependencies were `ready`; and the
+visual `/observability` page rendered in a clean browser with metric cards,
+latency bars, safety/outcome panels, provider fallback, three alert panels,
+and redacted traces. Source-file blob hashes for the deployed dashboard and
+server matched the committed tree after normalizing the local Windows line
+endings.
+
+The external API collection passed: complete briefing, qualified partial
+briefing, follow-up continuity, blocked authorization, blocked cross-patient
+follow-up, invalid request rejection, metrics, traces, alerts, and
+observability. The run returned `briefing=complete`, `partial=partial`,
+`denied=blocked`, `cross_patient=blocked`, and `invalid_request=400`.
+The runtime remained synthetic-only and on the existing Qwen lane; no PHI,
+provider migration, clinical write-back, demo upload, or submission action was
+performed.
 
 ## Release gate
 
-The exact next action is a deployment-owner decision: deploy `e02495f` to the
-existing synthetic Vultr target, then read back `/health`, `/ready`, the visual
-`/observability` page, the synthetic briefing/follow-up flow, and the three
-alert panels. Only after that gate should the final OpenRouter migration be
-considered.
+The deployment/readback gate is complete for this synthetic checkpoint. The
+remaining release decision is owner-controlled packaging/submission work and,
+at the very end, the separately requested OpenRouter provider migration.
