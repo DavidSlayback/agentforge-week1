@@ -8,7 +8,7 @@
 
 AgentForge currently proves important safety behavior locally: strict response contracts, patient/clinician scope checks, evidence verification, partial-data qualification, retries, deterministic fallback, redacted traces, and synthetic evaluation cases. The OpenEMR module launcher is not yet a true end-to-end retrieval path: it maps an OpenEMR session PID to a fixture patient and sends a signed synthetic token to the Node service.
 
-The current operational page is also a custom JSON-backed view rather than an independently verified external observability dashboard. The service has a local redacted trace sink, but queue depth is not wired to runtime work and documented alert windows do not match the aggregate implementation. Finally, the optional OpenAI-compatible provider seam is not yet an approved or verified OpenRouter lane.
+The current operational page is also a custom JSON-backed view rather than an independently verified external observability dashboard. The service has a local redacted trace sink, while queue depth reflects the optional exporter queue rather than application work. Alert evaluation now uses an explicit five-minute window while `/v1/metrics` remains a retained-history aggregate. Finally, the optional OpenAI-compatible provider seam is not yet an approved or verified OpenRouter lane.
 
 The assignment needs a narrow, defensible path that can be demonstrated from OpenEMR context through read-only retrieval, verification, model/fallback behavior, clinician-facing output, and observable runtime evidence.
 
