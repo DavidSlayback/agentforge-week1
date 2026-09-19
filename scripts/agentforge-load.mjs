@@ -9,9 +9,16 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, inde
   return pairs;
 }, []));
 
+const parsePositiveInteger = (value, flag) => {
+  if (typeof value !== 'string' && typeof value !== 'number') throw new Error(`${flag} must be a positive integer`);
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${flag} must be a positive integer`);
+  return parsed;
+};
+
 const baseUrl = String(args['base-url'] || process.env.AGENTFORGE_BASE_URL || 'http://127.0.0.1:8787').replace(/\/$/, '');
-const concurrency = Math.max(1, Number(args.concurrency || 10));
-const totalRequests = Math.max(1, Number(args.requests || 100));
+const concurrency = parsePositiveInteger(args.concurrency ?? 10, '--concurrency');
+const totalRequests = parsePositiveInteger(args.requests ?? 100, '--requests');
 const patient = String(args.patient || 'fixture-patient-001');
 const startedAt = new Date().toISOString();
 
