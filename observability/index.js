@@ -17,6 +17,8 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+const isOperationalError = (trace) => trace.status === 'failure' || trace.status === 'deadline-exceeded';
+
 class TraceRecorder {
   constructor({ correlationId, operation, interactionType = 'briefing', deadlineMs = null, scope = {}, clock = () => new Date().toISOString() }) {
     this.correlationId = correlationId;
@@ -127,7 +129,7 @@ class InMemoryTraceSink {
     }));
     const deadlineOutcomes = this.traces.reduce((outcomes, trace) => { const key = trace.deadlineOutcome || 'not_applicable'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
     const cacheOutcomes = this.traces.reduce((outcomes, trace) => { const key = trace.cache?.status || 'not_used'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {});
-    const errors = this.traces.filter((trace) => trace.status !== 'success').length;
+    const errors = this.traces.filter(isOperationalError).length;
     const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
     const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
     const retries = this.traces.reduce((total, trace) => total + (trace.retries?.total || 0), 0);
@@ -397,7 +399,7 @@ class MetricsRegistry {
   snapshot() {
     const durations = this.traces.map((trace) => trace.durationMs || 0).sort((a, b) => a - b);
     const percentile = (p) => durations.length ? durations[Math.min(durations.length - 1, Math.ceil(durations.length * p) - 1)] : 0;
-    const errors = this.traces.filter((trace) => trace.status !== 'success').length;
+    const errors = this.traces.filter(isOperationalError).length;
     const retrievalAttempts = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts?.length || 0), 0);
     const toolFailures = this.traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
     return { requests: this.traces.length, errors, errorRate: this.traces.length ? errors / this.traces.length : 0, latencyMs: { p50: percentile(.5), p95: percentile(.95) }, queueDepth: this.queueDepth, retrievalAttempts, toolFailures, toolFailureRate: retrievalAttempts ? toolFailures / retrievalAttempts : 0 };
