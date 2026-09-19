@@ -21,6 +21,10 @@ test('canonical follow-up and briefing responses reject missing contract fields'
   const invalidResponse = validateBriefingResponse({ contract_version: '0.1', correlation_id: 'test', disposition: 'complete', patient: null });
   assert.equal(invalidResponse.valid, false);
   assert.ok(invalidResponse.issues.includes('claims_is_required'));
+  const invalidFollowUp = validateFollowUpResponse({ contract_version: '0.1', correlation_id: 'test', disposition: 'blocked', patient: null, verification: { status: 'blocked' } });
+  assert.equal(invalidFollowUp.valid, false);
+  assert.ok(invalidFollowUp.issues.includes('claims_is_required'));
+  assert.ok(invalidFollowUp.issues.includes('coverage_is_required'));
 });
 
 test('follow-up contract permits only the signed demo context token as an extension', () => {
@@ -38,7 +42,7 @@ test('follow-up contract rejects empty required strings', () => {
 });
 
 test('follow-up contract represents bounded deadline outcomes without patient content', () => {
-  const result = validateFollowUpResponse({ contract_version: '0.1', correlation_id: 'corr-deadline', disposition: 'deadline-exceeded', patient: null, verification: { status: 'blocked' }, deadline: { outcome: 'deadline-exceeded', deadline_ms: 8000 } });
+  const result = validateFollowUpResponse({ contract_version: '0.1', correlation_id: 'corr-deadline', disposition: 'deadline-exceeded', patient: null, claims: [], withheld_fields: [], coverage: [], qualification: { required: true, reasons: ['deadline-exceeded'] }, operations: [], verification: { status: 'blocked' }, deadline: { outcome: 'deadline-exceeded', deadline_ms: 8000 } });
   assert.equal(result.valid, true);
 });
 

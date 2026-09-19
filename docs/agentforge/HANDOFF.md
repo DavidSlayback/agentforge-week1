@@ -16,8 +16,9 @@
 
 ## Publication update — 2026-09-19
 
-- The clean implementation stack is `b350ced` on
-  `davidslayback/agentforge-stack-03-deploy-evidence`.
+- The clean implementation stack is rooted at `b350ced` on
+  `davidslayback/agentforge-stack-03-deploy-evidence`; subsequent review
+  refinements are published on the same branch.
 - It is published in the private `davidslayback/agentforge-week1-staging`
   project as GitLab issues #1–#3 and stacked draft merge requests !65–!67.
 - The selected Vultr runtime has fresh synthetic/read-only readback for health,
