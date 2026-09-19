@@ -36,9 +36,9 @@ PHI, clinical write-back, or provider activation.
 | Item | Classification | Evidence / disposition |
 | --- | --- | --- |
 | `agentforge/src/*` service, contracts, adapters, provider, verifier, UI | Current implementation | Preserved; behavior covered by fresh 50/50 AgentForge tests. Qwen3.6 activation remains limited to the authorized synthetic Vultr evaluation lane; no PHI or clinical write-back is allowed. |
-| `agentforge/test/*` | Current verification | Fresh AgentForge service/seam run: 50/50; full combined repository run: 73/73. |
+| `agentforge/test/*` | Current verification | Fresh AgentForge service/seam run: 50/50; full combined repository run: 77/77. |
 | `evals/*` and `docs/agentforge/fixtures/*` | Current synthetic evidence | Fresh `npm --prefix evals test`: 10/10; fixtures remain synthetic and must not be loaded as PHI. |
-| `observability/*` | Current synthetic operational evidence | Fresh `node --test observability/test/*.test.js`: 13/13, including Langfuse redaction, continuity, and bounded export-pressure tests. |
+| `observability/*` | Current synthetic operational evidence | Fresh `node --test observability/test/*.test.js`: 17/17, including Langfuse redaction, continuity, bounded export-pressure, blocked-outcome classification, durable alert-window, and tool-failure-threshold tests. |
 | `scripts/agentforge-load.mjs`, API collection, deployment compose/config | Current tooling | Preserved; use only with explicit candidate/environment identity. |
 | Former `.scratch/overnight/` plans, queue, DAG, waves, stack, checkpoint, report, and decisions | Retired historical execution state | Summarized in `HISTORICAL_QUEUE_SUMMARY.md`, then deleted at the owner's direction so it is no longer treated as active planning. |
 | Former `.scratch/overnight/tickets/01–19` and evidence files | Retired historical queue/ticket evidence | Relevant themes, dependencies, statuses, and evidence interpretation were extracted into `HISTORICAL_QUEUE_SUMMARY.md`; raw queue files were deleted. |
@@ -66,7 +66,7 @@ The following were present and deliberately moved, not deleted. Their content, d
 
 ## Actions completed and intentionally not completed
 
-Completed: verified the assignment source; refreshed Git/worktree/file/deployment endpoint state; inventoried docs, code, evidence, branches, deployments, and untracked media; created and refreshed the plain-English explainer and requirements matrix; ran the three local test suites; created the claim-consistency Wayfinder map and decision tickets; verified seeded synthetic OpenEMR E2E behavior without PHI; extracted and retired the historical overnight queue; moved 29 generated/support artifacts to the recoverable local archive outside the repository; published the current three-commit implementation stack with GitLab issues and stacked draft merge requests.
+Completed: verified the assignment source; refreshed Git/worktree/file/deployment endpoint state; inventoried docs, code, evidence, branches, deployments, and untracked media; created and refreshed the plain-English explainer and requirements matrix; ran the three local test suites; created the claim-consistency Wayfinder map and decision tickets; verified seeded synthetic OpenEMR E2E behavior without PHI; extracted and retired the historical overnight queue; moved 29 generated/support artifacts to the recoverable local archive outside the repository; published the current implementation stack as GitLab issues and stacked draft merge requests.
 
 Not done by design: delete user artifacts, edit the historical queue, merge the draft stack, activate a provider beyond the authorized synthetic lane, or load PHI. Executable Node/PHP authorization parity is not claimed because PHP is unavailable; broader release, production identity, compliance, and clinical-safety claims remain open.
 

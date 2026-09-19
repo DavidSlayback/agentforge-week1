@@ -42,7 +42,7 @@ The current code is a separate Node service under `agentforge/`. The main seams 
 
 ## Current evidence
 
-Fresh local checks on this branch, verified 2026-09-18, pass:
+Fresh local checks on this branch, verified 2026-09-19, pass:
 
 - AgentForge service and seam tests: **50/50**;
 - evaluation tests: **10/10**; and

@@ -226,6 +226,10 @@ with the implemented file-backed sink and attached-volume configuration.
 
 ## ADR-013: Provider retries with deterministic fallback
 
+> The vendor-selection limitation below is superseded for the authorized
+> no-PHI synthetic Vultr lane by ADR-014; broader hosted-provider approval
+> remains open.
+
 - **Choice:** Put an optional OpenAI-compatible provider behind a two-retry
   wrapper with a deterministic synthetic fallback. Record retry and fallback
   status in redacted traces; never display an unverified provider result.
@@ -235,8 +239,8 @@ with the implemented file-backed sink and attached-volume configuration.
   provider outage, while provider quality, cost, and terms remain unapproved.
 - **Evidence:** `ResilientProvider` tests prove timeout retry and fallback;
   service traces retain the provider stage and retry events.
-- **Limitation:** No approved vendor is selected and no PHI may enter a
-  provider path.
+- **Limitation:** No hosted provider is approved for PHI or production use;
+  the separate synthetic Qwen activation is governed by ADR-014.
 - **Migration:** Select one approved vendor only after a data-processing,
   retention, cost, and failure-policy review using synthetic inputs.
 

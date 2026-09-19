@@ -264,7 +264,8 @@ No first-release capability is intentionally unmapped to a use case.
 ### Checkpoint implementation status
 
 The current checkpoint slice implements the separate service, simulated
-OpenEMR adapter, deterministic provider, provider retry/fallback policy,
+OpenEMR adapter, deterministic provider, authorized synthetic Qwen lane,
+provider retry/fallback policy,
 verifier, golden evaluator, redacted local observability, Caddy same-origin
 routing, and a signed-context OpenEMR launcher. The service remains
 synthetic-only. The launcher uses a short-lived context and the service
@@ -276,9 +277,10 @@ rehearsal, not a live identity provider.
 The provider interface is failure-shaped: a configured OpenAI-compatible
 provider may be retried twice, then the deterministic provider is used as a
 visible fallback. Retry and fallback outcomes are recorded without raw prompt,
-response, or patient content. No hosted vendor or PHI processing is approved.
-Real OpenEMR retrieval and PHI controls remain out of scope permanently for
-this synthetic build.
+response, or patient content. The Qwen lane is authorized only for no-PHI
+synthetic evaluation; no hosted provider is approved for PHI processing. Real
+OpenEMR retrieval and PHI controls remain out of scope permanently for this
+synthetic build.
 
 1. **Contracts and fixture adapter:** define strict request, evidence,
    coverage, briefing, and trace schemas; load only the synthetic corpus.
@@ -321,6 +323,6 @@ was selected and how it can migrate.
 - Local trace storage schema, retention, deletion, and dashboard mechanism.
 - Measured retrieval, synthesis, verification, queue, and end-to-end latency
   targets; current audit timings are health-probe baselines only.
-- Model/provider choice and any PHI processing boundary.
+- Broader model/provider choice and any PHI processing boundary.
 
 These are intentionally unresolved rather than hidden behind defaults.

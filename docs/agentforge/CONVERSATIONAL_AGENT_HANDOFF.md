@@ -11,9 +11,11 @@ patient-scoped briefing and accepts follow-up messages through
 `POST /v1/conversations/{correlation_id}/messages`.
 
 That is a live service, but not yet a live clinical agent. It uses synthetic
-fixtures, a simulated OpenEMR seam, and a deterministic provider by design. No
-PHI, real OpenEMR retrieval, clinical write-back, or hosted model is in scope
-for this implementation handoff.
+fixtures and a simulated OpenEMR seam; deterministic synthesis remains the
+local/default path, while the selected Vultr runtime exercises the authorized
+Qwen3.6 Flash lane for no-PHI evaluation. No PHI, real OpenEMR retrieval,
+clinical write-back, or broader hosted-provider use is in scope for this
+implementation handoff.
 
 ## User outcome
 

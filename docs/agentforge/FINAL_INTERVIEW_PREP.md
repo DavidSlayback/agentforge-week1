@@ -33,7 +33,8 @@ explicitly synthetic; it is not being presented as an OpenEMR identity provider.
 
 The optional provider lane retries twice and then returns to a deterministic
 provider. That keeps the safety and evaluation contract reproducible during
-provider outage. No hosted vendor is selected, and no PHI may enter that path.
+provider outage. The selected Qwen lane is authorized only for no-PHI synthetic
+evaluation; no broader hosted-provider or PHI use is approved.
 
 ## What do the measurements prove?
 
@@ -50,9 +51,10 @@ production capacity guarantee or an attribution of all account spend.
 
 ## What remains deliberately limited?
 
-The deployment does not use live OpenEMR, PHI, clinical write-back, a hosted
-model, external alert delivery, off-host backup, cross-region durability, or a
-secret manager. Those are explicit non-claims and separate future decisions.
+The deployment does not use live OpenEMR, PHI, clinical write-back, or a
+provider-approved clinical lane. Qwen is used only for no-PHI synthetic
+evaluation. External alert delivery, off-host backup, cross-region durability,
+and a secret manager remain explicit non-claims and separate future decisions.
 
 ## Feedback answer
 
