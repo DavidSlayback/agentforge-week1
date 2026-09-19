@@ -9,7 +9,7 @@ const agentforgeRoot = fileURLToPath(new URL('..', import.meta.url));
 let child;
 
 async function startServer() {
-  child = spawn(process.execPath, ['src/server.js'], { cwd: agentforgeRoot, env: { ...process.env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  child = spawn(process.execPath, ['src/server.js'], { cwd: agentforgeRoot, env: { ...process.env, PORT: String(port), AGENTFORGE_OPENEMR_MODE: 'synthetic', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret' }, stdio: ['ignore', 'pipe', 'pipe'] });
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try { if ((await fetch(`http://127.0.0.1:${port}/ready`)).ok) return; } catch {}
     await new Promise((resolve) => setTimeout(resolve, 50));

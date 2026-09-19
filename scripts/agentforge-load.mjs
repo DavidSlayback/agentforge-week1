@@ -50,7 +50,6 @@ const worker = async () => {
           patient_uuid: patient,
           case_id: 'complete_return_visit',
           clinician_uuid: 'fixture-physician-001',
-          authorization: { status: 'authorized', scope: 'read-briefing' },
           correlation_id: `load-${Date.now()}-${index}`,
           ...(demoToken ? { demo_token: demoToken } : {}),
         }),

@@ -9,7 +9,7 @@ const base = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 async function startServer(port) {
   const child = spawn(process.execPath, ['agentforge/src/server.js'], {
     cwd: base,
-    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: '' },
+    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true' },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -43,6 +43,7 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
     assert.match(page, /authorizedRequest\(\{ patient_uuid: otherPatient, message: 'What changed\?' \}, false\)/);
     assert.doesNotMatch(page, /<pre id="out">/);
 
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
     const briefing = await fetch(`http://127.0.0.1:${port}/v1/briefings`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -50,7 +51,7 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
         patient_uuid: 'fixture-patient-001',
         case_id: 'complete_return_visit',
         clinician_uuid: 'fixture-physician-001',
-        authorization: { status: 'authorized', scope: 'read-briefing' },
+        demo_token: context.demo_token,
       }),
     }).then((response) => response.json());
     assert.equal(briefing.disposition, 'complete');
@@ -63,7 +64,7 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
         patient_uuid: 'fixture-patient-001',
         message: 'What changed since the last visit?',
         clinician_uuid: 'fixture-physician-001',
-        authorization: { status: 'authorized', scope: 'read-briefing' },
+        demo_token: context.demo_token,
       }),
     }).then((response) => response.json());
     assert.equal(followUp.contract_version, '0.1');

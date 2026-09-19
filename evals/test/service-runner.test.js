@@ -12,7 +12,7 @@ test('golden suite can evaluate the running AgentForge service', async () => {
   const tracePath = path.join(root, 'traces.json');
   const child = spawn(process.execPath, ['agentforge/src/server.js'], {
     cwd: base,
-    env: { ...process.env, PORT: '18788', AGENTFORGE_DEMO_SECRET: '', AGENTFORGE_TRACE_PATH: tracePath },
+    env: { ...process.env, PORT: '18788', AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_TRACE_PATH: tracePath },
     stdio: ['ignore', 'ignore', 'ignore'],
   });
   try {

@@ -19,16 +19,17 @@ function Invoke-AgentForge {
   } catch {
     $response = $_.Exception.Response
     if ($null -eq $response) { throw }
-    if ($response -is [System.Net.Http.HttpResponseMessage]) {
-      $text = [string]$_.ErrorDetails.Message
-      if ([string]::IsNullOrWhiteSpace($text)) {
-        try { $text = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() } catch { $text = '' }
-      }
-      $status = [int]$response.StatusCode
-    } else {
+    $status = [int]$response.StatusCode
+    $text = [string]$_.ErrorDetails.Message
+    if ([string]::IsNullOrWhiteSpace($text) -and $response.PSObject.Properties.Name -contains 'Content') {
+      try {
+        $content = $response.Content
+        $text = if ($content -is [string]) { $content } elseif ($content.PSObject.Methods.Name -contains 'ReadAsStringAsync') { $content.ReadAsStringAsync().GetAwaiter().GetResult() } else { [string]$content }
+      } catch { $text = '' }
+    }
+    if ([string]::IsNullOrWhiteSpace($text) -and $response.PSObject.Methods.Name -contains 'GetResponseStream') {
       $reader = [IO.StreamReader]::new($response.GetResponseStream())
       $text = $reader.ReadToEnd()
-      $status = [int]$response.StatusCode
     }
     $parsed = $null
     try { $parsed = ConvertFrom-Json -InputObject ([string]$text) } catch { $parsed = $text }
@@ -50,17 +51,17 @@ if ($ExpectNotReady) {
 }
 $completeContext = Assert-Status (Invoke-AgentForge 'GET' '/v1/demo-context?patient_uuid=fixture-patient-001' $null) 200 'complete demo context'
 $partialContext = Assert-Status (Invoke-AgentForge 'GET' '/v1/demo-context?patient_uuid=fixture-patient-006' $null) 200 'partial demo context'
-$briefing = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 'fixture-patient-001'; case_id = 'complete_return_visit'; clinician_uuid = 'fixture-physician-001'; authorization = @{ status = 'authorized'; scope = 'read-briefing' }; demo_token = $completeContext.body.demo_token }) 200 'briefing'
+$briefing = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 'fixture-patient-001'; case_id = 'complete_return_visit'; clinician_uuid = 'fixture-physician-001'; demo_token = $completeContext.body.demo_token }) 200 'briefing'
 if ($briefing.body.disposition -ne 'complete' -or -not $briefing.body.correlation_id) { throw 'briefing did not return a complete response with a correlation ID' }
-$partial = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 'fixture-patient-006'; case_id = 'partial_retrieval'; clinician_uuid = 'fixture-physician-001'; authorization = @{ status = 'authorized'; scope = 'read-briefing' }; demo_token = $partialContext.body.demo_token }) 200 'partial briefing'
+$partial = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 'fixture-patient-006'; case_id = 'partial_retrieval'; clinician_uuid = 'fixture-physician-001'; demo_token = $partialContext.body.demo_token }) 200 'partial briefing'
 if ($partial.body.disposition -ne 'partial' -or -not $partial.body.qualification.required) { throw 'partial briefing did not remain qualified' }
-$followUp = Assert-Status (Invoke-AgentForge 'POST' "/v1/conversations/$($briefing.body.correlation_id)/messages" @{ patient_uuid = 'fixture-patient-001'; message = 'What changed since the last visit?'; clinician_uuid = 'fixture-physician-001'; authorization = @{ status = 'authorized'; scope = 'read-briefing' }; demo_token = $completeContext.body.demo_token }) 200 'follow-up'
+$followUp = Assert-Status (Invoke-AgentForge 'POST' "/v1/conversations/$($briefing.body.correlation_id)/messages" @{ patient_uuid = 'fixture-patient-001'; message = 'What changed since the last visit?'; clinician_uuid = 'fixture-physician-001'; demo_token = $completeContext.body.demo_token }) 200 'follow-up'
 if ($followUp.body.correlation_id -ne $briefing.body.correlation_id -or $followUp.body.patient.patient_ref -ne 'fixture-patient-001') { throw 'follow-up lost conversation or patient scope' }
-$denied = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 'fixture-patient-001'; case_id = 'complete_return_visit'; clinician_uuid = 'fixture-physician-001'; authorization = @{ status = 'denied'; scope = 'read-briefing' } }) 200 'denied briefing'
+$denied = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 'fixture-patient-001'; case_id = 'complete_return_visit'; clinician_uuid = 'fixture-physician-001' }) 200 'denied briefing'
 if ($denied.body.disposition -ne 'blocked' -or $null -ne $denied.body.patient) { throw 'denied briefing did not fail closed' }
-$crossPatient = Assert-Status (Invoke-AgentForge 'POST' "/v1/conversations/$($briefing.body.correlation_id)/messages" @{ patient_uuid = 'fixture-patient-006'; message = 'What changed?'; clinician_uuid = 'fixture-physician-001'; authorization = @{ status = 'authorized'; scope = 'read-briefing' } }) 200 'cross-patient follow-up'
+$crossPatient = Assert-Status (Invoke-AgentForge 'POST' "/v1/conversations/$($briefing.body.correlation_id)/messages" @{ patient_uuid = 'fixture-patient-006'; message = 'What changed?'; clinician_uuid = 'fixture-physician-001' }) 200 'cross-patient follow-up'
 if ($crossPatient.body.disposition -ne 'blocked' -or $null -ne $crossPatient.body.patient) { throw 'cross-patient follow-up did not fail closed' }
-$invalid = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 42; clinician_uuid = 'fixture-physician-001'; authorization = @{ status = 'authorized'; scope = 'read-briefing' } }) 400 'invalid briefing request'
+$invalid = Assert-Status (Invoke-AgentForge 'POST' '/v1/briefings' @{ patient_uuid = 42; clinician_uuid = 'fixture-physician-001' }) 400 'invalid briefing request'
 $metrics = Assert-Status (Invoke-AgentForge 'GET' '/v1/metrics' $null) 200 'metrics'
 $traces = Assert-Status (Invoke-AgentForge 'GET' '/v1/traces' $null) 200 'traces'
 $alerts = Assert-Status (Invoke-AgentForge 'GET' '/v1/alerts' $null) 200 'alerts'
