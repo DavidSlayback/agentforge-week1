@@ -2,12 +2,13 @@
 
 **Audit date:** 2026-09-19 (America/Chicago)
 **Mode:** read-only code-boundary and implementation-claim audit.
-**Tracker:** local Markdown map; no external issue tracker was provided or mutated.
+**Tracker:** GitLab issues and draft merge requests in the private staging project;
+this Markdown map remains the evidence index.
 **Controlling boundary:** synthetic-only, read-only, clinician-reviewed. No PHI
-or clinical write-back. Historical Vultr evidence records the Alibaba-compatible
+or clinical write-back. The selected Vultr runtime records the Alibaba-compatible
 Qwen3.6 Flash lane activated for authorized no-PHI synthetic evaluation and the
-seeded synthetic OpenEMR read-only path deployed there. The local B revision is
-newer and has not been pushed, merged, published, or redeployed by this map.
+seeded synthetic OpenEMR read-only path. The current stack is published as three
+draft merge requests; it is not merged into the protected group project.
 
 ## Destination
 
@@ -18,24 +19,23 @@ decision ticket. The route is clear only when no new implementation should begin
 behind an unresolved contract, authorization, provider, readiness, dashboard,
 or deployment-evidence decision.
 
-## Why the map stops before packaging
+## Why the map stops before merge
 
-The local B implementation is verified, but packaging is intentionally paused.
-PHP is not available for executable Node/PHP HMAC parity; the current checkout
-has 135 status entries spanning user-owned changes, deletions, generated files,
-and untracked artifacts; and the B revision has not been redeployed. Therefore
-the recorded Vultr behavior is historical rather than current-candidate proof.
-Fresh TLS, host, commit/image, and browser readback must target the exact
-packaged revision. This separation prevents a green local test run or an old
-deployment observation from being presented as release evidence, and avoids
-guessing which user-owned files belong in a stacked PR.
+The current stack is locally verified, deployed to the selected synthetic Vultr
+runtime, and published to a private staging project as draft merge requests.
+PHP is not available for executable Node/PHP HMAC parity, and the selected
+runtime proof remains limited to synthetic/read-only behavior. The merge requests
+remain draft review checkpoints; merge into a shared target and any broader
+release claim require separate owner review. This separation prevents a green
+local test run or a narrow deployment observation from being presented as PHI,
+production, or clinical-safety evidence.
 
 ## Notes
 
 - The original brief was read from `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf`; `docs/agentforge/REQUIREMENTS.md` is a transcription, not the source.
-- The active checkout is `afk/AF-08-resilience-foundation` at `f969227`, ahead of origin by 26 commits. The working tree contains a user modification to `HANDOFF.md` and untracked AgentForge evidence/media/docs; they are preserved.
+- The active checkout is `davidslayback/agentforge-stack-03-deploy-evidence` at `c7d8efa`; the working tree is clean. The implementation stack is published in the private `davidslayback/agentforge-week1-staging` project.
 - The former `.scratch/overnight/` queue is summarized in [`HISTORICAL_QUEUE_SUMMARY.md`](HISTORICAL_QUEUE_SUMMARY.md) and retired; it must not define new implementation.
-- The current execution source is the already-published GitLab program #17 and child slices #18–#26; do not create duplicate issues.
+- The current execution source is GitLab issues [#1](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/work_items/1), [#2](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/work_items/2), and [#3](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/work_items/3), with stacked draft MRs [!65](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/65), [!66](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/66), and [!67](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/67). The older program #17/#18–#26 references are historical.
 - Evidence labels below mean: **code** = current source readback; **local** = repository tests/evidence; **runtime** = external deployment observation; **owner** = a human decision or custody/readback requirement.
 
 ## Decisions so far
@@ -65,7 +65,7 @@ guessing which user-owned files belong in a stacked PR.
 | Alerts | Deterministic p95, error-rate, and tool-failure rules are evaluated by `/v1/alerts`; response guidance is documented. [`index.js`](../../observability/index.js:264-272), [`OBSERVABILITY.md`](OBSERVABILITY.md:11-32), [`INCIDENT_RESPONSE.md`](OBSERVABILITY.md:6-55) | code + local drill | Alert evaluation exists; time-window and delivery semantics remain open. |
 | Contracts | Strict unknown-field validators live in `contracts.js`; `ARCHITECTURE.md` and the API collection describe the same signed-context request shape. [`contracts.js`](../../agentforge/src/contracts.js:5-75), [`api/README.md`](../../agentforge/api/README.md:3-25) | code + contract/eval tests + PowerShell parse | The executable validator remains authoritative; no body authorization, arbitrary mode, or client-supplied baseline fields are accepted. |
 | Load and cost | Reports and planning model describe deterministic synthetic runs, one host, account-level billing, and tiered architecture envelopes. [`COST_MODEL.md`](COST_MODEL.md:6-69), [`LOAD_TEST.md`](LOAD_TEST.md:1-30) | deferred | Revisit only after a live conversational agent exists; do not spend review effort on synthetic capacity or unattributed billing now. |
-| Deployment and release | Vultr and Railway artifacts coexist; current local code is `f969227`, while recorded candidate evidence names older commits/images. [`PROJECT_EXPLAINER.md`](PROJECT_EXPLAINER.md:43-69), [`HISTORICAL_QUEUE_SUMMARY.md`](HISTORICAL_QUEUE_SUMMARY.md) | runtime evidence is candidate-scoped | Final URL, current commit/image, browser flow, API/eval/observability readback, and owner release decision must be reconciled as one evidence bundle. |
+| Deployment and release | Vultr and Railway artifacts coexist; the current stack is `c7d8efa` and the selected Vultr runtime has same-day synthetic readback. [`PROJECT_EXPLAINER.md`](PROJECT_EXPLAINER.md:43-69), [`HISTORICAL_QUEUE_SUMMARY.md`](HISTORICAL_QUEUE_SUMMARY.md) | runtime evidence is candidate-scoped | The stack is reviewable but not merged; PHI, production identity, external dashboard, and clinical-safety claims remain out of scope. |
 
 ## Cleanup and claim findings
 
@@ -76,7 +76,7 @@ guessing which user-owned files belong in a stacked PR.
 5. **Remaining live-boundary gap:** the seeded synthetic OAuth/read-only REST and browser flow is externally proven; production role/session semantics, PHI authorization, and compliance are not.
 6. **Dashboard mismatch:** the `/observability` browser page is a JSON-backed operational view, not the clinician conversational UI. Queue depth is always `0` in the serving sink, while a separate in-memory registry is only exercised by tests. The assignment’s live dashboard requirement is therefore not closed by endpoint existence.
 7. **Stale deployment language:** `AUDIT.md` retains earlier self-signed/no-redirect findings while later Vultr artifacts describe trusted HTTPS. Preserve the historical audit, but mark or reconcile its deployment snapshot before using it as current evidence.
-8. **Evidence-to-code mismatch:** the selected runtime slice now has same-day Vultr readback, but the mixed working tree is not a packaged release and the deployed proof is limited to synthetic/read-only behavior. None of this proves PHI readiness, a real external dashboard, production capacity, or clinician usefulness.
+8. **Evidence-to-code boundary:** the selected runtime slice has same-day Vultr readback and the exact stack is published for review, but the proof is limited to synthetic/read-only behavior. None of this proves PHI readiness, a real external dashboard, production capacity, or clinician usefulness.
 
 ## Not yet specified
 
@@ -84,7 +84,7 @@ guessing which user-owned files belong in a stacked PR.
 - How synthetic seed/rollback custody should be documented and reproduced in future environments.
 - External consumer review and versioning of the now-reconciled request/response contract.
 - Whether the required dashboard must be an external observability product or whether a deployed browser/JSON surface is acceptable, and how queue depth is measured.
-- The deployment candidate and evidence custody that should be treated as final: local `f969227`, the recorded Vultr image, or another explicitly authorized target.
+- Whether the current `c7d8efa` stack and selected Vultr runtime should be treated as the final assignment candidate after review.
 - Provider/model budget, retention/deletion, and data-processing terms for any scope beyond the authorized synthetic Qwen3.6 lane.
 - Load, scale, and cost interpretation. These remain deferred until a live conversational agent exists.
 - Langfuse same-VM capacity disposition: the owner-controlled Vultr VM is 2 vCPU/3.8 GiB RAM/75 GiB disk, below Langfuse's published 4-core/16-GiB VM guidance; activation requires a larger VM or explicit demo-only risk acceptance.
@@ -92,7 +92,7 @@ guessing which user-owned files belong in a stacked PR.
 ## Out of scope
 
 - PHI, clinical write-back, recommendations, diagnoses, orders, provider activation beyond the authorized synthetic candidate, BAA/compliance approval, or production certification.
-- Deployment changes, credential/account actions, merge, push, PR creation, or advancing AF tickets.
+- PHI, clinical write-back, broader provider activation, merge into shared targets, and production certification.
 
 ## Decision tickets
 
@@ -180,7 +180,7 @@ guessing which user-owned files belong in a stacked PR.
 
 ### WF-08 — Retire or supersede the historical execution queue — RESOLVED
 
-**Resolution:** Retire `.scratch/overnight/` as an active source. Extract its relevant dependencies, ticket themes, historical statuses, and evidence interpretation into `HISTORICAL_QUEUE_SUMMARY.md`; use the already-published GitLab program #17 and child slices #18–#26, mapped to the current requirements matrix, for future work.
+**Resolution:** Retire `.scratch/overnight/` as an active source. Extract its relevant dependencies, ticket themes, historical statuses, and evidence interpretation into `HISTORICAL_QUEUE_SUMMARY.md`; use the current GitLab issues and stacked merge requests listed above, mapped to the current requirements matrix, for future work.
 
 **Dependencies:** WF-01 through WF-07. **Type:** HITL planning decision. **Verifier:** requirements/claims reviewer.
 
@@ -190,4 +190,4 @@ guessing which user-owned files belong in a stacked PR.
 
 ## Verification run recorded for this map
 
-`node --test agentforge/test/*.test.js evals/test/*.test.js observability/test/*.test.js` passed **72/72** on 2026-09-19, including **49/49** AgentForge tests and **13/13** observability tests. Same-day Vultr readback also passed for the selected runtime slice: health/readiness/dashboard 200 and one synthetic briefing complete/verified. This still does not prove PHP executable parity, PHI readiness, production role semantics, compliance, or release readiness for the mixed working tree.
+`node --test agentforge/test/*.test.js evals/test/*.test.js observability/test/*.test.js` passed **72/72** on 2026-09-19, including **49/49** AgentForge tests and **13/13** observability tests. Same-day Vultr readback also passed for the selected runtime slice: health/readiness/dashboard 200 and one synthetic briefing complete/verified. This still does not prove PHP executable parity, PHI readiness, production role semantics, compliance, or merge/release readiness.

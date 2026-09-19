@@ -1,19 +1,19 @@
 # AgentForge requirements matrix
 
-**Rebaseline date:** 2026-09-18.
+**Rebaseline date:** 2026-09-19.
 **Source:** verified `Week 1 - AgentForge.pdf`, pp. 2–13, at `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf`; `REQUIREMENTS.md` is the repository transcription.
 **Status vocabulary:** Done = supported for this synthetic checkpoint; Partial = some evidence exists but a required boundary is open; Missing = no adequate evidence; Blocked = requires an owner/external decision; Undecided = draft exists but no decision is authorized.
 
 | Requirement | Source | Artifact / implementation | Verification | Status | Remaining gap |
 | --- | --- | --- | --- | --- | --- |
-| Clinical co-pilot embedded in OpenEMR and grounded in selected chart | pp. 2, 4, 7 | `USERS.md`, `ARCHITECTURE.md`, `agentforge/src/openemrAdapter.js`, module launcher | 49/49 local AgentForge tests; seeded synthetic OpenEMR corpus; historical deployed two-patient browser readback | Partial | Synthetic E2E is verified; the local B authorization revision needs a fresh deployment readback; PHI, production identity semantics, compliance, and clinician usefulness remain open. |
+| Clinical co-pilot embedded in OpenEMR and grounded in selected chart | pp. 2, 4, 7 | `USERS.md`, `ARCHITECTURE.md`, `agentforge/src/openemrAdapter.js`, module launcher | 49/49 local AgentForge tests; seeded synthetic OpenEMR corpus; current selected Vultr synthetic readback | Partial | Synthetic E2E is verified; PHI, production identity semantics, compliance, and clinician usefulness remain open. |
 | Start from Gauntlet OpenEMR base | p. 4 | `upstream` remote; repository history | `git remote -v`, history | Done for provenance | Literal fork-network/public provenance needs owner disposition. |
 | Run locally with sample patient data | p. 5 | OpenEMR compose docs; synthetic corpus and fixtures | Local tests; full seeded OpenEMR/AgentForge path exercised on Vultr | Done for synthetic checkpoint | Reproducible local seed/readback procedure should be documented if this becomes a handoff requirement. |
-| Public deployment reachable for submissions | pp. 4–5, 9 | `SUBMISSION.md`, `deploy/vultr`, Railway/Vultr evidence | Current `/health` and `/ready` GETs returned 200 | Partial | Full current-candidate route/browser/commit proof is stale relative to `f969227`. |
+| Public deployment reachable for submissions | pp. 4–5, 9 | `SUBMISSION.md`, `deploy/vultr`, Vultr readback | Current `/health`, `/ready`, and `/observability` GETs returned 200; synthetic briefing verified | Partial | Full submission/browser/API/evidence custody and owner release decision remain open. |
 | Complete security/performance/architecture/data-quality/compliance audit | pp. 4–6 | `AUDIT.md` | Document inspection | Done for audit gate | Audit findings are not production certification. |
 | Narrow user, workflow, and agent justification per use case | p. 6 | `USERS.md`, `USER.md` | Document inspection; service/UI tests | Done | Keep capability trace current as scope changes. |
 | Audit-derived integration plan | pp. 6–7 | `ARCHITECTURE.md`, `DECISIONS.md`, `agentforge/src/openemrAdapter.js` | Document/code seam review; REST adapter tests; deployed synthetic E2E | Partial | Production identity, PHI/data-processing, retention, and rollback policy remain open. |
-| Authorization and access control is explicit | pp. 2–3 | `AUDIT.md`, `ARCHITECTURE.md`, `accessContext.js`, OpenEMR REST adapter | B strict issuer/session/role tests; historical server-only OAuth user-context readback with synthetic records | Partial | Fresh deployment readback is still needed; production role/session semantics remain out of scope while PHI is prohibited. |
+| Authorization and access control is explicit | pp. 2–3 | `AUDIT.md`, `ARCHITECTURE.md`, `accessContext.js`, OpenEMR REST adapter | B strict issuer/session/role tests; current selected Vultr synthetic readback with server-only OAuth user-context | Partial | Production role/session semantics remain out of scope while PHI is prohibited. |
 | Verification and trust: claims trace to records and respect domain constraints | p. 3 | `verifier.js`, fixture corpus, eval oracle | 10/10 evals; service tests | Done synthetic | No live chart source or clinical rule system is connected. |
 | Speed versus completeness and uncertainty are deliberate | p. 3 | `ARCHITECTURE.md`, `RESILIENCE.md`, service deadlines/coverage | Deadline/partial-result tests; load reports | Partial | Current deployed end-to-end latency and clinician usefulness are not closed. |
 | Data security and HIPAA constraints shape the design; demo data only | p. 3 | `AUDIT.md`, `DECISIONS.md`, `RESILIENCE.md` | Document/code boundary review | Done for synthetic boundary | No HIPAA/compliance/BAA readiness claim; PHI remains blocked. |
@@ -29,7 +29,7 @@
 | Real observability from the start | pp. 7–8 | `observability/`, trace sink, metrics | 13/13 observability tests; Langfuse exporter contract | Done synthetic | Provider cost/token, deployment, dashboard readback, and production retention controls are open. |
 | Live dashboard with requests/errors/latency/queue/retries/decisions | p. 8 | `/observability`, `/v1/metrics`, `/v1/traces` | Local tests; historical route evidence | Partial | JSON/browser surface is not independently established as the required live dashboard. |
 | Runnable API collection | p. 8 | `agentforge/api/collection.ps1` | Historical collection evidence; local routes | Done synthetic | Re-run against the current deployed candidate. |
-| Separate `/health` and meaningful `/ready` | p. 8 | `server.js` readiness checker | Local tests; historical Vultr `/health` and `/ready`; live-mode missing-token failure; Qwen3.6 synthetic activation readback | Partial | Historical `/ready` passed for the configured synthetic Qwen3.6/OpenEMR lane; refresh against the local B revision, and do not treat it as provider quality or production readiness. |
+| Separate `/health` and meaningful `/ready` | p. 8 | `server.js` readiness checker | Local tests; current Vultr `/health` and `/ready`; live-mode missing-token failure; Qwen3.6 synthetic activation readback | Partial | Readiness is dependency/configuration evidence, not provider quality or production readiness. |
 | Three alerts with meaning and response | p. 8 | `/v1/alerts`, `OBSERVABILITY.md`, `INCIDENT_RESPONSE.md` | Alert tests and historical drill | Done synthetic | External notification delivery/on-call ownership is open. |
 | Realistic deployed load/stress tests at 10 and 50 concurrent users | p. 9 | `scripts/agentforge-load.mjs`, evidence JSON | Recorded reports | Deferred | Revisit after a live conversational agent exists; current reports remain historical synthetic evidence. |
 | CPU, memory, latency, throughput baselines | p. 9 | `LOAD_TEST.md`, AF-17 evidence | Recorded runtime/load evidence | Deferred | Revisit with the live conversational agent; no current planning decision needed. |
@@ -40,7 +40,7 @@
 | Agent architecture document with opening summary | p. 9 | `ARCHITECTURE.md` | Document inspection | Done | No claim of production readiness. |
 | Demo video, 3–5 minutes | p. 9 | Untracked `agentforge-*.mp4`, screenshots/logs; demo HTML | File inventory only | Partial/unknown custody | Verify final media duration, content, provenance, and intended deliverable before publication. |
 | Eval dataset and results | p. 9 | `evals/`, fixture corpus, evidence | 10/10 local | Done synthetic | Current deployed result requires refresh. |
-| Deployed application works in live environment | p. 9 | Railway/Vultr deployment docs/evidence | `/health`/`/ready` current GET only | Partial | Full clean-browser and current-commit readback missing. |
+| Deployed application works in live environment | p. 9 | Vultr deployment docs/evidence | Current `/health`, `/ready`, `/observability`, and one signed synthetic briefing readback | Partial | Full clean-browser, API/eval/observability evidence custody and release decision remain open. |
 | Early technical interview | pp. 4, 9–10 | archived local `INTERVIEW_PREP.md`, `FINAL_INTERVIEW_PREP.md` | Draft inspection | Undecided | The untracked draft was moved to the local archive on 2026-09-19; scheduling/attendance is external and owner-gated. |
 | Final social post | p. 9 | `FINAL_SOCIAL_DRAFT.md` | Draft inspection | Undecided | No publication authorized. |
 | Final AI interview | p. 9 | Interview prep docs | Draft inspection | Undecided | External invitation/recording not established. |
@@ -53,7 +53,7 @@
 - Fresh local proof on 2026-09-19 is AgentForge **49/49**, evals **10/10**, and observability **13/13** (**72/72 combined**). Counts of 20/20, 24/24, 25/25, 34/34, 48/48, 54/54, 68/68, and 71/71 in older handoff/overnight evidence are retained as historical snapshots only.
 
 - `USER.md` now points to canonical `USERS.md`; this resolves the brief's filename inconsistency without duplicating the user model.
-- Railway evidence is earlier checkpoint evidence. Vultr evidence is later and has stronger current-host claims, but its named service/proxy commits predate the active branch `f969227`; neither is automatically current-branch release proof.
+- Railway evidence is earlier checkpoint evidence. The selected Vultr runtime has same-day synthetic readback for the current stack; this remains candidate-scoped proof, not PHI or production release evidence.
 - The former local queue and tickets are summarized in `HISTORICAL_QUEUE_SUMMARY.md` and are no longer an execution source. New work must be mapped to this matrix and an explicitly approved GitLab issue.
 - The deterministic provider remains the local/default fallback. Vultr has an authorized Qwen3.6 synthetic evaluation lane; it does not establish a BAA, authorize PHI, or close spending/retention terms.
-- Synthetic OpenEMR context and fixture parity demonstrate safety behavior; the seeded Vultr corpus and read-only browser path additionally verify historical synthetic E2E integration, but not the current B revision, HIPAA compliance, PHI authorization, or production readiness.
+- Synthetic OpenEMR context and fixture parity demonstrate safety behavior; the seeded Vultr corpus and read-only path additionally verify current synthetic E2E integration, but not HIPAA compliance, PHI authorization, or production readiness.

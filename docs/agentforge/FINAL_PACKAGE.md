@@ -1,5 +1,9 @@
 # Final package checklist
 
+> Historical package snapshot. It is not the current GitLab publication or
+> release decision. See `WAYFINDER_MAP.md` and `HANDOFF.md` for the current
+> stack and evidence boundary.
+
 ## Candidate identity
 
 - Local branch: `afk/AF-08-resilience-foundation`

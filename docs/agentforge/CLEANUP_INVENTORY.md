@@ -2,7 +2,8 @@
 
 **Audit date:** 2026-09-19 (America/Chicago)
 **Controlling handoff:** `docs/agentforge/HANDOFF.md`
-**Change boundary:** cleanup/rebaseline documentation only; no feature, deployment, push, PR, merge, publication, provider activation, or PHI.
+**Change boundary:** cleanup/rebaseline inventory plus the current review stack; no
+PHI, clinical write-back, or provider activation.
 
 ## Source and repository state
 
@@ -10,10 +11,10 @@
 | --- | --- | --- |
 | Original assignment PDF | `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf`, 249,370 bytes; extracted `document.md`, 24,813 bytes | Verified source outside repo; preserve path/provenance, do not copy into the repository without an explicit artifact decision. |
 | Repository requirements inventory | `docs/agentforge/REQUIREMENTS.md` | Current transcription; not completion evidence by itself. |
-| Active branch | `afk/AF-08-resilience-foundation` at `f969227`, ahead of `origin` by 26 commits | Current local source state. |
-| Working tree | Modified `docs/agentforge/HANDOFF.md`; untracked media/logs/demo artifacts | User-owned changes/artifacts; preserved. The handoff modification is the controlling rebaseline handoff. |
+| Active branch | `davidslayback/agentforge-stack-03-deploy-evidence` at `c7d8efa` | Current local source state; published to the private staging project as a draft stacked review. |
+| Working tree | Clean after the current stack | Generated/support artifacts remain in the recoverable local archive; no user-owned changes were discarded. |
 | Worktrees | Main checkout; detached `3ef3` at `297c10a`; diagrams worktree at `32c8f9d` | Useful historical/parallel state; no mutation or cleanup performed. |
-| Remotes | `gitlab` issue/source-of-record, `origin` David fork/deployment mirror, `upstream` Gauntlet OpenEMR base | Current provenance map; remote state not treated as release proof. |
+| Remotes | Group `gitlab` project is protected/Developer-blocked; private staging project `davidslayback/agentforge-week1-staging` holds the current issues and draft MRs; `origin` is the David fork; `upstream` is the Gauntlet OpenEMR base | Current provenance map; remote state not treated as release proof. |
 
 ## Documentation inventory
 
@@ -34,7 +35,7 @@
 
 | Item | Classification | Evidence / disposition |
 | --- | --- | --- |
-| `agentforge/src/*` service, contracts, adapters, provider, verifier, UI | Current implementation | Preserved; behavior covered by fresh 49/49 AgentForge tests. Qwen3.6 activation is deployed only as an authorized synthetic Vultr evaluation lane; the local B authorization revision is not yet deployed. |
+| `agentforge/src/*` service, contracts, adapters, provider, verifier, UI | Current implementation | Preserved; behavior covered by fresh 49/49 AgentForge tests. Qwen3.6 activation remains limited to the authorized synthetic Vultr evaluation lane; no PHI or clinical write-back is allowed. |
 | `agentforge/test/*` | Current verification | Fresh AgentForge service/seam run: 49/49; full combined repository run: 72/72. |
 | `evals/*` and `docs/agentforge/fixtures/*` | Current synthetic evidence | Fresh `npm --prefix evals test`: 10/10; fixtures remain synthetic and must not be loaded as PHI. |
 | `observability/*` | Current synthetic operational evidence | Fresh `node --test observability/test/*.test.js`: 13/13, including Langfuse redaction, continuity, and bounded export-pressure tests. |
@@ -57,7 +58,7 @@ The following were present and deliberately moved, not deleted. Their content, d
 
 1. **Source provenance:** older queue text treated the repository transcription as the only assignment source. The source PDF and extraction are now verified outside the repo; the matrix distinguishes both.
 2. **User filename:** the brief requires `USERS.md` in the stage gate and names `USER.md` in submission requirements. The pointer arrangement is retained and documented.
-3. **Deployment identity:** Railway is earlier checkpoint evidence. Later Vultr evidence names `1259fbb`/`c3a63a3`, while the active branch is `f969227`. Deployment evidence is therefore useful but not current-branch proof.
+3. **Deployment identity:** Railway is earlier checkpoint evidence. The current selected Vultr runtime was read back against the current synthetic stack; deployment evidence remains candidate-scoped and does not establish PHI or production readiness.
 4. **Provider:** Qwen3.6 Flash is an authorized synthetic Vultr evaluation lane. It does not establish funding, retention, contractual coverage, or approval for PHI.
 5. **OpenEMR:** the deployed read-only OAuth path and seeded synthetic corpus now have E2E evidence; that evidence is still not PHI readiness, production role/session equivalence, or compliance evidence.
 6. **Dashboard:** the JSON/browser observability page demonstrates an operational surface. The assignment's live dashboard requirement remains mapped as partial until the exact external evidence is verified.
@@ -65,9 +66,9 @@ The following were present and deliberately moved, not deleted. Their content, d
 
 ## Actions completed and intentionally not completed
 
-Completed: verified the assignment source; refreshed Git/worktree/file/deployment endpoint state; inventoried docs, code, evidence, branches, deployments, and untracked media; created and refreshed the plain-English explainer and requirements matrix; ran the three local test suites; created the claim-consistency Wayfinder map and decision tickets; verified seeded synthetic OpenEMR E2E behavior without PHI; extracted and retired the historical overnight queue; moved 29 generated/support artifacts to the recoverable local archive outside the repository.
+Completed: verified the assignment source; refreshed Git/worktree/file/deployment endpoint state; inventoried docs, code, evidence, branches, deployments, and untracked media; created and refreshed the plain-English explainer and requirements matrix; ran the three local test suites; created the claim-consistency Wayfinder map and decision tickets; verified seeded synthetic OpenEMR E2E behavior without PHI; extracted and retired the historical overnight queue; moved 29 generated/support artifacts to the recoverable local archive outside the repository; published the current three-commit implementation stack with GitLab issues and stacked draft merge requests.
 
-Not done by design: delete user artifacts, edit the existing queue or ticket files, implement additional features, clean unrelated code, push, open/merge PRs, activate a provider, or load PHI. Packaging and stacked-PR file selection remain paused because the checkout still contains user-owned implementation changes and active planning artifacts. Executable Node/PHP authorization parity is not claimed because PHP is unavailable; current TLS/host/commit readback is not claimed as a release claim because the working tree remains mixed.
+Not done by design: delete user artifacts, edit the historical queue, merge the draft stack, activate a provider beyond the authorized synthetic lane, or load PHI. Executable Node/PHP authorization parity is not claimed because PHP is unavailable; broader release, production identity, compliance, and clinical-safety claims remain open.
 
 ## Durable checkpoint
 

@@ -1,5 +1,10 @@
 # AgentForge Sunday final-submission package
 
+> Historical package snapshot. Current implementation publication and review
+> status are tracked in `WAYFINDER_MAP.md`, `HANDOFF.md`, and the private GitLab
+> staging issues/MRs; statements below about no publication or older candidate
+> commits are retained as historical context.
+
 ## Release position
 
 This repository contains a synthetic, read-only, production-shaped AgentForge

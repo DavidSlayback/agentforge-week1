@@ -9,10 +9,21 @@
 
 - The assignment source, inventory, explainer, requirements matrix, and Wayfinder map were refreshed against current code and evidence.
 - Fresh local proof on 2026-09-19 is 49/49 AgentForge tests, 10/10 evals, 13/13 observability tests, and 72/72 combined. The latest three observability cases cover Langfuse redaction, continuity, and bounded export pressure.
-- B authorization hardening is implemented locally: signed context is immutable and expiry is rechecked at authorization time; live adapter defaults require the OpenEMR module issuer, session authentication, clinician role, and read scope. The current checkout has not been redeployed, so prior Vultr evidence does not prove this revision.
-- Historical Vultr evidence verifies server-only OAuth user-context retrieval and seeded synthetic records. It also records the Alibaba-compatible `qwen3.6-flash` lane activated for no-PHI synthetic evaluation; the local/default behavior remains deterministic with fallback, and the local B revision is not deployed there.
+- B authorization hardening is implemented in the published stack: signed context is immutable and expiry is rechecked at authorization time; live adapter defaults require the OpenEMR module issuer, session authentication, clinician role, and read scope. Current Vultr readback proves only the selected synthetic/read-only path, not production identity semantics.
+- Vultr readback verifies server-only OAuth user-context retrieval and seeded synthetic records. It also records the Alibaba-compatible `qwen3.6-flash` lane activated for no-PHI synthetic evaluation; the local/default behavior remains deterministic with fallback.
 - ADR-015 selects the production-grade authorization direction for future readiness: per-request synthetic user-context token or introspection semantics, with subject, active-patient, read scope, expiry/revocation, and role-denial checks. This is a simulated boundary only; no PHI, chart writes, or production authorization claim is permitted.
 - The old `.scratch/overnight` queue has been summarized in `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md` and retired. It is no longer a source of record; new work must use explicitly approved GitLab issues mapped to the current requirements matrix.
+
+## Publication update — 2026-09-19
+
+- The clean implementation stack is `c7d8efa` on
+  `davidslayback/agentforge-stack-03-deploy-evidence`.
+- It is published in the private `davidslayback/agentforge-week1-staging`
+  project as GitLab issues #1–#3 and stacked draft merge requests !65–!67.
+- The selected Vultr runtime has fresh synthetic/read-only readback for health,
+  readiness, the operational page, and one verified briefing. The stack remains
+  unmerged; PHI, clinical write-back, and provider activation beyond the
+  authorized synthetic lane remain prohibited.
 
 ## Deployment readback — 2026-09-19
 
