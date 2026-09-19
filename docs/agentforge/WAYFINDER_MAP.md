@@ -174,7 +174,7 @@ production, or clinical-safety evidence.
 
 **Evidence required:** explicit provider/model selection or deferral; retention/deletion policy; provider readiness and trace semantics; explicit synthetic-only boundary.
 
-**Resolution:** Authorize Alibaba-compatible Qwen3.6 Flash only for no-PHI synthetic Vultr evaluation. Keep deterministic as the local/default fallback; do not infer PHI approval, production suitability, or broad data-processing acceptance. The provider key remains server-only and absent from repository, browser, traces, and prompt data.
+**Resolution:** Authorize Alibaba-compatible Qwen3.6 Flash only for no-PHI synthetic Vultr evaluation. Keep deterministic as the local/default fallback; do not infer PHI approval, production suitability, or broad data-processing acceptance. The owner has chosen to leave Qwen in place for now despite latency alerts; OpenRouter is a future migration candidate requiring a separate synthetic evidence pass. The provider key remains server-only and absent from repository, browser, traces, and prompt data.
 
 **Stop condition:** the synthetic activation does not authorize PHI, clinical write-back, or production certification.
 

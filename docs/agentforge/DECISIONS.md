@@ -259,6 +259,12 @@ with the implemented file-backed sink and attached-volume configuration.
 - **Migration:** Record budget, retention, data-processing, and failure-policy
   decisions before treating the provider lane as a broader release capability.
 
+**Owner direction — 2026-09-19:** Keep the Qwen lane in place for the current
+synthetic deployment despite its measured latency alerts. Do not switch the
+runtime or relax the latency target yet; evaluate OpenRouter later as a
+separate provider migration with fresh synthetic latency, cost, retention, and
+failure-policy evidence.
+
 ## ADR-015: Model the production-grade OpenEMR trust boundary without PHI
 
 - **Choice:** Choose the production-grade authorization direction while keeping
