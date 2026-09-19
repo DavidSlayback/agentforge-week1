@@ -46,7 +46,7 @@ Fresh local checks on this branch, verified 2026-09-19, pass:
 
 - AgentForge service and seam tests: **50/50**;
 - evaluation tests: **10/10**; and
-- observability tests: **17/17** (77/77 combined), including the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, and the documented 2% tool-failure threshold.
+- observability tests: **17/17** (77/77 application suites; 78/78 including the 1/1 load-harness regression), including the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, and the documented 2% tool-failure threshold.
 
 The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. After a server-only model credential rotation and a 15-second model timeout, the selected Vultr runtime serves the synthetic workflow through the configured Qwen lane and `/ready` returns 200. This is not PHI or production-provider evidence.
 

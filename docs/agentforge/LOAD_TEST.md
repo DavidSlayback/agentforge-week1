@@ -18,6 +18,12 @@ The harness fails if signed-context acquisition fails, any request is non-2xx,
 or a successful response is not a complete briefing. The report is a measured
 synthetic deployment result, not a production capacity claim.
 
+The load-harness argument regression is covered by:
+
+```text
+node --test scripts/test/agentforge-load.test.mjs
+```
+
 For a strict candidate run, set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, provide a
 server-only `AGENTFORGE_DEMO_SECRET`, and use a seeded synthetic patient. The
 load helper obtains the short-lived signed synthetic context before posting.
