@@ -21,7 +21,20 @@ const providerFallbackCount = serializedTraces.filter((trace) => trace.includes(
 const dependencies = ready.body.dependencies || ready.body.checks || {};
 const checks = Object.fromEntries(Object.entries(dependencies).map(([key, value]) => [key, typeof value === 'object' ? value.status : value]));
 const dependencyStatuses = Object.values(checks);
-if (ready.status !== 200 || ready.body.status !== 'ready' || dependencyStatuses.some((status) => status !== 'ready')) process.exitCode = 1;
+const traceContainsPatientId = traces.body.some((trace) => JSON.stringify(trace).includes('fixture-patient-001'));
+const traceContainsApiKeyMarker = traces.body.some((trace) => JSON.stringify(trace).includes('sk-sp-'));
+if (
+  health.status !== 200 ||
+  ready.status !== 200 ||
+  ready.body.status !== 'ready' ||
+  dependencyStatuses.some((status) => status !== 'ready') ||
+  context.status !== 200 ||
+  briefing.status !== 200 ||
+  briefing.body.disposition !== 'complete' ||
+  briefing.body.verification?.status !== 'passed' ||
+  traceContainsPatientId ||
+  traceContainsApiKeyMarker
+) process.exitCode = 1;
 console.log(JSON.stringify({
   health_status: health.status,
   ready_status: ready.status,
@@ -32,6 +45,8 @@ console.log(JSON.stringify({
   context_status: context.status,
   context_error: context.body.error,
   briefing_status: briefing.status,
+  briefing_disposition: briefing.body.disposition,
+  briefing_verification: briefing.body.verification?.status,
   briefing_error: briefing.body.error,
   response_model_provider: briefing.body.model?.provider,
   response_model: briefing.body.model?.model,
@@ -41,6 +56,6 @@ console.log(JSON.stringify({
   trace_count: traces.body.length,
   provider_primary_trace_count: providerPrimaryCount,
   provider_fallback_trace_count: providerFallbackCount,
-  trace_contains_patient_id: traces.body.some((trace) => JSON.stringify(trace).includes('fixture-patient-001')),
-  trace_contains_api_key_marker: traces.body.some((trace) => JSON.stringify(trace).includes('sk-sp-')),
+  trace_contains_patient_id: traceContainsPatientId,
+  trace_contains_api_key_marker: traceContainsApiKeyMarker,
 }));
