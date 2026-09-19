@@ -32,6 +32,7 @@ async function getDemoToken() {
 }
 
 const demoToken = await getDemoToken();
+if (!demoToken) throw new Error('SIGNED_SYNTHETIC_CONTEXT_REQUIRED');
 const results = [];
 let next = 0;
 const worker = async () => {
@@ -55,7 +56,9 @@ const worker = async () => {
         }),
       });
       status = response.status;
-      if (!response.ok) error = (await response.text()).slice(0, 200);
+      const body = response.headers.get('content-type')?.includes('application/json') ? await response.json().catch(() => null) : null;
+      if (!response.ok) error = JSON.stringify(body || {}).slice(0, 200);
+      else if (body?.disposition !== 'complete') error = `unexpected disposition: ${body?.disposition || 'missing'}`;
     } catch (caught) {
       error = caught.message;
     }
@@ -76,7 +79,7 @@ const report = {
   started_at: startedAt,
   completed_at: new Date().toISOString(),
   base_url: baseUrl,
-  workload: { requests: totalRequests, concurrency, patient, provider_mode: demoToken ? 'signed-synthetic-context' : 'contract-only' },
+  workload: { requests: totalRequests, concurrency, patient, provider_mode: 'signed-synthetic-context' },
   timing: { wall_duration_ms: wallDurationMs, throughput_requests_per_second: Number((totalRequests / (wallDurationMs / 1000)).toFixed(3)), p50_ms: percentile(latencies, 0.5), p95_ms: percentile(latencies, 0.95), p99_ms: percentile(latencies, 0.99) },
   outcome: { completed: results.length, successful: results.length - errors.length, errors: errors.length, error_rate: results.length ? errors.length / results.length : 0 },
   service_metrics_after_run: metrics,

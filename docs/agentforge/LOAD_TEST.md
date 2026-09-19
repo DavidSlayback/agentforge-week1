@@ -1,7 +1,7 @@
 # AgentForge load and cost evidence
 
 The load harness is `scripts/agentforge-load.mjs`. It uses the public HTTP
-contract, an optional signed synthetic context, and no external dependencies.
+contract, a required signed synthetic context, and no external dependencies.
 It records p50/p95/p99 latency, throughput, error rate, workload concurrency,
 and the service metrics snapshot after the run.
 
@@ -14,8 +14,9 @@ node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 
 node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 50 --requests 500 --out .scratch/agentforge-load-50.json
 ```
 
-The harness fails if any request is non-2xx or cannot be completed. The report
-is a measured synthetic deployment result, not a production capacity claim.
+The harness fails if signed-context acquisition fails, any request is non-2xx,
+or a successful response is not a complete briefing. The report is a measured
+synthetic deployment result, not a production capacity claim.
 
 For a strict candidate run, set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, provide a
 server-only `AGENTFORGE_DEMO_SECRET`, and use a seeded synthetic patient. The
