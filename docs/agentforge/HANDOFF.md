@@ -22,18 +22,18 @@
 - It is published in the private `davidslayback/agentforge-week1-staging`
   project as GitLab issues #1–#3 and stacked draft merge requests !65–!67.
 - The selected Vultr runtime has fresh synthetic/read-only readback for health,
-  the operational page, and the browser briefing/follow-up workflow. Its
-  readiness check is currently blocked by the model dependency; the stack
-  remains unmerged, and PHI, clinical write-back, and provider activation
-  beyond the authorized synthetic lane remain prohibited.
+  the operational page, and the browser briefing/follow-up workflow. A
+  server-only model credential rotation restored the authorized Qwen lane;
+  the stack remains unmerged, and PHI, clinical write-back, and provider
+  activation beyond the authorized synthetic lane remain prohibited.
 
 ## Deployment readback — 2026-09-19
 
 - The selected runtime slice was read back at `https://dtstest.64.177.10.182.nip.io/agentforge/` on 2026-09-19 at approximately 17:46 CDT. HTTP redirects to HTTPS (308), strict HTTPS serves the app (200), `/agentforge/health` returns 200, and `/agentforge/observability` returns 200.
 - A clean-browser synthetic workflow completed a briefing and the follow-up “What changed since the last visit?” with complete disposition, passed verification, and three evidence items. This verifies the externally reachable read-only demo path, not exact current-commit deployment identity.
-- `/agentforge/ready` returned 503 with `configuration`, `retrieval`, and `trace` ready but `model` not ready. The documented API collection passed its explicit `-ExpectNotReady` mode with health 200 and readiness 503.
-- The operational snapshot returned zero request errors, four provider fallbacks, zero pending and dropped telemetry exports, and a firing `p95_latency` alert (24,021 ms observed against a 2,000 ms threshold). Redacted traces identify model fallback errors without exposing patient content. No provider or server state was changed during this readback.
-- This proves a reachable synthetic/read-only workflow with a meaningful dependency failure surfaced by readiness. It does not prove PHP executable parity, real OpenEMR identity/session semantics, PHI readiness, production authorization, a live external dashboard, or release readiness for the mixed working tree.
+- The earlier `/agentforge/ready` 503 was resolved by rotating the server-only model credential and increasing the model request timeout to 15 seconds; the current readback returns 200 with configuration, retrieval, model, and trace all ready. No key value is stored in the repository.
+- A clean-browser synthetic briefing now completed through `openai-responses` with `qwen3.6-flash`, `primary` provider status, passed verification, three evidence items, and 11,578 ms duration. The operational snapshot has zero request errors and zero pending/dropped exports; aggregate metrics still show five historical fallbacks and a firing `p95_latency` alert (24,021 ms) because the trace volume persists earlier failed requests.
+- This proves the reachable synthetic/read-only workflow can use the configured Qwen lane after server-only credential rotation. It does not prove PHP executable parity, real OpenEMR identity/session semantics, PHI readiness, production authorization, a live external dashboard, or release readiness for the mixed working tree.
 
 ## Why this checkpoint stops before packaging
 
