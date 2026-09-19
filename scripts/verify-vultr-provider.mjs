@@ -18,13 +18,17 @@ const traces = await get('/v1/traces');
 const serializedTraces = traces.body.map((trace) => JSON.stringify(trace));
 const providerPrimaryCount = serializedTraces.filter((trace) => trace.includes('"provider_status":"primary"')).length;
 const providerFallbackCount = serializedTraces.filter((trace) => trace.includes('"provider_fallback":true')).length;
-const checks = Object.fromEntries(Object.entries(ready.body.checks || {}).map(([key, value]) => [key, typeof value === 'object' ? value.status : value]));
+const dependencies = ready.body.dependencies || ready.body.checks || {};
+const checks = Object.fromEntries(Object.entries(dependencies).map(([key, value]) => [key, typeof value === 'object' ? value.status : value]));
+const dependencyStatuses = Object.values(checks);
+if (ready.status !== 200 || ready.body.status !== 'ready' || dependencyStatuses.some((status) => status !== 'ready')) process.exitCode = 1;
 console.log(JSON.stringify({
   health_status: health.status,
   ready_status: ready.status,
   ready_state: ready.body.status,
   ready_keys: Object.keys(ready.body),
-  ready_checks: checks,
+  ready_dependencies: checks,
+  ready_dependencies_ready: dependencyStatuses.every((status) => status === 'ready'),
   context_status: context.status,
   context_error: context.body.error,
   briefing_status: briefing.status,
