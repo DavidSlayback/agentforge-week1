@@ -1,5 +1,11 @@
 # OpenEMR audit
 
+> **Snapshot note (2026-09-18):** The deployment-security statements below are
+> historical audit observations. Later Vultr evidence records trusted HTTPS
+> and an HTTP redirect for a named candidate, but that candidate is not the
+> active local branch. Preserve this audit as evidence; use the claim-
+> consistency Wayfinder map for current-status wording.
+
 ## Executive summary
 
 OpenEMR is a large PHP/MariaDB monolith with browser sessions, role and ACL checks, native REST, FHIR/SMART-on-FHIR, and audit logging. It is a capable clinical-record substrate, but its general-purpose surface is much broader than a safe read-only copilot needs. AgentForge should use a server-side adapter with a small read allowlist, explicit coverage groups, active-patient binding, normalized evidence objects, and no model-controlled URLs, SQL, methods, or write paths.

@@ -1,0 +1,81 @@
+# AgentForge project explainer
+
+**Rebaseline date:** 2026-09-18 (America/Chicago)
+**Evidence boundary:** synthetic/demo data only; read-only; clinician-reviewed.
+**Source of truth:** the supplied `Week 1 - AgentForge.pdf` was verified outside this repository at `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf` and extracted as `document.md`. `REQUIREMENTS.md` is the repository's transcribed inventory, not the original source.
+
+## What the product is
+
+AgentForge is a narrow clinical-co-pilot checkpoint for a primary-care physician preparing for a returning patient's visit. The intended moment is the short orientation window before the encounter: recall who the patient is, what changed since the comparison visit, what is documented, what is incomplete, and what requires clinician review. The interface is conversational because the physician can ask a follow-up about the same patient and retain the conversation context.
+
+The current product is a synthetic demonstration and resilience checkpoint with a verified read-only OpenEMR integration against seeded synthetic records. It is not a live clinical system, a medical decision-maker, a generic medical chatbot, a PHI-approved deployment, or a production OpenEMR integration.
+
+## User and workflow
+
+`USERS.md` is the detailed user/use-case document. `USER.md` is intentionally a short pointer to it because the brief names both files in different sections. The target user is a primary-care physician with a roughly 30-minute visit cadence and a 90–180-second preparation window. The core use cases are:
+
+1. orient to the selected patient and the latest verified chart context;
+2. ask what changed since the last completed encounter;
+3. ask whether an existing plan was followed through;
+4. surface conflicting or incomplete records; and
+5. continue with a patient-scoped follow-up question.
+
+The physician remains responsible for interpretation and action. AgentForge does not write diagnoses, medications, orders, notes, messages, or appointments.
+
+## How it works
+
+The service receives an already-bound clinician, active patient, read scope, and request. In live OpenEMR mode, the module resolves the authenticated session PID to the actual OpenEMR patient UUID, signs that context, and the Node adapter uses a fixed GET-only REST read map with a server-only OAuth token. Fixture-backed retrieval remains an explicit local fallback for regression tests. Results become evidence objects with source references, dates, provenance, and coverage outcomes. The verifier checks patient scope, authorization, provenance, claim support, discrepancy state, and whether required evidence is missing. Only a complete or prominently qualified result can reach the UI.
+
+Coverage distinguishes successful data, successful empty results, failed retrieval, timeout, unauthorized access, and not-requested groups. Identity or authorization failure blocks the briefing. Partial retrieval withholds claims that depend on unavailable evidence. Chart text is treated as evidence, never as instructions.
+
+The current code is a separate Node service under `agentforge/`. The main seams are:
+
+- `agentforge/src/server.js`: HTTP routes, readiness, evaluator and operational surfaces;
+- `agentforge/src/service.js`: briefing/follow-up orchestration, deadlines, caching, and trace lifecycle;
+- `agentforge/src/openemrAdapter.js`: GET-only OpenEMR REST adapter plus explicit fixture fallback;
+- `agentforge/src/fixtureAdapter.js`: deterministic fixture retrieval;
+- `agentforge/src/contracts.js`: strict request/response contract validators;
+- `agentforge/src/verifier.js`: evidence and generated-output verification; and
+- `agentforge/src/modelProvider.js`: deterministic provider, optional OpenAI-compatible lane, retry, validation, and deterministic fallback.
+
+`ARCHITECTURE.md` documents the OpenEMR module/adapter boundary. Historical Vultr evidence verified the live adapter, launcher UUID lookup, server-only OAuth user-context token flow, seeded synthetic corpus, and deployed synthetic E2E readback. That deployment predates the local B revision. No PHI is authorized, and this evidence does not establish production identity semantics, compliance, or clinical safety.
+
+## Current evidence
+
+Fresh local checks on this branch, verified 2026-09-18, pass:
+
+- AgentForge service and seam tests: **49/49**;
+- evaluation tests: **10/10**; and
+- observability tests: **13/13** (72/72 combined), including the Langfuse exporter boundary and bounded-outage behavior.
+
+The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. Historical Vultr evidence after activating the authorized synthetic Qwen3.6 Flash lane recorded `/health` and `/ready` returning 200 and a no-PHI provider probe; that deployment predates the local B authorization revision and is not current-candidate or PHI/production-provider evidence.
+
+Read-only GETs on 2026-09-18 returned HTTP 200 for `/health` and `/ready` at both the recorded Vultr hostname and the prior Railway hostname. The Vultr HTTPS page also loaded without a certificate bypass. These are endpoint observations, not full release proof: the active branch is `f969227`, while the detailed Vultr candidate evidence names older service/proxy commits `1259fbb` and `c3a63a3`. Full route, browser, current-commit, resource, and deployment readback therefore remains partial until the candidate identity is resolved.
+
+## Status by area
+
+| Area | Status | Meaning |
+| --- | --- | --- |
+| Original brief and requirements inventory | Done, with provenance boundary | Source PDF is verified outside the repo; the checked-in inventory is transcribed. |
+| Audit, users, architecture, metrics, and safety boundary | Done for the documented checkpoint | The documents exist and are internally useful; production claims remain out of scope. |
+| Conversational UI and follow-up flow | Implemented synthetic | Local and historical browser evidence exist; current-branch deployment parity is not yet proven. |
+| Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; live OpenEMR equivalence and current-candidate deployment proof are missing. |
+| Contracts, API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | The browser/JSON operational surface is not independently verified as the assignment's external live dashboard. |
+| Load evidence | Partial | Signed local and recorded deployed reports exist, but their candidate identity and infrastructure context require owner review. |
+| Provider/model | Synthetic Vultr evaluation active; broader use undecided | Qwen3.6 Flash is active only on the authorized no-PHI Vultr lane. Deterministic remains the local/default fallback. No BAA, PHI approval, cost, retention, or production suitability is established. |
+| OpenEMR integration | Implemented for synthetic E2E | Read-only OAuth user-context retrieval, seeded synthetic records, PID→UUID launch, and two-patient deployed browser readback are historical synthetic evidence; the local B revision adds stricter issuer/session/role enforcement but has not been redeployed. PHI, production identity semantics, and compliance remain out of scope. |
+| PHI/HIPAA/BAA/compliance readiness | Blocked/out of scope | No PHI, clinical write-back, production compliance, or provider suitability is established. |
+| Cost and scale | Deferred | Revisit only after a live conversational agent exists; current billing/load artifacts are historical synthetic evidence. |
+
+## Known limitations and remaining work
+
+The smallest credible next work is requirements-led: lock this matrix, resolve owner decisions, reconcile stale claims, then make vertical changes only where a requirement and verifier are named. The future plan must explicitly close or disposition:
+
+- production-approved OpenEMR identity, role, retention, and data-processing decisions if the scope ever expands beyond synthetic validation;
+- budget, retention, and data-processing decisions for any provider scope beyond the authorized synthetic Qwen3.6 lane;
+- the assignment's live dashboard and alert interpretation;
+- current-candidate deployed 10/50 load and infrastructure baselines;
+- cost projections at 100, 1K, 10K, and 100K users, deferred until a live conversational agent exists;
+- current-commit deployment and clean-browser readback; and
+
+None of these gaps should be closed by relabeling synthetic evidence as production proof.

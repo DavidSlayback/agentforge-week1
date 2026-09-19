@@ -181,16 +181,20 @@ returns a free-form tool result.
   "correlation_id": "opaque-request-id",
   "clinician_uuid": "authenticated-user",
   "patient_uuid": "active-patient",
-  "authorization": {"status": "authorized", "scope": "read-briefing"},
-  "current_visit_at": "2026-09-16T14:00:00Z",
-  "mode": "prepare_for_visit"
+  "demo_token": "server-verified-short-lived-context",
+  "case_id": "synthetic-case-id"
 }
 ```
 
 The server creates the correlation ID if the caller does not supply one. The
-client cannot provide SQL, a URL, an HTTP method, an arbitrary resource name,
-or a second patient identifier. Follow-up requests reuse conversation history
-only when the active patient and authorization binding still match.
+`demo_token` is a short-lived signed user-context assertion; the server
+verifies it and binds the clinician, active patient, read scope, issuer,
+authentication method, role, and expiry before retrieval. The client cannot
+provide SQL, a URL, an HTTP method, an arbitrary resource name, a second
+patient identifier, or a body-level authorization claim. Comparison baseline
+and visit mode are server-owned orchestration details, not request fields.
+Follow-up requests reuse conversation history only when the active patient and
+verified user-context binding still match.
 
 ### Evidence record
 

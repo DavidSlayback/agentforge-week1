@@ -53,8 +53,4 @@ tmp/
 .webpack-cache/
 
 # AgentForge local load-run scratch; final signed reports are checked in explicitly.
-.scratch/overnight/evidence/signed-mode-traces*.json*
-.scratch/overnight/evidence/load-10.json
-.scratch/overnight/evidence/load-50.json
-.scratch/overnight/evidence/load-10-signed.json
-.scratch/overnight/evidence/load-50-signed.json
+.scratch/agentforge-load-*.json

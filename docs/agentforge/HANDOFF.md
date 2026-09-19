@@ -1,58 +1,136 @@
-# AgentForge Stage 5 implementation handoff
+# AgentForge assignment rebaseline handoff
 
-- Goal: Continue the AgentForge Clinical Co-Pilot work from the completed audit and Stage 4 user model; Stage 5 implementation is active against `ARCHITECTURE.md`.
-- Scope and explicit exclusions: The current system is an OpenEMR substrate and demonstration deployment. No PHI, clinical write-back, or hosted LLM integration is authorized yet.
-- Last verified at: 2026-09-17, America/Chicago.
-- Current mechanism: Pinned OpenEMR and MariaDB Docker Compose services; AgentForge will remain read-only and clinician-reviewed unless a later decision explicitly changes that boundary.
-- Completed:
-  - Stage 1 local OpenEMR setup and setup documentation.
-  - Stage 2 public Vultr deployment at https://64.177.10.182 using the pinned deployment Compose file.
-  - Stage 3 audit in `docs/agentforge/AUDIT.md` covering security, performance, architecture, data quality, and compliance.
-  - Stage 4 target user and use cases in `docs/agentforge/USERS.md`, with explicit justification for the conversational-agent shape.
-  - Stage 5 architecture and integration plan in `docs/agentforge/ARCHITECTURE.md`, including observed OpenEMR seams, canonical contracts, safety invariants, and UC-1 through UC-5 traceability.
-  - Visual architecture and request-lifecycle diagrams in `docs/agentforge/diagrams/`, plus the personal explainer PDF at `output/pdf/agentforge-personal-explainer.pdf`.
-  - Synthetic fixture corpus in `docs/agentforge/fixtures/clinical-cases.json`.
-  - Early checkpoint boundary and interview-rationale requirement recorded in `PLANNING.md`.
-  - Separate Node service, fixture-backed briefing/follow-up flow, golden evaluator, redacted observability, Caddy same-origin routing, and signed-context OpenEMR launcher implemented on the checkpoint branch.
-  - Reference and actual-service evaluation modes, critical-oracle tests,
-    dependency-aware readiness, metrics endpoint, minimal observability view,
-    and the running ADR-style decision log are now implemented.
-  - Deployment hardening commit `e582cb9`: removed Composer credential literals from active development Compose files, made production credentials required, and denied dependency metadata and `.env` files in the Apache source configs.
-- Decisions and rationale:
-  - The agent must not write to the EMR or silently alter chart text.
-  - Evidence must be traceable with inline links and human-readable qualification when a claim cannot be verified.
-  - Reconciliation merges the most recent value for each field since the last visit, records who did what, and never labels a value reassessed unless it was actually reassessed.
-  - Retry policy is two retries plus a deadline, with meticulous success/failure observability. Local observability is preferred while the design is still being evaluated.
-  - The physician must be told when required information or review is missing.
-- Current local state: `main` remains clean at the latest handoff commit; `origin/main` matches. This task worktree is detached at `3215f9b` and contains only the uncommitted architecture/handoff documentation changes. Compose syntax and whitespace checks passed. The local container may report `setup_required` until its isolated demo database is initialized.
-- Current remote or runtime state: Vultr host `64.177.10.182`; server-only secrets remain in `/opt/agentforge-week1/.env`. `mysql` and `openemr` are running and healthy. Readiness returned `status: ready` with database, filesystem, session, OAuth-key, and cache checks true. The deployed Compose file hash is `ca80b8303715cdd5bf0ae2456812b5a6f73ebc192b62d09cbbe7480034207b57`.
-- Passed checks:
-  - `docker compose config --quiet` passed for development, production, and Vultr Compose files.
-  - Production Compose rejects missing required secrets.
-  - No known Composer credential literal remains in the working tree.
-  - Remote deployment was recreated and readiness was verified over HTTPS with `curl --insecure`.
-- Pending checks:
-  - Revoke/rotate the historical Composer credential; removing it from the working tree does not remove it from Git history.
-  - Configure a real domain, trusted TLS, and HTTP-to-HTTPS redirect before any PHI use.
-  - Define identity/session binding, retrieval authorization, local trace storage, retention/deletion, incident response, and BAA/provider decisions before hosted PHI processing.
-  - Build and test the Stage 5 agent against the synthetic fixtures before any live-data trial.
-  - Replace the synthetic launcher mapping with the audited OpenEMR adapter and repeat the authenticated patient-isolation exercise.
-  - Replace synthetic retrieval with the audited OpenEMR adapter before any PHI trial.
-- Blockers and owners: Credential revocation and infrastructure/provider compliance require David or the relevant account administrator. Stage 4 implementation can proceed locally with synthetic data.
-- Open work in priority order:
-  1. Implement strict contracts and fixture-backed retrieval, reconciliation, evidence qualification, physician review, bounded retries, and local observability as described in `ARCHITECTURE.md`.
-  2. Add tests for authorization, missing/unverified claims, duplicates, stale fields, timeout/deadline behavior, patient switching, and retry accounting.
-  3. Add the OpenEMR custom-module shell only after fixture gates pass and the read-only binding is demonstrated.
-  4. Re-audit the new AgentForge layer and update the deployment only after the local gate passes.
-- Exact next action: capture final checkpoint evidence (including the deployed
-  eval result, observability view, and one failure boundary), then keep live
-  retrieval/PHI, trusted TLS, and persistent telemetry as final-deadline work.
-- Refresh commands and links:
-  - `git log -1 --oneline` and `git ls-remote origin refs/heads/main`
-  - `docker compose -f docker/development-easy-light/docker-compose.yml ps`
-  - `ssh -i C:\Users\david\.ssh\agentforge-week1-vultr linuxuser@64.177.10.182 "docker compose -f /opt/agentforge-week1/deploy/vultr/docker-compose.yml --env-file /opt/agentforge-week1/.env ps"`
-  - `ssh -i C:\Users\david\.ssh\agentforge-week1-vultr linuxuser@64.177.10.182 "curl --insecure https://localhost/meta/health/readyz"`
-  - Public demonstration URL: https://64.177.10.182
-- Branches, worktrees, and uncommitted artifact custody: The source repository remains on `main`; this task worktree is detached for the Stage 5 documentation changes. The server deployment bundle is external state under `/opt/agentforge-week1/deploy/vultr`.
-- Mutation or approval boundaries: Repository commits and the requested redeploy are authorized. Do not load real PHI, revoke credentials, configure a provider/BAA, or enable write-back without explicit authorization and the required compliance decisions.
-- Claims that may go stale: Public IP, container/image health, readiness, remote branch, and deployment hash are snapshots; refresh them with the commands above.
+- Goal: Re-anchor AgentForge to the original Week 1 assignment, remove stale or conflicting project information, produce a plain-English account of what exists and what remains, then rebuild the implementation plan and ticket queue from current evidence.
+- Scope and explicit exclusions: This handoff covers repository cleanup, requirements reconciliation, documentation, architecture/user-story/plan rebaselining, ticket repair, and subsequent assignment work. Preserve the synthetic-only, read-only, clinician-reviewed boundary unless a later explicit decision changes it. Do not load PHI, enable clinical write-back, merge, publish, or send external communications without separate authorization.
+- Last verified at: 2026-09-19, America/Chicago.
+- Current mechanism: AgentForge is a separate Node service and OpenEMR-facing demonstration surface with a GET-only OpenEMR REST adapter, seeded synthetic read-only E2E retrieval on Vultr, fixture-backed local regression paths, deterministic evaluation, patient/clinician scope checks, verification, redacted observability, health/readiness routes, evaluator/API surfaces, and deployment artifacts. Current evidence is mixed local, deployed, synthetic, and owner-reviewed; do not treat all of it as one completion state.
+
+## Post-rebaseline update — 2026-09-18
+
+- The assignment source, inventory, explainer, requirements matrix, and Wayfinder map were refreshed against current code and evidence.
+- Fresh local proof on 2026-09-19 is 49/49 AgentForge tests, 10/10 evals, 13/13 observability tests, and 72/72 combined. The latest three observability cases cover Langfuse redaction, continuity, and bounded export pressure.
+- B authorization hardening is implemented locally: signed context is immutable and expiry is rechecked at authorization time; live adapter defaults require the OpenEMR module issuer, session authentication, clinician role, and read scope. The current checkout has not been redeployed, so prior Vultr evidence does not prove this revision.
+- Historical Vultr evidence verifies server-only OAuth user-context retrieval and seeded synthetic records. It also records the Alibaba-compatible `qwen3.6-flash` lane activated for no-PHI synthetic evaluation; the local/default behavior remains deterministic with fallback, and the local B revision is not deployed there.
+- ADR-015 selects the production-grade authorization direction for future readiness: per-request synthetic user-context token or introspection semantics, with subject, active-patient, read scope, expiry/revocation, and role-denial checks. This is a simulated boundary only; no PHI, chart writes, or production authorization claim is permitted.
+- The old `.scratch/overnight` queue has been summarized in `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md` and retired. It is no longer a source of record; new work must use explicitly approved GitLab issues mapped to the current requirements matrix.
+
+## Deployment readback — 2026-09-19
+
+- The selected runtime slice was redeployed to the existing Vultr VM at `64.177.10.182` using a server-side rollback copy. The transfer included the current `agentforge/src`, observability sink, PHP launcher, Caddyfile, and main Compose definition only; the server `.env`, secrets, trace volume, MySQL, and OpenEMR containers were not replaced.
+- Fresh black-box readback passed: `/agentforge/health` 200, `/agentforge/ready` 200, `/agentforge/observability` 200, and one signed synthetic briefing returned HTTP 200 with `complete` disposition, `passed` verification, and three claims.
+- Fresh operational readback showed zero errors, zero pending exports, zero dropped exports, and the local file sink as the active backend. The named `agentforge-observability` network exists; no Langfuse container was activated.
+- This proves the current selected runtime slice on the synthetic/read-only path. It does not prove PHP executable parity, real OpenEMR identity/session semantics, PHI readiness, production authorization, a live external dashboard, or release readiness for the mixed working tree.
+
+## Why this checkpoint stops before packaging
+
+This is an intentional evidence boundary, not a local implementation failure:
+
+- The Node and PHP authorization implementations have matching field order,
+  compact JSON, base64url, HMAC-SHA-256, and five-minute expiry rules, but PHP
+  is not installed in this environment. Static source parity can be reported;
+  executable cross-runtime parity cannot be claimed until PHP or an equivalent
+  verified runtime is available.
+- The selected B authorization runtime paths now have a fresh Vultr synthetic
+  readback. This is narrower than packaging the mixed checkout and does not
+  prove PHP executable parity, real OpenEMR identity/session semantics, or
+  production authorization.
+- Packaging is paused because the checkout contains mixed user-owned changes,
+  deletions, generated artifacts, and untracked media. Selecting files for a
+  stacked PR from that state risks committing unrelated work; no reset,
+  checkout, or destructive cleanup is authorized.
+- TLS, redirect behavior, current host identity, and current commit/image are
+  external claims that require fresh readback against the exact packaged
+  revision. Historical observations remain useful evidence, but cannot serve
+  as current release proof.
+- Provider activation beyond the already authorized synthetic lane, PHI, chart
+  writes, and release remain outside the authorized boundary. The verified
+  local and selected deployed result is synthetic, read-only, and
+  clinician-reviewed.
+
+## First phase: cleanup and rebaseline
+
+The next agent must do this before implementing any new feature or advancing the existing queue:
+
+1. Locate and verify the original assignment document. The repository contains `docs/agentforge/REQUIREMENTS.md`, a transcribed inventory; the source PDF is not currently stored in the repository. A prior audit worktree references `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf.ob1\document.md`; verify that path and provenance rather than assuming it is current.
+2. Inventory every AgentForge document, ticket, evidence file, generated artifact, branch, deployment note, and untracked media file. Classify each as current, stale, duplicate, useful historical evidence, or unknown.
+3. Remove or archive outdated information rather than letting contradictory documents remain active. Preserve material evidence and user-owned artifacts until custody and reproducibility are recorded. Do not delete files merely because they are untracked.
+4. Make code concise and readable where cleanup is required by the assignment path. Remove dead paths, duplicated contracts, stale fallback language, obsolete comments, and speculative abstractions. Add documentation where a future engineer or reviewer needs the behavior, boundary, or reason to use the code correctly.
+5. Reconcile `ARCHITECTURE.md`, `USERS.md`, `USER.md`, `REQUIREMENTS.md`, `DECISIONS.md`, `PLANNING.md`, `FINAL_PACKAGE.md`, deployment docs, and `HISTORICAL_QUEUE_SUMMARY.md` against the verified assignment and current code. Mark claims that cannot be freshly supported.
+6. Write `docs/agentforge/PROJECT_EXPLAINER.md` in plain English. It must explain the product, user, workflow, architecture, safety boundary, current implementation, evidence, known limitations, external dependencies, and remaining work. Distinguish done, partial, missing, blocked, and undecided.
+7. Write or refresh `docs/agentforge/REQUIREMENTS_MATRIX.md`, mapping every assignment requirement to its source, artifact, implementation, verification, status, and remaining gap. No requirement may disappear because it was inconvenient or deferred.
+8. Only after steps 1–7, rebuild the plan and GitLab issue set from the current matrix. Do not recreate the retired local queue as an alternative source of record.
+
+Completion criterion for this phase: a reviewer can read the explainer and requirements matrix and understand what is actually done, what is not, why, and which smallest tickets close the assignment gaps.
+
+## Assignment-grounded findings to verify
+
+The prior audit indicates that the project became stronger as a synthetic resilience checkpoint but drifted from a strict assignment-completion plan. Reconfirm these findings rather than copying them blindly:
+
+- Core service, fixture/evaluation paths, safety states, observability, health/readiness, API collection, and parts of deployment evidence appear substantially implemented.
+- The active plan may still contain stale framing, conflicting `USER.md`/`USERS.md` treatment, and claims that reflect older checkpoints.
+- Deployed 10/50-concurrency evidence, infrastructure baselines, cost projections for 100/1K/10K/100K users, final current-commit readback, interview/demo readiness, and publication decisions require explicit evidence or owner disposition.
+- The local/default provider remains deterministic. Historical Vultr evidence records an explicitly authorized synthetic-only Qwen3.6 Flash evaluation lane. Provider spending, retention, data-processing, and PHI suitability remain unresolved; that deployed lane is not a production authorization.
+- Synthetic OpenEMR seams are not equivalent to real OpenEMR integration, PHI readiness, BAA coverage, or production compliance.
+- A JSON/browser observability surface is not automatically the assignment’s required live dashboard; map the exact requirement to observable evidence.
+
+Treat these as audit hypotheses until refreshed against the source assignment, current branch, deployed target, and evidence files.
+
+## Observed repository state at handoff
+
+- Branch: `afk/AF-08-resilience-foundation`, ahead of its recorded origin by 26 commits at the time of inspection.
+- Working tree: no modified tracked files were reported; multiple untracked videos, screenshots, logs, demo pages, scripts, and planning artifacts exist. Preserve and inventory them before cleanup.
+- Former planning state: the retired AF-01 through AF-19 queue and evidence are summarized in `HISTORICAL_QUEUE_SUMMARY.md`; its claims are not current execution state.
+- Existing project docs: `docs/agentforge/ARCHITECTURE.md`, `REQUIREMENTS.md`, `PLANNING.md`, `DECISIONS.md`, `USERS.md`, `USER.md`, final-package documents, and prior handoffs contain overlapping and time-sensitive claims.
+- Existing handoff: superseded by this document.
+
+## Known evidence snapshot
+
+The prior audit reported these results, subject to fresh readback:
+
+- AgentForge tests: 20/20.
+- Evaluations: 10/10.
+- Observability tests: 9/9.
+- Public route/API/readiness/evaluator/observability checks: reported passing at prior Railway/Vultr targets.
+- Signed synthetic load evidence: 100/100 at concurrency 10 and 500/500 at concurrency 50 in recorded local reports; deployed-versus-local scope must be distinguished.
+- A current Vultr hostname and a Railway canonical origin are recorded in project artifacts. URLs, certificates, deployments, billing, and commit state are mutable and require fresh verification before final claims.
+
+## Required plan after cleanup
+
+The rebuilt plan must begin with assignment coverage, not architecture expansion:
+
+1. Lock the verified requirements matrix and scope boundary.
+2. Resolve all frontloaded human decisions: source-of-truth assignment, required artifact naming, provider/model and budget, privacy/data-retention boundary, deployment target, domain/TLS, external access, load-test authorization, interview/demo timing, and publication/no-publication.
+3. Close documentation and claim consistency.
+4. Close missing implementation and test requirements in vertical slices.
+5. Run independent ticket verification from clean state.
+6. Refresh deployed/runtime evidence where required.
+7. Assemble the final package and plain-English explanation.
+8. Stop at explicit owner gates; do not infer submission or publication authorization.
+
+Every new ticket must map to one or more assignment requirements, declare dependencies and parallelization, name its verifier, and state the evidence required for completion. Delete or archive tickets that cannot pass that test.
+
+## Exact next action
+
+The cleanup/rebaseline phase is complete. The historical `.scratch/overnight` queue is retired, and the replacement GitLab program is #17 with child slices #18–#26. Use those issues with the refreshed requirements matrix and explicit evidence gates. Do not broaden the authorized Qwen3.6 synthetic lane beyond synthetic, read-only, clinician-reviewed behavior.
+
+## Refresh commands and custody
+
+```powershell
+git status --short --branch
+git log --oneline --decorate -12
+git worktree list
+Get-ChildItem docs/agentforge -File | Sort-Object Name
+Get-ChildItem docs/agentforge -Recurse -File | Sort-Object FullName
+rg -n -i "assignment|requirement|done|partial|missing|blocked|provider|cost|load|dashboard|USER\.md|USERS\.md|PHI|OpenEMR|deployment|publication" docs/agentforge
+```
+
+Refresh deployment, billing, provider, and external URL claims from the actual target before using them as completion evidence. Preserve artifact paths, branches, worktrees, and untracked media in the cleanup report.
+
+## Approval boundaries
+
+- Cleanup, documentation reconciliation, requirements mapping, and local planning artifacts are authorized by this handoff.
+- Code cleanup is authorized only when it removes stale/duplicated/unreadable material or is required by an accepted assignment ticket; preserve behavior and record the change surface.
+- Deployment changes, credential/account actions, provider spending, PHI, BAA/compliance claims, merges, publication, social posting, interview scheduling, and external messaging require explicit owner authorization.
+- If a human blocker is reached, write the exact action, location, account/role, inputs, expected proof, consequence, alternatives, and resume command. “Needs credentials” is not a sufficient blocker report.
+
+Claims about branch state, deployment state, URLs, billing, provider availability, test counts, and evidence freshness are snapshots. Refresh them before final reporting.

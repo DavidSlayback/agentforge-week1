@@ -31,8 +31,11 @@ migration path.
   OpenEMR-specific context handling small and replaceable.
 - **Evidence:** Direct public service exposure was unreliable; the Caddy route
   made health, readiness, and briefing requests reachable through one origin.
-- **Limitation:** The hosted endpoint currently uses an IP and internal/self-
-  signed TLS rather than trusted production TLS.
+- **Limitation (historical snapshot):** Earlier hosted evidence used an IP and
+  internal/self-signed TLS rather than trusted production TLS. Later Vultr
+  evidence records trusted HTTPS and an HTTP redirect, but that evidence is
+  tied to a different candidate than the active local branch; see the claim-
+  consistency Wayfinder ticket.
 - **Migration:** Move to a real domain, trusted certificates, redirect HTTP to
   HTTPS, and bind the launcher to the authenticated session server-side.
 
@@ -185,6 +188,9 @@ with the implemented file-backed sink and attached-volume configuration.
 
 ## ADR-011: Defer live provider selection
 
+> Superseded for the synthetic Vultr evaluation lane by ADR-014. The local
+> default remains deterministic, and this does not authorize PHI processing.
+
 - **Choice:** Keep the deterministic provider as the default and defer a live
   agent/provider until the resilience and evaluation lanes are ready. A low-
   cost approved vendor path, potentially through OpenRouter, remains a future
@@ -233,3 +239,72 @@ with the implemented file-backed sink and attached-volume configuration.
   provider path.
 - **Migration:** Select one approved vendor only after a data-processing,
   retention, cost, and failure-policy review using synthetic inputs.
+
+## ADR-014: Activate Qwen3.6 Flash for the synthetic Vultr lane
+
+- **Choice:** Configure the existing Vultr AgentForge container to use the
+  Alibaba-compatible Responses endpoint with `qwen3.6-flash`, retaining the
+  deterministic provider as the local/default fallback.
+- **Alternatives:** Continue deterministic-only deployment; use the unavailable
+  `qwen3.5-flash` model; or activate OpenRouter before its lane is evaluated.
+- **Tradeoff:** The deployed synthetic path now exercises a real provider, but
+  provider quality, cost, retention, and compliance remain unapproved for PHI.
+- **Evidence:** The provider key listed 14 accessible models but not
+  `qwen3.5-flash`; a no-PHI `qwen3.6-flash` probe succeeded over both supported
+  wire shapes. Vultr `/health` and `/ready` returned 200 after activation, and
+  the deployed provider code generated a response without exposing the key in
+  traces.
+- **Limitation:** This is a synthetic evaluation activation only. No PHI,
+  clinical write-back, or provider-dependent production claim is authorized.
+- **Migration:** Record budget, retention, data-processing, and failure-policy
+  decisions before treating the provider lane as a broader release capability.
+
+## ADR-015: Model the production-grade OpenEMR trust boundary without PHI
+
+- **Choice:** Choose the production-grade authorization direction while keeping
+  AgentForge permanently synthetic, read-only, and clinician-reviewed. The
+  future real-data seam must use a per-request OpenEMR user-context token or
+  server-side session/role introspection; a shared service bearer token alone
+  is not sufficient for a real-data authorization claim. The current VM lane
+  will exercise this boundary with synthetic tokens or an introspection stub.
+- **Alternatives:** Keep the signed launcher handoff as the final real-data
+  authorization claim; or introduce live PHI to test the boundary.
+- **Tradeoff:** This adds an explicit identity/role binding seam and more
+  failure tests, while avoiding PHI and preserving deterministic local tests.
+  It also means the current synthetic handoff remains evidence of a safe
+  issuer seam, not proof of production session or ACL parity.
+- **Evidence required:** user-context subject and scope binding; active-patient
+  binding; expiry/revocation and role-denial tests; mismatched-patient and
+  patient-switch tests; GET-only/read allowlist tests; synthetic VM E2E
+  readback; and explicit separation of fixture, simulated OpenEMR, and live
+  provider evidence.
+- **Limitation:** No real-data enablement, PHI, chart mutation, or production
+  authorization claim is authorized by this ADR.
+- **Migration:** Implement the synthetic user-context contract behind the
+  existing adapter boundary, then verify it independently before advancing
+  the OpenEMR retrieval slice.
+
+## ADR-016: Keep AgentForge observability in-process for the demo
+
+- **Choice:** Use the existing redacted file trace sink, metrics endpoints,
+  alert evaluator, and `/observability` page as the current operational
+  observability solution. Keep the Langfuse OTLP exporter as an optional,
+  server-configured adapter, but defer self-hosting Langfuse on the shared
+  Vultr VM.
+- **Alternatives:** Add the full self-hosted Langfuse Compose stack; deploy
+  Tempo plus Grafana; or send synthetic traces to Langfuse Cloud immediately.
+- **Tradeoff:** The in-process path adds no VM services and keeps redacted
+  trace custody local, but it does not provide Langfuse's richer query and
+  exploration UI. The exporter preserves a future standard OTLP path without
+  making request correctness depend on an external backend.
+- **Evidence:** `observability/index.js` exposes exporter queue depth, dropped
+  exports, last export status, and configuration state through the existing
+  metrics surface. The local test suite verifies bounded pressure; the current
+  Vultr VM is 2 vCPU/3.8 GiB RAM, below Langfuse's published self-hosted VM
+  guidance.
+- **Limitation:** This is sufficient for the synthetic demo checkpoint, not a
+  production observability, retention, on-call, or compliance claim.
+- **Migration:** If a hosted dashboard becomes necessary, use the existing
+  redacted OTLP exporter with an owner-approved Langfuse Cloud project or a
+  resized dedicated host. Do not change the redaction contract or activate
+  PHI processing as part of that migration.

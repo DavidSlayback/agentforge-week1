@@ -3,26 +3,27 @@
 ## Candidate identity
 
 - Local branch: `afk/AF-08-resilience-foundation`
-- Source of record: GitLab issue #1 and child issues #2–#16
-- Current deployment evidence URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
-- Current service commit: `1259fbb`; current proxy/config commit: `c3a63a3`
+- Source of record: GitLab program issue #17 and child issues #18–#26
+- Historical deployment evidence URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
+- Historical deployed service commit: `1259fbb`; historical proxy/config commit: `c3a63a3`
+- The local B authorization revision is newer than those deployed commits and has not been redeployed; the URL is not current-candidate proof.
 - The prior Railway URL remains historical checkpoint evidence, not current-candidate proof.
-- Target deployment configuration must set `AGENTFORGE_AUTH_MODE=signed-demo`,
-  `AGENTFORGE_SYNTHETIC_CONTEXT=true`, and a durable `AGENTFORGE_TRACE_PATH`.
+- A future synthetic deployment must set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, a
+  server-only `AGENTFORGE_DEMO_SECRET`, and a durable `AGENTFORGE_TRACE_PATH`.
 
 ## Gate matrix
 
 | Gate | Current state | Final proof required |
 | --- | --- | --- |
 | Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
-| Public URL/TLS | PASS on current Vultr hostname | Trusted HTTPS certificate and HTTP redirect read back on `dtstest.64.177.10.182.nip.io`. |
-| Multi-turn browser agent | PASS on current Vultr HTTP candidate | Clean-browser briefing, follow-up, reset, partial, and blocked probe captured. |
-| Auth/scope seam | PASS synthetic local | Signed-context expiry/mismatch/scope tests and deployed readback. |
+| Public URL/TLS | Historical evidence | Trusted HTTPS certificate and HTTP redirect were read back on the historical Vultr candidate; refresh against the packaged revision. |
+| Multi-turn browser agent | Historical evidence | Clean-browser briefing, follow-up, reset, partial, and blocked probe exist for the older candidate; refresh against the packaged revision. |
+| Auth/scope seam | PASS synthetic local; deployment pending | Signed-context expiry/mismatch/scope tests pass locally; the B revision needs deployed readback. |
 | Provider lane | PASS failure-policy tests; vendor deferred | Keep deterministic default; do not add a vendor without owner decision. |
-| Operations | PASS on current Vultr synthetic candidate | Dashboard, alerts, traces, and route matrix read back over the trusted HTTPS hostname. |
+| Operations | Historical evidence | Dashboard, alerts, traces, and route matrix were read back over the older trusted HTTPS candidate; refresh against the packaged revision. |
 | Load/cost | Deployed load PASS; billing readback PASS; projections REVIEW | Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | READY FOR OWNER REVIEW | Review current Vultr load/resource evidence in AF-17, including interaction latency/cache/deadline metrics. |
+| Deployed scale | Historical evidence; refresh pending | Review the older Vultr load/resource evidence in AF-17 only after reconciling it to the packaged revision. |
 | Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
 | Final readback | READY FOR OWNER REVIEW | Billing, clean-profile sign-off, and final owner approval remain. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |

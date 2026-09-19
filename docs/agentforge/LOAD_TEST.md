@@ -10,17 +10,18 @@ and the service metrics snapshot after the run.
 Start the service with an isolated redacted trace file, then run:
 
 ```text
-node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 10 --requests 100 --out .scratch/overnight/evidence/load-10.json
-node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 50 --requests 500 --out .scratch/overnight/evidence/load-50.json
+node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 10 --requests 100 --out .scratch/agentforge-load-10.json
+node scripts/agentforge-load.mjs --base-url http://127.0.0.1:8787 --concurrency 50 --requests 500 --out .scratch/agentforge-load-50.json
 ```
 
 The harness fails if any request is non-2xx or cannot be completed. The report
 is a measured synthetic deployment result, not a production capacity claim.
 
-For a strict candidate run, set `AGENTFORGE_AUTH_MODE=signed-demo`,
-`AGENTFORGE_SYNTHETIC_CONTEXT=true`, and provide `AGENTFORGE_DEMO_SECRET`.
-The deployment bundle defaults to those synthetic settings and mounts a durable
-trace volume at `/data`.
+For a strict candidate run, set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, provide a
+server-only `AGENTFORGE_DEMO_SECRET`, and use a seeded synthetic patient. The
+load helper obtains the short-lived signed synthetic context before posting.
+The deployment bundle defaults to the synthetic context setting and mounts a
+durable trace volume at `/data`.
 
 ## Cost model boundary
 

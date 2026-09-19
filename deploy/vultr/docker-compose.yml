@@ -59,12 +59,35 @@ services:
       PORT: 8787
       AGENTFORGE_FIXTURES: /app/docs/agentforge/fixtures/clinical-cases.json
       AGENTFORGE_DEMO_SECRET: ${AGENTFORGE_DEMO_SECRET:-}
-      AGENTFORGE_AUTH_MODE: ${AGENTFORGE_AUTH_MODE:-signed-demo}
       AGENTFORGE_SYNTHETIC_CONTEXT: ${AGENTFORGE_SYNTHETIC_CONTEXT:-true}
+      AGENTFORGE_OPENEMR_MODE: ${AGENTFORGE_OPENEMR_MODE:-synthetic}
       AGENTFORGE_TRACE_PATH: ${AGENTFORGE_TRACE_PATH:-/data/traces.json}
       AGENTFORGE_PUBLIC_BASE_PATH: ${AGENTFORGE_PUBLIC_BASE_PATH:-/agentforge}
+      AGENTFORGE_OPENEMR_BASE_URL: ${AGENTFORGE_OPENEMR_BASE_URL:-http://openemr}
+      AGENTFORGE_OPENEMR_ACCESS_TOKEN: ${AGENTFORGE_OPENEMR_ACCESS_TOKEN:-}
+      AGENTFORGE_OPENEMR_TOKEN_URL: ${AGENTFORGE_OPENEMR_TOKEN_URL:-https://openemr/oauth2/default/token}
+      AGENTFORGE_OPENEMR_CLIENT_ID: ${AGENTFORGE_OPENEMR_CLIENT_ID:-}
+      AGENTFORGE_OPENEMR_CLIENT_SECRET: ${AGENTFORGE_OPENEMR_CLIENT_SECRET:-}
+      AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: ${AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH:-/run/secrets/agentforge-openemr-token.json}
+      AGENTFORGE_OPENEMR_TIMEOUT_MS: ${AGENTFORGE_OPENEMR_TIMEOUT_MS:-5000}
+      AGENTFORGE_MODEL_ENDPOINT: ${AGENTFORGE_MODEL_ENDPOINT:-}
+      AGENTFORGE_MODEL_PROTOCOL: ${AGENTFORGE_MODEL_PROTOCOL:-responses}
+      AGENTFORGE_MODEL: ${AGENTFORGE_MODEL:-configured-model}
+      AGENTFORGE_MODEL_API_KEY: ${AGENTFORGE_MODEL_API_KEY:-}
+      AGENTFORGE_MODEL_SITE_URL: ${AGENTFORGE_MODEL_SITE_URL:-}
+      AGENTFORGE_MODEL_SITE_NAME: ${AGENTFORGE_MODEL_SITE_NAME:-AgentForge}
+      AGENTFORGE_MODEL_TIMEOUT_MS: ${AGENTFORGE_MODEL_TIMEOUT_MS:-8000}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_TIMEOUT_MS: ${LANGFUSE_TIMEOUT_MS:-3000}
+      LANGFUSE_MAX_PENDING_EXPORTS: ${LANGFUSE_MAX_PENDING_EXPORTS:-16}
     volumes:
       - tracevolume:/data
+      - ../../secrets/openemr-token.json:/run/secrets/agentforge-openemr-token.json
+    networks:
+      - default
+      - agentforge-observability
     healthcheck:
       test: ['CMD', 'node', '-e', "fetch('http://localhost:8787/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -97,3 +120,7 @@ volumes:
   caddy_data: {}
   caddy_config: {}
   tracevolume: {}
+
+networks:
+  agentforge-observability:
+    name: agentforge-observability

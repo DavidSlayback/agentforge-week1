@@ -3,21 +3,21 @@
 **Status:** evidence-bounded planning model for the synthetic, read-only
 platform. This is not a production capacity or provider quote.
 
-## Observed current candidate
+## Observed historical candidate
 
-- Deployment: one Vultr Cloud Compute instance in Chicago running the pinned
+- Deployment evidence: one historical Vultr Cloud Compute instance in Chicago running the pinned
   OpenEMR, MariaDB, Caddy, and AgentForge Compose stack.
 - Instance shape at console readback: 2 vCPUs, 4,096 MB RAM, 80 GB SSD.
-- Current instance charge at the console readback: **$1.31**.
+- Historical instance charge at the console readback: **$1.31**.
 - Account billing readback: **$1.36** charged this month and **$28.64** credit
   remaining. The account figure is not attributed solely to AgentForge.
 - Provider spend in the current deterministic mode: **$0**.
-- Deployed synthetic load: 100/100 requests at concurrency 10 and 500/500 at
+- Historical deployed synthetic load: 100/100 requests at concurrency 10 and 500/500 at
   concurrency 50, with zero errors. These are bounded observations, not a
   user-capacity guarantee.
 
-Vultr bills server products hourly, so the observed partial-period charge must
-not be treated as a monthly rate. The current host's actual plan rate, storage,
+Vultr bills server products hourly, so the observed historical partial-period charge must
+not be treated as a monthly rate. The historical host's actual plan rate, storage,
 backup, and egress line items must be read from the provider account before a
 budget is approved.
 
@@ -68,6 +68,7 @@ tier, run the tier's workload against the proposed architecture and capture
 CPU, memory, database saturation, queue depth, p95/p99 latency, error rate,
 egress, and telemetry cost.
 
-Source notes: current values are from `.scratch/overnight/evidence/AF-17.md`
-and `AF-18.md`; provider billing is hourly per the [Vultr billing
+Source notes: the former AF-17/AF-18 raw evidence was retired with the
+historical queue; see `HISTORICAL_QUEUE_SUMMARY.md` for its interpretation.
+Provider billing is hourly per the [Vultr billing
 documentation](https://docs.vultr.com/support/platform/billing/how-am-i-billed-for-my-servers).

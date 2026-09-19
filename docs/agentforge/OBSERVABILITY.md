@@ -8,6 +8,22 @@ outcomes. Local runs default to a file-backed synthetic store under `/tmp`;
 the Railway deployment overrides this with `/data/traces.json` on an attached
 volume, and the exercised redeploy retained the sentinel trace.
 
+The current local implementation also has an optional Langfuse v4 OTLP exporter.
+When configured with server-only `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`,
+and `LANGFUSE_SECRET_KEY` values, it sends an explicit operational allowlist as
+one span per completed request. Prompts, responses, chart fields, patient and
+clinician identifiers, source references, and credentials are excluded before
+the HTTP request. The local file sink remains durable and authoritative when
+Langfuse is disabled or unavailable. This proves the exporter contract only;
+it does not prove that a Langfuse instance is deployed or that its dashboard
+has been read back.
+
+For the current synthetic demo, the local file sink, `/v1/metrics`,
+`/v1/alerts`, `/v1/traces`, and `/observability` page are the chosen operational
+surface. The metrics include the bounded exporter queue, dropped-export count,
+last export result, and whether an external exporter is configured. No
+self-hosted Langfuse services are required for this path.
+
 ## Initial alert definitions
 
 These are operational rules for the final deployment. They are documented now
