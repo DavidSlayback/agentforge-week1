@@ -45,3 +45,7 @@ The current scale/cost artifact is `docs/agentforge/COST_MODEL.md`. It records
 the observed Vultr/account charges separately from the synthetic zero-provider
 cost and gives the required architecture changes and cost equations for each
 scale tier.
+
+## Current candidate resource sample
+
+Candidate `8203ca6` (`sha256:b9503b2934648ea57b353ab13ee1deb933ac79eb155e69b0652920e0ae77b428`) was sampled during bounded public 10/50-concurrency runs. The AgentForge container peaked at 9.33% CPU and 1.17% memory (about 44 MiB of the 3.818 GiB container limit). These are container observations on the selected Vultr host, not host-wide saturation or production SLO evidence.

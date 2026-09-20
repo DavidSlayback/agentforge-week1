@@ -45,8 +45,9 @@ node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 50 --r
 
 Current local results are 80/80 application/eval/observability tests, 4/4
 helper/PHP tests, and 7/7 golden cases. Current bounded Qwen smoke evidence is
-10/10 successful at concurrency 10 and 47/50 at concurrency 50; larger
-workloads are not claimed as passing.
+10/10 successful at concurrency 10 and 42/50 at concurrency 50; the latter
+shows the Qwen tail-latency boundary. Container sampling peaked at 9.33% CPU
+and 1.17% memory. Larger workloads are not claimed as passing.
 
 The current deployed load and browser reports are tied to candidate `8203ca6`.
 

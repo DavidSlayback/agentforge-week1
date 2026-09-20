@@ -88,10 +88,12 @@ metrics, traces, alerts, and observability.
 
 Bounded public Qwen load observations using the current candidate:
 
-- 10 concurrent / 10 requests: 10/10 successful, 0% errors, p50 12.2s,
-  p95/p99 26.1s, 0.383 requests/second.
-- 50 concurrent / 50 requests: 47/50 successful, 6% client timeout errors,
-  p50 29.1s, p95/p99 45.0s, 1.111 requests/second.
+- 10 concurrent / 10 requests: 10/10 successful, 0% errors, p50 27.6s,
+  p95/p99 43.4s, 0.231 requests/second.
+- 50 concurrent / 50 requests: 42/50 successful, 16% client timeout errors,
+  p50 30.1s, p95/p99 45.0s, 1.111 requests/second.
+- Resource sample across both runs: AgentForge container peak CPU 9.33% and
+  peak memory 1.17% (about 44 MiB / 3.818 GiB limit).
 
 The assignment's larger 100-request and 500-request workloads are not claimed
 as passing: the 10-concurrent run was stopped after the Qwen lane exceeded a

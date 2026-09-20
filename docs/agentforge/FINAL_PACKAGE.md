@@ -28,7 +28,7 @@
 | Operations | PASS synthetic | Dashboard, alerts, traces, and route matrix read back on the packaged revision. |
 | Load/cost | Deployed load PASS; billing readback PASS; projections REVIEW | Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | PARTIAL | Current Qwen smoke evidence is 10/10 at concurrency 10 and 47/50 at concurrency 50; tail latency remains the named limitation. |
+| Deployed scale | PARTIAL | Current Qwen smoke evidence is 10/10 at concurrency 10 and 42/50 at concurrency 50; tail latency remains the named limitation. Container CPU/memory samples are recorded. |
 | Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
 | Final readback | PASS synthetic | Candidate `8203ca6` is deployed, healthy, and passed the public API collection plus clean-browser UI readback. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
