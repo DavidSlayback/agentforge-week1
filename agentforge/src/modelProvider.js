@@ -20,7 +20,7 @@ export class DeterministicProvider {
 export class OpenAICompatibleProvider {
   constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge' }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
-  async checkReachable() { return probeProviderEndpoint({ endpoint: this.endpoint, apiKey: this.apiKey, model: this.model, timeoutMs: Math.min(this.timeoutMs, 3000), body: { model: this.model, messages: [{ role: 'user', content: 'Return only OK.' }], temperature: 0, max_tokens: 16 } }); }
+  async checkReachable() { return probeProviderEndpoint({ endpoint: this.endpoint, apiKey: this.apiKey, model: this.model, timeoutMs: Math.min(this.timeoutMs, 5000), body: { model: this.model, messages: [{ role: 'user', content: 'Return only OK.' }], temperature: 0, max_tokens: 16 } }); }
   async generate({ prompt, correlationId = '' }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
     const controller = new AbortController();
@@ -54,7 +54,7 @@ export class DashScopeMultimodalProvider {
       endpoint: this.endpoint,
       apiKey: this.apiKey,
       model: this.model,
-      timeoutMs: Math.min(this.timeoutMs, 3000),
+      timeoutMs: Math.min(this.timeoutMs, 5000),
       body: { model: this.model, input: { messages: [{ role: 'user', content: [{ text: 'Return only OK.' }] }] }, parameters: { result_format: 'message', max_tokens: 16 } },
     });
   }
@@ -93,7 +93,7 @@ export class OpenAIResponsesProvider {
       endpoint: this.endpoint,
       apiKey: this.apiKey,
       model: this.model,
-      timeoutMs: Math.min(this.timeoutMs, 3000),
+      timeoutMs: Math.min(this.timeoutMs, 5000),
       body: { model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: 'Return only OK.' }] }], temperature: 0, max_output_tokens: 16 },
     });
   }
