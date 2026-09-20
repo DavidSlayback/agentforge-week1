@@ -7,12 +7,12 @@
 
 ## Current candidate override — 2026-09-20
 
-The current candidate is `8203ca6` on this branch and is deployed at
+The current candidate is `88420c1` on this branch and is deployed at
 `https://dtstest.64.177.10.182.nip.io/agentforge/`. The container is healthy;
 the public API collection and clean-browser readback pass. The physician-facing
 surface now presents a readable visit orientation with grouped facts and
-expandable provenance. Qwen remains active. OpenRouter is configured only as a
-dormant server-side mode and was not called. The only intentionally unfinished
+expandable provenance. Qwen remains active for synthesis and OpenRouter is active
+for follow-ups. The only intentionally unfinished
 submission artifact is the video; bounded Qwen tail latency and host resource
 baselines remain documented limitations, not hidden claims.
 

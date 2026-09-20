@@ -2,7 +2,8 @@
 
 > Current synthetic checkpoint package. Candidate evidence is tracked in
 > `RELEASE_READINESS.md` and `REQUIREMENTS_MATRIX.md`; the video is the only
-> intentionally unfinished artifact and OpenRouter remains dormant.
+> intentionally unfinished artifact. Qwen remains the synthesis lane and
+> OpenRouter Gemini Flash-Lite handles follow-ups.
 
 ## Release position
 
@@ -11,8 +12,8 @@ This repository contains a synthetic, read-only, production-shaped AgentForge
 
 `https://dtstest.64.177.10.182.nip.io/agentforge/`
 
-The current deployed candidate is `8203ca6`; Qwen is active and OpenRouter was
-not called. No external publication occurred.
+The current deployed candidate is `88420c1`; Qwen is active for synthesis and
+OpenRouter is active for follow-ups. No external publication occurred.
 
 ## What the synthetic checkpoint proves
 
@@ -49,7 +50,7 @@ helper/PHP tests, and 7/7 golden cases. Current bounded Qwen smoke evidence is
 shows the Qwen tail-latency boundary. Container sampling peaked at 9.33% CPU
 and 1.17% memory. Larger workloads are not claimed as passing.
 
-The current deployed load and browser reports are tied to candidate `8203ca6`.
+The current deployed load and live API reports are tied to candidate `88420c1`.
 
 ## Reviewer path
 

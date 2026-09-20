@@ -1,7 +1,7 @@
 # AgentForge release-readiness evidence map
 
 **Checkpoint:** 2026-09-19, America/Chicago  
-**Candidate commit:** `8203ca6` (`fix: format follow-up evidence for clinicians`)
+**Candidate commit:** `88420c1` (`fix: preserve prewarm correlation identifiers`)
 **Decision:** Conditionally ready for the synthetic checkpoint; the exact
 candidate is now deployed and read back, with the remaining load and packaging
 limitations recorded below.  
@@ -23,7 +23,7 @@ the final OpenRouter step, and no demo/submission upload.
 | Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Golden safety gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete for synthetic checkpoint. |
 | Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public browser shows the same visual dashboard and redacted trace panels | Done for synthetic checkpoint. |
 | Metrics and alert semantics | `/v1/metrics`, `/v1/alerts`, bounded-window evaluator | Three alert rules render locally; tool-failure alert fires over active synthetic window | Public endpoint and dashboard readback pass | Done for synthetic checkpoint; external notification ownership remains open. |
-| Provider lane | Qwen remains active behind the provider seam; dormant OpenRouter mode is configured server-side; deterministic fallback retained | Provider tests and current Qwen-compatible local behavior | Current public runtime is healthy; OpenRouter is not called | Keep Qwen through submission evidence; switch to OpenRouter only in the final authorized migration step. |
+| Provider lane | Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-up; deterministic fallback retained | Provider tests and live trace readback | Current public runtime is healthy; both primary lanes were observed | Keep the split lanes through submission. |
 | Observability redaction | Redacted trace sink and dashboard rendering | Observability tests pass; browser shows metadata only | Public redaction readback remains candidate-scoped | Partial: verify deployed dashboard contains no sensitive content. |
 | Submission/demo artifacts | Existing submission/interview docs and user-owned media | Not re-recorded or mutated | No external upload/share performed | Owner-owned final step; do not alter media here. |
 
@@ -101,14 +101,14 @@ practical runtime budget, and the 50-concurrent smoke run exposed the same
 tail-latency/capacity issue. The load harness now has a bounded client timeout
 so this failure mode is reproducible rather than a hanging process.
 
-The provider configuration now includes a dormant OpenRouter lane. The public
+The provider configuration now includes an active OpenRouter conversation lane. The public
 runtime remains on `AGENTFORGE_PROVIDER_MODE=qwen`; the OpenRouter credential is
 stored only in the server-side `.env` and was not exercised during verification.
 
 ## Final candidate readback — 2026-09-19
 
-Commit `8203ca6` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
-The deployed AgentForge image is `sha256:b9503b2934648ea57b353ab13ee1deb933ac79eb155e69b0652920e0ae77b428`;
+Commit `88420c1` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
+The live service readback is the authoritative deployment evidence for this candidate.
 the container reports healthy. Public readback passed `/health`, `/ready`,
 `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` with HTTP 200.
 The full API collection also passed complete and partial briefing, follow-up,

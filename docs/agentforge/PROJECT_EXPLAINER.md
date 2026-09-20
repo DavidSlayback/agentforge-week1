@@ -52,7 +52,7 @@ Fresh local checks on this branch, verified 2026-09-19, pass:
 
 The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the synthetic workflow through the configured Qwen lane and `/ready` returns 200. The current candidate has 10/10 successful requests at concurrency 10 and 47/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
 
-On 2026-09-19/20, strict HTTPS and a clean browser verified the externally reachable briefing and follow-up workflow on candidate `8203ca6`. The current readback returned HTTP 200 for `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts`; the API collection also passed complete, partial, follow-up, blocked, invalid-request, and observability checks. The browser surface now presents grouped physician-readable facts and expandable source records. These are synthetic candidate-scoped observations, not production-capacity or clinical-usefulness claims.
+On 2026-09-20, strict HTTPS and live API readback verified the externally reachable briefing, prewarm, and follow-up workflow on candidate `88420c1`. The current readback returned HTTP 200 for `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts`; the API collection and synthetic prewarm/open flow passed. These are candidate-scoped observations, not production-capacity claims.
 
 ## Status by area
 
@@ -62,9 +62,9 @@ On 2026-09-19/20, strict HTTPS and a clean browser verified the externally reach
 | Audit, users, architecture, metrics, and safety boundary | Done for the documented checkpoint | The documents exist and are internally useful; production claims remain out of scope. |
 | Conversational UI and follow-up flow | Implemented synthetic | Current candidate is deployed and browser-verified with physician-readable grouped facts, follow-up prompts, evidence expansion, reset, and blocked probe. |
 | Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; live OpenEMR equivalence and current-candidate deployment proof are missing. |
-| Contracts, API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Current public API collection and visual dashboard readback pass on candidate `8203ca6`. |
-| Load evidence | Partial | Current bounded Qwen smoke evidence is 10/10 at concurrency 10 and 47/50 at concurrency 50; host CPU/memory capture and larger workloads remain open. |
-| Provider/model | Synthetic Qwen lane retained for now; OpenRouter is a future migration candidate | The server-only credential rotation restored primary `qwen3.6-flash` responses on Vultr; deterministic fallback remains available. No BAA, PHI approval, cost, retention, or production suitability is established. |
+| Contracts, prewarm/API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Current public prewarm/open readback and visual dashboard pass on candidate `88420c1`. |
+| Load evidence | Partial | Current split-lane evidence is 10/10 at concurrency 10 and 46/50 at concurrency 50; tail latency remains the named limitation. |
+| Provider/model | Split synthetic lanes | Qwen handles synthesis and OpenRouter Gemini Flash-Lite handles follow-ups; deterministic fallback remains available. |
 | OpenEMR integration | Implemented for synthetic E2E | Read-only OAuth user-context retrieval, seeded synthetic records, PID→UUID launch, and deployed synthetic readback are current candidate evidence. PHI, production identity semantics, and compliance remain out of scope. |
 | PHI/HIPAA/BAA/compliance readiness | Blocked/out of scope | No PHI, clinical write-back, production compliance, or provider suitability is established. |
 | Cost and scale | Partial | Cost model and 100/1K/10K/100K architecture projections exist; deployment-specific billing attribution and host resource baseline remain open. |
