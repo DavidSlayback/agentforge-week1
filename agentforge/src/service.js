@@ -158,8 +158,8 @@ export class AgentForgeService {
     trace?.finishStage('cache', { status: 'hit' });
     trace?.startStage('verification');
     trace?.finishStage('verification', { status: conversation.response.verification.status });
-    trace?.startStage('display');
     const response = await followUpFromBriefing(id, conversation.response, request.message, this.conversationProvider, trace);
+    trace?.startStage('display');
     const responseValidation = validateFollowUpResponse(response);
     if (!responseValidation.valid) {
       const result = blockedResult(id, 'response_contract_invalid');
