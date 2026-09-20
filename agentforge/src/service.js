@@ -1,4 +1,5 @@
 import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageFailure, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse, validateRetrievalResult } from './contracts.js';
+import { verifyGeneratedText } from './verifier.js';
 import { fileURLToPath } from 'node:url';
 import { PreparationCache } from './preparationCache.js';
 
@@ -28,9 +29,10 @@ function evidence(record, patientRef) {
 
 /** Orchestrates the read-only authorization, retrieval, verification, and display boundary. */
 export class AgentForgeService {
-  constructor({ adapter, provider, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000 }) {
+  constructor({ adapter, provider, conversationProvider = null, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000 }) {
     this.adapter = adapter;
     this.provider = provider;
+    this.conversationProvider = conversationProvider;
     this.traceSink = traceSink;
     this.cache = cache;
     this.freshRetrievalDeadlineMs = freshRetrievalDeadlineMs;
@@ -102,7 +104,6 @@ export class AgentForgeService {
     }
     trace?.startStage('model');
     const prompt = `Prepare a read-only return-visit orientation for ${item.patient.display_name}. Use only these exact evidence-backed field/value pairs: ${claims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ')}. Repeat at least one exact field/value pair in the response. Do not diagnose, recommend, prescribe, order, or suggest a medication change. Return no more than two sentences.`;
-    const { verifyGeneratedText } = await import('./verifier.js');
     const generated = await this.provider.generate({ patient: item.patient, claims, qualification, prompt, correlationId: id }, { trace, validate: (candidate) => verifyGeneratedText({ text: candidate.text, claims }) });
     trace?.recordModelUsage({ provider: generated.provider_name || this.provider.name, model: generated.model_name || this.provider.model, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens, estimatedCostUsd: generated.estimatedCostUsd, provider_fallback: generated.provider_fallback, provider_status: generated.provider_status, provider_error_code: generated.provider_error_code });
     trace?.finishStage('model', { status: generated.provider_fallback ? 'fallback' : 'success', provider_status: generated.provider_status || 'primary' });
@@ -145,7 +146,7 @@ export class AgentForgeService {
       // may repopulate this correlation ID.
       this.cache.delete(id);
       const refreshed = await this.prepare({ ...cacheResult.entry.request, correlation_id: id }, { verifiedContext, interactionType: 'fresh_followup', deadlineMs: this.freshRetrievalDeadlineMs });
-      const response = followUpFromBriefing(id, refreshed, request.message);
+      const response = await followUpFromBriefing(id, refreshed, request.message, this.conversationProvider, trace);
       trace?.setDisplay({ status: response.disposition === 'blocked' || response.disposition === 'deadline-exceeded' ? 'withheld' : 'displayed' });
       trace?.complete({ status: response.disposition === 'complete' || response.disposition === 'partial' || response.disposition === 'qualified' ? 'success' : response.disposition, deadlineOutcome: response.deadline?.outcome || 'within_deadline' });
       return response;
@@ -158,7 +159,7 @@ export class AgentForgeService {
     trace?.startStage('verification');
     trace?.finishStage('verification', { status: conversation.response.verification.status });
     trace?.startStage('display');
-    const response = followUpFromBriefing(id, conversation.response, request.message);
+    const response = await followUpFromBriefing(id, conversation.response, request.message, this.conversationProvider, trace);
     const responseValidation = validateFollowUpResponse(response);
     if (!responseValidation.valid) {
       const result = blockedResult(id, 'response_contract_invalid');
@@ -176,7 +177,7 @@ export class AgentForgeService {
   }
 }
 
-function followUpFromBriefing(id, briefing, message) {
+async function followUpFromBriefing(id, briefing, message, conversationProvider = null, trace = null) {
   if (briefing.disposition === 'blocked' || briefing.disposition === 'deadline-exceeded' || briefing.verification?.status !== 'passed') {
     return { ...blockedResult(id, briefing.qualification?.reasons?.[0] || briefing.disposition, briefing.disposition), deadline: briefing.deadline };
   }
@@ -200,7 +201,7 @@ function followUpFromBriefing(id, briefing, message) {
   } else {
     text = `Follow-up for ${briefing.context.patient_ref}: the relevant documented evidence is ${claimText || 'not available'}. The answer is limited to these verified records.`;
   }
-  return {
+  const response = {
     contract_version: CONTRACT_VERSION,
     correlation_id: id,
     disposition: briefing.disposition,
@@ -216,6 +217,18 @@ function followUpFromBriefing(id, briefing, message) {
     verification: briefing.verification,
     ...(briefing.deadline ? { deadline: briefing.deadline } : {}),
   };
+  if (!conversationProvider || conversationProvider.name === 'deterministic') return response;
+  const prompt = `Answer the clinician's follow-up question using only these verified evidence pairs: ${selectedClaims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ')}. Question: ${question}. Safe baseline answer: ${text} Preserve its uncertainty and do not diagnose, recommend, prescribe, order, or infer a change. Return no more than two sentences and repeat one exact evidence pair.`;
+  try {
+    trace?.startStage('model');
+    const generated = await conversationProvider.generate({ patient: briefing.patient, claims: selectedClaims, qualification: briefing.qualification, prompt, correlationId: id }, { trace, validate: (candidate) => verifyGeneratedText({ text: candidate.text, claims: selectedClaims }) });
+    trace?.recordModelUsage({ provider: generated.provider_name || conversationProvider.name, model: generated.model_name || conversationProvider.model, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens, estimatedCostUsd: generated.estimatedCostUsd, provider_fallback: generated.provider_fallback, provider_status: generated.provider_status, provider_error_code: generated.provider_error_code });
+    trace?.finishStage('model', { status: generated.provider_fallback ? 'fallback' : 'success', provider_status: generated.provider_status || 'primary' });
+    if (!generated.provider_fallback && typeof generated.text === 'string' && generated.text.trim()) response.text = generated.text.trim();
+  } catch {
+    trace?.finishStage('model', { status: 'fallback' });
+  }
+  return response;
 }
 
 function formatClaim(claim) {

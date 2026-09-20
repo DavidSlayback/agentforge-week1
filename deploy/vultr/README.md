@@ -94,6 +94,27 @@ model, and redeploy the AgentForge service. Do not put the key in the
 repository, browser URL, traces, or prompt data. Run the full evaluation,
 failure, API-collection, and dashboard readback gates after switching.
 
+## Optional split provider lanes
+
+For a calendar-driven workflow, keep the synthesis lane on Qwen and opt into a
+separate low-cost conversation lane only after it has been funded and tested.
+The conversation model receives the cached, verified evidence package; it does
+not retrieve records or decide what claims are displayable. If it fails or
+returns ungrounded text, the deterministic evidence-only answer is used.
+
+```dotenv
+AGENTFORGE_PROVIDER_MODE=qwen
+AGENTFORGE_CONVERSATION_PROVIDER_MODE=openrouter
+AGENTFORGE_CONVERSATION_OPENROUTER_API_KEY=<server-only-openrouter-key>
+AGENTFORGE_CONVERSATION_OPENROUTER_MODEL=inception/mercury-2.5
+AGENTFORGE_CONVERSATION_OPENROUTER_TIMEOUT_MS=5000
+```
+
+The calendar integration should call the existing preparation service ahead of
+the scheduled visit, persist the returned correlation ID, and open the cached
+briefing when the clinician enters the encounter. This deployment keeps the
+lane opt-in and does not activate it by default.
+
 ## Optional self-hosted Langfuse lane
 
 The AgentForge container can export redacted operational spans to a separately

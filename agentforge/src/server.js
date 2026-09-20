@@ -18,17 +18,26 @@ import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../..
  * with retries and deterministic fallback.
  */
 const providerMode = process.env.AGENTFORGE_PROVIDER_MODE || 'qwen';
-const openRouterMode = providerMode === 'openrouter';
-const providerOptions = openRouterMode
-  ? { endpoint: process.env.AGENTFORGE_OPENROUTER_ENDPOINT || 'https://openrouter.ai/api/v1/chat/completions', apiKey: process.env.AGENTFORGE_OPENROUTER_API_KEY, model: process.env.AGENTFORGE_OPENROUTER_MODEL || '', timeoutMs: Number(process.env.AGENTFORGE_OPENROUTER_TIMEOUT_MS || 8000) }
-  : { endpoint: process.env.AGENTFORGE_MODEL_ENDPOINT, apiKey: process.env.AGENTFORGE_MODEL_API_KEY, model: process.env.AGENTFORGE_MODEL || 'configured-model', timeoutMs: Number(process.env.AGENTFORGE_MODEL_TIMEOUT_MS || 8000) };
-const configuredProvider = openRouterMode
-  ? new OpenAICompatibleProvider({ ...providerOptions, siteUrl: process.env.AGENTFORGE_OPENROUTER_SITE_URL || '', siteName: process.env.AGENTFORGE_OPENROUTER_SITE_NAME || 'AgentForge' })
-  : process.env.AGENTFORGE_MODEL_ENDPOINT
-    ? (process.env.AGENTFORGE_MODEL_PROTOCOL === 'dashscope-multimodal' ? new DashScopeMultimodalProvider(providerOptions) : process.env.AGENTFORGE_MODEL_PROTOCOL === 'responses' ? new OpenAIResponsesProvider(providerOptions) : new OpenAICompatibleProvider({ ...providerOptions, siteUrl: process.env.AGENTFORGE_MODEL_SITE_URL || '', siteName: process.env.AGENTFORGE_MODEL_SITE_NAME || 'AgentForge' }))
-    : new DeterministicProvider();
+const conversationProviderMode = process.env.AGENTFORGE_CONVERSATION_PROVIDER_MODE || '';
+const buildProvider = (mode, role = 'synthesis') => {
+  if (!mode || mode === 'deterministic') return new DeterministicProvider();
+  const prefix = role === 'conversation' ? 'AGENTFORGE_CONVERSATION_' : '';
+  const openRouter = mode === 'openrouter';
+  const endpoint = process.env[`${prefix}${openRouter ? 'OPENROUTER_ENDPOINT' : 'MODEL_ENDPOINT'}`] || process.env[openRouter ? 'AGENTFORGE_OPENROUTER_ENDPOINT' : 'AGENTFORGE_MODEL_ENDPOINT'] || (openRouter ? 'https://openrouter.ai/api/v1/chat/completions' : '');
+  const apiKey = process.env[`${prefix}${openRouter ? 'OPENROUTER_API_KEY' : 'MODEL_API_KEY'}`] || process.env[openRouter ? 'AGENTFORGE_OPENROUTER_API_KEY' : 'AGENTFORGE_MODEL_API_KEY'];
+  const model = process.env[`${prefix}${openRouter ? 'OPENROUTER_MODEL' : 'MODEL'}`] || process.env[openRouter ? 'AGENTFORGE_OPENROUTER_MODEL' : 'AGENTFORGE_MODEL'] || '';
+  const timeoutMs = Number(process.env[`${prefix}${openRouter ? 'OPENROUTER_TIMEOUT_MS' : 'MODEL_TIMEOUT_MS'}`] || process.env[openRouter ? 'AGENTFORGE_OPENROUTER_TIMEOUT_MS' : 'AGENTFORGE_MODEL_TIMEOUT_MS'] || 8000);
+  const protocol = process.env[`${prefix}MODEL_PROTOCOL`] || process.env.AGENTFORGE_MODEL_PROTOCOL || 'compatible';
+  if (!endpoint && !apiKey) return new DeterministicProvider();
+  const options = { endpoint, apiKey, model, timeoutMs };
+  const configured = openRouter || protocol === 'compatible' ? new OpenAICompatibleProvider({ ...options, siteUrl: process.env[`${prefix}${openRouter ? 'OPENROUTER_SITE_URL' : 'MODEL_SITE_URL'}`] || '', siteName: process.env[`${prefix}${openRouter ? 'OPENROUTER_SITE_NAME' : 'MODEL_SITE_NAME'}`] || 'AgentForge' }) : protocol === 'dashscope-multimodal' ? new DashScopeMultimodalProvider(options) : new OpenAIResponsesProvider(options);
+  return new ResilientProvider({ primary: configured, fallback: new DeterministicProvider() });
+};
 const publicBasePath = process.env.AGENTFORGE_PUBLIC_BASE_PATH || '';
-const provider = new ResilientProvider({ primary: configuredProvider, fallback: new DeterministicProvider() });
+const provider = buildProvider(providerMode);
+// Optional cheap interactive lane. It is deliberately opt-in so the existing
+// Qwen-only deployment remains unchanged until a model and budget are approved.
+const conversationProvider = conversationProviderMode ? buildProvider(conversationProviderMode, 'conversation') : null;
 const openEMRMode = process.env.AGENTFORGE_OPENEMR_MODE || 'synthetic';
 const liveOpenEMR = openEMRMode === 'live';
 const validOpenEMRMode = openEMRMode === 'synthetic' || openEMRMode === 'live';
@@ -44,18 +53,23 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ adapter, provider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000) });
+const service = new AgentForgeService({ adapter, provider, conversationProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000) });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
-let providerProbe = { checkedAt: 0, reachable: null };
+let providerProbe = new Map();
 const modelReadiness = { checkReady: async () => {
-  if (!await provider.checkReady()) return false;
-  if (provider.name === 'deterministic') return true;
-  const now = Date.now();
-  if (providerProbe.reachable !== null && now - providerProbe.checkedAt < 30000) return providerProbe.reachable;
-  providerProbe = { checkedAt: now, reachable: await provider.checkReachable() };
-  return providerProbe.reachable;
+  for (const candidate of [provider, conversationProvider].filter(Boolean)) {
+    if (!await candidate.checkReady()) return false;
+    if (candidate.name === 'deterministic') continue;
+    const now = Date.now();
+    const cached = providerProbe.get(candidate);
+    if (cached && now - cached.checkedAt < 30000) { if (!cached.reachable) return false; continue; }
+    const reachable = await candidate.checkReachable();
+    providerProbe.set(candidate, { checkedAt: now, reachable });
+    if (!reachable) return false;
+  }
+  return true;
 } };
 const readiness = createReadinessChecker({
   configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },

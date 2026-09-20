@@ -351,3 +351,22 @@ failure-policy evidence.
 - **Boundary:** The API key stays in the remote root `.env`; it is never written
   to the repository, browser URL, traces, or prompt data. No OpenRouter request
   is made until the final migration step is authorized.
+
+## ADR-019: Split ahead-of-visit synthesis from interactive conversation
+
+- **Choice:** Keep the synthesis provider on the capable Qwen lane and prepare
+  the evidence-backed briefing ahead of the scheduled visit. Add an opt-in,
+  separately configured conversation provider for low-latency follow-ups.
+- **Initial conversation candidate:** `inception/mercury-2.5` through
+  OpenRouter at the currently listed $0.04/M input and $0.15/M output. This is
+  a candidate for testing, not an activated deployment setting.
+- **Safety boundary:** The conversation model receives only the cached,
+  verified evidence package and question. It cannot retrieve records or decide
+  whether a claim is displayable; failed or ungrounded output falls back to the
+  deterministic evidence-only answer.
+- **Configuration:** Set `AGENTFORGE_CONVERSATION_PROVIDER_MODE` and the
+  corresponding server-only conversation model variables. Leaving the mode
+  blank preserves the current Qwen-only behavior.
+- **Next integration seam:** A calendar adapter should call the preparation
+  service before the scheduled encounter, persist the correlation ID, and open
+  the cached briefing when the clinician enters the visit.
