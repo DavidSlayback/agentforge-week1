@@ -1,4 +1,5 @@
 import { COMPLETE_COVERAGE_GROUPS, COVERAGE_STATUSES, coverageGroupForField, isAllowedReadOperation, isCoverageUnavailable } from './contracts.js';
+import { clinicalLabel } from './clinicalLanguage.js';
 
 /** Verify patient scope, coverage qualification, and the read-only operation set. */
 export function verify({ patientRef, claims = [], coverage = [], qualification = {}, operations = [], disposition = null }) {
@@ -27,7 +28,15 @@ export function verifyGeneratedText({ text, claims }) {
   if (typeof text !== 'string' || !text.trim()) issues.push('EMPTY_MODEL_OUTPUT');
   if (typeof text === 'string' && text.length > 2000) issues.push('MODEL_OUTPUT_TOO_LONG');
   if (typeof text === 'string' && /\b(diagnos|recommend|prescrib|start|stop|increase|decrease|order|treat|urgent)\w*/i.test(text)) issues.push('UNSAFE_CLINICAL_ACTION_LANGUAGE');
-  const anchored = typeof text === 'string' && (claims || []).some((claim) => text.includes(claim.field) && text.includes(String(claim.value)));
+  const normalize = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const normalizedText = normalize(text || '');
+  const anchored = typeof text === 'string' && (claims || []).some((claim) => {
+    const value = normalize(claim.value);
+    const label = normalize(clinicalLabel(claim.field));
+    // Short generic values such as "active" must name the clinical concept.
+    // Longer verbatim note excerpts may carry their own specific context.
+    return value && normalizedText.includes(value) && (normalizedText.includes(label) || value.split(' ').length >= 5);
+  });
   if ((claims || []).length && !anchored) issues.push('OUTPUT_NOT_EVIDENCE_ANCHORED');
   return { status: issues.length ? 'failed' : 'passed', issues, evidence_grounding: issues.includes('OUTPUT_NOT_EVIDENCE_ANCHORED') ? 'failed' : 'passed', read_only: issues.includes('UNSAFE_CLINICAL_ACTION_LANGUAGE') ? 'failed' : 'passed' };
 }

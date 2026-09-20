@@ -20,7 +20,10 @@ Build one governed synthetic vertical path:
 
 Use `agentforge/src/contracts.js` as the executable contract authority. Keep OpenEMR, retrieval, provider, verifier, and observability behind replaceable interfaces. Adopt self-hosted Langfuse as the observability UI and trace backend, exporting only redacted synthetic metadata. Keep the local trace sink as a fail-safe and test oracle until external ingestion and dashboard readback are proven.
 
-OpenRouter remains a future comparison candidate. The current authorized Alibaba Cloud Model Studio lane uses Qwen3.6 Flash through the compatible Responses interface; the deterministic provider remains the safe baseline and fallback. This does not authorize PHI.
+The current synthetic deployment uses Qwen3.6 Flash through the compatible
+Responses interface for ahead-of-visit synthesis and an OpenRouter-hosted
+Gemini Flash-Lite lane for patient-scoped follow-ups. The deterministic provider
+remains the safe baseline and fallback. This does not authorize PHI.
 
 ## User Stories
 
@@ -50,7 +53,10 @@ OpenRouter remains a future comparison candidate. The current authorized Alibaba
 - Langfuse is the selected self-hosted observability platform. AgentForge’s redaction and trace contract run before export and remain authoritative for safety tests.
 - Langfuse ingestion must be fail-safe: observability outage must not expose raw content or make the clinical-facing synthetic response unsafe. The local sink remains available for tests and bounded recovery.
 - The dashboard must expose requests, errors, p50/p95/p99 latency, retrieval/tool attempts, retries, queue depth, verification outcomes, display outcomes, provider fallback, and alert state with explicit time-window semantics.
-- The first live-provider bakeoff compares the deterministic baseline against one configured OpenAI-compatible provider at a time. Candidate endpoints may be OpenRouter or Alibaba Model Studio; exact model IDs, region/base URL, budget, and retention are recorded from the provider account rather than guessed from a draft name.
+- Provider comparisons remain synthetic-only and provider-specific. The current
+  split lane is Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-ups;
+  exact endpoint, model, budget, and retention claims must come from the
+  server-side deployment evidence rather than draft names.
 - Provider activation is permitted for synthetic data once the owner supplies the key through the approved secret path. No key is committed, pasted into source, or used with PHI.
 
 ## Testing Decisions

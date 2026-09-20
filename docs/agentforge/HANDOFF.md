@@ -19,7 +19,7 @@ baselines remain documented limitations, not hidden claims.
 ## Post-rebaseline update — 2026-09-19
 
 - The assignment source, inventory, explainer, requirements matrix, and Wayfinder map were refreshed against current code and evidence.
-- Fresh local proof on 2026-09-19 is 50/50 AgentForge tests, 10/10 evals, 17/17 observability tests, and 80/80 application suites, plus 4/4 helper/PHP/provider regressions (84/84 broader checked set). The latest observability cases lock the distinction between blocked safety outcomes and operational errors, preserve bounded alert windows through the durable trace sink, enforce the documented 2% tool-failure threshold, and keep unsafe provider readback fail-closed.
+- Fresh local proof on 2026-09-20 is 87/87 across the checked AgentForge, evaluation, observability, helper, PHP, provider, and load-harness suites. The local golden corpus is 9/9; the deployed saved report remains a prior 7-case snapshot. The latest observability cases lock the distinction between blocked safety outcomes and operational errors, preserve bounded alert windows through the durable trace sink, enforce the documented 2% tool-failure threshold, and keep unsafe provider readback fail-closed.
 - B authorization hardening is implemented in the published stack: signed context is immutable and expiry is rechecked at authorization time; live adapter defaults require the OpenEMR module issuer, session authentication, clinician role, and read scope. Current Vultr readback proves only the selected synthetic/read-only path, not production identity semantics.
 - Vultr readback verifies server-only OAuth user-context retrieval and seeded synthetic records. It also records the Alibaba-compatible `qwen3.6-flash` lane activated for no-PHI synthetic evaluation; the local/default behavior remains deterministic with fallback.
 - ADR-015 selects the production-grade authorization direction for future readiness: per-request synthetic user-context token or introspection semantics, with subject, active-patient, read scope, expiry/revocation, and role-denial checks. This is a simulated boundary only; no PHI, chart writes, or production authorization claim is permitted.
@@ -62,7 +62,8 @@ historical section; use the current candidate override above for release work.
   evidence must remain labeled as bounded synthetic observations, and CPU,
   memory, database saturation, and provider cost are not capacity claims.
 - Provider activation beyond the already authorized synthetic Qwen lane, PHI,
-  chart writes, publication, and final OpenRouter migration remain owner-gated.
+  chart writes and publication remain owner-gated; the current OpenRouter
+  follow-up lane is already bounded to synthetic evidence.
 
 ## First phase: cleanup and rebaseline
 
@@ -106,8 +107,7 @@ Treat these as audit hypotheses until refreshed against the source assignment, c
 The prior audit reported these results, subject to fresh readback:
 
 - AgentForge tests: 20/20.
-- Evaluations: 10/10.
-- Observability tests: 9/9.
+- Historical handoff snapshot: evaluations 10/10 and observability tests 9/9.
 - Public route/API/readiness/evaluator/observability checks: reported passing at prior Railway/Vultr targets.
 - Signed synthetic load evidence: 100/100 at concurrency 10 and 500/500 at concurrency 50 in recorded local reports; deployed-versus-local scope must be distinguished.
 - A current Vultr hostname and a Railway canonical origin are recorded in project artifacts. URLs, certificates, deployments, billing, and commit state are mutable and require fresh verification before final claims.

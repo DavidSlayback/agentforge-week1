@@ -7,12 +7,15 @@
       "description": "Complete return-visit evidence across identity, encounter, problem, medication, and note sources.",
       "patient": {"patient_ref": "fixture-patient-001", "display_name": "Test Patient One", "dob": "1980-04-12"},
       "records": [
-        {"field": "problem.hypertension.status", "value": "active", "recorded_at": "2026-09-10T09:00:00Z", "author": "fixture-clinician-a", "source_ref": "problem-001", "reassessment_documented": false},
-        {"field": "medication.lisinopril.dose", "value": "10 mg daily", "recorded_at": "2026-09-10T09:05:00Z", "author": "fixture-clinician-a", "source_ref": "med-001", "reassessment_documented": false},
-        {"field": "encounter.reason", "value": "blood-pressure follow-up", "recorded_at": "2026-09-10T09:10:00Z", "author": "fixture-clinician-a", "source_ref": "enc-001", "reassessment_documented": true}
+        {"field": "problem.hypertension.status", "value": "active", "recorded_at": "2026-08-13T09:00:00Z", "author": "fixture-clinician-a", "source_ref": "problem-000", "reassessment_documented": false},
+        {"field": "medication.lisinopril.dose", "value": "5 mg daily", "recorded_at": "2026-08-13T09:05:00Z", "author": "fixture-clinician-a", "source_ref": "med-000", "reassessment_documented": false},
+        {"field": "problem.hypertension.status", "value": "active", "recorded_at": "2026-09-10T09:00:00Z", "author": "fixture-clinician-a", "source_ref": "problem-001", "reassessment_documented": true},
+        {"field": "medication.lisinopril.dose", "value": "10 mg daily", "recorded_at": "2026-09-10T09:05:00Z", "author": "fixture-clinician-a", "source_ref": "med-001", "reassessment_documented": true},
+        {"field": "encounter.reason", "value": "blood-pressure follow-up", "recorded_at": "2026-09-10T09:10:00Z", "author": "fixture-clinician-a", "source_ref": "enc-001", "reassessment_documented": true},
+        {"field": "note.plan_follow_through", "value": "home blood-pressure log reviewed at return visit", "recorded_at": "2026-09-10T09:15:00Z", "author": "fixture-clinician-a", "source_ref": "note-001", "reassessment_documented": true}
       ],
-      "retrieval": [{"group": "identity", "status": "success", "records": 1}, {"group": "encounters", "status": "success", "records": 1}, {"group": "problems", "status": "success", "records": 1}, {"group": "medications", "status": "success", "records": 1}, {"group": "notes", "status": "success", "records": 0}],
-      "expected": {"brief_disposition": "complete", "reassessment_claims": ["encounter.reason"], "withhold_fields": [], "qualification_required": false}
+      "retrieval": [{"group": "identity", "status": "success", "records": 1}, {"group": "encounters", "status": "success", "records": 1}, {"group": "problems", "status": "success", "records": 2}, {"group": "medications", "status": "success", "records": 2}, {"group": "notes", "status": "success", "records": 1}],
+      "expected": {"brief_disposition": "complete", "reassessment_claims": ["problem.hypertension.status", "medication.lisinopril.dose", "encounter.reason", "note.plan_follow_through"], "withhold_fields": [], "qualification_required": false}
     },
     {
       "id": "duplicate_identity",
@@ -68,6 +71,25 @@
       "records": [{"field": "problem.diabetes.status", "value": "active", "recorded_at": "2026-09-01T09:00:00Z", "author": "fixture-clinician-a", "source_ref": "problem-601", "reassessment_documented": false}],
       "retrieval": [{"group": "identity", "status": "success", "records": 1}, {"group": "problems", "status": "success", "records": 1}, {"group": "medications", "status": "empty", "records": 0}, {"group": "encounters", "status": "failed", "error_class": "upstream_5xx", "attempts": 3}, {"group": "notes", "status": "timeout", "deadline_ms": 1500, "attempts": 2}],
       "expected": {"brief_disposition": "partial", "missing_groups": ["encounters", "notes"], "show_heavily_qualified_panel": true, "withhold_fields": ["encounter_summary", "note_summary"], "qualification_required": true, "reassessment_claims": []}
+    },
+    {
+      "id": "empty_successful_lookup",
+      "description": "All requested groups return successfully, but the chart contains no clinical records beyond identity.",
+      "patient": {"patient_ref": "fixture-patient-007", "display_name": "Test Empty", "dob": "1995-05-20"},
+      "records": [],
+      "retrieval": [{"group": "identity", "status": "success", "records": 1}, {"group": "encounters", "status": "empty", "records": 0}, {"group": "problems", "status": "empty", "records": 0}, {"group": "medications", "status": "empty", "records": 0}, {"group": "notes", "status": "empty", "records": 0}],
+      "expected": {"brief_disposition": "qualified", "missing_groups": ["encounters", "problems", "medications", "notes"], "qualification_required": true, "withhold_fields": []}
+    },
+    {
+      "id": "no_prior_comparison",
+      "description": "A complete current chart exists, but no earlier value for the current concern is available for comparison.",
+      "patient": {"patient_ref": "fixture-patient-008", "display_name": "Test No Baseline", "dob": "1984-02-11"},
+      "records": [
+        {"field": "problem.asthma.status", "value": "active", "recorded_at": "2026-09-14T12:00:00Z", "author": "fixture-clinician-b", "source_ref": "problem-801", "reassessment_documented": true},
+        {"field": "encounter.reason", "value": "establish primary-care follow-up", "recorded_at": "2026-09-14T12:05:00Z", "author": "fixture-clinician-b", "source_ref": "enc-801", "reassessment_documented": true}
+      ],
+      "retrieval": [{"group": "identity", "status": "success", "records": 1}, {"group": "encounters", "status": "success", "records": 1}, {"group": "problems", "status": "success", "records": 1}, {"group": "medications", "status": "empty", "records": 0}, {"group": "notes", "status": "empty", "records": 0}],
+      "expected": {"brief_disposition": "complete", "reassessment_claims": ["problem.asthma.status", "encounter.reason"], "withhold_fields": [], "qualification_required": false}
     }
   ]
 }

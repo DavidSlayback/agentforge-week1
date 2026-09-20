@@ -27,8 +27,8 @@ export function coverageGroupForField(field) {
 export const API_CONTRACTS = Object.freeze({
   prepareRequest: { required: ['patient_uuid', 'clinician_uuid'], optional: ['case_id', 'correlation_id', 'demo_token'], allowed: ['patient_uuid', 'clinician_uuid', 'case_id', 'correlation_id', 'demo_token'] },
   followUpRequest: { required: ['patient_uuid', 'message', 'clinician_uuid'], optional: ['demo_token'], allowed: ['patient_uuid', 'message', 'clinician_uuid', 'demo_token'] },
-  briefingResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'verification', 'operations'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification', 'text', 'model', 'deadline'] },
-  followUpResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification'], allowed: ['contract_version', 'correlation_id', 'context', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'text', 'evidence', 'qualification', 'operations', 'verification', 'deadline'] },
+  briefingResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'verification', 'operations'], allowed: ['contract_version', 'correlation_id', 'context', 'comparison', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification', 'text', 'model', 'deadline'] },
+  followUpResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification'], allowed: ['contract_version', 'correlation_id', 'context', 'comparison', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'text', 'evidence', 'qualification', 'operations', 'verification', 'deadline'] },
 });
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -165,6 +165,24 @@ function validateVerification(value, issues) {
   if ('issues' in value && (!Array.isArray(value.issues) || value.issues.some((issue) => typeof issue !== 'string'))) issues.push('verification.issues_must_be_string_array');
 }
 
+function validateComparison(value, issues) {
+  if (!isRecord(value)) { issues.push('comparison_must_be_object'); return; }
+  if (!Array.isArray(value.changes)) { issues.push('comparison.changes_must_be_array'); return; }
+  value.changes.forEach((change, index) => {
+    const path = `comparison.changes[${index}]`;
+    if (!isRecord(change)) { issues.push(`${path}_must_be_object`); return; }
+    unknownFields(issues, change, ['field', 'previous', 'current']);
+    nonEmptyString(issues, change, 'field');
+    for (const side of ['previous', 'current']) {
+      if (!isRecord(change[side])) { issues.push(`${path}.${side}_must_be_object`); continue; }
+      unknownFields(issues, change[side], ['value', 'recorded_at', 'source_ref']);
+      if (typeof change[side].value !== 'string') issues.push(`${path}.${side}.value_must_be_string`);
+      nonEmptyString(issues, change[side], 'recorded_at');
+      nonEmptyString(issues, change[side], 'source_ref');
+    }
+  });
+}
+
 export function validatePrepareRequest(value) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
@@ -194,6 +212,7 @@ function validateCommonResponse(value, required, allowed) {
   if (typeof value.correlation_id !== 'string' || !value.correlation_id.trim()) issues.push('correlation_id_must_be_non_empty_string');
   if ('patient' in value && value.patient !== null && !isRecord(value.patient)) issues.push('patient_must_be_object_or_null');
   if ('claims' in value) validateClaims(value.claims, issues);
+  if ('comparison' in value) validateComparison(value.comparison, issues);
   if ('withheld_fields' in value && !Array.isArray(value.withheld_fields)) issues.push('withheld_fields_must_be_array');
   if ('coverage' in value) validateCoverage(value.coverage, issues);
   if ('claims' in value && 'coverage' in value) validateClaimsAgainstCoverage(value.claims, value.coverage, issues);

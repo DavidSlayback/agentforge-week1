@@ -11,16 +11,15 @@ clinical records, or clinical write-back.
 **Owner authorization — 2026-09-19:** David explicitly authorized deployment,
 runtime inspection, and verification against the owner-controlled Vultr
 synthetic environment. This remains bounded by the project boundary: no PHI,
-no live clinical records, no clinical write-back, no provider migration before
-the final OpenRouter step, and no demo/submission upload.
+no live clinical records, no clinical write-back, and no demo/submission upload.
 
 ## Evidence matrix
 
 | Requirement | Implementation proof | Runtime proof | External proof | Status / smallest next action |
 |---|---|---|---|---|
-| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `80/80` application/eval/observability tests; `7/7` golden cases | Public collection and browser dashboard readback pass | Done for synthetic checkpoint; provider latency remains a capacity concern. |
+| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `87/87` checked tests; `9/9` local golden cases | Public collection and browser dashboard readback pass for the deployed 7-case snapshot | Done locally for the expanded synthetic checkpoint; redeployment is required before claiming the new fixtures publicly. Qwen tail latency is accepted for asynchronous preparation and is not an interactive follow-up SLA. |
 | Authorization and PHP launcher seam | `accessContext.js`, PHP launcher, parity test | `2/2` PHP parity/lint tests; PHP 8.4.25 installed | Public runtime has not been checked against this commit | Local complete; refresh exact deployed candidate. |
-| Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Golden safety gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete for synthetic checkpoint. |
+| Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Local golden safety gate `9/9`; deployed saved gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete locally for the expanded synthetic checkpoint; deployed fixture parity remains pending redeployment. |
 | Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public browser shows the same visual dashboard and redacted trace panels | Done for synthetic checkpoint. |
 | Metrics and alert semantics | `/v1/metrics`, `/v1/alerts`, bounded-window evaluator | Three alert rules render locally; tool-failure alert fires over active synthetic window | Public endpoint and dashboard readback pass | Done for synthetic checkpoint; external notification ownership remains open. |
 | Provider lane | Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-up; deterministic fallback retained | Provider tests and live trace readback | Current public runtime is healthy; both primary lanes were observed | Keep the split lanes through submission. |
@@ -35,7 +34,7 @@ node --test scripts/test/*.test.mjs
 node evals/lib/runner.js
 ```
 
-Observed results for the current candidate: `80/80`, `4/4`, and `7/7` passed; the broader checked set is `84/84` including helper/provider/PHP suites.
+Observed local results are `87/87` across the checked AgentForge, evaluation, observability, helper, PHP, provider, and load-harness suites. The latest split-lane load sample is separately tied to candidate `56d1a35`; it does not cover the new local fixture cases.
 
 ## Current external snapshot
 
@@ -44,7 +43,7 @@ Read-only checks against `https://dtstest.64.177.10.182.nip.io/agentforge`:
 - `/health`: 200 / `ok`
 - `/ready`: 200 / `ready`
 - `/observability`: 200, visual dashboard read back in a clean browser
-- Visual dashboard from `b9f287a`: deployed and verified below
+- Visual dashboard from candidate `88420c1`: deployed and verified below
 
 Before the owner authorization recorded above, no deployment, provider
 migration, demo upload, submission, or PHI action was authorized by this
@@ -77,23 +76,21 @@ The runtime remained synthetic-only and on the existing Qwen lane; no PHI,
 provider migration, clinical write-back, demo upload, or submission action was
 performed.
 
-## Current candidate refresh — 2026-09-19
+## Latest split-lane load sample — 2026-09-19
 
-The cleanup candidate `b9f287a` was rebuilt and redeployed. The current
-AgentForge image is healthy with digest
-`sha256:921302382891b2a9c63ac21ac269b32abe4f4f567ddd594c329d1cc9eabcd99e`.
-The public API collection passed again with complete and partial briefings,
+The latest recorded split-lane load sample was measured on candidate
+`56d1a35`. The public API collection passed with complete and partial briefings,
 follow-up, blocked authorization and cross-patient cases, invalid request,
 metrics, traces, alerts, and observability.
 
-Bounded public Qwen load observations using the current candidate:
+Bounded public load observations using candidate `56d1a35`:
 
 - 10 concurrent / 10 requests: 10/10 successful, 0% errors, p50 27.6s,
   p95/p99 43.4s, 0.231 requests/second.
-- 50 concurrent / 50 requests: 42/50 successful, 16% client timeout errors,
-  p50 30.1s, p95/p99 45.0s, 1.111 requests/second.
-- Resource sample across both runs: AgentForge container peak CPU 9.33% and
-  peak memory 1.17% (about 44 MiB / 3.818 GiB limit).
+- 50 concurrent / 50 requests: 46/50 successful, 8% client timeout errors,
+  p50 30.19s, p95/p99 45.0s, 1.111 requests/second.
+- Resource sample across both runs: AgentForge container peak CPU 29.06% and
+  peak memory 52.01 MiB (about 1.36% of the 3.818 GiB limit).
 
 The assignment's larger 100-request and 500-request workloads are not claimed
 as passing: the 10-concurrent run was stopped after the Qwen lane exceeded a
@@ -101,14 +98,13 @@ practical runtime budget, and the 50-concurrent smoke run exposed the same
 tail-latency/capacity issue. The load harness now has a bounded client timeout
 so this failure mode is reproducible rather than a hanging process.
 
-The provider configuration now includes an active OpenRouter conversation lane. The public
-runtime remains on `AGENTFORGE_PROVIDER_MODE=qwen`; the OpenRouter credential is
-stored only in the server-side `.env` and was not exercised during verification.
+The later split-lane sample is recorded in `LOAD_TEST.md` and is tied to
+candidate `56d1a35`; the final deployed candidate is `88420c1`.
 
 ## Final candidate readback — 2026-09-19
 
 Commit `88420c1` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
-The live service readback is the authoritative deployment evidence for this candidate.
+The live service readback is the authoritative deployment evidence for this candidate;
 the container reports healthy. Public readback passed `/health`, `/ready`,
 `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` with HTTP 200.
 The full API collection also passed complete and partial briefing, follow-up,
@@ -119,6 +115,7 @@ OpenRouter key was present only as a redacted server-side environment value.
 ## Release gate
 
 The deployment/readback gate is complete for this synthetic checkpoint. The
-remaining release decision is owner-controlled packaging/submission work, the
-provider-capacity fix or explicit acceptance of the Qwen latency, and at the
-very end the separately requested OpenRouter provider migration.
+remaining release decision is owner-controlled packaging/submission work and
+explicit acceptance of the measured provider tail latency. The split provider
+configuration is already exercised on synthetic data; no PHI or external
+publication is in scope.

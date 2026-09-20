@@ -11,7 +11,9 @@ platform. This is not a production capacity or provider quote.
 - Historical instance charge at the console readback: **$1.31**.
 - Account billing readback: **$1.36** charged this month and **$28.64** credit
   remaining. The account figure is not attributed solely to AgentForge.
-- Provider spend in the current deterministic mode: **$0**.
+- Provider spend in the historical deterministic-only run: **$0**. The active
+  synthetic demo now calls Qwen and Gemini Flash-Lite; zero provider cost does
+  not describe that configuration. Complete provider billing attribution is open.
 - Historical deployed synthetic load: 100/100 requests at concurrency 10 and 500/500 at
   concurrency 50, with zero errors. These are bounded observations, not a
   user-capacity guarantee.
@@ -28,9 +30,11 @@ These are explicit planning assumptions, not observed clinical usage:
 - One monthly active clinician completes four preparation sessions per month.
 - One session contains one briefing and three follow-ups: four service
   interactions per session, or **16 interactions per monthly active clinician**.
-- Synthetic mode uses the deterministic provider, so provider cost is zero.
-- A future hosted-provider cost is not modeled until a vendor, token budget,
-  data-processing terms, and retention decision are approved.
+- Synthetic refers to patient data. Model output can be live or deterministic;
+  provider cost is zero only for the deterministic test configuration.
+- The active hosted-provider lanes are Qwen synthesis and Gemini Flash-Lite
+  conversation. Add measured usage and account billing to the infrastructure
+  envelope; the repository does not establish complete provider spend.
 
 | Monthly active clinicians | Planned interactions/month | Primary limiting resource | Required architecture |
 | ---: | ---: | --- | --- |

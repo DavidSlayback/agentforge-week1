@@ -37,7 +37,10 @@ test('unsafe or ungrounded live output is rejected before display and falls back
   const provider = new ResilientProvider({ primary, fallback: new DeterministicProvider(), maxRetries: 0 });
   const result = await provider.generate({ patient: { display_name: 'Synthetic Patient' }, claims, qualification: { required: false } }, { validate: (candidate) => verifyGeneratedText({ text: candidate.text, claims }) });
   assert.equal(result.provider_fallback, true);
-  assert.match(result.text, /problem\.hypertension\.status/);
+  assert.match(result.text, /Hypertension is documented as active/);
+  assert.doesNotMatch(result.text, /problem\.hypertension\.status/);
+  assert.equal(verifyGeneratedText({ text: 'Hypertension remains active.', claims }).status, 'passed');
+  assert.equal(verifyGeneratedText({ text: 'Asthma remains active.', claims }).status, 'failed');
   assert.equal(result.provider_error_code, 'MODEL_OUTPUT_REJECTED');
   assert.equal(result.provider_name, 'deterministic');
   assert.equal(result.model_name, 'fixture-v1');

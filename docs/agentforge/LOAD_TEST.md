@@ -46,7 +46,7 @@ the observed Vultr/account charges separately from the synthetic zero-provider
 cost and gives the required architecture changes and cost equations for each
 scale tier.
 
-## Current candidate resource sample
+## Latest measured split-lane resource sample
 
 Candidate `56d1a35` was sampled during bounded public runs with Qwen synthesis and
 Gemini Flash-Lite conversation. At concurrency 10, 10/10 requests completed with
@@ -57,3 +57,11 @@ container peaked at 29.06% CPU and 52.01 MiB resident memory (about 1.36% of the
 3.818 GiB limit). These are container observations on the selected Vultr host, not
 host-wide saturation or production SLO evidence. The 50-concurrency result is the
 named tail-latency limitation, not a claim of production capacity.
+
+The final deployed candidate is `88420c1`. No new 10/50 load run was performed
+after that deployment, so this sample remains explicitly tied to `56d1a35`.
+
+## Interpretation
+
+This load result is a synthesis result, not an interactive-conversation failure.
+Ahead-of-visit synthesis may run asynchronously before the clinician opens the+visit. The interactive lane is separately configured through OpenRouter and is+used for short patient-scoped follow-ups. Therefore the Qwen tail is an accepted+preparation limitation for this demo, while follow-up latency remains a separate+runtime concern and must not be inferred from the synthesis load sample.

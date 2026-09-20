@@ -56,7 +56,9 @@ node agentforge/src/server.js
 
 Open `http://localhost:8787/`, choose a fixture patient, prepare the briefing,
 then ask a follow-up. Operational and evaluation surfaces are `/observability`
-and `/evals`; the runnable API collection is
+and `/evals` under the app base path; with the default local server these are
+`/observability` and `/evals`, while the deployed browser URLs are
+`/agentforge/observability` and `/agentforge/evals`. The runnable API collection is
 `agentforge/api/collection.ps1`. Run the verification gate with:
 
 ```powershell
@@ -66,8 +68,11 @@ node evals/lib/runner.js
 ```
 
 The verified synthetic deployment is
-`https://dtstest.64.177.10.182.nip.io/agentforge/`. Qwen is active for the
-current checkpoint; the OpenRouter lane is configured but intentionally dormant.
+`https://dtstest.64.177.10.182.nip.io/agentforge/`. Qwen is active for
+ahead-of-visit synthesis and OpenRouter Gemini Flash-Lite is active for
+patient-scoped follow-ups. Deterministic output remains the fail-closed
+fallback. See [`docs/agentforge/SUBMISSION.md`](docs/agentforge/SUBMISSION.md)
+for the current candidate and evidence boundaries.
 See [`docs/agentforge/PROJECT_EXPLAINER.md`](docs/agentforge/PROJECT_EXPLAINER.md),
 [`ARCHITECTURE.md`](docs/agentforge/ARCHITECTURE.md), and
 [`REQUIREMENTS_MATRIX.md`](docs/agentforge/REQUIREMENTS_MATRIX.md) for the

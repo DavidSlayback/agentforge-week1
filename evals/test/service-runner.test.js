@@ -34,13 +34,13 @@ test('golden suite can evaluate the running AgentForge service', async () => {
       runner.on('error', reject);
       runner.on('close', (code) => code ? reject(new Error(output)) : resolve(JSON.parse(output)));
     });
-    assert.equal(result.total_cases, 7);
-    assert.equal(result.passed_cases, 7);
+    assert.equal(result.total_cases, 9);
+    assert.equal(result.passed_cases, 9);
     assert.equal(result.critical_failures, 0);
     assert.equal(result.gate_passed, true);
     const metrics = await (await fetch('http://127.0.0.1:18788/v1/metrics')).json();
-    assert.equal(metrics.requests, 7);
-    assert.ok(metrics.retrievalAttempts >= 7);
+    assert.equal(metrics.requests, 9);
+    assert.ok(metrics.retrievalAttempts >= 9);
     const dashboard = await (await fetch('http://127.0.0.1:18788/observability')).text();
     assert.ok(dashboard.includes('AgentForge observability'));
     assert.ok(dashboard.includes("basePath+'/v1/metrics'"));

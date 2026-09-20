@@ -23,7 +23,7 @@ PHI, clinical write-back, or provider activation.
 | Assignment/audit | `REQUIREMENTS.md`, `AUDIT.md` | Current | Grounded in the verified brief and audit scope; source-PDF provenance is now explicit. |
 | Product model | `USERS.md`, `USER.md` | Current | `USERS.md` is canonical; `USER.md` is a pointer to resolve the brief's naming conflict. |
 | Architecture/decisions | `ARCHITECTURE.md`, `DECISIONS.md`, `RESILIENCE.md`, `OBSERVABILITY.md`, `INCIDENT_RESPONSE.md` | Current but claim-sensitive | Useful design and safety records; runtime/deployment statements must be read as dated evidence. |
-| Operational measurements | `KEY_METRICS.md`, `LOAD_TEST.md`, `COST_MODEL.md` | Deferred/current drafts | Preserve the artifacts; defer load/cost interpretation until a live conversational agent exists. |
+| Operational measurements | `KEY_METRICS.md`, `LOAD_TEST.md`, `COST_MODEL.md` | Current bounded evidence | Preserve the artifacts; load remains candidate-scoped and cost remains an unattributed planning model. |
 | Planning | `PLANNING.md`, archived `NEXT_STEPS_PRD.md` | Historical/current mixed | Useful planning context; not the rebaselined plan. The untracked draft is archived outside the repository; do not advance it in this phase. |
 | Submission/interview artifacts | `FINAL_PACKAGE.md`, `SUBMISSION.md`, `FINAL_INTERVIEW_PREP.md`, `INTERVIEW_PREP.md`, `INTERVIEW_PREP_VISUAL.html`, `FINAL_SOCIAL_DRAFT.md` | Historical/supporting | Preserve as existing artifacts; they are not part of the active implementation map. |
 | Demo/evidence pages | Archived `DEMO_SCRIPT.html`, `EVAL_EVIDENCE.html` | Untracked generated/useful | Moved outside the repository on 2026-09-19; preserve in the local archive until final demo custody is decided. |
@@ -35,9 +35,9 @@ PHI, clinical write-back, or provider activation.
 
 | Item | Classification | Evidence / disposition |
 | --- | --- | --- |
-| `agentforge/src/*` service, contracts, adapters, provider, verifier, UI | Current implementation | Preserved; behavior covered by fresh 50/50 AgentForge tests. Qwen3.6 activation remains limited to the authorized synthetic Vultr evaluation lane; no PHI or clinical write-back is allowed. |
-| `agentforge/test/*` | Current verification | Fresh AgentForge service/seam run: 50/50; application-suite run: 80/80. The separate helper/PHP/provider regressions are 4/4, making the broader checked set 84/84. |
-| `evals/*` and `docs/agentforge/fixtures/*` | Current synthetic evidence | Fresh `npm --prefix evals test`: 10/10; fixtures remain synthetic and must not be loaded as PHI. |
+| `agentforge/src/*` service, contracts, adapters, provider, verifier, UI | Current implementation | Preserved; behavior covered by fresh 56/56 AgentForge tests. Qwen synthesis and the OpenRouter follow-up lane remain limited to authorized synthetic evaluation; no PHI or clinical write-back is allowed. |
+| `agentforge/test/*` | Current verification | Fresh checked set is 87/87, including AgentForge, evaluation, observability, helper, PHP, provider, and load-harness regressions. |
+| `evals/*` and `docs/agentforge/fixtures/*` | Current synthetic evidence | Fresh evaluation tests are 10/10 and the local golden corpus is 9/9; fixtures remain synthetic and must not be loaded as PHI. The deployed saved report remains a prior 7-case snapshot until redeployment. |
 | `observability/*` | Current synthetic operational evidence | Fresh `node --test observability/test/*.test.js`: 17/17, including Langfuse redaction, continuity, bounded export-pressure, blocked-outcome classification, durable alert-window, and tool-failure-threshold tests. |
 | `scripts/agentforge-load.mjs`, API collection, deployment compose/config | Current tooling | Preserved; use only with explicit candidate/environment identity. |
 | Former `.scratch/overnight/` plans, queue, DAG, waves, stack, checkpoint, report, and decisions | Retired historical execution state | Summarized in `HISTORICAL_QUEUE_SUMMARY.md`, then deleted at the owner's direction so it is no longer treated as active planning. |

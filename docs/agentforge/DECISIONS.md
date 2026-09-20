@@ -142,7 +142,7 @@ with the implemented file-backed sink and attached-volume configuration.
   wiring, serialization, routing, and service behavior regressions.
 - **Evidence:** The checkpoint requirement is an executable evaluation
   framework, and the live service is the delivered artifact.
-- **Limitation:** Seven synthetic cases do not establish load, provider, or live
+- **Limitation:** Nine synthetic cases do not establish load, provider, or live
   OpenEMR performance.
 - **Migration:** Add cases by contract and add deployed load/economic suites at
   the final deadline without weakening the critical gate.
@@ -321,6 +321,10 @@ failure-policy evidence.
 
 ## ADR-017: Require a visual dashboard and defer OpenRouter to finalization
 
+> Historical decision. Superseded for the current synthetic deployment by
+> ADR-019, which activates a bounded OpenRouter conversation lane while Qwen
+> remains the synthesis lane.
+
 - **Choice:** Build and browser-verify a visual operational dashboard as a
   required checkpoint deliverable. Keep the current Qwen3.6 Flash synthetic
   lane during dashboard implementation and validation; migrate to OpenRouter
@@ -343,6 +347,9 @@ failure-policy evidence.
 
 ## ADR-018: Keep OpenRouter switchable but dormant
 
+> Historical decision. Superseded for the current synthetic deployment by
+> ADR-019. The server-only key and synthetic-only boundary remain unchanged.
+
 - **Choice:** Add a server-only OpenRouter configuration lane behind
   `AGENTFORGE_PROVIDER_MODE`, while leaving `qwen` active for the current
   checkpoint and submission evidence.
@@ -357,16 +364,18 @@ failure-policy evidence.
 - **Choice:** Keep the synthesis provider on the capable Qwen lane and prepare
   the evidence-backed briefing ahead of the scheduled visit. Add an opt-in,
   separately configured conversation provider for low-latency follow-ups.
-- **Initial conversation candidate:** `inception/mercury-2.5` through
-  OpenRouter at the currently listed $0.04/M input and $0.15/M output. This is
-  a candidate for testing, not an activated deployment setting.
+- **Current conversation lane:** Gemini Flash-Lite through OpenRouter for
+  short patient-scoped follow-ups. The exact server-side model/configuration is
+  deployment evidence; no provider price or production suitability is inferred
+  from this demo.
 - **Safety boundary:** The conversation model receives only the cached,
   verified evidence package and question. It cannot retrieve records or decide
   whether a claim is displayable; failed or ungrounded output falls back to the
   deterministic evidence-only answer.
 - **Configuration:** Set `AGENTFORGE_CONVERSATION_PROVIDER_MODE` and the
   corresponding server-only conversation model variables. Leaving the mode
-  blank preserves the current Qwen-only behavior.
+  blank preserves deterministic/Qwen-only behavior for a deployment that does
+  not opt into the interactive lane.
 - **Next integration seam:** A calendar adapter should call the preparation
   service before the scheduled encounter, persist the correlation ID, and open
   the cached briefing when the clinician enters the visit.

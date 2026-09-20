@@ -32,7 +32,7 @@ export function renderObservabilityPage() {
     <div class="notice"><strong>Safety boundary:</strong> synthetic data only. This dashboard exposes operational metadata, never chart text, prompts, responses, or PHI.</div>
     <section id="metric-cards" class="grid" aria-label="Key metrics"><div class="card">Loading metrics…</div></section>
     <section class="two">
-      <article class="panel"><h2>Latency and traffic</h2><div id="latency-bars" class="bars"></div><h3>Requests by interaction</h3><div id="interaction-bars" class="bars"></div></article>
+      <article class="panel"><h2>Latency and traffic</h2><div id="latency-bars" class="bars"></div><h3>p95 latency by interaction</h3><div id="interaction-bars" class="bars"></div></article>
       <article class="panel"><h2>Safety and outcomes</h2><h3>Verification</h3><div id="verification-bars" class="bars"></div><h3>Display</h3><div id="display-bars" class="bars"></div><h3>Provider fallback</h3><div id="fallback-summary" class="empty">Loading…</div></article>
     </section>
     <section class="panel"><h2>Alert state <span id="window-label" class="label"></span></h2><div id="alerts" class="alerts"></div></section>
@@ -47,6 +47,7 @@ export function renderObservabilityPage() {
     const number = (value, suffix = '') => Number.isFinite(Number(value)) ? \`\${Number(value).toLocaleString()}\${suffix}\` : '—';
     const pct = (value) => \`\${(Number(value || 0) * 100).toFixed(1)}%\`;
     const safe = (value) => String(value ?? 'unknown').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    const interactionLabels = { background_preparation: 'Preparation', scheduled_preparation: 'Scheduled prep', prepared_open: 'Prepared open', cache_followup: 'Follow-up', fresh_followup: 'Fresh follow-up' };
     const barRows = (values, formatter = number) => {
       const entries = Object.entries(values || {}); const max = Math.max(1, ...entries.map(([, value]) => Number(value) || 0));
       return entries.length ? entries.map(([key, value]) => \`<div class="bar-row"><span>\${safe(key)}</span><div class="bar-track"><div class="bar-fill" style="width:\${Math.min(100, ((Number(value) || 0) / max) * 100)}%"></div></div><strong>\${formatter(value)}</strong></div>\`).join('') : '<div class="empty">No observations in window.</div>';
@@ -68,14 +69,14 @@ export function renderObservabilityPage() {
           card('Estimated cost', \`$\${Number(metrics.estimatedCostUsd || 0).toFixed(4)}\`, 'synthetic metadata only')
         ].join('');
         byId('latency-bars').innerHTML = barRows({p50: latency.p50 || 0, p95: latency.p95 || 0, p99: latency.p99 || 0}, (v) => number(v, ' ms'));
-        byId('interaction-bars').innerHTML = barRows(Object.fromEntries(Object.entries(metrics.latencyByInteraction || {}).map(([key, value]) => [key, value.p95 || 0])), (v) => number(v, ' ms'));
+        byId('interaction-bars').innerHTML = barRows(Object.fromEntries(Object.entries(metrics.latencyByInteraction || {}).map(([key, value]) => [interactionLabels[key] || key, value.p95 || 0])), (v) => number(v, ' ms'));
         byId('verification-bars').innerHTML = barRows(metrics.verificationOutcomes, number);
         byId('display-bars').innerHTML = barRows(metrics.displayOutcomes, number);
         byId('fallback-summary').textContent = \`\${number(metrics.providerFallbacks)} fallback\${Number(metrics.providerFallbacks) === 1 ? '' : 's'} in the active window.\`;
         byId('window-label').textContent = \`(\${number((alerts.windowMs || metrics.windowMs || 0) / 60000)} minute window)\`;
         byId('alerts').innerHTML = (alerts.rules || []).map((alert) => \`<div class="alert \${alert.triggered ? 'triggered' : ''}"><div><div class="alert-name">\${safe(alert.id)}</div><div class="alert-meta">Observed \${safe(alert.observed)} \${safe(alert.operator)} \${safe(alert.threshold)}</div></div><span class="status \${alert.triggered ? 'bad' : 'ok'}">\${alert.triggered ? 'Triggered' : 'Clear'}</span></div>\`).join('') || '<div class="empty">No alert rules returned.</div>';
         const recent = [...(Array.isArray(traces) ? traces : [])].reverse().slice(0, 8);
-        byId('traces').innerHTML = recent.length ? recent.map((trace) => \`<div class="trace"><code>\${safe(trace.correlationId || '—')}</code><span>\${safe(trace.interactionType || trace.operation || 'request')}</span><strong>\${number(trace.durationMs, ' ms')}</strong><span class="status \${trace.status === 'failure' ? 'bad' : 'ok'}">\${safe(trace.status || 'unknown')}</span></div>\`).join('') : '<div class="empty">No redacted traces retained.</div>';
+        byId('traces').innerHTML = recent.length ? recent.map((trace) => \`<div class="trace"><code>\${safe(trace.correlationId || '—')}</code><span>\${safe(trace.interactionType || trace.operation || 'request')}<small style="display:block;color:#52606d">\${safe(trace.model?.model || 'No model call')}\${trace.model?.model ? (trace.model.provider_fallback ? ' · fallback' : ' · live provider') : ''}</small></span><strong>\${number(trace.durationMs, ' ms')}</strong><span class="status \${trace.status === 'failure' ? 'bad' : 'ok'}">\${safe(trace.status || 'unknown')}</span></div>\`).join('') : '<div class="empty">No redacted traces retained.</div>';
       })
       .catch((error) => { byId('health-badge').textContent = 'Unavailable'; byId('health-badge').className = 'badge warn'; byId('metric-cards').innerHTML = \`<div class="card bad">Dashboard data unavailable: \${safe(error.message)}</div>\`; });
   })();

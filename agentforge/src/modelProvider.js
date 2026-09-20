@@ -1,14 +1,22 @@
 import { MAX_RETRIES } from './contracts.js';
+import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 
 /** Local deterministic synthesis for synthetic evaluation and fallback. */
 export class DeterministicProvider {
   name = 'deterministic'; model = 'fixture-v1';
   async checkReady() { return true; }
-  async generate({ patient, claims, qualification }) {
-    const intro = `Preparing ${patient.display_name}'s return visit. `;
-    const body = claims.length ? claims.map((claim) => `${claim.field}: ${claim.value}`).join('; ') : 'No supported clinical claims were available.';
+  async generate({ patient, claims, qualification, comparison = { changes: [] } }) {
+    const intro = `${patient.display_name} — return visit. `;
+    const latest = new Map();
+    claims.forEach((claim) => {
+      const recordedAt = claim.evidence?.[0]?.recorded_at || '';
+      const previous = latest.get(claim.field);
+      if (!previous || recordedAt > previous.recordedAt) latest.set(claim.field, { claim, recordedAt });
+    });
+    const body = latest.size ? [...latest.values()].map(({ claim }) => clinicalFact(claim)).join('. ') : 'No supported clinical claims were available';
+    const changes = (comparison.changes || []).map((change) => `${clinicalLabel(change.field)} changed from ${change.previous.value} to ${change.current.value}`).join('; ');
     const caveat = qualification.required ? ` Review is incomplete: ${qualification.reasons.join('; ')}.` : '';
-    return { text: `${intro}${body}.${caveat}`, inputTokens: 80, outputTokens: 40, estimatedCostUsd: 0 };
+    return { text: `${intro}${changes ? `Documented changes: ${changes}. ` : ''}${body}.${caveat}`, inputTokens: 80, outputTokens: 40, estimatedCostUsd: 0 };
   }
 }
 

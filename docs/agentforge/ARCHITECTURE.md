@@ -24,7 +24,7 @@ The existing REST and FHIR routes remain useful integration references and a
 future external deployment seam, not a model-facing tool surface.
 
 Stage 5 starts with a fixture adapter and deterministic evaluator/renderer.
-The seven synthetic cases in `fixtures/clinical-cases.json` exercise complete,
+The nine synthetic cases in `fixtures/clinical-cases.json` exercise complete,
 duplicate, conflicting, stale, missing-provenance, untrusted-note, and partial
 retrieval behavior without loading data into OpenEMR. A future model provider
 can be placed behind the same bounded synthesis interface only after provider,

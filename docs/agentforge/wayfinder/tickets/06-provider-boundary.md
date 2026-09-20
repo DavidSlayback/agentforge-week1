@@ -11,9 +11,9 @@ access control, BAA/terms, and the explicit no-PHI boundary?
 
 ## Resolution
 
-The owner authorized the Alibaba-compatible Qwen3.6 Flash lane only for the
-current no-PHI synthetic Vultr evaluation and chose to leave it in place despite
-latency alerts. The deterministic provider remains the local/default fallback.
-OpenRouter is a future migration candidate, not a current runtime change. Any
-broader provider, PHI, production, budget, retention, or terms decision requires
-a separate synthetic evidence pass and owner approval.
+The owner authorized the Alibaba-compatible Qwen3.6 Flash lane for ahead-of-visit
+synthesis and the OpenRouter Gemini Flash-Lite lane for short follow-ups, both
+for the current no-PHI synthetic Vultr evaluation. The deterministic provider
+remains the local/default fallback. Any broader provider, PHI, production,
+budget, retention, or terms decision requires a separate synthetic evidence pass
+and owner approval.

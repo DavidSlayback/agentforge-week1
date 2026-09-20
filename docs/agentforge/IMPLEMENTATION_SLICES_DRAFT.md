@@ -51,7 +51,7 @@ not expand the synthetic-only, read-only boundary.
 - **Type:** HITL activation gate plus AFK implementation
 - **Blocked by:** 1, 4, 5
 - **User stories:** 8, 9, 10, 14
-- **What it delivers:** one configured OpenAI-compatible provider at a time, with the current authorized Alibaba Model Studio/Qwen3.6 Flash synthetic lane and OpenRouter retained as a future comparison candidate. Compare against deterministic output using the same synthetic cases, then record exact endpoint/model/budget policy.
+- **What it delivers:** a bounded split provider lane: Alibaba Model Studio/Qwen3.6 Flash for ahead-of-visit synthesis and OpenRouter Gemini Flash-Lite for short follow-ups. Both use synthetic inputs, the same verification/fallback boundary, and server-only configuration.
 - **Evidence:** no-key/timeout/invalid-output/retry-exhaustion tests; synthetic provider smoke only after authorization; groundedness/latency/cost comparison; redacted Langfuse trace; `/ready` and fallback readback; budget guard.
 
 ### 7. Dashboard, windows, queue depth, and alerts

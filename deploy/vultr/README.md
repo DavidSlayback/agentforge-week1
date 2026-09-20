@@ -72,12 +72,12 @@ repository, browser URL, traces, or prompt data. Readiness must still report a
 configured-provider outage as not ready; fallback availability does not count
 as provider health.
 
-## Dormant OpenRouter mode
+## OpenRouter conversation lane
 
-The provider seam also supports an OpenAI-compatible OpenRouter lane. Keep it
-dormant by leaving `AGENTFORGE_PROVIDER_MODE=qwen`; the active Qwen lane is
-unchanged. Configure these values only in the server-side root `.env` when the
-final provider switch is authorized:
+The provider seam supports an OpenAI-compatible OpenRouter lane for short,
+patient-scoped follow-ups. Keep Qwen as the synthesis lane by setting
+`AGENTFORGE_PROVIDER_MODE=qwen`; configure the conversation lane separately in
+the server-side root `.env`:
 
 ```dotenv
 AGENTFORGE_PROVIDER_MODE=qwen
@@ -94,10 +94,10 @@ model, and redeploy the AgentForge service. Do not put the key in the
 repository, browser URL, traces, or prompt data. Run the full evaluation,
 failure, API-collection, and dashboard readback gates after switching.
 
-## Optional split provider lanes
+## Active split provider lanes
 
-For a calendar-driven workflow, keep the synthesis lane on Qwen and opt into a
-separate low-cost conversation lane only after it has been funded and tested.
+For the current synthetic deployment, keep the synthesis lane on Qwen and use
+the funded conversation lane for short follow-ups.
 The conversation model receives the cached, verified evidence package; it does
 not retrieve records or decide what claims are displayable. If it fails or
 returns ungrounded text, the deterministic evidence-only answer is used.

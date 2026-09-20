@@ -58,7 +58,28 @@ test('failed verification prevents synthesis, display, and cache writes', async 
   assert.equal(cache.get('verification-stop').status, 'miss');
 });
 test('isolates follow-up conversations by patient', async () => { const svc = make(); const first = request('fixture-patient-001', { case_id: 'complete_return_visit' }); await prepareWithContext(svc, first); const second = request('fixture-patient-006', { message: 'What changed?' }); const result = await followUpWithContext(svc, 'test-correlation', second); assert.equal(result.disposition, 'blocked'); });
-test('answers follow-up topics from the patient-scoped evidence boundary', async () => { const svc = make(); const first = request('fixture-patient-001', { case_id: 'complete_return_visit' }); const briefing = await prepareWithContext(svc, first); const result = await followUpWithContext(svc, briefing.correlation_id, request('fixture-patient-001', { message: 'What changed since the last visit?' })); assert.match(result.text, /no prior comparison encounter was retrieved/i); assert.equal(result.claims.length, briefing.claims.length); });
+test('answers follow-up topics from the patient-scoped evidence boundary', async () => {
+  const svc = make();
+  const first = request('fixture-patient-001', { case_id: 'complete_return_visit' });
+  const briefing = await prepareWithContext(svc, first);
+  const result = await followUpWithContext(svc, briefing.correlation_id, request('fixture-patient-001', { message: 'What changed since the last visit?' }));
+  assert.match(result.text, /changed from 5 mg daily .* to 10 mg daily/i);
+  assert.equal(result.claims.length, briefing.claims.length);
+  let capturedPrompt;
+  svc.conversationProvider = { name: 'live-test', generate: async ({ prompt }) => {
+    capturedPrompt = prompt;
+    return { text: 'The current record is dated 2026-09-10: medication.lisinopril.dose=10 mg daily.' };
+  } };
+  await followUpWithContext(svc, briefing.correlation_id, request('fixture-patient-001', { message: 'What date was that recorded?' }));
+  assert.ok(capturedPrompt.includes(JSON.stringify(briefing.text)), 'the conversation receives the prepared synthesis');
+  assert.ok(capturedPrompt.includes('What changed since the last visit?'), 'the conversation retains the previous question');
+  assert.ok(capturedPrompt.includes(result.text), 'the conversation retains the previous answer');
+  assert.ok(capturedPrompt.includes('2026-09-10'), 'the conversation receives source dates');
+  assert.equal(svc.cache.get(briefing.correlation_id).entry.history.length, 2);
+  svc.openPrepared(briefing.correlation_id, first, { verifiedContext: contextFor(first), resetConversation: true });
+  assert.deepEqual(svc.cache.get(briefing.correlation_id).entry.history, []);
+});
+test('answers documented plan follow-through without inventing completion', async () => { const svc = make(); const first = request('fixture-patient-001', { case_id: 'complete_return_visit' }); const briefing = await prepareWithContext(svc, first); const result = await followUpWithContext(svc, briefing.correlation_id, request('fixture-patient-001', { message: 'What plan items need follow-through?' })); assert.match(result.text, /plan follow-through/i); assert.match(result.text, /home blood-pressure log reviewed/i); });
 test('records the request lifecycle with opaque trace correlation and verification/display outcomes', async () => { const sink = new InMemoryTraceSink(); const svc = new AgentForgeService({ adapter, provider: new DeterministicProvider(), traceSink: sink }); const value = request('fixture-patient-001', { case_id: 'complete_return_visit', correlation_id: 'fixture-patient-001-clinician-secret' }); await prepareWithContext(svc, value); const trace = sink.list()[0]; assert.match(trace.correlationId, /^af-[0-9a-f]{32}$/); assert.doesNotMatch(JSON.stringify(trace), /fixture-patient-001-clinician-secret|fixture-patient-001|fixture-physician-001/); assert.deepEqual(trace.stages.map((stage) => stage.name), ['authorization', 'retrieval', 'verification', 'model', 'display']); assert.equal(trace.verification.status, 'passed'); assert.equal(trace.display.status, 'displayed'); });
 
 test('uses a server-owned preparation cache and records interaction latency', async () => {
@@ -143,7 +164,13 @@ test('fresh retrieval returns an explicit deadline outcome without patient conte
 });
 
 test('calendar prewarm prepares once and opens a bound cache hit', async () => {
-  const svc = make();
+  let now = 0;
+  let modelCalls = 0;
+  const provider = new DeterministicProvider();
+  const generate = provider.generate.bind(provider);
+  provider.generate = (...args) => { modelCalls += 1; return generate(...args); };
+  const sink = new InMemoryTraceSink();
+  const svc = new AgentForgeService({ adapter, provider, traceSink: sink, cache: new PreparationCache({ ttlMs: 100, now: () => now }) });
   const value = request('fixture-patient-001', { case_id: 'complete_return_visit' });
   const accepted = svc.prewarm(value, { verifiedContext: contextFor(value), scheduleRevision: 'visit-2026-09-21-0900', sourceRevision: 'complete_return_visit' });
   assert.equal(accepted.status, 'accepted');
@@ -153,6 +180,19 @@ test('calendar prewarm prepares once and opens a bound cache hit', async () => {
   const opened = svc.openPrepared(accepted.correlation_id, value, { verifiedContext: contextFor(value) });
   assert.equal(opened.status, 'ready');
   assert.equal(opened.cache.scheduleRevision, 'visit-2026-09-21-0900');
+  const reopenRequest = { patient_uuid: value.patient_uuid, clinician_uuid: value.clinician_uuid };
+  const reopened = await prepareWithContext(svc, reopenRequest, { reusePrepared: true, scheduleRevision: 'visit-2026-09-21-0900' });
+  assert.equal(reopened.correlation_id, opened.response.correlation_id);
+  assert.equal(modelCalls, 1, 'opening a prepared briefing must not synthesize again');
+  assert.equal(sink.list().at(-1).interactionType, 'prepared_open');
+  const mismatch = svc.openPrepared(accepted.correlation_id, request('fixture-patient-006'), { verifiedContext: contextFor(request('fixture-patient-006')) });
+  assert.equal(mismatch.status, 'not_ready');
+  const denied = await svc.prepare(reopenRequest, { reusePrepared: true, scheduleRevision: 'visit-2026-09-21-0900' });
+  assert.equal(denied.disposition, 'blocked');
+  now = 101;
+  assert.equal(svc.openPrepared(accepted.correlation_id, value, { verifiedContext: contextFor(value) }).status, 'not_ready');
+  await prepareWithContext(svc, reopenRequest, { reusePrepared: true, scheduleRevision: 'visit-2026-09-21-0900' });
+  assert.equal(modelCalls, 2, 'expired preparation must be rebuilt');
 });
 
 test('calendar prewarm fails closed for mismatched authorization and provider failure', async () => {

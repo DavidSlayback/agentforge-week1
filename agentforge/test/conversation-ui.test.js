@@ -35,6 +35,8 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
     assert.match(page, /What changed since the last visit\?/);
     assert.match(page, /What plan items need follow-through\?/);
     assert.match(page, /Which records conflict\?/);
+    assert.match(page, /Test Empty · successful empty lookup/);
+    assert.match(page, /Test No Baseline · no prior comparison/);
     assert.match(page, /Normalized facts/);
     assert.match(page, /Source records/);
     assert.match(page, /Open operations dashboard/);
@@ -52,13 +54,13 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         patient_uuid: 'fixture-patient-001',
-        case_id: 'complete_return_visit',
         clinician_uuid: 'fixture-physician-001',
         demo_token: context.demo_token,
       }),
     }).then((response) => response.json());
     assert.equal(briefing.disposition, 'complete');
     assert.ok(briefing.correlation_id);
+    assert.equal(briefing.comparison.changes.length, 1);
 
     const followUp = await fetch(`http://127.0.0.1:${port}/v1/conversations/${encodeURIComponent(briefing.correlation_id)}/messages`, {
       method: 'POST',
@@ -73,7 +75,7 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
     assert.equal(followUp.contract_version, '0.1');
     assert.equal(followUp.correlation_id, briefing.correlation_id);
     assert.equal(followUp.patient.patient_ref, 'fixture-patient-001');
-    assert.match(followUp.text, /Follow-up for fixture-patient-001/);
+    assert.match(followUp.text, /changed from 5 mg daily .* to 10 mg daily/i);
     assert.equal(followUp.verification.status, 'passed');
   } finally {
     child.kill();

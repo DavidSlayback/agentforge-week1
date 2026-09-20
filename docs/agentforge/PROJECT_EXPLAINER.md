@@ -44,13 +44,13 @@ The current code is a separate Node service under `agentforge/`. The main seams 
 
 ## Current evidence
 
-Fresh local checks on this branch, verified 2026-09-19, pass:
+Fresh local checks on this branch, verified 2026-09-20, pass:
 
-- AgentForge service and seam tests: **50/50**;
+- AgentForge service and seam tests: **56/56**;
 - evaluation tests: **10/10**; and
-- observability tests: **17/17** (80/80 application suites; 84/84 including helper/PHP/provider regressions), including the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, the documented 2% tool-failure threshold, and fail-closed provider readback.
+- observability tests: **17/17**; the broader checked set is **87/87**, including helper, PHP, provider, and load-harness regressions, plus the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, the documented 2% tool-failure threshold, and fail-closed provider readback.
 
-The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the synthetic workflow through the configured Qwen lane and `/ready` returns 200. The current candidate has 10/10 successful requests at concurrency 10 and 47/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
+The local branch now contains nine synthetic golden cases, including complete return-visit comparison, partial retrieval, successful empty lookup, no prior comparison, conflict, stale data, missing provenance, untrusted notes, and duplicate identity. The saved deployed report is still a seven-case snapshot from candidate `88420c1`; it must not be relabeled as proof for these newly added local cases until redeployment. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the deployed workflow through Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-ups and `/ready` returns 200. The latest measured split-lane sample, tied to candidate `56d1a35`, has 10/10 successful requests at concurrency 10 and 46/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
 
 On 2026-09-20, strict HTTPS and live API readback verified the externally reachable briefing, prewarm, and follow-up workflow on candidate `88420c1`. The current readback returned HTTP 200 for `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts`; the API collection and synthetic prewarm/open flow passed. These are candidate-scoped observations, not production-capacity claims.
 
@@ -61,9 +61,9 @@ On 2026-09-20, strict HTTPS and live API readback verified the externally reacha
 | Original brief and requirements inventory | Done, with provenance boundary | Source PDF is verified outside the repo; the checked-in inventory is transcribed. |
 | Audit, users, architecture, metrics, and safety boundary | Done for the documented checkpoint | The documents exist and are internally useful; production claims remain out of scope. |
 | Conversational UI and follow-up flow | Implemented synthetic | Current candidate is deployed and browser-verified with physician-readable grouped facts, follow-up prompts, evidence expansion, reset, and blocked probe. |
-| Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; live OpenEMR equivalence and current-candidate deployment proof are missing. |
+| Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; current-candidate synthetic deployment proof passes, while live OpenEMR equivalence remains out of scope. |
 | Contracts, prewarm/API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Current public prewarm/open readback and visual dashboard pass on candidate `88420c1`. |
-| Load evidence | Partial | Current split-lane evidence is 10/10 at concurrency 10 and 46/50 at concurrency 50; tail latency remains the named limitation. |
+| Load evidence | Partial, accepted for demo | Latest synthesis load evidence is tied to `56d1a35`: 10/10 at concurrency 10 and 46/50 at concurrency 50. This is an asynchronous preparation limitation; candidate `88420c1` has current API/browser readback but no fresh 10/50 load run. |
 | Provider/model | Split synthetic lanes | Qwen handles synthesis and OpenRouter Gemini Flash-Lite handles follow-ups; deterministic fallback remains available. |
 | OpenEMR integration | Implemented for synthetic E2E | Read-only OAuth user-context retrieval, seeded synthetic records, PID→UUID launch, and deployed synthetic readback are current candidate evidence. PHI, production identity semantics, and compliance remain out of scope. |
 | PHI/HIPAA/BAA/compliance readiness | Blocked/out of scope | No PHI, clinical write-back, production compliance, or provider suitability is established. |
@@ -74,10 +74,10 @@ On 2026-09-20, strict HTTPS and live API readback verified the externally reacha
 The smallest credible next work is requirements-led: lock this matrix, resolve owner decisions, reconcile stale claims, then make vertical changes only where a requirement and verifier are named. The future plan must explicitly close or disposition:
 
 - production-approved OpenEMR identity, role, retention, and data-processing decisions if the scope ever expands beyond synthetic validation;
-- budget, retention, and data-processing decisions for any provider scope beyond the authorized synthetic Qwen3.6 lane;
+- budget, retention, and data-processing decisions for any provider scope beyond the authorized synthetic provider lanes;
 - the assignment's live dashboard and alert interpretation;
-- current-candidate deployed 10/50 load and infrastructure baselines;
-- cost projections at 100, 1K, 10K, and 100K users, deferred until a live conversational agent exists;
+- current-candidate deployed 10/50 load and infrastructure baselines if capacity claims are needed;
+- cost projections at 100, 1K, 10K, and 100K users, with provider billing attribution still open;
 - current-commit deployment and clean-browser readback; and
 
 None of these gaps should be closed by relabeling synthetic evidence as production proof.
