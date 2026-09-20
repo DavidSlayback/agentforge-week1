@@ -233,7 +233,7 @@ export const isCoverageUnavailable = (status) => COVERAGE_UNAVAILABLE_STATUSES.h
 
 export function correlationId(value) {
   if (!value) return `af-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-  if (/^af-[0-9a-f]{32}$/.test(String(value))) return String(value);
+  if (/^af-(?:\d+-[0-9a-f]{16}|[0-9a-f]{32})$/.test(String(value))) return String(value);
   // The response/cache identifier is also allowed to cross the trace boundary;
   // make it opaque even when a caller supplies a patient-like string.
   return `af-${crypto.createHmac('sha256', correlationSecret).update(String(value)).digest('hex').slice(0, 32)}`;
