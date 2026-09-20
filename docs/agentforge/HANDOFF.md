@@ -5,6 +5,17 @@
 - Last verified at: 2026-09-19, America/Chicago.
 - Current mechanism: AgentForge is a separate Node service and OpenEMR-facing demonstration surface with a GET-only OpenEMR REST adapter, seeded synthetic read-only E2E retrieval on Vultr, fixture-backed local regression paths, deterministic evaluation, patient/clinician scope checks, verification, redacted observability, health/readiness routes, evaluator/API surfaces, and deployment artifacts. Current evidence is mixed local, deployed, synthetic, and owner-reviewed; do not treat all of it as one completion state.
 
+## Current candidate override — 2026-09-20
+
+The current candidate is `0f3b515` on this branch and is deployed at
+`https://dtstest.64.177.10.182.nip.io/agentforge/`. The container is healthy;
+the public API collection and clean-browser readback pass. The physician-facing
+surface now presents a readable visit orientation with grouped facts and
+expandable provenance. Qwen remains active. OpenRouter is configured only as a
+dormant server-side mode and was not called. The only intentionally unfinished
+submission artifact is the video; bounded Qwen tail latency and host resource
+baselines remain documented limitations, not hidden claims.
+
 ## Post-rebaseline update — 2026-09-19
 
 - The assignment source, inventory, explainer, requirements matrix, and Wayfinder map were refreshed against current code and evidence.
@@ -26,6 +37,9 @@
   server-only model credential rotation restored the authorized Qwen lane;
   the stack remains unmerged, and PHI, clinical write-back, and provider
   activation beyond the authorized synthetic lane remain prohibited.
+
+The later candidate refresh supersedes the older commit identifiers in this
+historical section; use the current candidate override above for release work.
 
 ## Deployment readback — 2026-09-19
 

@@ -52,7 +52,7 @@ test('DashScope multimodal provider uses a text content part and normalizes resp
   };
   try {
     const provider = new DashScopeMultimodalProvider({ endpoint: 'https://example.invalid/generation', apiKey: 'test-secret', model: 'qwen3.5-flash' });
-    const result = await provider.generate({ prompt: 'synthetic prompt' });
+    const result = await provider.generate({ prompt: 'synthetic prompt', correlationId: 'af-correlation-test' });
     assert.equal(result.text, 'grounded synthetic answer');
     assert.equal(result.inputTokens, 12);
     assert.equal(result.outputTokens, 7);
@@ -74,13 +74,29 @@ test('OpenAI Responses provider uses Bailian-compatible input and output shape',
   };
   try {
     const provider = new OpenAIResponsesProvider({ endpoint: 'https://example.invalid/compatible-mode/v1/responses', apiKey: 'test-secret', model: 'qwen3.5-flash' });
-    const result = await provider.generate({ prompt: 'synthetic prompt' });
+    const result = await provider.generate({ prompt: 'synthetic prompt', correlationId: 'af-correlation-test' });
     assert.equal(result.text, 'responses synthetic answer');
     assert.equal(result.inputTokens, 9);
     assert.equal(result.outputTokens, 6);
     assert.equal(request.body.model, 'qwen3.5-flash');
     assert.deepEqual(request.body.input[0].content, [{ type: 'input_text', text: 'synthetic prompt' }]);
+    assert.equal(request.headers['x-correlation-id'], 'af-correlation-test');
     assert.equal(request.headers.authorization, 'Bearer test-secret');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenAI Responses readiness probe checks the provider without patient content', async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (_endpoint, options) => { request = JSON.parse(options.body); return { ok: true }; };
+  try {
+    const provider = new OpenAIResponsesProvider({ endpoint: 'https://example.invalid/compatible-mode/v1/responses', apiKey: 'test-secret', model: 'qwen3.5-flash' });
+    assert.equal(await provider.checkReachable(), true);
+    assert.equal(request.input[0].content[0].text, 'Return only OK.');
+    assert.equal(request.input[0].content[0].text.includes('patient'), false);
+    assert.equal(request.max_output_tokens, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }

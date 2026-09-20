@@ -45,12 +45,22 @@ const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
 const service = new AgentForgeService({ adapter, provider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000) });
-// `/ready` reports configured dependency checks, not provider reachability,
-// output quality, or production compliance. `/health` is process liveness.
+// `/ready` checks configured dependencies and a cached, bounded non-clinical
+// provider probe; it is not output-quality or production-compliance proof.
+// `/health` is process liveness.
+let providerProbe = { checkedAt: 0, reachable: null };
+const modelReadiness = { checkReady: async () => {
+  if (!await provider.checkReady()) return false;
+  if (provider.name === 'deterministic') return true;
+  const now = Date.now();
+  if (providerProbe.reachable !== null && now - providerProbe.checkedAt < 30000) return providerProbe.reachable;
+  providerProbe = { checkedAt: now, reachable: await provider.checkReachable() };
+  return providerProbe.reachable;
+} };
 const readiness = createReadinessChecker({
   configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
   retrieval: adapter,
-  model: provider,
+  model: modelReadiness,
   trace: { checkReady: async () => traceSink.health().status === 'ok' },
 });
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

@@ -25,13 +25,14 @@ test('OpenEMR REST adapter uses only GET allowlisted routes and normalizes recor
   const adapter = new OpenEMRRestAdapter({ baseUrl: 'http://openemr', accessToken: 'synthetic-token', fetchImpl: fakeFetch(requests) });
   assert.equal(await adapter.checkReady(), true);
   const item = await adapter.getCase('patient-uuid');
-  const retrieved = await adapter.retrieve(item);
+  const retrieved = await adapter.retrieve(item, { correlationId: 'af-correlation-test' });
   assert.equal(item.patient.patient_ref, 'patient-uuid');
   assert.equal(item.patient.display_name, 'Synthetic Patient');
   assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'empty', 'empty']);
   assert.deepEqual(retrieved.records.map((record) => record.source_ref), ['openemr-patient-patient-uuid', 'enc-1', 'problem-1', 'med-1']);
   assert.ok(requests.every(({ options }) => options.method === 'GET'));
   assert.ok(requests.filter(({ url }) => url.includes('/apis/default/api/')).every(({ options }) => options.headers.authorization === 'Bearer synthetic-token'));
+  assert.ok(requests.filter(({ url }) => url.includes('/apis/default/api/')).some(({ options }) => options.headers['x-correlation-id'] === 'af-correlation-test'));
 });
 
 test('OpenEMR REST adapter fails closed without an access token', async () => {

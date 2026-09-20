@@ -1,17 +1,18 @@
 # Final package checklist
 
-> Historical package snapshot. It is not the current GitLab publication or
-> release decision. See `WAYFINDER_MAP.md` and `HANDOFF.md` for the current
-> stack and evidence boundary.
+> Current submission package for the synthetic checkpoint. The video remains
+> the only intentionally unfinished artifact; OpenRouter migration is deferred
+> by owner direction.
 
 ## Candidate identity
 
-- Local branch: `afk/AF-08-resilience-foundation`
+- Local branch: `davidslayback/agentforge-stack-03-deploy-evidence`
 - Source of record: GitLab program issue #17 and child issues #18–#26
-- Historical deployment evidence URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
-- Historical deployed service commit: `1259fbb`; historical proxy/config commit: `c3a63a3`
-- The local B authorization revision is newer than those deployed commits and has not been redeployed; the URL is not current-candidate proof.
-- The prior Railway URL remains historical checkpoint evidence, not current-candidate proof.
+- Verified deployment URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
+- Deployed service commit: `0f3b515`; image manifest:
+  `sha256:259816ca1fc0cb506317ddd9afb9a28267d2a3284a5f0bb92a0a1346bac796a`
+- Active provider: Qwen. OpenRouter is configured as a dormant mode only and
+  was not called.
 - A future synthetic deployment must set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, a
   server-only `AGENTFORGE_DEMO_SECRET`, and a durable `AGENTFORGE_TRACE_PATH`.
 
@@ -20,16 +21,16 @@
 | Gate | Current state | Final proof required |
 | --- | --- | --- |
 | Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
-| Public URL/TLS | Historical evidence | Trusted HTTPS certificate and HTTP redirect were read back on the historical Vultr candidate; refresh against the packaged revision. |
-| Multi-turn browser agent | Historical evidence | Clean-browser briefing, follow-up, reset, partial, and blocked probe exist for the older candidate; refresh against the packaged revision. |
+| Public URL/TLS | PASS | Current HTTPS URL, redirect, health, readiness, and browser surface read back on the packaged revision. |
+| Multi-turn browser agent | PASS synthetic | Current clean-browser briefing/follow-up surface verified; partial and blocked probes are in the API collection and UI. |
 | Auth/scope seam | PASS synthetic local; deployment pending | Signed-context expiry/mismatch/scope tests pass locally; the B revision needs deployed readback. |
-| Provider lane | PASS failure-policy tests; vendor deferred | Keep deterministic default; do not add a vendor without owner decision. |
-| Operations | Historical evidence | Dashboard, alerts, traces, and route matrix were read back over the older trusted HTTPS candidate; refresh against the packaged revision. |
+| Provider lane | PASS Qwen synthetic | Qwen remains active; deterministic fallback and dormant OpenRouter mode are documented. |
+| Operations | PASS synthetic | Dashboard, alerts, traces, and route matrix read back on the packaged revision. |
 | Load/cost | Deployed load PASS; billing readback PASS; projections REVIEW | Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | Historical evidence; refresh pending | Review the older Vultr load/resource evidence in AF-17 only after reconciling it to the packaged revision. |
+| Deployed scale | PARTIAL | Current Qwen smoke evidence is 10/10 at concurrency 10 and 47/50 at concurrency 50; tail latency remains the named limitation. |
 | Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
-| Final readback | READY FOR OWNER REVIEW | Billing, clean-profile sign-off, and final owner approval remain. |
+| Final readback | PASS synthetic | Candidate `0f3b515` is deployed, healthy, and passed the public API collection plus clean-browser UI readback. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
 | Interview | READY FOR OWNER REVIEW | Timed rehearsal against final evidence. |
 | External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |

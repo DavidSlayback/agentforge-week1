@@ -34,11 +34,12 @@ durable trace volume at `/data`.
 
 ## Cost model boundary
 
-The deterministic provider has zero provider spend. A hosted provider remains
-deferred, so no vendor price is treated as an observed cost. Any future cost
-projection must state provider price, token assumptions, request mix, Railway
-resource tier, storage/egress assumptions, and the architecture changes at
-100/1K/10K/100K users.
+The deterministic provider has zero provider spend; the current deployed
+synthetic lane uses Qwen and its vendor billing is not available in this
+repository. No provider cost is fabricated as an observed value. Any future
+cost projection must state provider price, token assumptions, request mix,
+Vultr resource tier, storage/egress assumptions, and the architecture changes
+at 100/1K/10K/100K users.
 
 The current scale/cost artifact is `docs/agentforge/COST_MODEL.md`. It records
 the observed Vultr/account charges separately from the synthetic zero-provider

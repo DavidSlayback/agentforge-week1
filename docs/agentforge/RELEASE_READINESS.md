@@ -1,7 +1,7 @@
 # AgentForge release-readiness evidence map
 
 **Checkpoint:** 2026-09-19, America/Chicago  
-**Candidate commit:** `e68c43c` (`feat: add dormant OpenRouter provider mode`)
+**Candidate commit:** `0f3b515` (`fix: keep patient context aligned with briefing`)
 **Decision:** Conditionally ready for the synthetic checkpoint; the exact
 candidate is now deployed and read back, with the remaining load and packaging
 limitations recorded below.  
@@ -18,11 +18,11 @@ the final OpenRouter step, and no demo/submission upload.
 
 | Requirement | Implementation proof | Runtime proof | External proof | Status / smallest next action |
 |---|---|---|---|---|
-| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `78/78` application/eval/observability tests; `7/7` golden cases | Public collection and browser dashboard readback pass | Done for synthetic checkpoint; provider latency remains a capacity concern. |
+| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `80/80` application/eval/observability tests; `7/7` golden cases | Public collection and browser dashboard readback pass | Done for synthetic checkpoint; provider latency remains a capacity concern. |
 | Authorization and PHP launcher seam | `accessContext.js`, PHP launcher, parity test | `2/2` PHP parity/lint tests; PHP 8.4.25 installed | Public runtime has not been checked against this commit | Local complete; refresh exact deployed candidate. |
 | Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Golden safety gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete for synthetic checkpoint. |
 | Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public browser shows the same visual dashboard and redacted trace panels | Done for synthetic checkpoint. |
-| Metrics and alert semantics | `/v1/metrics`, `/v1/alerts`, bounded-window evaluator | Three alert rules render locally; tool-failure alert fires over active synthetic window | Public endpoint exists but page is stale | Partial: verify dashboard and alert state after deployment. |
+| Metrics and alert semantics | `/v1/metrics`, `/v1/alerts`, bounded-window evaluator | Three alert rules render locally; tool-failure alert fires over active synthetic window | Public endpoint and dashboard readback pass | Done for synthetic checkpoint; external notification ownership remains open. |
 | Provider lane | Qwen remains active behind the provider seam; dormant OpenRouter mode is configured server-side; deterministic fallback retained | Provider tests and current Qwen-compatible local behavior | Current public runtime is healthy; OpenRouter is not called | Keep Qwen through submission evidence; switch to OpenRouter only in the final authorized migration step. |
 | Observability redaction | Redacted trace sink and dashboard rendering | Observability tests pass; browser shows metadata only | Public redaction readback remains candidate-scoped | Partial: verify deployed dashboard contains no sensitive content. |
 | Submission/demo artifacts | Existing submission/interview docs and user-owned media | Not re-recorded or mutated | No external upload/share performed | Owner-owned final step; do not alter media here. |
@@ -35,7 +35,7 @@ node --test scripts/test/*.test.mjs
 node evals/lib/runner.js
 ```
 
-Observed results for `b9f287a`: `78/78`, `4/4`, and `7/7` passed; helper/PHP/provider tests remain `4/4`.
+Observed results for the current candidate: `80/80`, `4/4`, and `7/7` passed; the broader checked set is `91/91` including helper/provider/PHP suites.
 
 ## Current external snapshot
 
@@ -105,8 +105,8 @@ stored only in the server-side `.env` and was not exercised during verification.
 
 ## Final candidate readback — 2026-09-19
 
-Commit `e68c43c` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
-The deployed AgentForge image is `sha256:80f1a690aa6bc8ccd9ee46c307095e0d589b6003a0e1eb48c605375a04037723`;
+Commit `0f3b515` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
+The deployed AgentForge image is `sha256:259816ca1fc0cb506317ddd9afb9a28267d2a3284a5f0bb92a0a1346bac796a`;
 the container reports healthy. Public readback passed `/health`, `/ready`,
 `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` with HTTP 200.
 The full API collection also passed complete and partial briefing, follow-up,

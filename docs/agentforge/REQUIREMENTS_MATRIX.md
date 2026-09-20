@@ -1,7 +1,8 @@
 # AgentForge requirements matrix
 
 **Rebaseline date:** 2026-09-19.
-**Source:** verified `Week 1 - AgentForge.pdf`, pp. 2–13, at `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf`; `REQUIREMENTS.md` is the repository transcription.
+**Source:** verified `Week 1 - AgentForge.pdf`, pp. 2–13, supplied outside the
+repository; `REQUIREMENTS.md` is the repository transcription.
 **Status vocabulary:** Done = supported for this synthetic checkpoint; Partial = some evidence exists but a required boundary is open; Missing = no adequate evidence; Blocked = requires an owner/external decision; Undecided = draft exists but no decision is authorized.
 
 | Requirement | Source | Artifact / implementation | Verification | Status | Remaining gap |
@@ -9,7 +10,7 @@
 | Clinical co-pilot embedded in OpenEMR and grounded in selected chart | pp. 2, 4, 7 | `USERS.md`, `ARCHITECTURE.md`, `agentforge/src/openemrAdapter.js`, module launcher | 50/50 local AgentForge tests; seeded synthetic OpenEMR corpus; current selected Vultr synthetic readback | Partial | Synthetic E2E is verified; PHI, production identity semantics, compliance, and clinician usefulness remain open. |
 | Start from Gauntlet OpenEMR base | p. 4 | `upstream` remote; repository history | `git remote -v`, history | Done for provenance | Literal fork-network/public provenance needs owner disposition. |
 | Run locally with sample patient data | p. 5 | OpenEMR compose docs; synthetic corpus and fixtures | Local tests; full seeded OpenEMR/AgentForge path exercised on Vultr | Done for synthetic checkpoint | Reproducible local seed/readback procedure should be documented if this becomes a handoff requirement. |
-| Public deployment reachable for submissions | pp. 4–5, 9 | `SUBMISSION.md`, `deploy/vultr`, Vultr readback | HTTPS redirect and landing page; current `/health`, `/ready`, and visual `/observability` 200; clean-browser Qwen briefing/follow-up and API collection verified; current image digest recorded in `RELEASE_READINESS.md` | Done for synthetic checkpoint | Submission custody and owner release decision remain open. |
+| Public deployment reachable for submissions | pp. 4–5, 9 | `SUBMISSION.md`, `deploy/vultr`, Vultr readback | Candidate `0f3b515`; HTTPS redirect and landing page; `/health`, `/ready`, and visual `/observability` 200; clean-browser Qwen briefing/follow-up and API collection verified; image digest recorded in `RELEASE_READINESS.md` | Done for synthetic checkpoint | Submission custody and owner release decision remain open. |
 | Complete security/performance/architecture/data-quality/compliance audit | pp. 4–6 | `AUDIT.md` | Document inspection | Done for audit gate | Audit findings are not production certification. |
 | Narrow user, workflow, and agent justification per use case | p. 6 | `USERS.md`, `USER.md` | Document inspection; service/UI tests | Done | Keep capability trace current as scope changes. |
 | Audit-derived integration plan | pp. 6–7 | `ARCHITECTURE.md`, `DECISIONS.md`, `agentforge/src/openemrAdapter.js` | Document/code seam review; REST adapter tests; deployed synthetic E2E | Partial | Production identity, PHI/data-processing, retention, and rollback policy remain open. |
@@ -19,7 +20,7 @@
 | Data security and HIPAA constraints shape the design; demo data only | p. 3 | `AUDIT.md`, `DECISIONS.md`, `RESILIENCE.md` | Document/code boundary review | Done for synthetic boundary | No HIPAA/compliance/BAA readiness claim; PHI remains blocked. |
 | Key metrics with rationale | p. 3 | `KEY_METRICS.md`, `OBSERVABILITY.md` | Document inspection; observability tests | Done for checkpoint | Prove success with real target users/runtime if making product claims. |
 | Demo data only | p. 3 | Fixtures and safety docs | Tests; no PHI authorized | Done | Preserve synthetic-only boundary. |
-| Agentic chatbot: multi-turn conversation and justified tool use | p. 7 | `agentforge/src/service.js`, `ui.js` | Conversation/UI tests; synthetic Vultr browser E2E | Done synthetic | Full current-candidate follow-up and clinician-usefulness evidence remains open. |
+| Agentic chatbot: multi-turn conversation and justified tool use | p. 7 | `agentforge/src/service.js`, `ui.js` | Conversation/UI tests; current synthetic Vultr browser E2E; physician-readable grouped briefing and follow-up prompts | Done synthetic | Clinician usefulness remains a demo-review judgment. |
 | Verify every response before display | p. 7 | `verifier.js`, contracts, evals | 10/10 evals; 50/50 AgentForge tests | Done synthetic | No PHI or production clinical correctness claim. |
 | Enforce requester authorization and patient scope | pp. 2–3, 8 | `accessContext.js`, `openemrAdapter.js` | Access-context, adapter, and seeded synthetic E2E tests | Done synthetic | Validate real production role/session semantics only if PHI scope is later authorized. |
 | Predictable failure and partial-data behavior | pp. 3–4, 8 | Coverage statuses, service, UI, fixtures | Golden/eval and service tests | Done synthetic | External failure drill must match current deployment. |
@@ -40,7 +41,7 @@
 | Agent architecture document with opening summary | p. 9 | `ARCHITECTURE.md` | Document inspection | Done | No claim of production readiness. |
 | Demo video, 3–5 minutes | p. 9 | Untracked `agentforge-*.mp4`, screenshots/logs; demo HTML | File inventory only | Partial/unknown custody | Verify final media duration, content, provenance, and intended deliverable before publication. |
 | Eval dataset and results | p. 9 | `evals/`, fixture corpus, evidence | 10/10 local | Done synthetic | Current deployed result requires refresh. |
-| Deployed application works in live environment | p. 9 | Vultr deployment docs/evidence | Current HTTPS readback; `/health`, `/ready`, visual `/observability` 200; clean-browser Qwen briefing/follow-up, API collection, and bounded 10/50-concurrency observations read back | Partial | 50-concurrency smoke has 6% client timeouts and p95 ~45s; PHI, production identity, clinical-safety, and submission claims remain out of scope. |
+| Deployed application works in live environment | p. 9 | Vultr deployment docs/evidence | Candidate `0f3b515`; current HTTPS readback; `/health`, `/ready`, visual `/observability` 200; clean-browser Qwen briefing/follow-up, API collection, and bounded 10/50-concurrency observations read back | Partial | 50-concurrency smoke has 6% client timeouts and p95 ~45s; larger workload and host-resource evidence remain open. |
 | Early technical interview | pp. 4, 9–10 | archived local `INTERVIEW_PREP.md`, `FINAL_INTERVIEW_PREP.md` | Draft inspection | Undecided | The untracked draft was moved to the local archive on 2026-09-19; scheduling/attendance is external and owner-gated. |
 | Final social post | p. 9 | `FINAL_SOCIAL_DRAFT.md` | Draft inspection | Undecided | No publication authorized. |
 | Final AI interview | p. 9 | Interview prep docs | Draft inspection | Undecided | External invitation/recording not established. |

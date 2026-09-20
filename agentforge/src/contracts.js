@@ -88,6 +88,25 @@ function validateCoverage(value, issues) {
   });
 }
 
+/** Validate the internal retrieval-tool result before it reaches verification. */
+export function validateRetrievalResult(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['retrieval_result_must_be_object'] };
+  unknownFields(issues, value, ['records', 'coverage']);
+  if (!Array.isArray(value.records)) issues.push('records_must_be_array');
+  else value.records.forEach((record, index) => {
+    const path = `records[${index}]`;
+    if (!isRecord(record)) { issues.push(`${path}_must_be_object`); return; }
+    unknownFields(issues, record, ['field', 'value', 'patient_ref', 'source_ref', 'recorded_at', 'author', 'reassessment_documented']);
+    for (const field of ['field', 'source_ref', 'recorded_at']) nonEmptyString(issues, record, field);
+    if ('patient_ref' in record && typeof record.patient_ref !== 'string') issues.push(`${path}.patient_ref_must_be_string`);
+    if ('author' in record && record.author !== null && typeof record.author !== 'string') issues.push(`${path}.author_must_be_string_or_null`);
+    if ('reassessment_documented' in record && typeof record.reassessment_documented !== 'boolean') issues.push(`${path}.reassessment_documented_must_be_boolean`);
+  });
+  validateCoverage(value.coverage, issues);
+  return { valid: issues.length === 0, issues };
+}
+
 function validateClaimsAgainstCoverage(claims, coverage, issues) {
   if (!Array.isArray(claims) || !Array.isArray(coverage)) return;
   const groups = new Map(coverage.filter(isRecord).map((group) => [group.group, group]));

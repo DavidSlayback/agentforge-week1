@@ -39,6 +39,27 @@ These are explicit planning assumptions, not observed clinical usage:
 | 10,000 | 160,000 | Retrieval fan-out, queueing, and telemetry volume | Add autoscaling workers, managed DB read replicas, durable queue/cache, object storage for redacted evidence, rate limits, and provider budget controls. |
 | 100,000 | 1,600,000 | Regional availability, tenant isolation, and upstream capacity | Use multi-zone app/worker pools, managed HA database, partitioned retrieval, regional routing, durable event/trace pipeline, disaster recovery, and formal SLO/error-budget controls. |
 
+## Numeric planning envelope
+
+The assignment asks for numeric planning outputs, so the following is an
+illustrative infrastructure-only envelope, not a bill or provider quote. It
+assumes `H=$24/month` for one 2-vCPU/4-GB shared host, `V+T=$10/month` for
+storage/telemetry, and the minimum architecture in the table above. The actual
+Vultr plan price is location- and plan-specific and must be read from the
+account before approval; Vultr bills non-GPU servers hourly up to 672 hours per
+month ([billing rules](https://docs.vultr.com/support/platform/billing/how-am-i-billed-for-my-servers)).
+
+| Monthly active clinicians | Infrastructure-only planning range | Provider spend |
+| ---: | ---: | --- |
+| 100 | **$34–$60/month** | Qwen vendor billing not available in repository; add measured token spend when the account readback exists. |
+| 1,000 | **$70–$150/month** | Same explicit token formula; no vendor quote fabricated. |
+| 10,000 | **$170–$400/month** | Same formula plus retry/fallback allowance. |
+| 100,000 | **$1,200–$3,500/month** | Same formula plus regional/provider redundancy allowance. |
+
+These ranges are intentionally labeled planning assumptions. They are useful for
+architecture comparison, but they do not close vendor billing attribution or
+authorize a provider migration.
+
 ## Cost equations
 
 Let `H` be the verified monthly price of the current 2-vCPU host, `V` the

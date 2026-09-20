@@ -63,7 +63,8 @@ export function renderObservabilityPage() {
           card('p95 latency', number(latency.p95, ' ms'), \`p99 \${number(latency.p99, ' ms')}\`),
           card('Retrieval attempts', number(metrics.retrievalAttempts), \`\${number(metrics.toolFailures)} failed or timed out\`),
           card('Retries', number(metrics.retries), \`\${number(metrics.providerFallbacks)} provider fallbacks\`),
-          card('Queue depth', number(telemetry.pendingExports ?? metrics.queueDepth), \`\${number(telemetry.droppedExports || 0)} dropped exports\`),
+          card('Telemetry queue', number(telemetry.pendingExports ?? metrics.queueDepth), \`\${number(telemetry.droppedExports || 0)} dropped exports\`),
+          card('Tokens', number(metrics.tokens?.total), \`\${number(metrics.tokens?.input)} in · \${number(metrics.tokens?.output)} out\`),
           card('Estimated cost', \`$\${Number(metrics.estimatedCostUsd || 0).toFixed(4)}\`, 'synthetic metadata only')
         ].join('');
         byId('latency-bars').innerHTML = barRows({p50: latency.p50 || 0, p95: latency.p95 || 0, p99: latency.p99 || 0}, (v) => number(v, ' ms'));

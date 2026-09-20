@@ -2,7 +2,9 @@
 
 **Rebaseline date:** 2026-09-19 (America/Chicago)
 **Evidence boundary:** synthetic/demo data only; read-only; clinician-reviewed.
-**Source of truth:** the supplied `Week 1 - AgentForge.pdf` was verified outside this repository at `C:\Users\david\.codex\worktrees\3ef3\agentforge-week1\Week 1 - AgentForge.pdf` and extracted as `document.md`. `REQUIREMENTS.md` is the repository's transcribed inventory, not the original source.
+**Source of truth:** the supplied `Week 1 - AgentForge.pdf` was verified outside
+this repository. `REQUIREMENTS.md` is the repository's transcribed inventory,
+not the original source.
 
 ## What the product is
 
@@ -48,9 +50,9 @@ Fresh local checks on this branch, verified 2026-09-19, pass:
 - evaluation tests: **10/10**; and
 - observability tests: **17/17** (77/77 application suites; 79/79 including the 1/1 load-harness and 1/1 provider-verifier regressions), including the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, the documented 2% tool-failure threshold, and fail-closed provider readback.
 
-The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. After a server-only model credential rotation and a 15-second model timeout, the selected Vultr runtime serves the synthetic workflow through the configured Qwen lane and `/ready` returns 200. This is not PHI or production-provider evidence.
+The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the synthetic workflow through the configured Qwen lane and `/ready` returns 200. The current candidate has 10/10 successful requests at concurrency 10 and 47/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
 
-On 2026-09-19, strict HTTPS and a clean browser verified the externally reachable briefing and follow-up workflow. The current readback returned HTTP 200 for `/health`, `/ready`, and `/observability`; the latest briefing trace used `openai-responses` with `qwen3.6-flash`, primary status, passed verification, and 11,578 ms duration. The normal external API collection also passed its complete, partial, follow-up, blocked, invalid-request, and observability checks. Blocked safety outcomes are excluded from operational error rate; the live snapshot reports zero errors. `/v1/alerts` now reports `windowMs=300000` and excludes retained historical fallback traces from its active window, while `/v1/metrics` retains the historical aggregate view. Immediately after the final collection, the active window correctly reported fresh `p95_latency` and `tool_failure_rate` alerts from that collection's slow Qwen and retrieval-failure probes, not from retained history. These are candidate-scoped observations, not full release proof: exact deployment identity, PHP executable parity, production identity semantics, external dashboard equivalence, PHI readiness, and clinical usefulness remain open.
+On 2026-09-19/20, strict HTTPS and a clean browser verified the externally reachable briefing and follow-up workflow on candidate `0f3b515`. The current readback returned HTTP 200 for `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts`; the API collection also passed complete, partial, follow-up, blocked, invalid-request, and observability checks. The browser surface now presents grouped physician-readable facts and expandable source records. These are synthetic candidate-scoped observations, not production-capacity or clinical-usefulness claims.
 
 ## Status by area
 
@@ -58,14 +60,14 @@ On 2026-09-19, strict HTTPS and a clean browser verified the externally reachabl
 | --- | --- | --- |
 | Original brief and requirements inventory | Done, with provenance boundary | Source PDF is verified outside the repo; the checked-in inventory is transcribed. |
 | Audit, users, architecture, metrics, and safety boundary | Done for the documented checkpoint | The documents exist and are internally useful; production claims remain out of scope. |
-| Conversational UI and follow-up flow | Implemented synthetic | Local and historical browser evidence exist; current-branch deployment parity is not yet proven. |
+| Conversational UI and follow-up flow | Implemented synthetic | Current candidate is deployed and browser-verified with physician-readable grouped facts, follow-up prompts, evidence expansion, reset, and blocked probe. |
 | Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; live OpenEMR equivalence and current-candidate deployment proof are missing. |
-| Contracts, API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | The browser/JSON operational surface is not independently verified as the assignment's external live dashboard. |
-| Load evidence | Partial | Signed local and recorded deployed reports exist, but their candidate identity and infrastructure context require owner review. |
+| Contracts, API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Current public API collection and visual dashboard readback pass on candidate `0f3b515`. |
+| Load evidence | Partial | Current bounded Qwen smoke evidence is 10/10 at concurrency 10 and 47/50 at concurrency 50; host CPU/memory capture and larger workloads remain open. |
 | Provider/model | Synthetic Qwen lane retained for now; OpenRouter is a future migration candidate | The server-only credential rotation restored primary `qwen3.6-flash` responses on Vultr; deterministic fallback remains available. No BAA, PHI approval, cost, retention, or production suitability is established. |
 | OpenEMR integration | Implemented for synthetic E2E | Read-only OAuth user-context retrieval, seeded synthetic records, PID→UUID launch, and deployed synthetic readback are current candidate evidence. PHI, production identity semantics, and compliance remain out of scope. |
 | PHI/HIPAA/BAA/compliance readiness | Blocked/out of scope | No PHI, clinical write-back, production compliance, or provider suitability is established. |
-| Cost and scale | Deferred | Revisit only after a live conversational agent exists; current billing/load artifacts are historical synthetic evidence. |
+| Cost and scale | Partial | Cost model and 100/1K/10K/100K architecture projections exist; deployment-specific billing attribution and host resource baseline remain open. |
 
 ## Known limitations and remaining work
 

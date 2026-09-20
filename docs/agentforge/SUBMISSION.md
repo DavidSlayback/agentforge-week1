@@ -1,22 +1,18 @@
 # AgentForge Sunday final-submission package
 
-> Historical package snapshot. Current implementation publication and review
-> status are tracked in `WAYFINDER_MAP.md`, `HANDOFF.md`, and the private GitLab
-> staging issues/MRs; statements below about no publication or older candidate
-> commits are retained as historical context.
+> Current synthetic checkpoint package. Candidate evidence is tracked in
+> `RELEASE_READINESS.md` and `REQUIREMENTS_MATRIX.md`; the video is the only
+> intentionally unfinished artifact and OpenRouter remains dormant.
 
 ## Release position
 
 This repository contains a synthetic, read-only, production-shaped AgentForge
-checkpoint. The historical Vultr evidence URL is:
+ checkpoint. The verified Vultr evidence URL is:
 
 `https://dtstest.64.177.10.182.nip.io/agentforge/`
 
-The Railway deployment is prior checkpoint evidence. The local B authorization
-changes are newer than the Vultr deployment and have not been redeployed. The
-historical hostname used Caddy-managed trusted HTTPS, with HTTP redirect
-readback; it is not current-candidate proof.
-No push, PR, merge, or publication occurred.
+The current deployed candidate is `0f3b515`; Qwen is active and OpenRouter was
+not called. No external publication occurred.
 
 ## What the synthetic checkpoint proves
 
@@ -35,9 +31,8 @@ No push, PR, merge, or publication occurred.
 
 ## Verification commands
 
-This submission artifact is historical. Raw queue evidence paths were retired;
-use the current requirements matrix and fresh candidate-specific evidence for
-any new release claim.
+Use the current requirements matrix and release-readiness record for
+candidate-specific evidence.
 
 ```text
 node --test agentforge/test/*.test.js
@@ -48,15 +43,12 @@ node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 10 --r
 node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 50 --requests 500 --out .scratch/agentforge-load-50-final.json
 ```
 
-The historical local results were 25/25 AgentForge tests, 10/10 observability tests, 10/10
-eval tests, zero deployed load errors, 100/100 at concurrency 10, and 500/500
-at concurrency 50 in signed synthetic mode. The former deployed reports were
-retired with the historical queue and are not current-candidate release proof.
+Current local results are 78/78 application/eval/observability tests, 4/4
+helper/PHP tests, and 7/7 golden cases. Current bounded Qwen smoke evidence is
+10/10 successful at concurrency 10 and 47/50 at concurrency 50; larger
+workloads are not claimed as passing.
 
-The deployed load and browser reports are candidate snapshots tied to
-`1259fbb`/`c3a63a3`; the active local branch is `f969227`. Do not present those
-reports as current-branch release proof until the canonical candidate decision
-is closed.
+The current deployed load and browser reports are tied to candidate `0f3b515`.
 
 ## Reviewer path
 

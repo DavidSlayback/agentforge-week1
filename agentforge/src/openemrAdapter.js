@@ -60,13 +60,13 @@ export class OpenEMRRestAdapter {
    * the patient UUID or PID; unmatched rows are dropped. Encounter rows rely
    * on OpenEMR's patient-scoped endpoint.
    */
-  async retrieve(item) {
+  async retrieve(item, { correlationId = '' } = {}) {
     const patient = item.openemr_patient;
     const groups = [{ group: 'identity', status: 'success', records: 1, attempts: 1, error_class: null }];
     const records = [mapIdentity(patient)];
     for (const [group, pathFor, mapper] of READ_GROUPS) {
       try {
-        const result = await this.request(pathFor(patient));
+        const result = await this.request(pathFor(patient), { correlationId });
         const rows = recordsFrom(result.body);
         const scopedRows = rows.filter((row) => rowBelongsToPatient(row, patient, group));
         const mapped = scopedRows.flatMap((row, index) => mapper(row, index));
@@ -80,11 +80,12 @@ export class OpenEMRRestAdapter {
   }
 
   /** Perform one read-only OpenEMR GET, optionally with bearer auth. */
-  async request(path, { includeAuth = true } = {}) {
+  async request(path, { includeAuth = true, correlationId = '' } = {}) {
     if (!this.baseUrl) throw Object.assign(new Error('OPENEMR_NOT_CONFIGURED'), { code: 'OPENEMR_NOT_CONFIGURED' });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const headers = { accept: 'application/json' };
+    if (correlationId) headers['x-correlation-id'] = correlationId;
     if (includeAuth) {
       const accessToken = this.tokenProvider ? await this.tokenProvider.getAccessToken() : this.accessToken;
       if (accessToken) headers.authorization = `Bearer ${accessToken}`;

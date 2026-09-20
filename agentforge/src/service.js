@@ -1,4 +1,4 @@
-import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageFailure, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse } from './contracts.js';
+import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageFailure, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse, validateRetrievalResult } from './contracts.js';
 import { fileURLToPath } from 'node:url';
 import { PreparationCache } from './preparationCache.js';
 
@@ -53,7 +53,7 @@ export class AgentForgeService {
     trace?.finishStage('authorization', { status: 'success' });
     const item = await this.adapter.getCase(authorization.patient_uuid, scopedRequest.case_id);
     trace?.startStage('retrieval');
-    const retrieval = await runWithinDeadline(() => this.adapter.retrieve(item), deadlineMs);
+    const retrieval = await runWithinDeadline(() => this.adapter.retrieve(item, { correlationId: id }), deadlineMs);
     if (retrieval.timedOut) {
       const result = { ...blockedResult(id, 'deadline-exceeded', 'deadline-exceeded'), deadline: { outcome: 'deadline-exceeded', deadline_ms: deadlineMs } };
       trace?.finishStage('retrieval', { status: 'timeout' });
@@ -62,6 +62,14 @@ export class AgentForgeService {
       return result;
     }
     const retrieved = retrieval.value;
+    const retrievalValidation = validateRetrievalResult(retrieved);
+    if (!retrievalValidation.valid) {
+      const result = blockedResult(id, 'retrieval_contract_invalid');
+      trace?.finishStage('retrieval', { status: 'failure' });
+      trace?.setDisplay({ status: 'withheld' });
+      trace?.complete({ status: 'blocked' });
+      return result;
+    }
     // Operational adapter label only; it does not prove live OpenEMR or
     // production reachability.
     const retrievalAdapter = this.adapter.constructor?.name === 'OpenEMRRestAdapter' ? 'openemr' : 'fixture';
@@ -95,7 +103,7 @@ export class AgentForgeService {
     trace?.startStage('model');
     const prompt = `Prepare a read-only return-visit orientation for ${item.patient.display_name}. Use only these exact evidence-backed field/value pairs: ${claims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ')}. Repeat at least one exact field/value pair in the response. Do not diagnose, recommend, prescribe, order, or suggest a medication change. Return no more than two sentences.`;
     const { verifyGeneratedText } = await import('./verifier.js');
-    const generated = await this.provider.generate({ patient: item.patient, claims, qualification, prompt }, { trace, validate: (candidate) => verifyGeneratedText({ text: candidate.text, claims }) });
+    const generated = await this.provider.generate({ patient: item.patient, claims, qualification, prompt, correlationId: id }, { trace, validate: (candidate) => verifyGeneratedText({ text: candidate.text, claims }) });
     trace?.recordModelUsage({ provider: generated.provider_name || this.provider.name, model: generated.model_name || this.provider.model, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens, estimatedCostUsd: generated.estimatedCostUsd, provider_fallback: generated.provider_fallback, provider_status: generated.provider_status, provider_error_code: generated.provider_error_code });
     trace?.finishStage('model', { status: generated.provider_fallback ? 'fallback' : 'success', provider_status: generated.provider_status || 'primary' });
     response.text = generated.text;
@@ -172,19 +180,39 @@ function followUpFromBriefing(id, briefing, message) {
   if (briefing.disposition === 'blocked' || briefing.disposition === 'deadline-exceeded' || briefing.verification?.status !== 'passed') {
     return { ...blockedResult(id, briefing.qualification?.reasons?.[0] || briefing.disposition, briefing.disposition), deadline: briefing.deadline };
   }
+  const question = String(message || '').trim();
+  const normalizedQuestion = question.toLowerCase();
+  const claims = briefing.claims || [];
+  const topicWords = normalizedQuestion.split(/[^a-z0-9]+/).filter((word) => word.length > 2);
+  const relevantClaims = topicWords.length ? claims.filter((claim) => topicWords.some((word) => claim.field.toLowerCase().includes(word) || String(claim.value).toLowerCase().includes(word))) : claims;
+  const selectedClaims = relevantClaims.length ? relevantClaims : claims;
+  const claimText = selectedClaims.map((claim) => `${claim.field}=${claim.value}`).join('; ');
+  let text;
+  if (/(what changed|change|since the last)/.test(normalizedQuestion)) {
+    const reassessed = selectedClaims.filter((claim) => claim.reassessment_documented && claim.field !== 'encounter.reason');
+    text = reassessed.length
+      ? `Follow-up for ${briefing.context.patient_ref}: the returned record explicitly documents reassessment for ${reassessed.map((claim) => `${claim.field}=${claim.value}`).join('; ')}. No earlier comparison value was retrieved, so this is not presented as a direction of change.`
+      : `Follow-up for ${briefing.context.patient_ref}: no prior comparison encounter was retrieved. The current documented records are ${claimText || 'insufficient to establish a change'}; do not interpret them as a change without a baseline.`;
+  } else if (/(plan|follow.?through|carried out)/.test(normalizedQuestion)) {
+    text = `Follow-up for ${briefing.context.patient_ref}: no documented plan-follow-through record is present in the returned evidence. Completion or non-completion cannot be established from this briefing.`;
+  } else if (/(conflict|different|discrep)/.test(normalizedQuestion)) {
+    text = `Follow-up for ${briefing.context.patient_ref}: no resolved discrepancy is established by the returned evidence. Recency alone does not resolve conflicting records.`;
+  } else {
+    text = `Follow-up for ${briefing.context.patient_ref}: the relevant documented evidence is ${claimText || 'not available'}. The answer is limited to these verified records.`;
+  }
   return {
     contract_version: CONTRACT_VERSION,
     correlation_id: id,
     disposition: briefing.disposition,
     context: briefing.context,
     patient: briefing.patient,
-    claims: briefing.claims,
+    claims: selectedClaims,
     withheld_fields: briefing.withheld_fields,
     coverage: briefing.coverage,
     qualification: briefing.qualification,
     operations: briefing.operations,
-    text: `Follow-up for ${briefing.context.patient_ref}: ${message || 'No question supplied.'} See the cited evidence in the briefing.`,
-    evidence: briefing.claims.flatMap((claim) => claim.evidence),
+    text,
+    evidence: selectedClaims.flatMap((claim) => claim.evidence),
     verification: briefing.verification,
     ...(briefing.deadline ? { deadline: briefing.deadline } : {}),
   };

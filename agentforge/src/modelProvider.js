@@ -20,11 +20,13 @@ export class DeterministicProvider {
 export class OpenAICompatibleProvider {
   constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge' }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
-  async generate({ prompt }) {
+  async checkReachable() { return probeProviderEndpoint({ endpoint: this.endpoint, apiKey: this.apiKey, model: this.model, timeoutMs: Math.min(this.timeoutMs, 3000), body: { model: this.model, messages: [{ role: 'user', content: 'Return only OK.' }], temperature: 0, max_tokens: 1 } }); }
+  async generate({ prompt, correlationId = '' }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const headers = { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` };
+    if (correlationId) headers['x-correlation-id'] = correlationId;
     if (this.siteUrl) headers['HTTP-Referer'] = this.siteUrl;
     if (this.siteName) headers['X-Title'] = this.siteName;
     try {
@@ -47,14 +49,23 @@ export class OpenAICompatibleProvider {
 export class DashScopeMultimodalProvider {
   constructor({ endpoint, apiKey, model, timeoutMs = 8000 }) { this.name = 'dashscope'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
-  async generate({ prompt }) {
+  async checkReachable() {
+    return probeProviderEndpoint({
+      endpoint: this.endpoint,
+      apiKey: this.apiKey,
+      model: this.model,
+      timeoutMs: Math.min(this.timeoutMs, 3000),
+      body: { model: this.model, input: { messages: [{ role: 'user', content: [{ text: 'Return only OK.' }] }] }, parameters: { result_format: 'message', max_tokens: 1 } },
+    });
+  }
+  async generate({ prompt, correlationId = '' }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}`, ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
         signal: controller.signal,
         body: JSON.stringify({ model: this.model, input: { messages: [{ role: 'user', content: [{ text: prompt }] }] }, parameters: { result_format: 'message' } })
       });
@@ -77,14 +88,23 @@ export class DashScopeMultimodalProvider {
 export class OpenAIResponsesProvider {
   constructor({ endpoint, apiKey, model, timeoutMs = 8000 }) { this.name = 'openai-responses'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
-  async generate({ prompt }) {
+  async checkReachable() {
+    return probeProviderEndpoint({
+      endpoint: this.endpoint,
+      apiKey: this.apiKey,
+      model: this.model,
+      timeoutMs: Math.min(this.timeoutMs, 3000),
+      body: { model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: 'Return only OK.' }] }], temperature: 0, max_output_tokens: 1 },
+    });
+  }
+  async generate({ prompt, correlationId = '' }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}`, ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
         signal: controller.signal,
         body: JSON.stringify({ model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], temperature: 0, max_output_tokens: 300 })
       });
@@ -115,6 +135,7 @@ export class ResilientProvider {
     const primaryReady = await this.primary.checkReady().catch(() => false);
     return Boolean(fallbackReady && primaryReady && this.primaryHealthy !== false);
   }
+  async checkReachable() { return Boolean(await this.checkReady()) && (typeof this.primary.checkReachable !== 'function' || await this.primary.checkReachable()); }
   async generate(args, { trace, validate } = {}) {
     let lastError = null;
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
@@ -132,5 +153,19 @@ export class ResilientProvider {
     if (validate && validate(result).status !== 'passed') throw new Error('MODEL_FALLBACK_OUTPUT_REJECTED');
     this.primaryHealthy = false;
     return { ...result, provider_status: 'fallback', provider_fallback: true, provider_name: this.fallback.name, model_name: this.fallback.model, provider_error_code: lastError?.message || 'MODEL_UNAVAILABLE' };
+  }
+}
+
+async function probeProviderEndpoint({ endpoint, apiKey, model, timeoutMs, body }) {
+  if (!endpoint || !apiKey || !model) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, signal: controller.signal, body: JSON.stringify(body) });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
 }

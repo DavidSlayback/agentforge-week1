@@ -144,6 +144,8 @@ class InMemoryTraceSink {
     const retries = traces.reduce((total, trace) => total + (trace.retries?.total || 0), 0);
     const providerFallbacks = traces.filter((trace) => trace.model?.provider_fallback === true).length;
     const estimatedCostUsd = traces.reduce((total, trace) => total + Number(trace.model?.estimatedCostUsd || trace.model?.estimated_cost_usd || 0), 0);
+    const inputTokens = traces.reduce((total, trace) => total + Number(trace.model?.inputTokens || trace.model?.input_tokens || 0), 0);
+    const outputTokens = traces.reduce((total, trace) => total + Number(trace.model?.outputTokens || trace.model?.output_tokens || 0), 0);
     return {
       requests: traces.length,
       errors,
@@ -160,6 +162,7 @@ class InMemoryTraceSink {
       retries,
       providerFallbacks,
       estimatedCostUsd,
+      tokens: { input: inputTokens, output: outputTokens, total: inputTokens + outputTokens },
       verificationOutcomes: traces.reduce((outcomes, trace) => { const key = trace.verification?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
       displayOutcomes: traces.reduce((outcomes, trace) => { const key = trace.display?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
     };
