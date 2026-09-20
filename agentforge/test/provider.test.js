@@ -96,7 +96,7 @@ test('OpenAI Responses readiness probe checks the provider without patient conte
     assert.equal(await provider.checkReachable(), true);
     assert.equal(request.input[0].content[0].text, 'Return only OK.');
     assert.equal(request.input[0].content[0].text.includes('patient'), false);
-    assert.equal(request.max_output_tokens, 1);
+    assert.equal(request.max_output_tokens, 16);
   } finally {
     globalThis.fetch = originalFetch;
   }
