@@ -42,6 +42,16 @@ export class PreparationCache {
     return { status: 'hit', entry };
   }
 
+  /** Find a prepared visit by its server-owned schedule/source binding. */
+  findByBinding({ patientRef, clinicianRef, scheduleRevision, sourceRevision = null }) {
+    const now = this.now();
+    for (const [key, entry] of this.entries) {
+      if (entry.expiresAt <= now) { this.entries.delete(key); continue; }
+      if (entry.patientRef === patientRef && entry.clinicianRef === clinicianRef && entry.scheduleRevision === scheduleRevision && (!sourceRevision || entry.sourceRevision === sourceRevision)) return { status: 'hit', entry };
+    }
+    return { status: 'miss', entry: null };
+  }
+
   delete(correlationId) {
     return this.entries.delete(correlationId);
   }

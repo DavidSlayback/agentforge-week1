@@ -119,6 +119,15 @@ returned an upstream provider error on the selected route, so Flash-Lite is the
 current low-cost interactive model. This is a provider choice, not a PHI or
 clinical-approval claim.
 
+The synthetic checkpoint now exposes that seam without a calendar connector:
+`POST /agentforge/v1/prewarm` accepts a signed synthetic context plus
+`schedule_revision` and returns a correlation ID immediately; the background
+preparation reuses `AgentForgeService.prepare()`. The caller can open the
+completed result with `POST /agentforge/v1/prewarm/{correlation_id}/open`.
+Duplicate schedule bindings are idempotent, and cache entries retain patient,
+clinician, schedule, source, and expiry bindings. Real calendar and PHI
+integration remain out of scope.
+
 ## Optional self-hosted Langfuse lane
 
 The AgentForge container can export redacted operational spans to a separately

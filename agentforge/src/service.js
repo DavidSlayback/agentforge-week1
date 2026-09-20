@@ -36,8 +36,9 @@ export class AgentForgeService {
     this.traceSink = traceSink;
     this.cache = cache;
     this.freshRetrievalDeadlineMs = freshRetrievalDeadlineMs;
+    this.prewarmJobs = new Map();
   }
-  async prepare(request, { verifiedContext = null, interactionType = 'briefing', deadlineMs = null } = {}) {
+  async prepare(request, { verifiedContext = null, interactionType = 'briefing', deadlineMs = null, scheduleRevision = CACHE_SCHEDULE_REVISION, sourceRevision = null } = {}) {
     const id = correlationId(request.correlation_id);
     const authorization = this.adapter.authorize ? this.adapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     // Keep the API conversation ID available to the client/cache, but never
@@ -116,8 +117,8 @@ export class AgentForgeService {
       trace?.complete({ status: 'blocked', deadlineOutcome: deadlineMs ? 'within_deadline' : 'not_applicable' });
       return result;
     }
-    this.cache.put({ correlationId: id, patientRef: item.patient.patient_ref, clinicianRef: authorization.clinician_uuid, verifiedContext, request: scopedRequest, response, sourceRevision: item.id, scheduleRevision: CACHE_SCHEDULE_REVISION });
-    trace?.setCache({ status: 'stored', sourceRevision: TRACE_CACHE_SOURCE_REVISION, scheduleRevision: CACHE_SCHEDULE_REVISION });
+    this.cache.put({ correlationId: id, patientRef: item.patient.patient_ref, clinicianRef: authorization.clinician_uuid, verifiedContext, request: scopedRequest, response, sourceRevision: sourceRevision || item.id, scheduleRevision });
+    trace?.setCache({ status: 'stored', sourceRevision: sourceRevision || TRACE_CACHE_SOURCE_REVISION, scheduleRevision });
     trace?.setCoverage({ status: failed.length ? 'partial' : 'complete', groups: retrieved.coverage.map((group) => group.group) });
     trace?.setVerification(verification);
     trace?.startStage('display');
@@ -125,6 +126,32 @@ export class AgentForgeService {
     trace?.finishStage('display', { status: verification.status === 'passed' ? 'displayed' : 'withheld' });
     trace?.complete({ status: verification.status === 'passed' ? 'success' : 'failure', deadlineOutcome: deadlineMs ? 'within_deadline' : 'not_applicable' });
     return response;
+  }
+
+  /** Start bounded, synthetic calendar-ahead preparation without a second auth/retrieval path. */
+  prewarm(request, { verifiedContext = null, scheduleRevision = CACHE_SCHEDULE_REVISION, sourceRevision = null } = {}) {
+    const authorization = this.adapter.authorize ? this.adapter.authorize(request, verifiedContext) : { status: 'blocked' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: 'prewarm_authorization_failed' };
+    const patientRef = authorization.patient_uuid;
+    const clinicianRef = authorization.clinician_uuid;
+    const binding = `${patientRef}|${clinicianRef}|${scheduleRevision}|${sourceRevision || ''}`;
+    const existing = this.cache.findByBinding({ patientRef, clinicianRef, scheduleRevision, sourceRevision });
+    if (existing.entry) return { status: 'ready', correlation_id: existing.entry.correlationId, duplicate: true };
+    const active = this.prewarmJobs.get(binding);
+    if (active) return { status: 'accepted', correlation_id: active.correlationId, duplicate: true };
+    const correlation_id = correlationId(request.correlation_id);
+    const promise = this.prepare({ ...request, patient_uuid: patientRef, clinician_uuid: clinicianRef, correlation_id }, { verifiedContext, interactionType: 'scheduled_preparation', scheduleRevision, sourceRevision });
+    this.prewarmJobs.set(binding, { correlationId: correlation_id, promise });
+    promise.finally(() => this.prewarmJobs.delete(binding)).catch(() => {});
+    return { status: 'accepted', correlation_id, duplicate: false, promise };
+  }
+
+  /** Open a completed prewarm through the same verified patient/clinician boundary. */
+  openPrepared(id, request, { verifiedContext = null } = {}) {
+    const cacheResult = this.cache.get(id);
+    const authorization = this.adapter.authorize ? this.adapter.authorize(request, verifiedContext) : { status: 'blocked' };
+    if (cacheResult.status !== 'hit' || authorization.status !== 'authorized' || cacheResult.entry.patientRef !== authorization.patient_uuid || cacheResult.entry.clinicianRef !== authorization.clinician_uuid) return { status: 'not_ready', reason: 'preparation_not_available' };
+    return { status: 'ready', response: cacheResult.entry.response, cache: { status: 'hit', sourceRevision: cacheResult.entry.sourceRevision, scheduleRevision: cacheResult.entry.scheduleRevision } };
   }
   async followUp(id, request, { verifiedContext = null } = {}) {
     // Follow-ups stay scoped to patient and clinician; missing or mismatched

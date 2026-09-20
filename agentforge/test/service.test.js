@@ -141,3 +141,26 @@ test('fresh retrieval returns an explicit deadline outcome without patient conte
   assert.equal(followUp.deadline.outcome, 'deadline-exceeded');
   assert.equal(sink.list().some((trace) => trace.deadlineOutcome === 'deadline-exceeded'), true);
 });
+
+test('calendar prewarm prepares once and opens a bound cache hit', async () => {
+  const svc = make();
+  const value = request('fixture-patient-001', { case_id: 'complete_return_visit' });
+  const accepted = svc.prewarm(value, { verifiedContext: contextFor(value), scheduleRevision: 'visit-2026-09-21-0900', sourceRevision: 'complete_return_visit' });
+  assert.equal(accepted.status, 'accepted');
+  const duplicate = svc.prewarm(value, { verifiedContext: contextFor(value), scheduleRevision: 'visit-2026-09-21-0900', sourceRevision: 'complete_return_visit' });
+  assert.equal(duplicate.duplicate, true);
+  await accepted.promise;
+  const opened = svc.openPrepared(accepted.correlation_id, value, { verifiedContext: contextFor(value) });
+  assert.equal(opened.status, 'ready');
+  assert.equal(opened.cache.scheduleRevision, 'visit-2026-09-21-0900');
+});
+
+test('calendar prewarm fails closed for mismatched authorization and provider failure', async () => {
+  const value = request('fixture-patient-001', { case_id: 'complete_return_visit' });
+  const mismatch = make().prewarm(value, { verifiedContext: contextFor(request('fixture-patient-002')) });
+  assert.equal(mismatch.status, 'blocked');
+  const failing = new AgentForgeService({ adapter, provider: { generate: async () => { throw new Error('MODEL_DOWN'); } } });
+  const accepted = failing.prewarm(value, { verifiedContext: contextFor(value), scheduleRevision: 'visit-failing' });
+  await assert.rejects(accepted.promise, /MODEL_DOWN/);
+  assert.equal(failing.cache.get(accepted.correlation_id).status, 'miss');
+});

@@ -107,6 +107,12 @@ capacity evidence.
    trace contract.
 2. Implement the server-owned preparation cache contract; never accept a
    client-supplied TTL, patient binding, or deadline.
+   The synthetic checkpoint now exposes a calendar-ahead seam with
+   `POST /v1/prewarm` and `POST /v1/prewarm/{correlation_id}/open`. The first
+   route returns immediately and runs the existing verified preparation path in
+   the background; the second opens only a server-owned cache entry bound to
+   verified patient, clinician, schedule revision, source revision, and TTL.
+   This simulates a calendar trigger; it is not a real calendar connector.
 3. Add the conversational latency tests above using deterministic fixtures.
 4. Run deployed synthetic measurements at concurrency 10 and 50, then update
    targets only from observed evidence.
