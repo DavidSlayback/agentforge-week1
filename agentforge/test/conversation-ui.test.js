@@ -35,6 +35,9 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
     assert.match(page, /What changed since the last visit\?/);
     assert.match(page, /What plan items need follow-through\?/);
     assert.match(page, /Which records conflict\?/);
+    assert.match(page, /Documented facts and provenance/);
+    assert.match(page, /Source records/);
+    assert.match(page, /Open operations dashboard/);
     assert.match(page, /demoToken: ""/);
     assert.doesNotMatch(page, /demoToken: token/);
     assert.doesNotMatch(page, /request\(basePath \+ '\/v1\/conversations/);
