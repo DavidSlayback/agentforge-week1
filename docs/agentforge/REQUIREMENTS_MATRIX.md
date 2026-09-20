@@ -51,7 +51,7 @@ repository; `REQUIREMENTS.md` is the repository transcription.
 
 ## Reconciliation notes
 
-- Fresh local proof on 2026-09-19 is AgentForge **50/50**, evals **10/10**, and observability **17/17** (**80/80 application suites**), plus **4/4** helper/PHP/provider regressions (**91/91 broader checked set**). Older counts in handoff/overnight evidence are retained as historical snapshots only.
+- Fresh local proof on 2026-09-19 is AgentForge **50/50**, evals **10/10**, and observability **17/17** (**80/80 application suites**), plus **4/4** helper/PHP/provider regressions (**84/84 broader checked set**). Older counts in handoff/overnight evidence are retained as historical snapshots only.
 
 - `USER.md` now points to canonical `USERS.md`; this resolves the brief's filename inconsistency without duplicating the user model.
 - Railway evidence is earlier checkpoint evidence. The selected Vultr runtime has same-day synthetic readback for the externally reachable workflow and current primary Qwen success after server-only credential rotation; this remains candidate-scoped proof, not PHI or production release evidence.

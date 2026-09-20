@@ -35,7 +35,7 @@ node --test scripts/test/*.test.mjs
 node evals/lib/runner.js
 ```
 
-Observed results for the current candidate: `80/80`, `4/4`, and `7/7` passed; the broader checked set is `91/91` including helper/provider/PHP suites.
+Observed results for the current candidate: `80/80`, `4/4`, and `7/7` passed; the broader checked set is `84/84` including helper/provider/PHP suites.
 
 ## Current external snapshot
 

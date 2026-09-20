@@ -48,7 +48,7 @@ Fresh local checks on this branch, verified 2026-09-19, pass:
 
 - AgentForge service and seam tests: **50/50**;
 - evaluation tests: **10/10**; and
-- observability tests: **17/17** (80/80 application suites; 91/91 including helper/PHP/provider regressions), including the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, the documented 2% tool-failure threshold, and fail-closed provider readback.
+- observability tests: **17/17** (80/80 application suites; 84/84 including helper/PHP/provider regressions), including the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, the documented 2% tool-failure threshold, and fail-closed provider readback.
 
 The repository also contains seven synthetic golden cases, mutation/error-analysis evidence, API-collection scripts, redacted trace persistence, alert evaluation, and recorded load reports. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the synthetic workflow through the configured Qwen lane and `/ready` returns 200. The current candidate has 10/10 successful requests at concurrency 10 and 47/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
 
