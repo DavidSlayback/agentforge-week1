@@ -11,7 +11,7 @@ This repository contains a synthetic, read-only, production-shaped AgentForge
 
 `https://dtstest.64.177.10.182.nip.io/agentforge/`
 
-The current deployed candidate is `0f3b515`; Qwen is active and OpenRouter was
+The current deployed candidate is `8203ca6`; Qwen is active and OpenRouter was
 not called. No external publication occurred.
 
 ## What the synthetic checkpoint proves
@@ -43,12 +43,12 @@ node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 10 --r
 node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 50 --requests 500 --out .scratch/agentforge-load-50-final.json
 ```
 
-Current local results are 78/78 application/eval/observability tests, 4/4
+Current local results are 80/80 application/eval/observability tests, 4/4
 helper/PHP tests, and 7/7 golden cases. Current bounded Qwen smoke evidence is
 10/10 successful at concurrency 10 and 47/50 at concurrency 50; larger
 workloads are not claimed as passing.
 
-The current deployed load and browser reports are tied to candidate `0f3b515`.
+The current deployed load and browser reports are tied to candidate `8203ca6`.
 
 ## Reviewer path
 

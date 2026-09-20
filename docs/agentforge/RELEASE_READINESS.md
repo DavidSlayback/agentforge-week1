@@ -1,7 +1,7 @@
 # AgentForge release-readiness evidence map
 
 **Checkpoint:** 2026-09-19, America/Chicago  
-**Candidate commit:** `0f3b515` (`fix: keep patient context aligned with briefing`)
+**Candidate commit:** `8203ca6` (`fix: format follow-up evidence for clinicians`)
 **Decision:** Conditionally ready for the synthetic checkpoint; the exact
 candidate is now deployed and read back, with the remaining load and packaging
 limitations recorded below.  
@@ -105,8 +105,8 @@ stored only in the server-side `.env` and was not exercised during verification.
 
 ## Final candidate readback — 2026-09-19
 
-Commit `0f3b515` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
-The deployed AgentForge image is `sha256:259816ca1fc0cb506317ddd9afb9a28267d2a3284a5f0bb92a0a1346bac796a`;
+Commit `8203ca6` was archived to `/opt/agentforge-week1` and rebuilt on Vultr.
+The deployed AgentForge image is `sha256:b9503b2934648ea57b353ab13ee1deb933ac79eb155e69b0652920e0ae77b428`;
 the container reports healthy. Public readback passed `/health`, `/ready`,
 `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` with HTTP 200.
 The full API collection also passed complete and partial briefing, follow-up,
