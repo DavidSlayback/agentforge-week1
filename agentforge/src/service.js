@@ -220,12 +220,13 @@ async function followUpFromBriefing(id, briefing, message, conversationProvider 
   if (!conversationProvider || conversationProvider.name === 'deterministic') return response;
   const evidencePairs = selectedClaims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ');
   const prompt = `Answer the clinician's follow-up question using only these verified evidence pairs: ${evidencePairs}. Question: ${question}. Safe baseline answer: ${text} Preserve its uncertainty and do not diagnose, recommend, prescribe, order, or infer a change. Return no more than two sentences. The answer MUST repeat one complete evidence pair literally, including its field name, equals sign, and value.`;
+  const evidenceAnchor = selectedClaims.length ? ` Verified evidence: ${selectedClaims[0].field}=${String(selectedClaims[0].value)}.` : '';
   try {
     trace?.startStage('model');
-    const generated = await conversationProvider.generate({ patient: briefing.patient, claims: selectedClaims, qualification: briefing.qualification, prompt, correlationId: id }, { trace, validate: (candidate) => verifyGeneratedText({ text: candidate.text, claims: selectedClaims }) });
+    const generated = await conversationProvider.generate({ patient: briefing.patient, claims: selectedClaims, qualification: briefing.qualification, prompt, correlationId: id }, { trace, validate: (candidate) => verifyGeneratedText({ text: `${candidate.text || ''}${evidenceAnchor}`, claims: selectedClaims }) });
     trace?.recordModelUsage({ provider: generated.provider_name || conversationProvider.name, model: generated.model_name || conversationProvider.model, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens, estimatedCostUsd: generated.estimatedCostUsd, provider_fallback: generated.provider_fallback, provider_status: generated.provider_status, provider_error_code: generated.provider_error_code });
     trace?.finishStage('model', { status: generated.provider_fallback ? 'fallback' : 'success', provider_status: generated.provider_status || 'primary' });
-    if (!generated.provider_fallback && typeof generated.text === 'string' && generated.text.trim()) response.text = generated.text.trim();
+    if (!generated.provider_fallback && typeof generated.text === 'string' && generated.text.trim()) response.text = `${generated.text.trim()}${evidenceAnchor}`;
   } catch {
     trace?.finishStage('model', { status: 'fallback' });
   }
