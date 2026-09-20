@@ -218,7 +218,8 @@ async function followUpFromBriefing(id, briefing, message, conversationProvider 
     ...(briefing.deadline ? { deadline: briefing.deadline } : {}),
   };
   if (!conversationProvider || conversationProvider.name === 'deterministic') return response;
-  const prompt = `Answer the clinician's follow-up question using only these verified evidence pairs: ${selectedClaims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ')}. Question: ${question}. Safe baseline answer: ${text} Preserve its uncertainty and do not diagnose, recommend, prescribe, order, or infer a change. Return no more than two sentences and repeat one exact evidence pair.`;
+  const evidencePairs = selectedClaims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ');
+  const prompt = `Answer the clinician's follow-up question using only these verified evidence pairs: ${evidencePairs}. Question: ${question}. Safe baseline answer: ${text} Preserve its uncertainty and do not diagnose, recommend, prescribe, order, or infer a change. Return no more than two sentences. The answer MUST repeat one complete evidence pair literally, including its field name, equals sign, and value.`;
   try {
     trace?.startStage('model');
     const generated = await conversationProvider.generate({ patient: briefing.patient, claims: selectedClaims, qualification: briefing.qualification, prompt, correlationId: id }, { trace, validate: (candidate) => verifyGeneratedText({ text: candidate.text, claims: selectedClaims }) });
