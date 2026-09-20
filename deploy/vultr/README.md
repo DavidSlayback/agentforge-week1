@@ -106,14 +106,18 @@ returns ungrounded text, the deterministic evidence-only answer is used.
 AGENTFORGE_PROVIDER_MODE=qwen
 AGENTFORGE_CONVERSATION_PROVIDER_MODE=openrouter
 AGENTFORGE_CONVERSATION_OPENROUTER_API_KEY=<server-only-openrouter-key>
-AGENTFORGE_CONVERSATION_OPENROUTER_MODEL=inception/mercury-2.5
-AGENTFORGE_CONVERSATION_OPENROUTER_TIMEOUT_MS=5000
+AGENTFORGE_CONVERSATION_OPENROUTER_MODEL=google/gemini-2.5-flash-lite
+AGENTFORGE_CONVERSATION_OPENROUTER_TIMEOUT_MS=8000
 ```
 
 The calendar integration should call the existing preparation service ahead of
 the scheduled visit, persist the returned correlation ID, and open the cached
-briefing when the clinician enters the encounter. This deployment keeps the
-lane opt-in and does not activate it by default.
+briefing when the clinician enters the encounter. The current deployment keeps
+the lane opt-in at configuration level, while the live synthetic candidate has
+activated it with the server-side OpenRouter key. Mercury 2.5 was tested but
+returned an upstream provider error on the selected route, so Flash-Lite is the
+current low-cost interactive model. This is a provider choice, not a PHI or
+clinical-approval claim.
 
 ## Optional self-hosted Langfuse lane
 

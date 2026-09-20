@@ -48,4 +48,12 @@ scale tier.
 
 ## Current candidate resource sample
 
-Candidate `8203ca6` (`sha256:b9503b2934648ea57b353ab13ee1deb933ac79eb155e69b0652920e0ae77b428`) was sampled during bounded public 10/50-concurrency runs. The AgentForge container peaked at 9.33% CPU and 1.17% memory (about 44 MiB of the 3.818 GiB container limit). These are container observations on the selected Vultr host, not host-wide saturation or production SLO evidence.
+Candidate `56d1a35` was sampled during bounded public runs with Qwen synthesis and
+Gemini Flash-Lite conversation. At concurrency 10, 10/10 requests completed with
+0.229 requests/second, p50 29.97 seconds, and p95 43.68 seconds. At concurrency
+50, 46/50 completed before the 45-second client deadline (8% client timeout rate),
+with 1.111 requests/second, p50 30.19 seconds, and p95 45.00 seconds. The AgentForge
+container peaked at 29.06% CPU and 52.01 MiB resident memory (about 1.36% of the
+3.818 GiB limit). These are container observations on the selected Vultr host, not
+host-wide saturation or production SLO evidence. The 50-concurrency result is the
+named tail-latency limitation, not a claim of production capacity.

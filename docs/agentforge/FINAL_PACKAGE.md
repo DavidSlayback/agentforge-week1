@@ -1,18 +1,19 @@
 # Final package checklist
 
 > Current submission package for the synthetic checkpoint. The video remains
-> the only intentionally unfinished artifact; OpenRouter migration is deferred
-> by owner direction.
+> the only intentionally unfinished artifact; Qwen remains the synthesis lane and
+> the funded OpenRouter conversation lane is active.
 
 ## Candidate identity
 
 - Local branch: `davidslayback/agentforge-stack-03-deploy-evidence`
 - Source of record: GitLab program issue #17 and child issues #18–#26
 - Verified deployment URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
-- Deployed service commit: `8203ca6`; image manifest:
-  `sha256:b9503b2934648ea57b353ab13ee1deb933ac79eb155e69b0652920e0ae77b428`
-- Active provider: Qwen. OpenRouter is configured as a dormant mode only and
-  was not called.
+- Deployed service commit: `56d1a35`; the deployment was rebuilt from this
+  candidate after the live provider and load readback.
+- Active provider lanes: Qwen for ahead-of-time synthesis; Google Gemini 2.5
+  Flash-Lite through OpenRouter for short follow-ups. The OpenRouter key is
+  server-only and the lane preserves a deterministic evidence anchor.
 - A future synthetic deployment must set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, a
   server-only `AGENTFORGE_DEMO_SECRET`, and a durable `AGENTFORGE_TRACE_PATH`.
 
@@ -24,13 +25,13 @@
 | Public URL/TLS | PASS | Current HTTPS URL, redirect, health, readiness, and browser surface read back on the packaged revision. |
 | Multi-turn browser agent | PASS synthetic | Current clean-browser briefing/follow-up surface verified; partial and blocked probes are in the API collection and UI. |
 | Auth/scope seam | PASS synthetic local; deployment pending | Signed-context expiry/mismatch/scope tests pass locally; the B revision needs deployed readback. |
-| Provider lane | PASS Qwen synthetic | Qwen remains active; deterministic fallback and dormant OpenRouter mode are documented. |
+| Provider lane | PASS split synthetic | Qwen synthesis and OpenRouter conversation traces both read back as primary; deterministic fallback remains fail-closed. |
 | Operations | PASS synthetic | Dashboard, alerts, traces, and route matrix read back on the packaged revision. |
 | Load/cost | Deployed load PASS; billing readback PASS; projections REVIEW | Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
 | Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | PARTIAL | Current Qwen smoke evidence is 10/10 at concurrency 10 and 42/50 at concurrency 50; tail latency remains the named limitation. Container CPU/memory samples are recorded. |
+| Deployed scale | PARTIAL | Current split-lane evidence is 10/10 at concurrency 10 and 46/50 at concurrency 50; tail latency remains the named limitation. Container CPU/memory samples are recorded. |
 | Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
-| Final readback | PASS synthetic | Candidate `8203ca6` is deployed, healthy, and passed the public API collection plus clean-browser UI readback. |
+| Final readback | PASS synthetic | Candidate `56d1a35` is deployed, healthy, and passed the public API collection plus live split-lane readback. |
 | Submission package | READY | Link-current artifact review and owner sign-off. |
 | Interview | READY FOR OWNER REVIEW | Timed rehearsal against final evidence. |
 | External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |
