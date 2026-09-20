@@ -186,12 +186,12 @@ function followUpFromBriefing(id, briefing, message) {
   const topicWords = normalizedQuestion.split(/[^a-z0-9]+/).filter((word) => word.length > 2);
   const relevantClaims = topicWords.length ? claims.filter((claim) => topicWords.some((word) => claim.field.toLowerCase().includes(word) || String(claim.value).toLowerCase().includes(word))) : claims;
   const selectedClaims = relevantClaims.length ? relevantClaims : claims;
-  const claimText = selectedClaims.map((claim) => `${claim.field}=${claim.value}`).join('; ');
+  const claimText = selectedClaims.map(formatClaim).join('; ');
   let text;
   if (/(what changed|change|since the last)/.test(normalizedQuestion)) {
     const reassessed = selectedClaims.filter((claim) => claim.reassessment_documented && claim.field !== 'encounter.reason');
     text = reassessed.length
-      ? `Follow-up for ${briefing.context.patient_ref}: the returned record explicitly documents reassessment for ${reassessed.map((claim) => `${claim.field}=${claim.value}`).join('; ')}. No earlier comparison value was retrieved, so this is not presented as a direction of change.`
+      ? `Follow-up for ${briefing.context.patient_ref}: the returned record explicitly documents reassessment for ${reassessed.map(formatClaim).join('; ')}. No earlier comparison value was retrieved, so this is not presented as a direction of change.`
       : `Follow-up for ${briefing.context.patient_ref}: no prior comparison encounter was retrieved. The current documented records are ${claimText || 'insufficient to establish a change'}; do not interpret them as a change without a baseline.`;
   } else if (/(plan|follow.?through|carried out)/.test(normalizedQuestion)) {
     text = `Follow-up for ${briefing.context.patient_ref}: no documented plan-follow-through record is present in the returned evidence. Completion or non-completion cannot be established from this briefing.`;
@@ -216,6 +216,11 @@ function followUpFromBriefing(id, briefing, message) {
     verification: briefing.verification,
     ...(briefing.deadline ? { deadline: briefing.deadline } : {}),
   };
+}
+
+function formatClaim(claim) {
+  const label = claim.field.replace(/^(problem|medication|encounter)\./, '').replaceAll('.', ' · ').replaceAll('_', ' ');
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${claim.value}`;
 }
 
 /** Map wire fields to coverage groups and fail closed for unavailable data. */
