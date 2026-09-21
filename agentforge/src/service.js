@@ -56,6 +56,35 @@ export class AgentForgeService {
     this.prewarmDeadlineMs = Number.isFinite(prewarmDeadlineMs) && prewarmDeadlineMs > 0 ? prewarmDeadlineMs : 8000;
     this.prewarmJobs = new Map();
   }
+
+  /**
+   * W2 synthetic-only ingestion seam. The distinct write scope prevents a
+   * read briefing context from authorizing a source-document roundtrip.
+   */
+  ingestSourceDocument(request, { verifiedContext = null } = {}) {
+    const authorization = this.adapter.authorize
+      ? this.adapter.authorize(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' })
+      : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    const result = this.adapter.persistSourceDocument({
+      patientRef: authorization.patient_uuid,
+      documentType: request.document_type,
+      filename: request.filename,
+      content: request.content,
+      uploadedBy: authorization.clinician_uuid,
+    });
+    return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document };
+  }
+
+  readSourceDocument(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.adapter.authorize
+      ? this.adapter.authorize(request, verifiedContext)
+      : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    const result = this.adapter.getSourceDocument(id, { patientRef: authorization.patient_uuid });
+    return { status: 'read', synthetic_only: true, source_document: result.document, content: result.content };
+  }
+
   async prepare(request, { verifiedContext = null, interactionType = 'briefing', deadlineMs = null, scheduleRevision = CACHE_SCHEDULE_REVISION, sourceRevision = null, reusePrepared = false } = {}) {
     const deadlineStartedAt = Date.now();
     const remainingDeadline = () => deadlineMs === null || deadlineMs === undefined ? null : Math.max(0, deadlineMs - (Date.now() - deadlineStartedAt));

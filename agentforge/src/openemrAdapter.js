@@ -1,5 +1,6 @@
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { authorizeRequest } from './accessContext.js';
+import { SyntheticSourceDocumentStore } from './sourceDocuments.js';
 import fs from 'node:fs/promises';
 
 const REST_PREFIX = '/apis/default/api';
@@ -30,8 +31,8 @@ export class OpenEMRRestAdapter {
 
   /** Validate caller context; this adapter does not establish or bind a
    * clinician's OpenEMR session to the request identity. */
-  authorize(request, verifiedContext = null) {
-    return authorizeRequest({ request, verifiedContext, requiredIssuer: this.requiredIssuer, requiredAuthn: this.requiredAuthn, requiredRole: this.requiredRole });
+  authorize(request, verifiedContext = null, options = {}) {
+    return authorizeRequest({ request, verifiedContext, requiredIssuer: this.requiredIssuer, requiredAuthn: this.requiredAuthn, requiredRole: this.requiredRole, ...options });
   }
 
   /** Probe the authenticated patient GET endpoint; this is only a dependency check. */
@@ -172,19 +173,23 @@ export class OpenEMRRefreshTokenProvider {
 
 /** Synthetic local fixture implementation of the adapter boundary. */
 export class SimulatedOpenEMRAdapter {
-  constructor({ fixturePath }) {
+  constructor({ fixturePath, sourceDocumentStore = new SyntheticSourceDocumentStore() }) {
     this.fixture = new FixtureAdapter(fixturePath);
+    this.sourceDocumentStore = sourceDocumentStore;
     this.name = 'simulated-openemr';
   }
 
-  authorize(request, verifiedContext = null) {
-    return authorizeRequest({ request, verifiedContext });
+  authorize(request, verifiedContext = null, options = {}) {
+    return authorizeRequest({ request, verifiedContext, ...options });
   }
 
   // Synthetic local mode preserves the authorization/retrieval seam without
   // contacting OpenEMR.
   getCase(patientRef, caseId) { return this.fixture.getCase(patientRef, caseId); }
   retrieve(item) { return this.fixture.retrieve(item); }
+  persistSourceDocument(input) { return this.sourceDocumentStore.persist(input); }
+  getSourceDocument(id, options) { return this.sourceDocumentStore.get(id, options); }
+  listSourceDocuments(patientRef) { return this.sourceDocumentStore.list(patientRef); }
   async checkReady() { return this.fixture.checkReady(); }
 }
 

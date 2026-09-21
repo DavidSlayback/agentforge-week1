@@ -42,6 +42,7 @@ h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-
 <div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="hint">Read-only · clinician review required</span></div></header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
+<form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Attach source evidence</h2><span class="hint">Synthetic roundtrip only</span></div><label>Document type<select name="document_type"><option value="lab_pdf">Lab PDF</option><option value="intake_form">Intake form</option></select></label><label>Source file<input type="file" name="source_file" accept=".pdf,.json,.txt,application/pdf,application/json,text/plain" required></label><button type="submit">Upload source evidence</button><p id="source-status" class="status" role="status"></p></form>
 <form id="followup-form" class="hidden"><label for="followup-input">Ask a follow-up</label><input id="followup-input" name="message" autocomplete="off" placeholder="What changed since the last visit?"><div class="samples" aria-label="Safe sample follow-ups"><button type="button" class="secondary" data-prompt="What changed since the last visit?">Documented changes</button><button type="button" class="secondary" data-prompt="What plan items need follow-through?">Plan follow-through</button><button type="button" class="secondary" data-prompt="Which records conflict?">Conflicting records</button></div><button type="submit">Send follow-up</button></form>
 <button id="cross-patient-probe" class="secondary hidden" type="button">Probe cross-patient block</button>
 <p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button>
@@ -53,6 +54,8 @@ h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-
   const state = { conversationId: null, patient: null, demoToken: ${JSON.stringify(token).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026')} };
   const initialDemoToken = state.demoToken;
   const briefingForm = document.getElementById('briefing-form');
+  const sourceDocumentForm = document.getElementById('source-document-form');
+  const sourceStatus = document.getElementById('source-status');
   const followupForm = document.getElementById('followup-form');
   const transcript = document.getElementById('transcript');
   const status = document.getElementById('status');
@@ -64,7 +67,7 @@ h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-
   const initialContextStatus = contextStatus?.textContent || '';
   let busy = false;
   const setStatus = (message, error = false) => { status.textContent = message; status.className = error ? 'status error' : 'status'; };
-  const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); briefingForm.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); }); followupForm.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); }); crossPatientProbe.disabled = value; };
+  const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); crossPatientProbe.disabled = value; };
   const humanize = (value) => String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
@@ -113,6 +116,7 @@ h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-
     transcript.append(item); item.scrollIntoView?.({ block: 'nearest' }); if (role === 'assistant') item.focus({ preventScroll: true });
   };
   const request = async (path, body, timeoutMs = 45000) => { const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs); try { const response = await fetch(basePath + path, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Request failed (' + response.status + ')'); return data; } catch (error) { if (error.name === 'AbortError') throw new Error('Request timed out before a verified response was available.'); throw error; } finally { clearTimeout(timer); } };
+  const bytesToBase64 = (bytes) => { let binary = ''; const chunk = 0x8000; for (let index = 0; index < bytes.length; index += chunk) binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + chunk, bytes.length))); return btoa(binary); };
   const authorizedRequest = (extra, includeDemoToken = true) => ({ ...extra, clinician_uuid: ${JSON.stringify(clinician)}, ...(includeDemoToken && state.demoToken ? { demo_token: state.demoToken } : {}) });
   const preparationButton = briefingForm.querySelector('button[type="submit"]');
   let preparation = null;
@@ -188,6 +192,26 @@ h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-
       preparationButton.textContent = 'Prepare briefing';
       setStatus(error.message, true);
     } finally { setBusy(false); }
+  });
+  sourceDocumentForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    const file = sourceDocumentForm.elements.source_file.files[0];
+    const patient = patientSelector?.value || state.patient;
+    if (!file || !patient) return setStatus('Choose a synthetic patient and source file first.', true);
+    setBusy(true);
+    sourceStatus.textContent = 'Uploading synthetic source evidence…';
+    try {
+      const contextResponse = await fetch(basePath + '/v1/source-document-context?patient_uuid=' + encodeURIComponent(patient));
+      if (!contextResponse.ok) throw new Error('Source-document context is unavailable.');
+      const writeContext = await contextResponse.json();
+      const content = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
+      const result = await request('/v1/source-documents', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, document_type: sourceDocumentForm.elements.document_type.value, filename: file.name, content_base64: content });
+      sourceStatus.textContent = (result.duplicate ? 'Source already exists; readback identity preserved: ' : 'Source persisted in the synthetic roundtrip: ') + result.source_document.id;
+      setStatus('Source evidence is available to the AgentForge workflow.');
+      sourceDocumentForm.reset();
+    } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
+    finally { setBusy(false); }
   });
   followupForm.addEventListener('submit', async (event) => { event.preventDefault(); if (busy) return; const message = input.value.trim(); if (!state.conversationId || !state.patient || !message) return setStatus('Prepare a briefing and enter a question first.', true); setBusy(true); addMessage('user', message); setStatus('Checking the patient-scoped conversation…'); try { const response = await request('/v1/conversations/' + encodeURIComponent(state.conversationId) + '/messages', authorizedRequest({ patient_uuid: state.patient, message })); addMessage('assistant', response.text, response, 'followup'); setStatus(response.disposition === 'blocked' ? 'Follow-up blocked at the patient-scope boundary.' : response.disposition === 'deadline-exceeded' ? 'Follow-up deadline exceeded before verified content was available.' : 'Follow-up complete.'); input.value = ''; } catch (error) { setStatus(error.message, true); } finally { setBusy(false); } });
   crossPatientProbe.addEventListener('click', async () => { if (busy) return; if (!state.conversationId || !state.patient) return setStatus('Prepare a briefing first.', true); setBusy(true); const otherPatient = state.patient === ${JSON.stringify(primaryProbePatient)} ? ${JSON.stringify(secondaryProbePatient)} : ${JSON.stringify(primaryProbePatient)}; addMessage('user', 'Probe cross-patient context: ' + otherPatient); setStatus('Checking the patient-scope boundary…'); try { const response = await request('/v1/conversations/' + encodeURIComponent(state.conversationId) + '/messages', authorizedRequest({ patient_uuid: otherPatient, message: 'What changed?' }, false)); addMessage('assistant', response.text, response, 'followup'); setStatus(response.disposition === 'blocked' ? 'Cross-patient follow-up blocked without disclosure.' : 'Unexpected cross-patient response.', response.disposition !== 'blocked'); } catch (error) { setStatus(error.message, true); } finally { setBusy(false); } });

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { SOURCE_DOCUMENT_TYPES } from './sourceDocuments.js';
 
 /** Versioned request/response wire-shape authority; not an access grant. */
 export const CONTRACT_VERSION = '0.1';
@@ -201,6 +202,25 @@ export function validateFollowUpRequest(value) {
   requiredFields(issues, value, API_CONTRACTS.followUpRequest.required);
   for (const field of ['patient_uuid', 'message', 'clinician_uuid']) if (field in value) nonEmptyString(issues, value, field);
   if ('demo_token' in value && typeof value.demo_token !== 'string') issues.push('demo_token_must_be_string');
+  return { valid: issues.length === 0, issues };
+}
+
+export function validateSourceDocumentRequest(value) {
+  const issues = [];
+  const allowed = ['patient_uuid', 'clinician_uuid', 'demo_token', 'document_type', 'filename', 'content_base64'];
+  if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
+  unknownFields(issues, value, allowed);
+  requiredFields(issues, value, allowed);
+  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'filename', 'content_base64']) nonEmptyString(issues, value, field);
+  if (typeof value.document_type !== 'string' || !SOURCE_DOCUMENT_TYPES.has(value.document_type)) issues.push('document_type_invalid');
+  if (typeof value.content_base64 === 'string') {
+    try {
+      const content = Buffer.from(value.content_base64, 'base64');
+      if (!content.length || content.toString('base64').replace(/=+$/, '') !== value.content_base64.replace(/=+$/, '')) issues.push('content_base64_invalid');
+    } catch {
+      issues.push('content_base64_invalid');
+    }
+  }
   return { valid: issues.length === 0, issues };
 }
 

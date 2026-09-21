@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { correlationId, validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest } from '../src/contracts.js';
+import { correlationId, validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateSourceDocumentRequest } from '../src/contracts.js';
 
 test('canonical request contracts reject body authorization and malformed input', () => {
   const legacy = validatePrepareRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', authorization: { status: 'authorized', scope: 'read-briefing' } });
@@ -50,4 +50,12 @@ test('opaque correlation IDs remain stable across stale refreshes', () => {
   const first = correlationId('fixture-patient-001-clinician-secret');
   assert.match(first, /^af-[0-9a-f]{32}$/);
   assert.equal(correlationId(first), first);
+});
+
+test('source document contract requires a supported type, filename, and base64 content', () => {
+  assert.equal(validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: 'aGVsbG8=' }).valid, true);
+  const invalid = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'diagnosis', filename: 'lab.pdf', content_base64: 'not base64!' });
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.issues.includes('document_type_invalid'));
+  assert.ok(invalid.issues.includes('content_base64_invalid'));
 });

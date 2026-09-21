@@ -4,7 +4,7 @@ import { coverageGroupForField } from './contracts.js';
 
 export class FixtureAdapter {
   constructor(path) { this.cases = JSON.parse(fs.readFileSync(path, 'utf8')).cases; }
-  authorize(request, verifiedContext = null) { return authorizeRequest({ request, verifiedContext }); }
+  authorize(request, verifiedContext = null, options = {}) { return authorizeRequest({ request, verifiedContext, ...options }); }
   getCase(patientRef, caseId) {
     const found = caseId ? this.cases.find((item) => item.id === caseId) : this.cases.find((item) => item.patient.patient_ref === patientRef);
     if (!found || found.patient.patient_ref !== patientRef) throw new Error('PATIENT_NOT_FOUND');
