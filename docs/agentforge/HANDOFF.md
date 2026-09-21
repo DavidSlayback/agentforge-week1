@@ -8,7 +8,7 @@
 ## Current repository state — 2026-09-21
 
 The local `main` branch tracks GitLab `staging/main` at deployed commit
-`85ff12b`. The current synthetic Vultr runtime was rebuilt from that source on
+`d8b4ba8`. The current synthetic Vultr runtime was rebuilt from that source on
 2026-09-21; runtime source hashes match the local changed files, and the
 AgentForge image is healthy. Local verification is 91/91 repository checks plus
 4/4 script checks. External HTTPS/API readback passes; this remains synthetic,

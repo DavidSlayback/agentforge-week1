@@ -7,7 +7,7 @@ this repository. `REQUIREMENTS.md` is the repository's transcribed inventory,
 not the original source.
 
 **Current repository state (2026-09-21):** local `main` tracks GitLab
-`staging/main` at deployed commit `85ff12b`. The current synthetic Vultr
+`staging/main` at deployed commit `d8b4ba8`. The current synthetic Vultr
 runtime was rebuilt from that source; runtime source hashes match the local
 changed files. Local verification is 91/91 repository checks plus 4/4 script
 checks. External HTTPS/API readback below is current candidate-scoped evidence,
@@ -64,7 +64,7 @@ The current local checks, verified 2026-09-21, pass:
 
 The local branch and redeployed candidate contain nine synthetic golden cases, including complete return-visit comparison, partial retrieval, successful empty lookup, no prior comparison, conflict, stale data, missing provenance, untrusted notes, and duplicate identity. The saved deployed report remains a seven-case historical snapshot; current API readback covers the exercised complete/partial workflow and safety probes. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the deployed workflow through Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-ups and `/ready` returns 200. The latest measured split-lane sample, tied to candidate `56d1a35`, has 10/10 successful requests at concurrency 10 and 46/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
 
-On 2026-09-21, strict HTTPS and live API readback verified the externally reachable briefing, prewarm, and follow-up workflow on candidate `85ff12b`. HTTP 308 redirects to HTTPS; `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` returned 200; the API collection passed complete/partial briefing, follow-up, blocked scope, and invalid-request probes. These are candidate-scoped observations, not production-capacity claims.
+On 2026-09-21, strict HTTPS and live API readback verified the externally reachable briefing, prewarm, and follow-up workflow on candidate `d8b4ba8`. HTTP 308 redirects to HTTPS; `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` returned 200; the API collection passed complete/partial briefing, follow-up, blocked scope, and invalid-request probes. These are candidate-scoped observations, not production-capacity claims.
 
 ## Status by area
 
@@ -74,8 +74,8 @@ On 2026-09-21, strict HTTPS and live API readback verified the externally reacha
 | Audit, users, architecture, metrics, and safety boundary | Done for the documented checkpoint | The documents exist and are internally useful; production claims remain out of scope. |
 | Conversational UI and follow-up flow | Implemented synthetic | Historical candidate was deployed and browser-verified with physician-readable grouped facts, follow-up prompts, evidence expansion, reset, and blocked probe. |
 | Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; current-candidate synthetic deployment proof passes, while live OpenEMR equivalence remains out of scope. |
-| Contracts, prewarm/API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Public prewarm/open readback and visual dashboard passed on current candidate `85ff12b`. |
-| Load evidence | Partial, accepted for demo | Latest synthesis load evidence is tied to historical candidate `56d1a35`: 10/10 at concurrency 10 and 46/50 at concurrency 50. This is an asynchronous preparation limitation; current candidate `85ff12b` has no fresh 10/50 load run. |
+| Contracts, prewarm/API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Public prewarm/open readback and visual dashboard passed on current candidate `d8b4ba8`. |
+| Load evidence | Partial, accepted for demo | Latest synthesis load evidence is tied to historical candidate `56d1a35`: 10/10 at concurrency 10 and 46/50 at concurrency 50. This is an asynchronous preparation limitation; current candidate `d8b4ba8` has no fresh 10/50 load run. |
 | Provider/model | Split synthetic lanes | Qwen handles synthesis and OpenRouter Gemini Flash-Lite handles follow-ups; deterministic fallback remains available. |
 | OpenEMR integration | Implemented for synthetic E2E | Read-only OAuth user-context retrieval, seeded synthetic records, PID→UUID launch, and current candidate synthetic readback are verified. PHI, production identity semantics, and compliance remain out of scope. |
 | PHI/HIPAA/BAA/compliance readiness | Blocked/out of scope | No PHI, clinical write-back, production compliance, or provider suitability is established. |

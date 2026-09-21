@@ -1,7 +1,7 @@
 # AgentForge release-readiness evidence map
 
 **Checkpoint:** 2026-09-21, America/Chicago
-**Candidate commit:** `85ff12b` (`docs: close GitLab cleanup record`)
+**Candidate commit:** `d8b4ba8` (`docs: normalize deployment evidence formatting`)
 **Decision:** Conditionally ready for the synthetic checkpoint; the exact
 candidate is now deployed and read back, with the remaining load and packaging
 limitations recorded below.  
@@ -43,7 +43,7 @@ Read-only checks against `https://dtstest.64.177.10.182.nip.io/agentforge`:
 - `/health`: 200 / `ok`
 - `/ready`: 200 / `ready`
 - `/observability`: 200, visual dashboard read back in a clean browser
-- Visual dashboard from current candidate `85ff12b`: deployed and verified below
+- Visual dashboard from current candidate `d8b4ba8`: deployed and verified below
 
 Before the owner authorization recorded above, no deployment, provider
 migration, demo upload, submission, or PHI action was authorized by this
@@ -52,7 +52,7 @@ checkpoint.
 ## Authorized deployment readback — 2026-09-21
 
 The owner-authorized synthetic Vultr target was rebuilt from GitLab `main`
-candidate `85ff12b`. The AgentForge container started at
+candidate `d8b4ba8`. The AgentForge container started at
 `2026-09-21T18:51:50.935703093Z`, reported `healthy`, and ran image
 `sha256:519eb1b737dd46b92fa743dff9c22215cf4366b43cc516e2935489c129417c33`.
 The deployed hashes for `service.js`, `modelProvider.js`, and `server.js`

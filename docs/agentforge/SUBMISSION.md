@@ -12,7 +12,7 @@ This repository contains a synthetic, read-only, production-shaped AgentForge
 
 `https://dtstest.64.177.10.182.nip.io/agentforge/`
 
-The current deployed candidate is `85ff12b`; Qwen is active for synthesis and
+The current deployed candidate is `d8b4ba8`; Qwen is active for synthesis and
 OpenRouter is active for follow-ups. No external publication occurred.
 
 ## What the synthetic checkpoint proves
@@ -51,15 +51,15 @@ The latest bounded split-lane load sample, measured on candidate `56d1a35`, is
 shows the provider tail-latency boundary. Container sampling peaked at 29.06%
 CPU and 52.01 MiB resident memory. Larger workloads are not claimed as passing.
 
-The current live API and browser reports are tied to candidate `85ff12b`; the
+The current live API and browser reports are tied to candidate `d8b4ba8`; the
 load sample is explicitly tied to `56d1a35` and was not relabeled as a fresh
-`85ff12b` capacity run.
+`d8b4ba8` capacity run.
 
 ## Reviewer path
 
 The expanded local workflow and asynchronous open behavior are described in
 [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md), including a timed voiceover and recording
-sequence. They are included in candidate `85ff12b` where applicable.
+sequence. They are included in candidate `d8b4ba8` where applicable.
 For the current local demo, use `http://127.0.0.1:18790/`; select a patient, allow
 background preparation to finish, then use **Open prepared briefing**. Opening a
 fresh result rechecks authorization and cache expiry without another model call.
