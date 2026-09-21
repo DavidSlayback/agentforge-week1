@@ -6,7 +6,7 @@ import { DashScopeMultimodalProvider, DeterministicProvider, OpenAICompatiblePro
 import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, SimulatedOpenEMRAdapter } from './openemrAdapter.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
-import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateSourceDocumentRequest } from './contracts.js';
+import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
@@ -98,7 +98,7 @@ const syntheticWritebackEnabled = () => adapter.name === 'simulated-openemr' && 
 const sourceDocumentErrorStatus = (error) => {
   const code = error.code || error.message;
   const contractCodes = new Set(['SOURCE_DOCUMENT_PATIENT_REQUIRED', 'SOURCE_DOCUMENT_TYPE_INVALID', 'SOURCE_DOCUMENT_FILENAME_REQUIRED', 'SOURCE_DOCUMENT_FILENAME_INVALID', 'SOURCE_DOCUMENT_CONTENT_INVALID', 'SOURCE_DOCUMENT_UPLOADER_REQUIRED']);
-  return code === 'SOURCE_DOCUMENT_TOO_LARGE' ? 413 : code === 'DOCUMENT_NOT_FOUND' ? 404 : code === 'DOCUMENT_SCOPE_MISMATCH' ? 403 : contractCodes.has(code) ? 400 : 500;
+  return code === 'SOURCE_DOCUMENT_TOO_LARGE' ? 413 : code === 'DOCUMENT_NOT_FOUND' ? 404 : code === 'DOCUMENT_SCOPE_MISMATCH' ? 403 : ['SOURCE_DOCUMENT_TYPE_MISMATCH'].includes(code) || contractCodes.has(code) ? 400 : 500;
 };
 // The source-document contract accepts up to 5 MiB of decoded bytes. JSON
 // base64 encoding needs headroom above that limit before source validation.
@@ -143,6 +143,25 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/evals/error-analysis.json') return json(res, 200, readEvidence('error-analysis.json'));
     if (req.method === 'GET' && req.url === '/evals/active-service-results.json') return json(res, 200, readGoldenEvidence());
     if (req.method === 'GET' && req.url === '/evals') { const golden = readGoldenEvidence(); const errorAnalysis = readEvidence('error-analysis.json'); return html(res, renderEvaluatorPage({ golden, errorAnalysis, basePath: publicBasePath, localReport: Boolean(process.env.AGENTFORGE_EVAL_REPORT_PATH) })); }
+    const labEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/lab-evidence(?:\?(.*))?$/);
+    if (req.method === 'GET' && labEvidenceMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      try {
+        const result = service.extractLabEvidence(decodeURIComponent(labEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status === 'blocked') return json(res, result.reason === 'SOURCE_DOCUMENT_TYPE_MISMATCH' ? 400 : 403, { error: result.reason });
+        if (result.status === 'failed') return json(res, 500, { error: result.reason });
+        const response = { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations };
+        const validation = validateLabEvidenceResponse(response);
+        return validation.valid ? json(res, 200, response) : invalidResponse(res, 'invalid_lab_evidence_response', validation.issues);
+      } catch (error) {
+        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
+        return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
+      }
+    }
     const sourceDocumentMatch = req.url.match(/^\/v1\/source-documents\/([^?]+)(?:\?(.*))?$/);
     if (req.method === 'GET' && sourceDocumentMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });

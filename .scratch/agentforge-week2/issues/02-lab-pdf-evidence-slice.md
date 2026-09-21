@@ -8,11 +8,17 @@ writeback, and clinician review.
 
 **Blocked by:** 01: Synthetic document round-trip
 
-**Status:** ready-for-agent
+**Status:** accepted-with-residual
 
-- [ ] A lab PDF produces strict records for test, value, unit, reference range, collection date, and abnormal flag.
-- [ ] Imperfect scans, missing fields, and unreadable regions produce qualified results rather than invented values.
-- [ ] Every displayed lab fact carries source document ID, page, field/chunk ID, quote/value, and PDF bounding-box metadata.
-- [ ] Derived observations persist in OpenEMR, link back to the source document, and read back without duplicates.
+- [x] A synthetic lab-PDF representation produces strict records for test, value, unit, reference range, collection date, and abnormal flag.
+- [x] Missing fields, unreadable regions, and conflicting values produce qualified results rather than invented values.
+- [x] Synthetic lab facts carry source document ID, page, field ID, quote/value, and PDF bounding-box metadata.
+- [ ] Derived observations persist in real OpenEMR, link back to the source document, and read back without duplicates. The synthetic observation seam and API deduplication are proven; real OpenEMR remains open.
 - [ ] The browser review path can open the PDF and highlight the cited source region.
-- [ ] Tests cover valid extraction, missing data, conflicting values, citation mismatch, and writeback failure.
+- [x] Tests cover valid extraction, missing data, conflicting values, citation contract failure, and synthetic source/API writeback failure.
+
+## Verification
+
+- Full AgentForge suite: `75/75`.
+- Synthetic lab evidence endpoint: upload -> extract -> source-linked observation -> repeat-read deduplication.
+- Residuals: real PDF/OCR, real OpenEMR observation persistence, browser PDF preview/overlay, and an observation-specific API fault path.

@@ -3,6 +3,7 @@ import { verify, verifyGeneratedText } from './verifier.js';
 import { fileURLToPath } from 'node:url';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
+import { extractLabEvidence } from './labEvidence.js';
 
 // Stable redacted trace label shared by fixture and live paths; it is not
 // evidence that live OpenEMR supplied the cached response.
@@ -83,6 +84,17 @@ export class AgentForgeService {
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     const result = this.adapter.getSourceDocument(id, { patientRef: authorization.patient_uuid });
     return { status: 'read', synthetic_only: true, source_document: result.document, content: result.content };
+  }
+
+  extractLabEvidence(id, request, { verifiedContext = null } = {}) {
+    const source = this.readSourceDocument(id, request, { verifiedContext });
+    if (source.status !== 'read') return source;
+    if (source.source_document.document_type !== 'lab_pdf') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
+    const extraction = extractLabEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
+    const observations = [];
+    if (typeof this.adapter.persistObservation !== 'function') return { status: 'failed', reason: 'OBSERVATION_WRITE_UNAVAILABLE', extraction };
+    for (const fact of extraction.facts) observations.push(this.adapter.persistObservation({ patientRef: source.source_document.patient_ref, sourceDocumentId: source.source_document.id, fact }));
+    return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
   }
 
   async prepare(request, { verifiedContext = null, interactionType = 'briefing', deadlineMs = null, scheduleRevision = CACHE_SCHEDULE_REVISION, sourceRevision = null, reusePrepared = false } = {}) {

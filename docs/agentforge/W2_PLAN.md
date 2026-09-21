@@ -386,3 +386,13 @@ and derived-observation persistence is allowed in this run; live OpenEMR stays
 GET-only, and clinician-authored diagnosis/order writes remain a later,
 separately confirmed lane. The implementation enforces this with a distinct
 `write-source-document` context and `synthetic-roundtrip` provenance label.
+
+### Ticket 02 milestone
+
+Ticket 02 has a synthetic evidence slice accepted with residuals. The local
+parser validates required lab fields, qualifies missing/unreadable/conflicting
+input, emits source-linked citation metadata with page/field/quote/bounding-box
+coordinates, and persists derived observations through a deterministic
+synthetic adapter with API-level deduplication. The full suite passes 75/75.
+Real PDF/OCR, real OpenEMR observation roundtrip, browser PDF highlighting, and
+an observation-specific API fault injection remain `INCONCLUSIVE`.

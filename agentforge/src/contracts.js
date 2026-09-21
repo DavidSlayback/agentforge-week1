@@ -224,6 +224,33 @@ export function validateSourceDocumentRequest(value) {
   return { valid: issues.length === 0, issues };
 }
 
+export function validateLabEvidenceResponse(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
+  unknownFields(issues, value, ['synthetic_only', 'source_document', 'extraction', 'observations']);
+  if (value.synthetic_only !== true) issues.push('synthetic_only_is_required');
+  if (!isRecord(value.source_document)) issues.push('source_document_must_be_object');
+  if (!isRecord(value.extraction)) issues.push('extraction_must_be_object');
+  else {
+    if (!['complete', 'qualified'].includes(value.extraction.status)) issues.push('extraction_status_invalid');
+    if (!Array.isArray(value.extraction.facts)) issues.push('extraction_facts_must_be_array');
+    if (!Array.isArray(value.extraction.issues)) issues.push('extraction_issues_must_be_array');
+    for (const [index, fact] of (value.extraction.facts || []).entries()) {
+      if (!isRecord(fact)) { issues.push(`facts[${index}]_must_be_object`); continue; }
+      for (const field of ['source_document_id', 'field_id', 'test', 'value', 'unit', 'reference_range', 'collection_date']) nonEmptyString(issues, fact, field);
+      if (typeof fact.abnormal !== 'boolean') issues.push(`facts[${index}].abnormal_must_be_boolean`);
+      if (!isRecord(fact.citation)) issues.push(`facts[${index}].citation_must_be_object`);
+      else {
+        for (const field of ['source_type', 'source_document_id', 'field_id', 'quote']) nonEmptyString(issues, fact.citation, field);
+        if (!Number.isInteger(fact.citation.page) || fact.citation.page < 1) issues.push(`facts[${index}].citation_page_invalid`);
+        if (!Array.isArray(fact.citation.bounding_box) || fact.citation.bounding_box.length !== 4) issues.push(`facts[${index}].citation_bounding_box_invalid`);
+      }
+    }
+  }
+  if (!Array.isArray(value.observations)) issues.push('observations_must_be_array');
+  return { valid: issues.length === 0, issues };
+}
+
 function validateCommonResponse(value, required, allowed) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };

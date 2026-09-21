@@ -7,6 +7,7 @@ import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
+import { extractLabEvidence } from '../src/labEvidence.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const signedContext = (patient_uuid, clinician_uuid = 'fixture-physician-001') => ({
@@ -100,6 +101,22 @@ test('AgentForge UI exposes the two synthetic source-document types and upload r
   assert.match(page, /\/v1\/source-documents/);
 });
 
+test('synthetic lab extraction preserves citations, qualifies gaps, and detects conflicts', () => {
+  const content = Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40');
+  const valid = extractLabEvidence({ sourceDocumentId: 'src-lab-1', content });
+  assert.equal(valid.status, 'complete');
+  assert.deepEqual(valid.facts[0].citation.bounding_box, [10, 20, 100, 40]);
+  assert.equal(valid.facts[0].citation.source_document_id, 'src-lab-1');
+
+  const missing = extractLabEvidence({ sourceDocumentId: 'src-lab-2', content: Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL') });
+  assert.equal(missing.status, 'qualified');
+  assert.ok(missing.issues.some((value) => value.includes('missing_fields')));
+
+  const conflict = extractLabEvidence({ sourceDocumentId: 'src-lab-3', content: Buffer.from(`${content.toString()}\nLAB|test=Hemoglobin|value=14.1|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb-2|quote=Hemoglobin 14.1 g/dL|bounding_box=10,50,100,70`) });
+  assert.equal(conflict.status, 'qualified');
+  assert.ok(conflict.issues.some((value) => value.includes('conflicting_values')));
+});
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 async function startServer(port, extraEnv = {}, waitPath = '/ready') {
@@ -155,6 +172,30 @@ test('synthetic source document API uploads, deduplicates, reads back, and scope
     const crossPatient = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${first.source_document.id}?patient_uuid=fixture-patient-002&demo_token=${encodeURIComponent(otherContext.demo_token)}`);
     assert.equal(crossPatient.status, 403);
     assert.equal((await crossPatient.json()).error, 'invalid_demo_context');
+  } finally {
+    child.kill();
+  }
+});
+
+test('synthetic lab evidence API links derived observations to the source and deduplicates readback', async () => {
+  const port = 18805;
+  const child = await startServer(port);
+  try {
+    const patient = 'fixture-patient-001';
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const content = 'LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40';
+    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'synthetic-lab.pdf', content_base64: Buffer.from(content).toString('base64') }) }).then((response) => response.json());
+    assert.ok(upload.source_document?.id);
+    const path = `/v1/source-documents/${upload.source_document.id}/lab-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`;
+    const firstResponse = await fetch(`http://127.0.0.1:${port}${path}`);
+    assert.equal(firstResponse.status, 200);
+    const first = await firstResponse.json();
+    assert.equal(first.extraction.status, 'complete');
+    assert.equal(first.extraction.facts[0].citation.source_document_id, upload.source_document.id);
+    assert.equal(first.observations[0].observation.source_document_id, upload.source_document.id);
+    const retry = await fetch(`http://127.0.0.1:${port}${path}`).then((response) => response.json());
+    assert.equal(retry.observations[0].duplicate, true);
   } finally {
     child.kill();
   }
