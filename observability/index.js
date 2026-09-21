@@ -4,7 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const REDACTED = '[REDACTED]';
-const SENSITIVE = /(patient|clinician|chart|prompt|response|text|excerpt|note|dob|address|phone|email|author|source[_-]?ref)/i;
+const SENSITIVE = /(patient|clinician|chart|prompt|response|text|excerpt|note|dob|address|phone|email|author|source[_-]?ref|content|raw|value|field|quote|image|screenshot|extracted)/i;
 
 function redactPayload(value) {
   if (Array.isArray(value)) return value.map(redactPayload);
@@ -40,6 +40,7 @@ class TraceRecorder {
     this.stages = [];
     this.retries = [];
     this.retrieval = { attempts: [] };
+    this.handoffs = [];
     this.latency = { acknowledgementMs: null };
   }
 
@@ -59,12 +60,15 @@ class TraceRecorder {
   }
 
   recordRetrievalAttempt(attempt) { this.retrieval.attempts.push(redactPayload(attempt)); }
+  recordHandoff(handoff) { this.handoffs.push(redactPayload(handoff)); }
   recordRetry(retry) { this.retries.push(redactPayload(retry)); }
   recordModelUsage(model) { this.model = redactPayload({ ...model, totalTokens: (model.inputTokens || 0) + (model.outputTokens || 0) }); }
   setCoverage(value) { this.coverage = redactPayload(value); }
   setVerification(value) { this.verification = redactPayload(value); }
   setDisplay(value) { this.display = redactPayload(value); }
   setCache(value) { this.cache = redactPayload(value); }
+  setExtraction(value) { this.extraction = redactPayload(value); }
+  setEvaluation(value) { this.evaluation = redactPayload(value); }
 
   complete({ status, deadlineOutcome = 'not_applicable' }) {
     const completedAt = this.clock();
@@ -92,11 +96,14 @@ class TraceRecorder {
       },
       stages: this.stages,
       retrieval: this.retrieval,
+      handoffs: this.handoffs,
       retries: { total: this.retries.length, events: this.retries, exhausted: false },
       model: this.model || {},
       coverage: this.coverage || {},
       verification: this.verification || {},
       display: this.display || {},
+      extraction: this.extraction || { status: 'not_requested', confidence: null },
+      evaluation: this.evaluation || { status: 'not_recorded' },
       cache: this.cache || { status: 'not_used' },
       status,
     });
@@ -485,11 +492,14 @@ function operationalTrace(trace = {}) {
     latencyMs: pick(trace.latencyMs, ['acknowledgement', 'retrieval', 'synthesis', 'verification', 'display']),
     stages: Array.isArray(trace.stages) ? trace.stages.map((stage) => pick(stage, ['name', 'sequence', 'durationMs', 'status', 'provider_status'])) : [],
     retrieval: { attempts: Array.isArray(trace.retrieval?.attempts) ? trace.retrieval.attempts.map((attempt) => pick(attempt, ['adapter', 'group', 'status', 'attempts', 'errorCode'])) : [] },
+    handoffs: Array.isArray(trace.handoffs) ? trace.handoffs.map((handoff) => pick(handoff, ['worker', 'status', 'input_type', 'output_status'])) : [],
     retries: { total: trace.retries?.total || 0, exhausted: Boolean(trace.retries?.exhausted) },
     model: pick(trace.model, ['provider', 'provider_name', 'model', 'model_name', 'totalTokens', 'inputTokens', 'outputTokens', 'estimatedCostUsd', 'provider_fallback', 'provider_status', 'provider_error_code']),
     coverage: pick(trace.coverage, ['status', 'groups']),
     verification: pick(trace.verification, ['status', 'evidence_grounding', 'patient_scope', 'read_only']),
     display: pick(trace.display, ['status']),
+    extraction: pick(trace.extraction, ['status', 'confidence']),
+    evaluation: pick(trace.evaluation, ['status', 'caseType', 'outcome']),
     cache: pick(trace.cache, ['status']),
     status: trace.status,
   };

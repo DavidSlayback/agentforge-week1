@@ -449,3 +449,13 @@ workers, logs handoffs, qualifies incomplete evidence, clarifies missing
 evidence, and blocks unsafe or uncited evidence before READY. The synthetic API
 and contract/integration tests pass 84/84. Full document-to-supervisor browser
 journey evidence remains `INCONCLUSIVE`.
+
+### Ticket 06 milestone
+
+Ticket 06 has a local observability/evaluation scaffold accepted with an
+integration residual. The existing redacted trace schema now carries handoffs,
+extraction status/confidence, evaluation outcome, stage latency, retrieval
+attempts, token usage, and estimated cost; the reproducible W2 evaluator covers
+the six agreed labels. The full suite passes 86/86. Dedicated traces for the
+new evidence/supervisor endpoints and deployment/runtime readback remain
+`INCONCLUSIVE`.

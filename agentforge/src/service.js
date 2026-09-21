@@ -143,6 +143,7 @@ export class AgentForgeService {
     // trust a client-supplied value as a safe trace identifier.
     const trace = this.traceSink?.start({ correlationId: id, operation: 'visit_briefing', interactionType, deadlineMs, scope: authorization.status === 'authorized' ? { clinicianRef: authorization.clinician_uuid, patientRef: authorization.patient_uuid } : {} });
     trace?.markAcknowledged();
+    trace?.setExtraction({ status: 'not_requested', confidence: null });
     if (authorization.status !== 'authorized') {
       const result = blockedResult(id, authorization.reason);
       trace?.setDisplay({ status: 'withheld' });
@@ -209,6 +210,7 @@ export class AgentForgeService {
     trace?.startStage('verification');
     const verification = verify({ patientRef: item.patient.patient_ref, claims, coverage: retrieved.coverage, qualification, operations: response.operations, disposition: response.disposition });
     trace?.finishStage('verification', { status: verification.status });
+    trace?.setEvaluation({ status: 'recorded', caseType: interactionType, outcome: verification.status === 'passed' ? 'pass' : 'fail' });
     response.verification = verification;
     if (verification.status !== 'passed') {
       // Failed verification must not reach synthesis, display, or the cache.

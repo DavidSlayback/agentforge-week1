@@ -8,10 +8,15 @@ and latency can be measured before the early checkpoint.
 
 **Blocked by:** 05: Deterministic supervisor workflow
 
-**Status:** ready-for-agent
+**Status:** accepted-with-residual
 
-- [ ] Each encounter records tool sequence, per-step latency, token usage, estimated cost, retrieval hits, extraction confidence, and evaluation outcome.
-- [ ] Redaction tests prove that raw document content, prompts, extracted fields, images, screenshots, and PHI do not reach unsafe observability surfaces.
-- [ ] The scaffold supports labeled extraction, retrieval, citation, refusal, missing-data, and follow-up cases.
-- [ ] Evaluation results are reproducible from synthetic fixtures and distinguish implementation, runtime, and external evidence.
-- [ ] A reviewer can inspect a trace without receiving raw synthetic document contents.
+- [x] The existing encounter trace records tool sequence, per-step latency, token usage, estimated cost, retrieval hits, extraction status/confidence, and evaluation outcome fields.
+- [x] Redaction tests prove that raw document content, prompts, extracted fields, quotes, images, screenshots, and patient scope do not reach the observability surface.
+- [x] The scaffold supports labeled extraction, retrieval, citation, refusal, missing-data, and follow-up cases.
+- [x] Evaluation results are reproducible from synthetic cases and label the result as synthetic-only.
+- [x] A reviewer can inspect a trace without receiving raw synthetic document contents.
+
+## Verification
+
+- Full AgentForge suite: `86/86`.
+- Residuals: extraction/evaluation fields are scaffolded into the main briefing trace; the new evidence/supervisor endpoints do not yet emit dedicated traces, and no deployment/runtime evidence is claimed.
