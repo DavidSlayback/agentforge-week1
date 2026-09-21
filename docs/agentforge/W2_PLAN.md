@@ -459,3 +459,14 @@ attempts, token usage, and estimated cost; the reproducible W2 evaluator covers
 the six agreed labels. The full suite passes 86/86. Dedicated traces for the
 new evidence/supervisor endpoints and deployment/runtime readback remain
 `INCONCLUSIVE`.
+
+### Ticket 07 milestone
+
+Ticket 07 has a synthetic Jev comparison harness accepted with a live-provider
+residual. The harness uses the same reproducible 20-case corpus for the
+deterministic and Jev lanes, records routing quality, clarification or
+abstention, unsafe handoffs, latency, cost, traceability, and failure classes,
+and applies a local safety guard to typed Jev output. The Jev lane remains
+optional and the deterministic lane remains runnable when the provider is not
+configured. The full suite passes 89/89. A live Jev run and a fair costed
+standard-supervisor comparator remain `INCONCLUSIVE`; no promotion is made.
