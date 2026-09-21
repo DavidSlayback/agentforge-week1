@@ -5,6 +5,7 @@ import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 import { extractLabEvidence } from './labEvidence.js';
 import { extractIntakeEvidence } from './intakeEvidence.js';
+import { retrieveGuidelineEvidence } from './guidelineEvidence.js';
 
 // Stable redacted trace label shared by fixture and live paths; it is not
 // evidence that live OpenEMR supplied the cached response.
@@ -107,6 +108,19 @@ export class AgentForgeService {
     if (typeof this.adapter.persistObservation !== 'function') return { status: 'failed', reason: 'OBSERVATION_WRITE_UNAVAILABLE', extraction };
     for (const fact of extraction.facts) observations.push(this.adapter.persistObservation({ patientRef: source.source_document.patient_ref, sourceDocumentId: source.source_document.id, fact }));
     return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
+  }
+
+  async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
+    const authorization = this.adapter.authorize ? this.adapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    const item = await this.adapter.getCase(authorization.patient_uuid, request.case_id);
+    const retrieved = await this.adapter.retrieve(item);
+    const validation = validateRetrievalResult(retrieved);
+    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid' };
+    const patientFacts = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage)).map((record) => ({ source_type: 'patient_record', source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author }));
+    const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
+    const guideline = retrieveGuidelineEvidence(request.message, { topK });
+    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_status: guideline.status, guideline_issues: guideline.issues, failed_patient_groups: failedGroups }, qualification: { required: Boolean(failedGroups.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...guideline.issues] } };
   }
 
   async prepare(request, { verifiedContext = null, interactionType = 'briefing', deadlineMs = null, scheduleRevision = CACHE_SCHEDULE_REVISION, sourceRevision = null, reusePrepared = false } = {}) {

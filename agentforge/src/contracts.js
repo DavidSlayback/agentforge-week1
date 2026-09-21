@@ -277,6 +277,25 @@ export function validateIntakeEvidenceResponse(value) {
   return { valid: issues.length === 0, issues };
 }
 
+export function validateFollowUpEvidenceResponse(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
+  unknownFields(issues, value, ['status', 'synthetic_only', 'patient_facts', 'guideline_evidence', 'retrieval', 'qualification']);
+  if (value.status !== 'ready') issues.push('status_invalid');
+  if (value.synthetic_only !== true) issues.push('synthetic_only_is_required');
+  if (!Array.isArray(value.patient_facts)) issues.push('patient_facts_must_be_array');
+  if (!Array.isArray(value.guideline_evidence)) issues.push('guideline_evidence_must_be_array');
+  else for (const [index, evidence] of value.guideline_evidence.entries()) {
+    if (!isRecord(evidence)) { issues.push(`guideline_evidence[${index}]_must_be_object`); continue; }
+    for (const field of ['source_type', 'source_id', 'title', 'version', 'section', 'location', 'quote']) nonEmptyString(issues, evidence, field);
+    if (evidence.source_type !== 'guideline') issues.push(`guideline_evidence[${index}].source_type_invalid`);
+    if (!Array.isArray(evidence.matched_terms)) issues.push(`guideline_evidence[${index}].matched_terms_must_be_array`);
+  }
+  if (!isRecord(value.retrieval)) issues.push('retrieval_must_be_object');
+  if (!isRecord(value.qualification)) issues.push('qualification_must_be_object');
+  return { valid: issues.length === 0, issues };
+}
+
 function validateCommonResponse(value, required, allowed) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };

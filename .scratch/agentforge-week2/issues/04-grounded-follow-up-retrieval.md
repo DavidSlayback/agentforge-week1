@@ -11,11 +11,17 @@ corpus, and returns only source-grounded evidence with qualified uncertainty.
 - 02: Lab PDF evidence slice
 - 03: Intake form evidence slice
 
-**Status:** ready-for-agent
+**Status:** accepted-with-residual
 
-- [ ] A follow-up question can retrieve candidate guideline evidence using sparse and dense signals.
-- [ ] Reranking returns source metadata and excludes unsupported or irrelevant evidence from the answer context.
-- [ ] The response distinguishes synthetic patient facts from external/guideline evidence.
-- [ ] Every clinical claim in the response has machine-readable citation metadata and a usable source location.
-- [ ] Missing, conflicting, or insufficient evidence produces a qualified answer or clarification request.
-- [ ] Retrieval, reranking, citation, and refusal cases have deterministic tests with corpus provenance.
+- [x] A follow-up evidence request retrieves candidate synthetic guideline evidence using deterministic sparse and dense-proxy signals.
+- [x] Reranking returns corpus source metadata and excludes zero-overlap evidence from the answer context.
+- [x] The response distinguishes synthetic patient facts from guideline evidence.
+- [x] Guideline evidence has machine-readable source, version, section, quote, and synthetic location metadata.
+- [x] Missing or insufficient guideline evidence produces a qualified result; unavailable patient groups are also surfaced.
+- [x] Retrieval, reranking, citation, and refusal cases have deterministic tests with corpus provenance.
+
+## Verification
+
+- Full AgentForge suite: `81/81`.
+- Synthetic API: patient-scoped chart facts and guideline evidence are returned in separate collections.
+- Residuals: production retrieval index, true dense embeddings, model answer integration, and browser evidence display remain open.

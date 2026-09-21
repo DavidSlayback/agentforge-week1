@@ -406,3 +406,13 @@ persists linked synthetic observations through the shared adapter. The full
 suite passes 78/78. Real form/PDF ingestion, real OpenEMR observation
 roundtrip, browser source navigation, and observation-specific API fault
 injection remain `INCONCLUSIVE`.
+
+### Ticket 04 milestone
+
+Ticket 04 has a synthetic retrieval slice accepted with residuals. A bounded
+versioned corpus now produces deterministic sparse and dense-proxy scores,
+reranked guideline evidence with source metadata and synthetic locations, and a
+patient-scoped API that keeps chart facts separate from guideline evidence.
+Empty or irrelevant queries are qualified. The full suite passes 81/81. A
+production retrieval index, true dense embeddings, model answer integration,
+and browser evidence display remain `INCONCLUSIVE`.
