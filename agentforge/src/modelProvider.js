@@ -1,6 +1,23 @@
 import { MAX_RETRIES } from './contracts.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 
+async function postJson({ endpoint, apiKey, body, timeoutMs, correlationId = '', headers = {}, fetchImpl = globalThis.fetch, parseJson = true }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const requestHeaders = { 'content-type': 'application/json', authorization: `Bearer ${apiKey}`, ...headers };
+  if (correlationId) requestHeaders['x-correlation-id'] = correlationId;
+  try {
+    const response = await fetchImpl(endpoint, { method: 'POST', headers: requestHeaders, signal: controller.signal, body: JSON.stringify(body) });
+    if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
+    return parseJson ? await response.json() : response;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('MODEL_TIMEOUT');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Local deterministic synthesis for synthetic evaluation and fallback. */
 export class DeterministicProvider {
   name = 'deterministic'; model = 'fixture-v1';
@@ -26,36 +43,21 @@ export class DeterministicProvider {
  * or provider-eligibility policy.
  */
 export class OpenAICompatibleProvider {
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge' }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; }
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge', fetchImpl = globalThis.fetch }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; this.fetchImpl = fetchImpl; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
-  async checkReachable() { return probeProviderEndpoint({ endpoint: this.endpoint, apiKey: this.apiKey, model: this.model, timeoutMs: Math.min(this.timeoutMs, 15000), body: { model: this.model, messages: [{ role: 'user', content: 'Return only OK.' }], temperature: 0, max_tokens: 16 } }); }
+  async checkReachable() { return probeProviderEndpoint({ endpoint: this.endpoint, apiKey: this.apiKey, model: this.model, timeoutMs: Math.min(this.timeoutMs, 15000), body: { model: this.model, messages: [{ role: 'user', content: 'Return only OK.' }], temperature: 0, max_tokens: 16 }, fetchImpl: this.fetchImpl }); }
   async generate({ prompt, correlationId = '' }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    const headers = { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` };
-    if (correlationId) headers['x-correlation-id'] = correlationId;
-    if (this.siteUrl) headers['HTTP-Referer'] = this.siteUrl;
-    if (this.siteName) headers['X-Title'] = this.siteName;
-    try {
-      const response = await fetch(this.endpoint, { method: 'POST', headers, signal: controller.signal, body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 300 }) });
-      if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
-      return { text: text.trim(), inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
-    } catch (error) {
-      if (error.name === 'AbortError') throw new Error('MODEL_TIMEOUT');
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
+    const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, fetchImpl: this.fetchImpl, headers: { ...(this.siteUrl ? { 'HTTP-Referer': this.siteUrl } : {}), ...(this.siteName ? { 'X-Title': this.siteName } : {}) }, body: { model: this.model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 300 } });
+    const text = data.choices?.[0]?.message?.content;
+    if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
+    return { text: text.trim(), inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
   }
 }
 
 /** DashScope-compatible provider; readiness checks configuration only. */
 export class DashScopeMultimodalProvider {
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000 }) { this.name = 'dashscope'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; }
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch }) { this.name = 'dashscope'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async checkReachable() {
     return probeProviderEndpoint({
@@ -64,37 +66,22 @@ export class DashScopeMultimodalProvider {
       model: this.model,
       timeoutMs: Math.min(this.timeoutMs, 15000),
       body: { model: this.model, input: { messages: [{ role: 'user', content: [{ text: 'Return only OK.' }] }] }, parameters: { result_format: 'message', max_tokens: 16 } },
+      fetchImpl: this.fetchImpl,
     });
   }
   async generate({ prompt, correlationId = '' }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}`, ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
-        signal: controller.signal,
-        body: JSON.stringify({ model: this.model, input: { messages: [{ role: 'user', content: [{ text: prompt }] }] }, parameters: { result_format: 'message' } })
-      });
-      if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
-      const data = await response.json();
-      const content = data.output?.choices?.[0]?.message?.content;
-      const text = Array.isArray(content) ? content.map((item) => item.text || '').join('') : content;
-      if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
-      return { text: text.trim(), inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
-    } catch (error) {
-      if (error.name === 'AbortError') throw new Error('MODEL_TIMEOUT');
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
+    const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, fetchImpl: this.fetchImpl, body: { model: this.model, input: { messages: [{ role: 'user', content: [{ text: prompt }] }] }, parameters: { result_format: 'message' } } });
+    const content = data.output?.choices?.[0]?.message?.content;
+    const text = Array.isArray(content) ? content.map((item) => item.text || '').join('') : content;
+    if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
+    return { text: text.trim(), inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
   }
 }
 
 /** OpenAI Responses-wire provider; readiness checks configuration only. */
 export class OpenAIResponsesProvider {
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000 }) { this.name = 'openai-responses'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; }
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch }) { this.name = 'openai-responses'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async checkReachable() {
     return probeProviderEndpoint({
@@ -103,30 +90,15 @@ export class OpenAIResponsesProvider {
       model: this.model,
       timeoutMs: Math.min(this.timeoutMs, 15000),
       body: { model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: 'Return only OK.' }] }], temperature: 0, max_output_tokens: 16 },
+      fetchImpl: this.fetchImpl,
     });
   }
   async generate({ prompt, correlationId = '' }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}`, ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
-        signal: controller.signal,
-        body: JSON.stringify({ model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], temperature: 0, max_output_tokens: 300 })
-      });
-      if (!response.ok) throw new Error(`MODEL_HTTP_${response.status}`);
-      const data = await response.json();
-      const text = data.output_text || data.output?.flatMap((item) => item.content || []).filter((item) => item.type === 'output_text').map((item) => item.text || '').join('');
-      if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
-      return { text: text.trim(), inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
-    } catch (error) {
-      if (error.name === 'AbortError') throw new Error('MODEL_TIMEOUT');
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
+    const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, fetchImpl: this.fetchImpl, body: { model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], temperature: 0, max_output_tokens: 300 } });
+    const text = data.output_text || data.output?.flatMap((item) => item.content || []).filter((item) => item.type === 'output_text').map((item) => item.text || '').join('');
+    if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
+    return { text: text.trim(), inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
   }
 }
 
@@ -164,16 +136,12 @@ export class ResilientProvider {
   }
 }
 
-async function probeProviderEndpoint({ endpoint, apiKey, model, timeoutMs, body }) {
+async function probeProviderEndpoint({ endpoint, apiKey, model, timeoutMs, body, fetchImpl = globalThis.fetch }) {
   if (!endpoint || !apiKey || !model) return false;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` }, signal: controller.signal, body: JSON.stringify(body) });
-    return response.ok;
+    await postJson({ endpoint, apiKey, body, timeoutMs, fetchImpl, parseJson: false });
+    return true;
   } catch {
     return false;
-  } finally {
-    clearTimeout(timer);
   }
 }

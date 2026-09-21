@@ -9,7 +9,10 @@ the deployed container overrides this with `/data/traces.json` on an attached
 volume. The retained-trace observation is deployment-specific evidence and is
 not a general durability guarantee for every hosting environment.
 
-The current local implementation also has an optional Langfuse v4 OTLP exporter.
+The file sink updates the in-memory trace view immediately and persists records
+through an asynchronous, ordered write queue. The `/v1/traces` read path flushes
+that queue before returning records. The current local implementation also has
+an optional Langfuse v4 OTLP exporter.
 When configured with server-only `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`,
 and `LANGFUSE_SECRET_KEY` values, it sends an explicit operational allowlist as
 one span per completed request. Prompts, responses, chart fields, patient and

@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
@@ -178,6 +179,8 @@ class FileTraceSink extends InMemoryTraceSink {
     this.filePath = filePath;
     this.retentionMs = retentionMs;
     this.clock = clock;
+    this.persistQueue = Promise.resolve();
+    this.pendingWrites = 0;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     this.lastPersistError = null;
     this.traces = this.readFromDisk();
@@ -197,16 +200,16 @@ class FileTraceSink extends InMemoryTraceSink {
 
   readFromDisk() { return this.readStore(this.filePath); }
 
-  persist() {
+  async persist() {
     try {
       const temporaryPath = `${this.filePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
-      fs.writeFileSync(temporaryPath, `${JSON.stringify(this.traces)}\n`, { encoding: 'utf8', mode: 0o600 });
+      await fsp.writeFile(temporaryPath, `${JSON.stringify(this.traces)}\n`, { encoding: 'utf8', mode: 0o600 });
       try {
-        fs.renameSync(temporaryPath, this.filePath);
+        await fsp.rename(temporaryPath, this.filePath);
       } catch (error) {
         if (!['EPERM', 'EEXIST'].includes(error.code)) throw error;
-        fs.rmSync(this.filePath, { force: true });
-        fs.renameSync(temporaryPath, this.filePath);
+        await fsp.rm(this.filePath, { force: true });
+        await fsp.rename(temporaryPath, this.filePath);
       }
       this.lastPersistError = null;
     } catch (error) {
@@ -214,6 +217,15 @@ class FileTraceSink extends InMemoryTraceSink {
       throw error;
     }
   }
+
+  enqueuePersist() {
+    this.pendingWrites += 1;
+    this.persistQueue = this.persistQueue.catch(() => {}).then(() => this.persist()).finally(() => { this.pendingWrites -= 1; });
+    this.persistQueue.catch(() => {});
+    return this.persistQueue;
+  }
+
+  async flush() { await this.persistQueue; }
 
   prune(now) {
     const cutoff = new Date(now).getTime() - this.retentionMs;
@@ -228,12 +240,12 @@ class FileTraceSink extends InMemoryTraceSink {
     const storedAt = this.clock();
     this.traces.push({ ...redactPayload(trace), storedAt });
     this.prune(storedAt);
-    this.persist();
+    this.enqueuePersist();
   }
 
   purgeExpired(now = this.clock()) {
     const removed = this.prune(now);
-    if (removed) this.persist();
+    if (removed) this.enqueuePersist();
     return removed;
   }
 
@@ -245,32 +257,34 @@ class FileTraceSink extends InMemoryTraceSink {
   deleteAll() {
     const deleted = this.traces.length;
     this.traces = [];
-    this.persist();
+    this.enqueuePersist();
     return deleted;
   }
 
-  backup(backupPath) {
+  async backup(backupPath) {
     if (!backupPath) throw new Error('TRACE_BACKUP_PATH_REQUIRED');
+    await this.flush();
     this.purgeExpired();
+    await this.flush();
     fs.mkdirSync(path.dirname(backupPath), { recursive: true });
     fs.copyFileSync(this.filePath, backupPath);
     fs.chmodSync(backupPath, 0o600);
     return { path: backupPath, records: this.traces.length };
   }
 
-  restore(backupPath) {
+  async restore(backupPath) {
     if (!backupPath) throw new Error('TRACE_BACKUP_PATH_REQUIRED');
     const restored = this.readStore(backupPath);
     this.traces = restored;
     this.prune(this.clock());
-    this.persist();
+    await this.enqueuePersist();
     return { records: this.traces.length };
   }
 
   health() {
     let writable = true;
     try { fs.accessSync(path.dirname(this.filePath), fs.constants.W_OK); } catch { writable = false; }
-    return { status: writable && !this.lastPersistError ? 'ok' : 'not_ready', durable: true, writable, retentionMs: this.retentionMs, errorCode: writable ? this.lastPersistError : 'TRACE_STORE_UNAVAILABLE' };
+    return { status: writable && !this.lastPersistError ? 'ok' : 'not_ready', durable: true, writable, pendingWrites: this.pendingWrites, retentionMs: this.retentionMs, errorCode: writable ? this.lastPersistError : 'TRACE_STORE_UNAVAILABLE' };
   }
 }
 

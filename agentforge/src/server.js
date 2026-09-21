@@ -107,7 +107,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/ready') { const result = await readiness.ready(); return json(res, result.status === 'ready' ? 200 : 503, result); }
     // These endpoints have no separate request authorization. Redaction is
     // their current safety boundary, not a production access policy.
-    if (req.method === 'GET' && req.url === '/v1/traces') return json(res, 200, traceSink.list());
+    if (req.method === 'GET' && req.url === '/v1/traces') { await traceSink.flush?.(); return json(res, 200, traceSink.list()); }
     if (req.method === 'GET' && req.url === '/v1/metrics') return json(res, 200, traceSink.snapshot());
     if (req.method === 'GET' && req.url === '/v1/alerts') return json(res, 200, evaluateAlerts(traceSink.snapshot({ windowMs: alertWindowMs }), alertThresholds));
     if (req.method === 'GET' && req.url.startsWith('/v1/demo-context')) {

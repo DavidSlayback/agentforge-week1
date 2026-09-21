@@ -6,10 +6,12 @@ health/readiness dependency checks. Trace payloads exclude chart text and
 direct patient identifiers by default.
 
 `FileTraceSink` stores only redacted traces, bounds the record count, expires
-records after `retentionMs`, writes with a temporary file and rename, and
-supports explicit `deleteAll()` cleanup. It is a local synthetic-checkpoint
+records after `retentionMs`, and asynchronously writes with a temporary file
+and rename. `record()` updates the in-memory view immediately; `flush()` waits
+for queued writes when a durability boundary is required. It supports explicit
+`deleteAll()` cleanup. It is a local synthetic-checkpoint
 primitive, not a compliance claim or a replacement for a reviewed production
-telemetry backend. `backup(path)` and `restore(path)` provide a checked local
+telemetry backend. Async `backup(path)` and `restore(path)` provide a checked local
 recovery seam; deployment storage, off-host backup, rollback orchestration, and
 restore drills remain separate operational evidence.
 
