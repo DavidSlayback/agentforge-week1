@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 import { extractLabEvidence } from './labEvidence.js';
+import { extractIntakeEvidence } from './intakeEvidence.js';
 
 // Stable redacted trace label shared by fixture and live paths; it is not
 // evidence that live OpenEMR supplied the cached response.
@@ -91,6 +92,17 @@ export class AgentForgeService {
     if (source.status !== 'read') return source;
     if (source.source_document.document_type !== 'lab_pdf') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
     const extraction = extractLabEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
+    const observations = [];
+    if (typeof this.adapter.persistObservation !== 'function') return { status: 'failed', reason: 'OBSERVATION_WRITE_UNAVAILABLE', extraction };
+    for (const fact of extraction.facts) observations.push(this.adapter.persistObservation({ patientRef: source.source_document.patient_ref, sourceDocumentId: source.source_document.id, fact }));
+    return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
+  }
+
+  extractIntakeEvidence(id, request, { verifiedContext = null } = {}) {
+    const source = this.readSourceDocument(id, request, { verifiedContext });
+    if (source.status !== 'read') return source;
+    if (source.source_document.document_type !== 'intake_form') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
+    const extraction = extractIntakeEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
     const observations = [];
     if (typeof this.adapter.persistObservation !== 'function') return { status: 'failed', reason: 'OBSERVATION_WRITE_UNAVAILABLE', extraction };
     for (const fact of extraction.facts) observations.push(this.adapter.persistObservation({ patientRef: source.source_document.patient_ref, sourceDocumentId: source.source_document.id, fact }));

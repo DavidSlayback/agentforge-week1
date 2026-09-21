@@ -396,3 +396,13 @@ coordinates, and persists derived observations through a deterministic
 synthetic adapter with API-level deduplication. The full suite passes 75/75.
 Real PDF/OCR, real OpenEMR observation roundtrip, browser PDF highlighting, and
 an observation-specific API fault injection remain `INCONCLUSIVE`.
+
+### Ticket 03 milestone
+
+Ticket 03 has a synthetic evidence slice accepted with residuals. The local
+parser validates the required intake categories, keeps missing/unreadable or
+contradictory fields qualified, emits source-linked section citations, and
+persists linked synthetic observations through the shared adapter. The full
+suite passes 78/78. Real form/PDF ingestion, real OpenEMR observation
+roundtrip, browser source navigation, and observation-specific API fault
+injection remain `INCONCLUSIVE`.

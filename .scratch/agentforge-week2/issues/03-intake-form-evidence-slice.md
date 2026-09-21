@@ -8,11 +8,17 @@ writeback, and clinician review.
 
 **Blocked by:** 01: Synthetic document round-trip
 
-**Status:** ready-for-agent
+**Status:** accepted-with-residual
 
-- [ ] An intake form produces strict records for demographics, chief concern, medications, allergies, and family history.
-- [ ] Missing, ambiguous, or contradictory fields remain explicitly qualified rather than silently normalized into facts.
-- [ ] Every displayed intake fact carries source document ID, page/section, field/chunk ID, and quote/value metadata.
-- [ ] Derived observations persist in OpenEMR, link back to the source document, and read back without duplicates.
+- [x] A synthetic intake-form representation produces strict records for demographics, chief concern, medications, allergies, and family history fields.
+- [x] Missing, unreadable, or contradictory fields remain explicitly qualified rather than silently normalized into facts.
+- [x] Synthetic intake facts carry source document ID, page/section, field ID, quote/value, and bounding-box metadata.
+- [ ] Derived observations persist in real OpenEMR, link back to the source document, and read back without duplicates. The synthetic observation seam is proven; real OpenEMR remains open.
 - [ ] The browser review path can open the source and navigate to the cited field or section.
-- [ ] Tests cover valid extraction, missing fields, contradictory entries, citation mismatch, and writeback failure.
+- [x] Tests cover valid extraction, missing fields, contradictory entries, citation contract failure, and synthetic source/API writeback failure.
+
+## Verification
+
+- Full AgentForge suite: `78/78`.
+- Synthetic intake evidence endpoint: upload -> extract -> source-linked observation.
+- Residuals: real form/PDF ingestion, real OpenEMR observation persistence, browser source navigation, and observation-specific API fault injection.

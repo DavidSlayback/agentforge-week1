@@ -6,7 +6,7 @@ import { DashScopeMultimodalProvider, DeterministicProvider, OpenAICompatiblePro
 import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, SimulatedOpenEMRAdapter } from './openemrAdapter.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
-import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest } from './contracts.js';
+import { validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
@@ -157,6 +157,25 @@ const server = http.createServer(async (req, res) => {
         const response = { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations };
         const validation = validateLabEvidenceResponse(response);
         return validation.valid ? json(res, 200, response) : invalidResponse(res, 'invalid_lab_evidence_response', validation.issues);
+      } catch (error) {
+        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
+        return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
+      }
+    }
+    const intakeEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/intake-evidence(?:\?(.*))?$/);
+    if (req.method === 'GET' && intakeEvidenceMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      try {
+        const result = service.extractIntakeEvidence(decodeURIComponent(intakeEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status === 'blocked') return json(res, result.reason === 'SOURCE_DOCUMENT_TYPE_MISMATCH' ? 400 : 403, { error: result.reason });
+        if (result.status === 'failed') return json(res, 500, { error: result.reason });
+        const response = { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations };
+        const validation = validateIntakeEvidenceResponse(response);
+        return validation.valid ? json(res, 200, response) : invalidResponse(res, 'invalid_intake_evidence_response', validation.issues);
       } catch (error) {
         if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });

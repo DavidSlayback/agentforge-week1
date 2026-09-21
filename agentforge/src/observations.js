@@ -7,7 +7,8 @@ export class SyntheticObservationStore {
   }
 
   persist({ patientRef, sourceDocumentId, fact, now = () => new Date().toISOString() }) {
-    const dedupKey = `${sourceDocumentId}|${fact.field_id}|${fact.collection_date}`;
+    const observationKey = fact.collection_date || fact.section || 'undated';
+    const dedupKey = `${sourceDocumentId}|${fact.field_id}|${observationKey}`;
     const existingId = this.byDedupKey.get(dedupKey);
     if (existingId) return { duplicate: true, observation: this.records.get(existingId) };
     const id = `obs-${crypto.createHash('sha256').update(`${patientRef}|${dedupKey}`).digest('hex').slice(0, 24)}`;
@@ -17,6 +18,8 @@ export class SyntheticObservationStore {
       source_document_id: sourceDocumentId,
       field_id: fact.field_id,
       value: fact.value,
+      ...(fact.field ? { field: fact.field } : {}),
+      ...(fact.section ? { section: fact.section } : {}),
       unit: fact.unit,
       reference_range: fact.reference_range,
       collection_date: fact.collection_date,

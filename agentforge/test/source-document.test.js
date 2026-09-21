@@ -8,6 +8,7 @@ import { issueSignedContext, verifySignedContext } from '../src/accessContext.js
 import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
 import { extractLabEvidence } from '../src/labEvidence.js';
+import { extractIntakeEvidence } from '../src/intakeEvidence.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const signedContext = (patient_uuid, clinician_uuid = 'fixture-physician-001') => ({
@@ -117,6 +118,16 @@ test('synthetic lab extraction preserves citations, qualifies gaps, and detects 
   assert.ok(conflict.issues.some((value) => value.includes('conflicting_values')));
 });
 
+test('synthetic intake extraction preserves sections and qualifies contradictions', () => {
+  const content = Buffer.from('INTAKE|field=demographics.age|value=42|section=Demographics|page=1|field_id=intake.demographics.age|quote=Age 42|bounding_box=10,20,100,40\nINTAKE|field=medication.metformin|value=500 mg daily|section=Medications|page=2|field_id=intake.medications.1|quote=Metformin 500 mg daily|bounding_box=10,50,100,70');
+  const valid = extractIntakeEvidence({ sourceDocumentId: 'src-intake-1', content });
+  assert.equal(valid.status, 'complete');
+  assert.equal(valid.facts[1].citation.section, 'Medications');
+  const contradiction = extractIntakeEvidence({ sourceDocumentId: 'src-intake-2', content: Buffer.from(`${content.toString()}\nINTAKE|field=medication.metformin|value=1000 mg daily|section=Medications|page=2|field_id=intake.medications.2|quote=Metformin 1000 mg daily|bounding_box=10,80,100,100`) });
+  assert.equal(contradiction.status, 'qualified');
+  assert.ok(contradiction.issues.some((value) => value.includes('conflicting_values')));
+});
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 async function startServer(port, extraEnv = {}, waitPath = '/ready') {
@@ -196,6 +207,25 @@ test('synthetic lab evidence API links derived observations to the source and de
     assert.equal(first.observations[0].observation.source_document_id, upload.source_document.id);
     const retry = await fetch(`http://127.0.0.1:${port}${path}`).then((response) => response.json());
     assert.equal(retry.observations[0].duplicate, true);
+  } finally {
+    child.kill();
+  }
+});
+
+test('synthetic intake evidence API links derived observations to the source', async () => {
+  const port = 18806;
+  const child = await startServer(port);
+  try {
+    const patient = 'fixture-patient-001';
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const content = 'INTAKE|field=chief_concern|value=follow-up for fatigue|section=Chief concern|page=1|field_id=intake.concern|quote=Follow-up for fatigue|bounding_box=10,20,100,40';
+    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'intake_form', filename: 'synthetic-intake.json', content_base64: Buffer.from(content).toString('base64') }) }).then((response) => response.json());
+    const evidence = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/intake-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`);
+    assert.equal(evidence.status, 200);
+    const body = await evidence.json();
+    assert.equal(body.extraction.facts[0].citation.section, 'Chief concern');
+    assert.equal(body.observations[0].observation.source_document_id, upload.source_document.id);
   } finally {
     child.kill();
   }
