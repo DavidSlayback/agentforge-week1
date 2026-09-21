@@ -7,12 +7,12 @@
 
 ## Current repository state — 2026-09-21
 
-The local `main` branch tracks GitLab `staging/main` at baseline commit
-`45378a6`; this cleanup pass adds uncommitted deadline, trace-finalization,
-prewarm-bound, documentation, and test-readability changes. Local verification
-before this pass was 88/88 repository checks plus 4/4 script checks. The local
-changes must be committed, pushed, and read back before they become a new
-GitLab checkpoint. No deployment claim follows from this repository state.
+The local `main` branch tracks GitLab `staging/main` at deployed commit
+`85ff12b`. The current synthetic Vultr runtime was rebuilt from that source on
+2026-09-21; runtime source hashes match the local changed files, and the
+AgentForge image is healthy. Local verification is 91/91 repository checks plus
+4/4 script checks. External HTTPS/API readback passes; this remains synthetic,
+read-only, and candidate-scoped evidence.
 
 ## Historical candidate evidence — 2026-09-20
 

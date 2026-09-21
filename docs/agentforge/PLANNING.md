@@ -169,5 +169,7 @@ admission/deadline, regression-test, active-document, and planning updates.
   the parent reconciled the four scoped active docs directly.
 - Final independent review worker: **INCONCLUSIVE** after its bounded return
   window; no external deployment or review claim is inferred from silence.
-- GitLab push completed and remote `refs/heads/main` read back as
-  `2e60d96dc6c11b02401a4328d793b5bb8f00030f` before this record-only update.
+- GitLab push completed and remote `refs/heads/main` now reads
+  `85ff12bb2214e0124098d08856170bd467e0ee0e`.
+- Owner-authorized Vultr redeployment completed; the container is healthy, the
+  runtime source hashes match, and the external HTTPS/API gate passes.

@@ -1,7 +1,7 @@
 # AgentForge release-readiness evidence map
 
-**Checkpoint:** 2026-09-19, America/Chicago  
-**Candidate commit:** `88420c1` (`fix: preserve prewarm correlation identifiers`)
+**Checkpoint:** 2026-09-21, America/Chicago  
+**Candidate commit:** `85ff12b` (`docs: close GitLab cleanup record`)
 **Decision:** Conditionally ready for the synthetic checkpoint; the exact
 candidate is now deployed and read back, with the remaining load and packaging
 limitations recorded below.  
@@ -17,9 +17,9 @@ no live clinical records, no clinical write-back, and no demo/submission upload.
 
 | Requirement | Implementation proof | Runtime proof | External proof | Status / smallest next action |
 |---|---|---|---|---|
-| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `87/87` checked tests; `9/9` local golden cases | Public collection and browser dashboard readback pass for the deployed 7-case snapshot | Done locally for the expanded synthetic checkpoint; redeployment is required before claiming the new fixtures publicly. Qwen tail latency is accepted for asynchronous preparation and is not an interactive follow-up SLA. |
-| Authorization and PHP launcher seam | `accessContext.js`, PHP launcher, parity test | `2/2` PHP parity/lint tests; PHP 8.4.25 installed | Public runtime has not been checked against this commit | Local complete; refresh exact deployed candidate. |
-| Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Local golden safety gate `9/9`; deployed saved gate `7/7`; no-PHI synthetic fixtures | No PHI or live-record claim permitted | Complete locally for the expanded synthetic checkpoint; deployed fixture parity remains pending redeployment. |
+| Core briefing and follow-up workflow | `agentforge/src/`, service and UI tests | `91/91` repository tests plus `4/4` script checks; `9/9` local golden cases | Current candidate API collection passes complete/partial briefing, follow-up, blocked scope, invalid request, metrics, traces, alerts, and observability | Done for the exercised synthetic checkpoint; Qwen tail latency is accepted for asynchronous preparation and is not an interactive follow-up SLA. |
+| Authorization and PHP launcher seam | `accessContext.js`, PHP launcher, parity test | `2/2` PHP parity/lint tests; PHP 8.4.25 installed | Current public runtime is healthy; exact PHP parity remains local evidence | Local complete; production identity equivalence remains out of scope. |
+| Safety boundary | Read-only contracts, verifier, fixture adapter, redaction | Local golden safety gate `9/9`; no-PHI synthetic fixtures | Current public collection passes blocked authorization and cross-patient probes | Complete for the synthetic/read-only boundary; no PHI or live-record claim permitted. |
 | Visual operational dashboard | `agentforge/src/observabilityPage.js`; `/observability` route | Local browser shows cards, latency bars, outcomes, alerts, queue, fallback, traces | Public browser shows the same visual dashboard and redacted trace panels | Done for synthetic checkpoint. |
 | Metrics and alert semantics | `/v1/metrics`, `/v1/alerts`, bounded-window evaluator | Three alert rules render locally; tool-failure alert fires over active synthetic window | Public endpoint and dashboard readback pass | Done for synthetic checkpoint; external notification ownership remains open. |
 | Provider lane | Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-up; deterministic fallback retained | Provider tests and live trace readback | Current public runtime is healthy; both primary lanes were observed | Keep the split lanes through submission. |
@@ -34,7 +34,7 @@ node --test scripts/test/*.test.mjs
 node evals/lib/runner.js
 ```
 
-Observed local results are `87/87` across the checked AgentForge, evaluation, observability, helper, PHP, provider, and load-harness suites. The latest split-lane load sample is separately tied to candidate `56d1a35`; it does not cover the new local fixture cases.
+Observed local results are `91/91` repository tests plus `4/4` script checks. The latest split-lane load sample is separately tied to candidate `56d1a35`; it remains historical capacity evidence.
 
 ## Current external snapshot
 
@@ -43,13 +43,25 @@ Read-only checks against `https://dtstest.64.177.10.182.nip.io/agentforge`:
 - `/health`: 200 / `ok`
 - `/ready`: 200 / `ready`
 - `/observability`: 200, visual dashboard read back in a clean browser
-- Visual dashboard from candidate `88420c1`: deployed and verified below
+- Visual dashboard from current candidate `85ff12b`: deployed and verified below
 
 Before the owner authorization recorded above, no deployment, provider
 migration, demo upload, submission, or PHI action was authorized by this
 checkpoint.
 
-## Authorized deployment readback — 2026-09-19
+## Authorized deployment readback — 2026-09-21
+
+The owner-authorized synthetic Vultr target was rebuilt from GitLab `main`
+candidate `85ff12b`. The AgentForge container started at
+`2026-09-21T18:51:50.935703093Z`, reported `healthy`, and ran image
+`sha256:519eb1b737dd46b92fa743dff9c22215cf4366b43cc516e2935489c129417c33`.
+The deployed hashes for `service.js`, `modelProvider.js`, and `server.js`
+matched the local checkout. External readback at approximately 18:52 UTC
+returned HTTP 308 for HTTP-to-HTTPS, then 200 for `/health`, `/ready`, and
+`/observability`; the API collection passed complete/partial briefing,
+follow-up, blocked-scope, invalid-request, metrics, traces, and alerts.
+
+## Historical deployment readback — 2026-09-19
 
 Owner authorization was exercised for the synthetic Vultr target. Commit
 `6fd69eb` was archived to `/opt/agentforge-week1` without overwriting the

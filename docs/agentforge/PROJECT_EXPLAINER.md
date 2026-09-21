@@ -7,11 +7,11 @@ this repository. `REQUIREMENTS.md` is the repository's transcribed inventory,
 not the original source.
 
 **Current repository state (2026-09-21):** local `main` tracks GitLab
-`staging/main` at baseline commit `45378a6`; the current cleanup pass is not
-yet committed or deployed. Local verification before this pass was 88/88
-repository checks plus 4/4 script checks. Deployment and browser evidence below
-is historical candidate-scoped evidence and must not be inferred for this
-working tree.
+`staging/main` at deployed commit `85ff12b`. The current synthetic Vultr
+runtime was rebuilt from that source; runtime source hashes match the local
+changed files. Local verification is 91/91 repository checks plus 4/4 script
+checks. External HTTPS/API readback below is current candidate-scoped evidence,
+not production-readiness proof.
 
 ## What the product is
 
@@ -19,8 +19,8 @@ AgentForge is a narrow clinical-co-pilot checkpoint for a primary-care physician
 
 The product is a synthetic demonstration and resilience checkpoint with a
 verified read-only OpenEMR integration against seeded synthetic records. The
-historical implementation stack was published as three draft merge requests in
-the private staging project and had same-day synthetic Vultr readback. It is not
+current implementation is published to the private GitLab staging project and
+has current synthetic Vultr readback. It is not
 a live clinical system, a medical decision-maker, a generic medical chatbot, a
 PHI-approved deployment, or a production OpenEMR integration.
 
@@ -56,15 +56,15 @@ The current code is a separate Node service under `agentforge/`. The main seams 
 
 ## Current evidence
 
-The pre-cleanup local checks, verified 2026-09-20, passed:
+The current local checks, verified 2026-09-21, pass:
 
 - AgentForge service and seam tests: **56/56**;
 - evaluation tests: **10/10**; and
-- observability tests: **17/17**; the broader historical checked set was **87/87**, including helper, PHP, provider, and load-harness regressions, plus the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, the documented 2% tool-failure threshold, and fail-closed provider readback.
+- observability tests: **17/17**; the broader checked set is **91/91**, plus 4/4 script checks, including helper, PHP, provider, and load-harness regressions, the Langfuse exporter boundary, bounded-outage behavior, blocked-outcome error classification, durable alert-window behavior, the documented 2% tool-failure threshold, and fail-closed provider readback.
 
-The local branch now contains nine synthetic golden cases, including complete return-visit comparison, partial retrieval, successful empty lookup, no prior comparison, conflict, stale data, missing provenance, untrusted notes, and duplicate identity. The saved deployed report is still a seven-case snapshot from candidate `88420c1`; it must not be relabeled as proof for these newly added local cases until redeployment. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the deployed workflow through Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-ups and `/ready` returns 200. The latest measured split-lane sample, tied to candidate `56d1a35`, has 10/10 successful requests at concurrency 10 and 46/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
+The local branch and redeployed candidate contain nine synthetic golden cases, including complete return-visit comparison, partial retrieval, successful empty lookup, no prior comparison, conflict, stale data, missing provenance, untrusted notes, and duplicate identity. The saved deployed report remains a seven-case historical snapshot; current API readback covers the exercised complete/partial workflow and safety probes. Those artifacts support the narrow synthetic checkpoint only. The selected Vultr runtime serves the deployed workflow through Qwen synthesis plus OpenRouter Gemini Flash-Lite follow-ups and `/ready` returns 200. The latest measured split-lane sample, tied to candidate `56d1a35`, has 10/10 successful requests at concurrency 10 and 46/50 at concurrency 50; the latter exposes the provider tail-latency limitation. This is not production-capacity evidence.
 
-On 2026-09-20, strict HTTPS and live API readback verified the externally reachable briefing, prewarm, and follow-up workflow on historical candidate `88420c1`. The readback returned HTTP 200 for `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts`; the API collection and synthetic prewarm/open flow passed. These are candidate-scoped observations, not current-branch or production-capacity claims.
+On 2026-09-21, strict HTTPS and live API readback verified the externally reachable briefing, prewarm, and follow-up workflow on candidate `85ff12b`. HTTP 308 redirects to HTTPS; `/health`, `/ready`, `/observability`, `/v1/metrics`, `/v1/traces`, and `/v1/alerts` returned 200; the API collection passed complete/partial briefing, follow-up, blocked scope, and invalid-request probes. These are candidate-scoped observations, not production-capacity claims.
 
 ## Status by area
 
@@ -73,11 +73,11 @@ On 2026-09-20, strict HTTPS and live API readback verified the externally reacha
 | Original brief and requirements inventory | Done, with provenance boundary | Source PDF is verified outside the repo; the checked-in inventory is transcribed. |
 | Audit, users, architecture, metrics, and safety boundary | Done for the documented checkpoint | The documents exist and are internally useful; production claims remain out of scope. |
 | Conversational UI and follow-up flow | Implemented synthetic | Historical candidate was deployed and browser-verified with physician-readable grouped facts, follow-up prompts, evidence expansion, reset, and blocked probe. |
-| Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; historical-candidate synthetic deployment proof passes, while live OpenEMR equivalence remains out of scope. |
-| Contracts, prewarm/API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Historical public prewarm/open readback and visual dashboard passed on candidate `88420c1`. |
-| Load evidence | Partial, accepted for demo | Latest synthesis load evidence is tied to historical candidate `56d1a35`: 10/10 at concurrency 10 and 46/50 at concurrency 50. This is an asynchronous preparation limitation; historical candidate `88420c1` has API/browser readback but no fresh 10/50 load run. |
+| Verification, authorization, failure and partial-data behavior | Implemented synthetic | Tests cover these boundaries, including B's strict issuer/session/role defaults; current-candidate synthetic deployment proof passes, while live OpenEMR equivalence remains out of scope. |
+| Contracts, prewarm/API collection, health/readiness, traces, dashboard, alerts | Implemented synthetic | Public prewarm/open readback and visual dashboard passed on current candidate `85ff12b`. |
+| Load evidence | Partial, accepted for demo | Latest synthesis load evidence is tied to historical candidate `56d1a35`: 10/10 at concurrency 10 and 46/50 at concurrency 50. This is an asynchronous preparation limitation; current candidate `85ff12b` has no fresh 10/50 load run. |
 | Provider/model | Split synthetic lanes | Qwen handles synthesis and OpenRouter Gemini Flash-Lite handles follow-ups; deterministic fallback remains available. |
-| OpenEMR integration | Implemented for synthetic E2E | Read-only OAuth user-context retrieval, seeded synthetic records, PID→UUID launch, and deployed synthetic readback are historical candidate evidence. PHI, production identity semantics, and compliance remain out of scope. |
+| OpenEMR integration | Implemented for synthetic E2E | Read-only OAuth user-context retrieval, seeded synthetic records, PID→UUID launch, and current candidate synthetic readback are verified. PHI, production identity semantics, and compliance remain out of scope. |
 | PHI/HIPAA/BAA/compliance readiness | Blocked/out of scope | No PHI, clinical write-back, production compliance, or provider suitability is established. |
 | Cost and scale | Partial | Cost model and 100/1K/10K/100K architecture projections exist; deployment-specific billing attribution and host resource baseline remain open. |
 
