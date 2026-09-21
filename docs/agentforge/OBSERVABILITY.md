@@ -5,8 +5,9 @@ and `/agentforge/v1/traces`. The default trace payload is bounded and redacted.
 It includes correlation ID, ordered stage timing, retrieval attempts, retries,
 model token/cost fields when supplied, coverage, verification, and display
 outcomes. Local runs default to a file-backed synthetic store under `/tmp`;
-the Railway deployment overrides this with `/data/traces.json` on an attached
-volume, and the exercised redeploy retained the sentinel trace.
+the deployed container overrides this with `/data/traces.json` on an attached
+volume. The retained-trace observation is deployment-specific evidence and is
+not a general durability guarantee for every hosting environment.
 
 The current local implementation also has an optional Langfuse v4 OTLP exporter.
 When configured with server-only `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`,
