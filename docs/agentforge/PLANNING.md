@@ -97,3 +97,63 @@ Q14 direction: the experience should be a compact paragraph or two with many use
 - Maintain the running ADR-style record in `DECISIONS.md`; update it when a
   planning decision becomes an implementation decision or a checkpoint
   limitation changes.
+
+## Sprint cleanup hardening (2026-09-21)
+
+### Objective
+
+Prepare the current GitLab `main` checkpoint for the next feature sprint by
+removing correctness hazards, bounding background work, reconciling active
+documentation, and reducing readability friction without broadening product
+scope.
+
+### Current state
+
+- Repository branch: `main`, tracking GitLab `staging/main`.
+- Local checkpoint: `45378a6` (`perf: async trace writes and deduplicate provider transport`).
+- The working tree was clean before this hardening pass.
+- The repository remains synthetic-only and read-only; no provider activation,
+  PHI handling, write-back, or production-readiness claim is in scope.
+
+### Work slices
+
+1. **Deadline and trace finalization:** apply the response deadline across
+   retrieval and model generation, propagate cancellation into provider HTTP
+   calls, consume late cancellation failures safely, and finalize redacted
+   failure traces when retrieval or generation raises.
+2. **Prewarm bounds:** add explicit admission and per-job deadline limits for
+   prewarm work, expose capacity rejection safely at the HTTP boundary, and add
+   regression coverage.
+3. **Active documentation reconciliation:** update current handoff, explainer,
+   requirements, and decision records to distinguish the current repository
+   checkpoint from historical deployment/submission evidence. Preserve
+   historical artifacts rather than rewriting their evidence.
+4. **Readability cleanup:** reformat dense tests and make only narrow, behavior-
+   neutral readability improvements where they reduce future feature risk.
+
+### Acceptance checks
+
+- Full repository and script test suites pass with no new warnings or syntax
+  errors.
+- A provider or adapter failure leaves a completed redacted attempt trace.
+- A model request cannot run beyond the remaining response deadline, and an
+  aborted HTTP request does not produce an unhandled rejection.
+- Prewarm work is bounded by admission and deadline controls; capacity behavior
+  is covered by tests and documented.
+- Active docs describe the current local/GitLab checkpoint accurately and do
+  not present historical Railway or stale-commit evidence as current.
+- `git diff --check` passes and the final GitLab branch readback matches the
+  pushed commit.
+
+### Stop conditions
+
+Stop and report `INCONCLUSIVE` if a change would require changing the
+synthetic/read-only boundary, rewriting historical evidence, activating a live
+provider, or making a deployment/production claim without fresh evidence.
+External GitLab writes occur only after local verification and an explicit
+readback.
+
+### Completion record
+
+Implementation, delegated review results, verification output, and the final
+GitLab commit will be recorded here when the cleanup pass is complete.

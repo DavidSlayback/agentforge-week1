@@ -199,6 +199,33 @@ test('fresh retrieval deadline includes patient lookup', async () => {
   assert.equal(result.patient, null);
 });
 
+test('model generation uses the remaining response deadline and completes a timeout trace', async () => {
+  const sink = new InMemoryTraceSink();
+  const provider = {
+    name: 'slow-provider',
+    model: 'slow-model',
+    generate: ({ signal }) => new Promise((resolve, reject) => {
+      signal.addEventListener('abort', () => reject(Object.assign(new Error('MODEL_ABORTED'), { name: 'AbortError' })), { once: true });
+    }),
+  };
+  const service = new AgentForgeService({ adapter, provider, traceSink: sink });
+  const result = await prepareWithContext(service, request('fixture-patient-001', { case_id: 'complete_return_visit' }), { deadlineMs: 25 });
+  assert.equal(result.disposition, 'deadline-exceeded');
+  assert.equal(result.patient, null);
+  assert.equal(sink.list()[0].status, 'deadline-exceeded');
+  assert.equal(sink.list()[0].stages.at(-1).name, 'model');
+});
+
+test('retrieval failures complete a redacted failure trace before rethrowing', async () => {
+  const sink = new InMemoryTraceSink();
+  const failingAdapter = Object.create(adapter);
+  failingAdapter.retrieve = async () => { throw new Error('RETRIEVAL_DOWN'); };
+  const service = new AgentForgeService({ adapter: failingAdapter, provider: new DeterministicProvider(), traceSink: sink });
+  await assert.rejects(() => prepareWithContext(service, request('fixture-patient-001', { case_id: 'complete_return_visit' })), /RETRIEVAL_DOWN/);
+  assert.equal(sink.list()[0].status, 'failure');
+  assert.equal(sink.list()[0].display.status, 'withheld');
+});
+
 test('calendar prewarm prepares once and opens a bound cache hit', async () => {
   let now = 0;
   let modelCalls = 0;
@@ -239,4 +266,24 @@ test('calendar prewarm fails closed for mismatched authorization and provider fa
   const accepted = failing.prewarm(value, { verifiedContext: contextFor(value), scheduleRevision: 'visit-failing' });
   await assert.rejects(accepted.promise, /MODEL_DOWN/);
   assert.equal(failing.cache.get(accepted.correlation_id).status, 'miss');
+});
+
+test('calendar prewarm rejects work above the configured concurrency bound', async () => {
+  let release;
+  const deterministic = new DeterministicProvider();
+  const provider = {
+    name: deterministic.name,
+    model: deterministic.model,
+    generate: (args) => new Promise((resolve) => { release = () => resolve(deterministic.generate(args)); }),
+  };
+  const service = new AgentForgeService({ adapter, provider, maxPrewarmJobs: 1 });
+  const value = request('fixture-patient-001', { case_id: 'complete_return_visit' });
+  const first = service.prewarm(value, { verifiedContext: contextFor(value), scheduleRevision: 'visit-one', sourceRevision: 'case-one' });
+  const second = service.prewarm(value, { verifiedContext: contextFor(value), scheduleRevision: 'visit-two', sourceRevision: 'case-two' });
+  assert.equal(first.status, 'accepted');
+  assert.deepEqual(second, { status: 'busy', reason: 'prewarm_capacity_exhausted' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(typeof release, 'function');
+  release();
+  await first.promise;
 });

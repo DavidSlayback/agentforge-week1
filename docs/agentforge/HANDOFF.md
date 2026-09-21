@@ -2,12 +2,21 @@
 
 - Goal: Re-anchor AgentForge to the original Week 1 assignment, remove stale or conflicting project information, produce a plain-English account of what exists and what remains, then rebuild the implementation plan and ticket queue from current evidence.
 - Scope and explicit exclusions: This handoff covers repository cleanup, requirements reconciliation, documentation, architecture/user-story/plan rebaselining, ticket repair, and subsequent assignment work. Preserve the synthetic-only, read-only, clinician-reviewed boundary unless a later explicit decision changes it. Do not load PHI, enable clinical write-back, merge, publish, or send external communications without separate authorization.
-- Last verified at: 2026-09-19, America/Chicago.
+- Last verified at: 2026-09-21, America/Chicago.
 - Current mechanism: AgentForge is a separate Node service and OpenEMR-facing demonstration surface with a GET-only OpenEMR REST adapter, seeded synthetic read-only E2E retrieval on Vultr, fixture-backed local regression paths, deterministic evaluation, patient/clinician scope checks, verification, redacted observability, health/readiness routes, evaluator/API surfaces, and deployment artifacts. Current evidence is mixed local, deployed, synthetic, and owner-reviewed; do not treat all of it as one completion state.
 
-## Current candidate override — 2026-09-20
+## Current repository state — 2026-09-21
 
-The current candidate is `88420c1` on this branch and is deployed at
+The local `main` branch tracks GitLab `staging/main` at baseline commit
+`45378a6`; this cleanup pass adds uncommitted deadline, trace-finalization,
+prewarm-bound, documentation, and test-readability changes. Local verification
+before this pass was 88/88 repository checks plus 4/4 script checks. The local
+changes must be committed, pushed, and read back before they become a new
+GitLab checkpoint. No deployment claim follows from this repository state.
+
+## Historical candidate evidence — 2026-09-20
+
+The historical candidate was `88420c1` and was deployed at
 `https://dtstest.64.177.10.182.nip.io/agentforge/`. The container is healthy;
 the public API collection and clean-browser readback pass. The physician-facing
 surface now presents a readable visit orientation with grouped facts and
@@ -19,7 +28,7 @@ baselines remain documented limitations, not hidden claims.
 ## Post-rebaseline update — 2026-09-19
 
 - The assignment source, inventory, explainer, requirements matrix, and Wayfinder map were refreshed against current code and evidence.
-- Fresh local proof on 2026-09-20 is 87/87 across the checked AgentForge, evaluation, observability, helper, PHP, provider, and load-harness suites. The local golden corpus is 9/9; the deployed saved report remains a prior 7-case snapshot. The latest observability cases lock the distinction between blocked safety outcomes and operational errors, preserve bounded alert windows through the durable trace sink, enforce the documented 2% tool-failure threshold, and keep unsafe provider readback fail-closed.
+- Historical local proof on 2026-09-20 was 87/87 across the checked AgentForge, evaluation, observability, helper, PHP, provider, and load-harness suites. The local golden corpus was 9/9; the deployed saved report remains a prior 7-case snapshot. The latest observability cases lock the distinction between blocked safety outcomes and operational errors, preserve bounded alert windows through the durable trace sink, enforce the documented 2% tool-failure threshold, and keep unsafe provider readback fail-closed.
 - B authorization hardening is implemented in the published stack: signed context is immutable and expiry is rechecked at authorization time; live adapter defaults require the OpenEMR module issuer, session authentication, clinician role, and read scope. Current Vultr readback proves only the selected synthetic/read-only path, not production identity semantics.
 - Vultr readback verifies server-only OAuth user-context retrieval and seeded synthetic records. It also records the Alibaba-compatible `qwen3.6-flash` lane activated for no-PHI synthetic evaluation; the local/default behavior remains deterministic with fallback.
 - ADR-015 selects the production-grade authorization direction for future readiness: per-request synthetic user-context token or introspection semantics, with subject, active-patient, read scope, expiry/revocation, and role-denial checks. This is a simulated boundary only; no PHI, chart writes, or production authorization claim is permitted.
@@ -39,7 +48,7 @@ baselines remain documented limitations, not hidden claims.
   activation beyond the authorized synthetic lane remain prohibited.
 
 The later candidate refresh supersedes the older commit identifiers in this
-historical section; use the current candidate override above for release work.
+historical section; use the current repository state above for release work.
 
 ## Deployment readback — 2026-09-19
 
@@ -58,7 +67,7 @@ historical section; use the current candidate override above for release work.
 - The current deployed proof is synthetic, read-only, and clinician-reviewed.
   It does not prove real OpenEMR identity/session semantics, PHI readiness,
   production authorization, clinical usefulness, or compliance.
-- The current candidate has fresh public dashboard and workflow readback. Load
+- The historical candidate has fresh public dashboard and workflow readback. Load
   evidence must remain labeled as bounded synthetic observations, and CPU,
   memory, database saturation, and provider cost are not capacity claims.
 - Provider activation beyond the already authorized synthetic Qwen lane, PHI,
@@ -108,9 +117,9 @@ The prior audit reported these results, subject to fresh readback:
 
 - AgentForge tests: 20/20.
 - Historical handoff snapshot: evaluations 10/10 and observability tests 9/9.
-- Public route/API/readiness/evaluator/observability checks: reported passing at prior Railway/Vultr targets.
+- Public route/API/readiness/evaluator/observability checks: reported passing at prior Railway/Vultr targets; this is historical evidence.
 - Signed synthetic load evidence: 100/100 at concurrency 10 and 500/500 at concurrency 50 in recorded local reports; deployed-versus-local scope must be distinguished.
-- A current Vultr hostname and a Railway canonical origin are recorded in project artifacts. URLs, certificates, deployments, billing, and commit state are mutable and require fresh verification before final claims.
+- Historical Vultr and Railway hostnames are recorded in project artifacts. URLs, certificates, deployments, billing, and commit state are mutable and require fresh verification before final claims.
 
 ## Required plan after cleanup
 

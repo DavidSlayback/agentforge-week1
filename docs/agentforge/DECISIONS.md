@@ -105,15 +105,17 @@ migration path.
   exposure while still supporting reconstruction and failure analysis.
 - **Evidence:** The requirement calls for correlation IDs and actual-run
   ordering/timing while PHI handling remains out of scope.
-- **Limitation:** The checkpoint store is in-memory and the dashboard is
-  intentionally minimal; restart loses traces.
+- **Historical limitation:** The initial checkpoint store was in-memory and the
+  dashboard was intentionally minimal; restart lost traces. The current code
+  uses a redacted file-backed sink with asynchronous persistence.
 - **Migration:** Add a reviewed local persistent sink, retention/deletion rules,
   alerts, and only then consider external telemetry.
 
-For the deployed Railway checkpoint, ADR-009 supersedes the in-memory limitation
-with the implemented file-backed sink and attached-volume configuration.
+Historical Railway evidence superseded the in-memory limitation for that
+deployment checkpoint with the implemented file-backed sink and attached-volume
+configuration. It is not current deployment or branch evidence.
 
-### ADR-009: Railway attached-volume trace persistence
+### Historical deployment note: Railway attached-volume trace persistence
 
 - **Choice:** Keep traces redacted and local to the service boundary, but use
   the implemented file-backed sink with Railway
