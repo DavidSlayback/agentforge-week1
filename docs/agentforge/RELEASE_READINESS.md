@@ -1,6 +1,6 @@
 # AgentForge release-readiness evidence map
 
-**Checkpoint:** 2026-09-21, America/Chicago  
+**Checkpoint:** 2026-09-21, America/Chicago
 **Candidate commit:** `85ff12b` (`docs: close GitLab cleanup record`)
 **Decision:** Conditionally ready for the synthetic checkpoint; the exact
 candidate is now deployed and read back, with the remaining load and packaging
