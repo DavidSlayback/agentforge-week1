@@ -33,20 +33,20 @@ processing is part of the architecture.
 
 Every retrieval group writes an attempt trace containing correlation ID,
 patient and clinician references in redacted form, operation name, outcome,
-duration, retry number, and coverage. It does not write raw chart content by
-default. A successful empty result is distinct from no prior visit, failed,
-timed-out, unauthorized, and not-requested coverage. The retry budget is at
-most two automatic retries per failed operation and is always constrained by
-the overall deadline. Partial results are prominently qualified; claims that
-depend on unavailable evidence are withheld. Failure to establish identity or
-authorization blocks the briefing entirely.
+duration, and coverage. It does not write raw chart content by default. A
+successful empty result is distinct from no prior visit, failed, timed-out,
+unauthorized, and not-requested coverage. Retrieval currently performs one
+bounded read per group; the two-retry budget applies to configured
+model calls, not retrieval. Partial results are prominently qualified; claims
+that depend on unavailable evidence are withheld. Failure to establish identity
+or authorization blocks the briefing entirely.
 
 The UI exposes the active patient and authorization state, an overall
 complete/qualified/partial disposition, a short orientation, and expandable
 BLUF sections for changes, plans, discrepancies, and missing coverage. Each
-displayed claim links to a server-resolved source reference showing record
-type, author when available, exact date, and supporting excerpt or original
-record. AgentForge never writes notes, diagnoses, medications, orders,
+displayed claim exposes server-resolved evidence metadata showing record type,
+source reference, author when available, date when available, and supporting
+excerpt. AgentForge never writes notes, diagnoses, medications, orders,
 appointments, messages, or other patient data and never treats chart text as
 an instruction.
 
@@ -288,8 +288,9 @@ synthetic build.
 2. **Deterministic reconciliation and verifier:** implement baseline selection,
    latest-field selection, provenance/staleness flags, explicit-resolution
    rules, note isolation, and dependent-claim withholding.
-3. **Bounded orchestration:** add per-operation two-retry budgets, an overall
-   deadline, coverage accounting, and local redacted traces.
+3. **Bounded orchestration:** add the current model-call retry budget, an
+   overall retrieval deadline with cancellation, coverage accounting, and local
+   redacted traces.
 4. **Fixture evaluator:** turn every expected disposition in
    `clinical-cases.json` into a pass/fail test, including authorization and
    patient-switch cases added to the harness.
@@ -297,7 +298,7 @@ synthetic build.
    Caddy route, and signed synthetic context handoff behind the same boundary.
    The simulated adapter enforces the verified context; the data remains
    fixture-backed forever.
-6. **Panel and follow-up UI:** render the verified result and source links;
+6. **Panel and follow-up UI:** render the verified result and source metadata;
    keep all chart mutations absent from the module surface.
 
 ### Stop conditions

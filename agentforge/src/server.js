@@ -47,13 +47,15 @@ const openEMRTokenProvider = liveOpenEMR && process.env.AGENTFORGE_OPENEMR_CLIEN
 // Live mode requires caller-supplied signed context. This server does not
 // establish OpenEMR session identity or bind it to that context.
 const adapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new SimulatedOpenEMRAdapter({ fixturePath: process.env.AGENTFORGE_FIXTURES || defaultFixturePath() });
+const hasExternalProvider = [provider, conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
+const liveExternalProviderAllowed = !liveOpenEMR || !hasExternalProvider || process.env.AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED === 'true';
 // FileTraceSink redacts before persistence and listing; these endpoints expose
 // operational metadata, not raw briefing or chart content.
 const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ adapter, provider, conversationProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000) });
+const service = new AgentForgeService({ adapter, provider, conversationProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
@@ -72,7 +74,7 @@ const modelReadiness = { checkReady: async () => {
   return true;
 } };
 const readiness = createReadinessChecker({
-  configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
+  configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
   retrieval: adapter,
   model: modelReadiness,
   trace: { checkReady: async () => traceSink.health().status === 'ok' },
@@ -87,6 +89,18 @@ const invalidContract = (res, error, issues) => json(res, 400, { error, issues }
 const invalidResponse = (res, error, issues) => json(res, 500, { error, issues });
 const tokenPayload = (token) => verifySignedContext(token, process.env.AGENTFORGE_DEMO_SECRET);
 const verifiedContextFor = (body) => tokenPayload(body.demo_token);
+const maxRequestBodyBytes = Number(process.env.AGENTFORGE_MAX_REQUEST_BODY_BYTES || 1024 * 1024);
+async function readJsonBody(req) {
+  if (Number(req.headers['content-length'] || 0) > maxRequestBodyBytes) throw Object.assign(new Error('REQUEST_BODY_TOO_LARGE'), { code: 'REQUEST_BODY_TOO_LARGE' });
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += Buffer.byteLength(chunk);
+    if (size > maxRequestBodyBytes) throw Object.assign(new Error('REQUEST_BODY_TOO_LARGE'), { code: 'REQUEST_BODY_TOO_LARGE' });
+    chunks.push(chunk);
+  }
+  return chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
+}
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok' });
@@ -110,9 +124,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/evals') { const golden = readGoldenEvidence(); const errorAnalysis = readEvidence('error-analysis.json'); return html(res, renderEvaluatorPage({ golden, errorAnalysis, basePath: publicBasePath, localReport: Boolean(process.env.AGENTFORGE_EVAL_REPORT_PATH) })); }
     if (req.method === 'GET' && (req.url === '/observability' || req.url === '/observability/')) return html(res, renderObservabilityPage());
     if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; return html(res, renderAgentForgePage({ token, payload: tokenPayload(token), publicBasePath, liveOpenEMR })); }
-    let raw = ''; for await (const chunk of req) raw += chunk;
-    let body = {};
-    try { body = raw ? JSON.parse(raw) : {}; } catch { return json(res, 400, { error: 'invalid_json' }); }
+    let body;
+    try { body = await readJsonBody(req); } catch (error) { return json(res, error.code === 'REQUEST_BODY_TOO_LARGE' ? 413 : 400, { error: error.code === 'REQUEST_BODY_TOO_LARGE' ? error.code.toLowerCase() : 'invalid_json' }); }
     if (req.method === 'POST' && req.url === '/v1/briefings') { const validation = validatePrepareRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_prepare_request', validation.issues); const token = verifiedContextFor(body); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.prepare(body, { verifiedContext: token, reusePrepared: true, interactionType: 'background_preparation' }); const responseValidation = validateBriefingResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_briefing_response', responseValidation.issues); }
     if (req.method === 'POST' && req.url === '/v1/prewarm') { if (typeof body.patient_uuid !== 'string' || typeof body.clinician_uuid !== 'string' || typeof body.schedule_revision !== 'string' || !body.schedule_revision.trim()) return invalidContract(res, 'invalid_prewarm_request', ['patient_uuid, clinician_uuid, and schedule_revision are required']); const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = service.prewarm(body, { verifiedContext: token, scheduleRevision: body.schedule_revision, sourceRevision: body.source_revision }); if (result.status === 'blocked') return json(res, 403, { error: result.reason }); return json(res, 202, { status: result.status, correlation_id: result.correlation_id, duplicate: result.duplicate, synthetic_only: true }); }
     const preparedMatch = req.url.match(/^\/v1\/prewarm\/([^/]+)\/open$/);
@@ -120,6 +133,6 @@ const server = http.createServer(async (req, res) => {
     const match = req.url.match(/^\/v1\/conversations\/([^/]+)\/messages$/);
     if (req.method === 'POST' && match) { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.followUp(match[1], body, { verifiedContext: token }); const responseValidation = validateFollowUpResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_response', responseValidation.issues); }
     return json(res, 404, { error: 'not_found' });
-  } catch (error) { return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message }); }
+  } catch (error) { console.error('AgentForge request failed', error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
 });
 server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => console.log('AgentForge listening'));

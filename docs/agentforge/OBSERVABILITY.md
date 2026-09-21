@@ -47,7 +47,8 @@ diagnosis and evidence; it is not the alert window.
    the service read-only and roll back the newest deployment if failures are
    systemic.
 3. **Retrieval failure rate:** alert when failed/timeout retrieval groups exceed
-   2% of groups or retry exhaustion appears. Inspect the adapter and upstream
+   2% of groups. Retrieval currently performs one bounded read per group;
+   model retry exhaustion is recorded separately. Inspect the adapter and upstream
    health; qualify or withhold affected briefings rather than serving stale
    unverified claims.
 4. **Verification/display anomaly:** alert on any displayed response without a

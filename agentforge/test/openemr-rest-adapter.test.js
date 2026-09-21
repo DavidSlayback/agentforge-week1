@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter } from '../src/openemrAdapter.js';
+import { validateRetrievalResult } from '../src/contracts.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 
 function fakeFetch(requests) {
@@ -26,6 +27,7 @@ test('OpenEMR REST adapter uses only GET allowlisted routes and normalizes recor
   assert.equal(await adapter.checkReady(), true);
   const item = await adapter.getCase('patient-uuid');
   const retrieved = await adapter.retrieve(item, { correlationId: 'af-correlation-test' });
+  assert.equal(validateRetrievalResult(retrieved).valid, true, 'undated OpenEMR identity rows remain valid retrieval evidence');
   assert.equal(item.patient.patient_ref, 'patient-uuid');
   assert.equal(item.patient.display_name, 'Synthetic Patient');
   assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'empty', 'empty']);

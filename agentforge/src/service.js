@@ -1,5 +1,5 @@
-import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageFailure, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse, validateRetrievalResult } from './contracts.js';
-import { verifyGeneratedText } from './verifier.js';
+import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse, validateRetrievalResult } from './contracts.js';
+import { verify, verifyGeneratedText } from './verifier.js';
 import { fileURLToPath } from 'node:url';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
@@ -9,14 +9,15 @@ import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 const TRACE_CACHE_SOURCE_REVISION = 'openemr-live';
 const CACHE_SCHEDULE_REVISION = 'agentforge-calendar-v1';
 
-/** Apply a response deadline; timing out does not cancel underlying work. */
+/** Apply a response deadline and cancel cooperative upstream work on timeout. */
 const runWithinDeadline = async (work, deadlineMs) => {
-  if (!Number.isFinite(deadlineMs) || deadlineMs <= 0) return { timedOut: false, value: await work() };
+  const controller = new AbortController();
+  if (!Number.isFinite(deadlineMs) || deadlineMs <= 0) return { timedOut: false, value: await work(controller.signal) };
   let timer;
   try {
     const result = await Promise.race([
-      Promise.resolve().then(work).then((value) => ({ timedOut: false, value })),
-      new Promise((resolve) => { timer = setTimeout(() => resolve({ timedOut: true }), deadlineMs); }),
+      Promise.resolve().then(() => work(controller.signal)).then((value) => ({ timedOut: false, value })),
+      new Promise((resolve) => { timer = setTimeout(() => { controller.abort(); resolve({ timedOut: true }); }, deadlineMs); }),
     ]);
     return result;
   } finally {
@@ -30,13 +31,14 @@ function evidence(record, patientRef) {
 
 /** Orchestrates the read-only authorization, retrieval, verification, and display boundary. */
 export class AgentForgeService {
-  constructor({ adapter, provider, conversationProvider = null, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000 }) {
+  constructor({ adapter, provider, conversationProvider = null, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false }) {
     this.adapter = adapter;
     this.provider = provider;
     this.conversationProvider = conversationProvider;
     this.traceSink = traceSink;
     this.cache = cache;
     this.freshRetrievalDeadlineMs = freshRetrievalDeadlineMs;
+    this.allowExternalLiveProvider = allowExternalLiveProvider;
     this.prewarmJobs = new Map();
   }
   async prepare(request, { verifiedContext = null, interactionType = 'briefing', deadlineMs = null, scheduleRevision = CACHE_SCHEDULE_REVISION, sourceRevision = null, reusePrepared = false } = {}) {
@@ -59,9 +61,18 @@ export class AgentForgeService {
     const scopedRequest = { ...request, patient_uuid: authorization.patient_uuid, clinician_uuid: authorization.clinician_uuid };
     trace?.startStage('authorization');
     trace?.finishStage('authorization', { status: 'success' });
-    const item = await this.adapter.getCase(authorization.patient_uuid, scopedRequest.case_id);
+    const liveProviderBlocked = this.adapter.name === 'openemr-rest' && !this.allowExternalLiveProvider && [this.provider, this.conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
+    if (liveProviderBlocked) {
+      const result = blockedResult(id, 'live_external_provider_not_approved');
+      trace?.setDisplay({ status: 'withheld' });
+      trace?.complete({ status: 'blocked' });
+      return result;
+    }
     trace?.startStage('retrieval');
-    const retrieval = await runWithinDeadline(() => this.adapter.retrieve(item, { correlationId: id }), deadlineMs);
+    const retrieval = await runWithinDeadline(async (signal) => {
+      const item = await this.adapter.getCase(authorization.patient_uuid, scopedRequest.case_id, { signal });
+      return { item, retrieved: await this.adapter.retrieve(item, { correlationId: id, signal }) };
+    }, deadlineMs);
     if (retrieval.timedOut) {
       const result = { ...blockedResult(id, 'deadline-exceeded', 'deadline-exceeded'), deadline: { outcome: 'deadline-exceeded', deadline_ms: deadlineMs } };
       trace?.finishStage('retrieval', { status: 'timeout' });
@@ -69,7 +80,7 @@ export class AgentForgeService {
       trace?.complete({ status: 'deadline-exceeded', deadlineOutcome: 'deadline-exceeded' });
       return result;
     }
-    const retrieved = retrieval.value;
+    const { item, retrieved } = retrieval.value;
     const retrievalValidation = validateRetrievalResult(retrieved);
     if (!retrievalValidation.valid) {
       const result = blockedResult(id, 'retrieval_contract_invalid');
@@ -85,17 +96,21 @@ export class AgentForgeService {
     const coverage = Array.isArray(retrieved.coverage) ? retrieved.coverage : [];
     trace?.finishStage('retrieval', { status: coverage.some((group) => isCoverageUnavailable(group.status)) ? 'partial' : 'success' });
     const expected = item.expected || {};
-    const withheld = expected.withhold_fields || [];
+    const conflictFields = findConflictingFields(retrieved.records, coverage, item.patient.patient_ref);
+    const withheld = [...new Set([...(expected.withhold_fields || []), ...conflictFields])];
     const claims = (Array.isArray(retrieved.records) ? retrieved.records : [])
       .filter((record) => recordBelongsToPatient(record, item.patient.patient_ref))
       .filter((record) => !withheld.includes(record.field) && recordIsCovered(record, coverage))
       .map((record) => ({ field: record.field, value: record.value, patient_ref: item.patient.patient_ref, source_ref: record.source_ref, evidence: [evidence(record, item.patient.patient_ref)], reassessment_documented: Boolean(record.reassessment_documented) }));
     const failed = coverage.filter((group) => isCoverageUnavailable(group.status));
-    const qualification = { required: Boolean(expected.qualification_required || failed.length), reasons: failed.length ? failed.map((group) => `${group.group}:${group.status}`) : (expected.qualification_required ? ['fixture_requires_qualification'] : []) };
-    const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: authorization.clinician_uuid, authorized: true, authorization_source: authorization.source }, patient: item.patient, disposition: expected.brief_disposition || (qualification.required ? 'qualified' : 'complete'), claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: 'retrieve_openemr_read' }] };
+    const qualificationReasons = failed.length ? failed.map((group) => `${group.group}:${group.status}`) : (expected.qualification_required ? ['fixture_requires_qualification'] : []);
+    qualificationReasons.push(...conflictFields.map((field) => `conflict:${field}`));
+    const qualification = { required: Boolean(expected.qualification_required || failed.length || conflictFields.length), reasons: [...new Set(qualificationReasons)] };
+    const disposition = conflictFields.length && expected.brief_disposition === 'complete' ? 'qualified' : expected.brief_disposition || (qualification.required ? 'qualified' : 'complete');
+    const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: authorization.clinician_uuid, authorized: true, authorization_source: authorization.source }, patient: item.patient, disposition, claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: 'retrieve_openemr_read' }] };
     response.comparison = buildComparison(claims);
     trace?.startStage('verification');
-    const verification = (await import('./verifier.js')).verify({ patientRef: item.patient.patient_ref, claims, coverage: retrieved.coverage, qualification, operations: response.operations, disposition: response.disposition });
+    const verification = verify({ patientRef: item.patient.patient_ref, claims, coverage: retrieved.coverage, qualification, operations: response.operations, disposition: response.disposition });
     trace?.finishStage('verification', { status: verification.status });
     response.verification = verification;
     if (verification.status !== 'passed') {
@@ -247,7 +262,10 @@ async function followUpFromBriefing(id, briefing, message, conversationProvider 
       ? `Plan follow-through is documented as ${planClaims.map(formatClaim).join('; ')}.`
       : `no documented plan-follow-through record is present in the returned evidence. Completion or non-completion cannot be established from this briefing.`;
   } else if (/(conflict|different|discrep)/.test(normalizedQuestion)) {
-    text = `The records contain a discrepancy that remains unresolved.`;
+    const conflictFields = (briefing.qualification?.reasons || []).filter((reason) => reason.startsWith('conflict:')).map((reason) => reason.slice('conflict:'.length));
+    text = conflictFields.length
+      ? `Conflicting records remain unresolved for ${conflictFields.map(clinicalLabel).join(', ')}.`
+      : `No explicit conflicting records were returned in the verified evidence.`;
   } else {
     text = `The relevant documented evidence is ${claimText || 'not available'}.`;
   }
@@ -298,6 +316,9 @@ function buildComparison(claims) {
   const changes = [];
   for (const [field, entries] of byField) {
     entries.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+    const latestRecordedAt = entries.at(-1)?.recordedAt;
+    const latestValues = new Set(entries.filter((entry) => entry.recordedAt === latestRecordedAt).map((entry) => String(entry.claim.value)));
+    if (latestValues.size > 1) continue;
     const current = entries.at(-1);
     const previous = entries.slice(0, -1).reverse().find((entry) => String(entry.claim.value) !== String(current.claim.value));
     if (!previous || !current.claim.reassessment_documented) continue;
@@ -319,7 +340,21 @@ function formatComparison(change) {
 function recordIsCovered(record, coverage) {
   const group = coverageGroupForField(record.field);
   const status = coverage.find((item) => item.group === group);
-  return Boolean(status && status.status === 'success' && status.records > 0 && !isCoverageFailure(status.status));
+  return Boolean(status && status.status === 'success' && status.records > 0);
+}
+
+function findConflictingFields(records, coverage, patientRef) {
+  const covered = records.filter((record) => recordBelongsToPatient(record, patientRef) && recordIsCovered(record, coverage) && record.recorded_at);
+  const byField = new Map();
+  covered.forEach((record) => {
+    if (!byField.has(record.field)) byField.set(record.field, []);
+    byField.get(record.field).push(record);
+  });
+  return [...byField.entries()].flatMap(([field, entries]) => {
+    const latestRecordedAt = entries.reduce((latest, record) => record.recorded_at > latest ? record.recorded_at : latest, '');
+    const latestValues = new Set(entries.filter((record) => record.recorded_at === latestRecordedAt).map((record) => String(record.value)));
+    return latestValues.size > 1 ? [field] : [];
+  });
 }
 
 /** Never relabel a source record whose explicit patient identity disagrees. */

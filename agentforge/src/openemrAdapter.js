@@ -45,8 +45,8 @@ export class OpenEMRRestAdapter {
     }
   }
 
-  async getCase(patientRef) {
-    const patientResponse = await this.request(`${REST_PREFIX}/patient/${encodeURIComponent(patientRef)}`);
+  async getCase(patientRef, _caseId, { signal } = {}) {
+    const patientResponse = await this.request(`${REST_PREFIX}/patient/${encodeURIComponent(patientRef)}`, { signal });
     const patientRecord = firstRecord(patientResponse.body);
     if (!patientRecord) throw new Error('PATIENT_NOT_FOUND');
     const returnedRefs = [patientRecord.uuid, patientRecord.puuid, patientRecord.patient_uuid, patientRecord.pid, patientRecord.patient_id, patientRecord.id].filter((value) => value !== undefined && value !== null && String(value));
@@ -60,30 +60,35 @@ export class OpenEMRRestAdapter {
    * the patient UUID or PID; unmatched rows are dropped. Encounter rows rely
    * on OpenEMR's patient-scoped endpoint.
    */
-  async retrieve(item, { correlationId = '' } = {}) {
+  async retrieve(item, { correlationId = '', signal } = {}) {
     const patient = item.openemr_patient;
     const groups = [{ group: 'identity', status: 'success', records: 1, attempts: 1, error_class: null }];
     const records = [mapIdentity(patient)];
-    for (const [group, pathFor, mapper] of READ_GROUPS) {
+    const results = await Promise.all(READ_GROUPS.map(async ([group, pathFor, mapper]) => {
       try {
-        const result = await this.request(pathFor(patient), { correlationId });
+        const result = await this.request(pathFor(patient), { correlationId, signal });
         const rows = recordsFrom(result.body);
         const scopedRows = rows.filter((row) => rowBelongsToPatient(row, patient, group));
         const mapped = scopedRows.flatMap((row, index) => mapper(row, index));
-        records.push(...mapped);
-        groups.push({ group, status: mapped.length ? 'success' : 'empty', records: mapped.length, attempts: 1, error_class: null });
+        return { records: mapped, coverage: { group, status: mapped.length ? 'success' : 'empty', records: mapped.length, attempts: 1, error_class: null } };
       } catch (error) {
-        groups.push({ group, status: error.code === 'OPENEMR_UNAUTHORIZED' ? 'unauthorized' : error.code === 'OPENEMR_TIMEOUT' ? 'timeout' : 'failed', records: 0, attempts: 1, error_class: error.code || 'openemr_read_failed' });
+        return { records: [], coverage: { group, status: error.code === 'OPENEMR_UNAUTHORIZED' ? 'unauthorized' : error.code === 'OPENEMR_TIMEOUT' ? 'timeout' : 'failed', records: 0, attempts: 1, error_class: error.code || 'openemr_read_failed' } };
       }
-    }
+    }));
+    for (const result of results) { records.push(...result.records); groups.push(result.coverage); }
     return { records, coverage: groups };
   }
 
   /** Perform one read-only OpenEMR GET, optionally with bearer auth. */
-  async request(path, { includeAuth = true, correlationId = '' } = {}) {
+  async request(path, { includeAuth = true, correlationId = '', signal } = {}) {
     if (!this.baseUrl) throw Object.assign(new Error('OPENEMR_NOT_CONFIGURED'), { code: 'OPENEMR_NOT_CONFIGURED' });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const abortFromParent = () => controller.abort();
+    if (signal) {
+      if (signal.aborted) abortFromParent();
+      else signal.addEventListener('abort', abortFromParent, { once: true });
+    }
     const headers = { accept: 'application/json' };
     if (correlationId) headers['x-correlation-id'] = correlationId;
     if (includeAuth) {
@@ -98,10 +103,11 @@ export class OpenEMRRestAdapter {
       }
       return { ok: true, body: await response.json() };
     } catch (error) {
-      if (error.name === 'AbortError') throw Object.assign(new Error('OPENEMR_TIMEOUT'), { code: 'OPENEMR_TIMEOUT' });
+      if (error.name === 'AbortError' || signal?.aborted) throw Object.assign(new Error('OPENEMR_TIMEOUT'), { code: 'OPENEMR_TIMEOUT' });
       throw error;
     } finally {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abortFromParent);
     }
   }
 }

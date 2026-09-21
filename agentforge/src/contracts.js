@@ -98,7 +98,8 @@ export function validateRetrievalResult(value) {
     const path = `records[${index}]`;
     if (!isRecord(record)) { issues.push(`${path}_must_be_object`); return; }
     unknownFields(issues, record, ['field', 'value', 'patient_ref', 'source_ref', 'recorded_at', 'author', 'reassessment_documented']);
-    for (const field of ['field', 'source_ref', 'recorded_at']) nonEmptyString(issues, record, field);
+    for (const field of ['field', 'source_ref']) nonEmptyString(issues, record, field);
+    if ('recorded_at' in record && record.recorded_at !== null) nonEmptyString(issues, record, 'recorded_at');
     if ('patient_ref' in record && typeof record.patient_ref !== 'string') issues.push(`${path}.patient_ref_must_be_string`);
     if ('author' in record && record.author !== null && typeof record.author !== 'string') issues.push(`${path}.author_must_be_string_or_null`);
     if ('reassessment_documented' in record && typeof record.reassessment_documented !== 'boolean') issues.push(`${path}.reassessment_documented_must_be_boolean`);
