@@ -296,6 +296,18 @@ export function validateFollowUpEvidenceResponse(value) {
   return { valid: issues.length === 0, issues };
 }
 
+export function validateSupervisorResponse(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
+  unknownFields(issues, value, ['workflow_version', 'final_state', 'readiness', 'stop_reason', 'transitions', 'handoffs', 'typed_outputs']);
+  for (const field of ['workflow_version', 'final_state', 'readiness']) nonEmptyString(issues, value, field);
+  if (!Array.isArray(value.transitions) || !value.transitions.length) issues.push('transitions_must_be_non_empty_array');
+  if (!Array.isArray(value.handoffs)) issues.push('handoffs_must_be_array');
+  else value.handoffs.forEach((handoff, index) => { if (!isRecord(handoff)) issues.push(`handoffs[${index}]_must_be_object`); else for (const field of ['worker', 'input_type', 'output_status']) nonEmptyString(issues, handoff, field); });
+  if (!isRecord(value.typed_outputs)) issues.push('typed_outputs_must_be_object');
+  return { valid: issues.length === 0, issues };
+}
+
 function validateCommonResponse(value, required, allowed) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };

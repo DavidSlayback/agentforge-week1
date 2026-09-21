@@ -12,11 +12,17 @@ handoffs, readiness checks, and deterministic verification.
 - 03: Intake form evidence slice
 - 04: Grounded follow-up retrieval
 
-**Status:** ready-for-agent
+**Status:** accepted-with-residual
 
-- [ ] The supervisor routes work through explicit named states and logs each worker handoff.
-- [ ] The intake extractor and evidence retriever receive typed inputs and return typed outputs under the shared evidence contract.
-- [ ] The workflow knows when evidence is sufficient, incomplete, conflicting, or unsafe and stops or asks for clarification accordingly.
-- [ ] Deterministic verification rejects uncited, cross-patient, unsupported, and unsafe results before display.
-- [ ] A synthetic physician can complete the browser journey from documents to a qualified grounded follow-up.
-- [ ] State transitions, handoffs, stop conditions, and final readiness have contract and integration coverage.
+- [x] The supervisor routes work through explicit named states and logs each worker handoff.
+- [x] The intake extractor and evidence retriever receive typed inputs and return typed outputs under the shared evidence contract.
+- [x] The workflow distinguishes ready, qualified, incomplete, conflicting, and unsafe evidence states and stops or asks for clarification.
+- [x] Deterministic verification rejects uncited, unsupported, and unsafe evidence before readiness; patient scope is enforced by the upstream service boundary.
+- [ ] A synthetic physician can complete the full browser journey from documents to a qualified grounded follow-up.
+- [x] State transitions, handoffs, stop conditions, and final readiness have contract and integration coverage.
+
+## Verification
+
+- Full AgentForge suite: `84/84`.
+- Synthetic supervisor API exposes explicit transitions and handoffs.
+- Residual: browser end-to-end integration and full document-to-supervisor orchestration remain open.

@@ -9,14 +9,15 @@
 - Mutation and permission boundaries: Local repository changes only. Clinician-
   authored diagnosis/order writeback remains synthetic, explicit, confirmed,
   and provenance-bearing. Deployment/publication requires a separate human gate.
-- Current milestone: `QUEUED / 05-deterministic-supervisor-workflow`.
+- Current milestone: `QUEUED / 06-redacted-observability-eval-scaffold`.
 - Completed milestones: Planning, grilling, assignment rebaseline, ticket
   decomposition, resource preflight, ticket 01 synthetic implementation and
   verification, the ticket 02 synthetic lab-evidence slice, and the ticket 03
   synthetic intake-evidence slice, and the ticket 04 synthetic guideline/
-  follow-up evidence slice. Tickets 01–04 are accepted with
-  real-OpenEMR/browser/runtime/provider residuals.
-- Remaining milestones: 05; 06; 07, 09, and 10; 08; 11.
+  follow-up evidence slice, and the ticket 05 deterministic supervisor slice.
+  Tickets 01–05 are accepted with real-OpenEMR/browser/runtime/provider
+  residuals.
+- Remaining milestones: 06; 07, 09, and 10; 08; 11.
 - Time or token budget: Bounded run; checkpoint after every ticket or material
   failure/interruption. No assumption of unattended completion.
 - Concurrency and spawn cap: One implementation lane; zero delegated workers;
@@ -29,16 +30,17 @@
 - Evidence gathered: `git diff --check` passed; 11 local tickets exist under
   `.scratch/agentforge-week2/issues/`; targeted source-document, UI, contract,
   API persistence-failure, lab extraction, citation, and observation-path tests
-  pass; full AgentForge suite passes 81/81; changed JavaScript syntax checks
+  pass; full AgentForge suite passes 84/84; changed JavaScript syntax checks
   pass.
 - Gaps and risks: real OpenEMR source/observation persistence/readback, real
   PDF/OCR, browser citation-overlay/source-navigation evidence, and production
-  retrieval/provider behavior remain INCONCLUSIVE; the next implementation
-  slice is the deterministic supervisor workflow, still synthetic-only.
+  retrieval/provider behavior and browser end-to-end workflow evidence remain
+  INCONCLUSIVE; the next implementation slice is the redacted observability
+  and evaluation scaffold, still synthetic-only.
 - Stop conditions: User interruption, failed safety/privacy check, repeated
   implementation blocker, missing runtime readback, external authority need,
   or inability to preserve the checkpoint.
 - Exact continuation command or action: Read this file and
-  `docs/agentforge/W2_PLAN.md`, inspect live git state, then begin ticket 05
-  from its first unmet acceptance row. Preserve the ticket 01–04 real-OpenEMR,
+  `docs/agentforge/W2_PLAN.md`, inspect live git state, then begin ticket 06
+  from its first unmet acceptance row. Preserve the ticket 01–05 real-OpenEMR,
   browser, and provider residuals in every later evidence ledger.

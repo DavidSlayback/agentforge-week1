@@ -316,6 +316,30 @@ Stages 1–5 and can become tickets after scope review.
      back through intended clients.
    - Evidence: implementation, runtime, and external evidence kept separate.
 
+## Submission package contract
+
+Completing the implementation stages is necessary but not sufficient; the
+following named artifacts and readbacks are part of the W2 acceptance surface.
+Do not treat a runbook, an inferred file, or a prior Week 1 artifact as a
+substitute for the named deliverable.
+
+| Deliverable | Required artifact or proof |
+| --- | --- |
+| Architecture | `W2_ARCHITECTURE.md` at the documented submission path, covering ingestion flow, worker graph, RAG, eval gate, risks, and tradeoffs. |
+| Metrics | `KEY_METRICS.md` at the documented submission path, with W2 definitions, rationale, success interpretation, and observed-versus-target boundaries. |
+| Schemas | Versioned `lab_pdf` and `intake_form` Pydantic/Zod schemas with citation and bounding-box fields, fixtures, and negative validation tests. |
+| Evaluation | A versioned 50-case dataset with expected behavior, boolean rubrics, explicit judge configuration, baseline/results artifacts, and error analysis. |
+| Regression gate | A checked-in gate command invoked by versioned GitLab CI (or an equivalent versioned CI system) that runs the W2 suite, blocks below threshold or >5 percentage-point regressions, and has an injected-failure proof. |
+| Setup and environment | README/setup instructions that identify the exact branch/service/fixtures and document every W2 environment variable, server-only secret, default, and synthetic-only constraint. |
+| Demo | A reproducible 3–5 minute recording, with verified custody/link, showing upload, extraction, evidence retrieval, citations/source navigation, eval results, and observability. |
+| Cost and latency | A report separating actual development spend, observed W2 p50/p95 latency by stage and end-to-end path, projected production cost, assumptions, and bottleneck analysis. |
+| Deployment/repository | Readback tying the submitted GitLab revision, deployed revision, public URL, setup docs, and evidence artifacts to the same W2 candidate. |
+| External gates | Owner checklist for early technical interview; final social post; and final AI interview/email follow-up. These are human-owned and must not be implied by local tests. |
+
+The clinician-confirmed action lane remains optional for this submission list
+unless the source assignment separately promotes it to a hard gate; it must not
+block the required package by default.
+
 ## Acceptance evidence ledger
 
 | Requirement group | Acceptance proof | Status | Next action |
@@ -324,9 +348,9 @@ Stages 1–5 and can become tickets after scope review.
 | W2-03/W2-06 schemas and citations | Both schemas reject invalid data; every displayed claim has citation and PDF box | INCONCLUSIVE | Define contracts and fixture set |
 | W2-04 RAG | Hybrid retrieval/rerank returns source metadata and withholds unsupported evidence | INCONCLUSIVE | Select bounded local/provider adapters and corpus |
 | W2-05 graph | Supervisor routes explicit worker handoffs and produces qualified final state | INCONCLUSIVE | Implement Stage 3 state contract |
-| W2-07 eval gate | 50 cases, required booleans, 95% thresholds, >5-point regression failure, injected defect blocked | INCONCLUSIVE | Define baseline and mutation cases |
+| W2-07 eval gate | 50 cases, expected behavior, boolean rubrics, explicit judge config, 95% thresholds, >5-point regression failure, injected defect blocked | INCONCLUSIVE | Define baseline, judge config, mutation cases, and versioned CI invocation |
 | W2-08/W2-09 observability | Step latency/tokens/cost/hits/confidence/eval are logged without raw PHI | INCONCLUSIVE | Extend current redacted trace contract |
-| W2-11–W2-13 release package | W2 docs, demo, cost/latency, deployed flow, and reviewer-visible proof | INCONCLUSIVE | Defer until early checkpoint and release authority |
+| W2-11–W2-13 release package | Named submission artifacts, W2 demo video, cost/latency report, matching GitLab/deployment revisions, external gates, and reviewer-visible proof | INCONCLUSIVE | Defer until early checkpoint and release authority |
 
 ## Quality gates and stop conditions
 
@@ -416,3 +440,12 @@ patient-scoped API that keeps chart facts separate from guideline evidence.
 Empty or irrelevant queries are qualified. The full suite passes 81/81. A
 production retrieval index, true dense embeddings, model answer integration,
 and browser evidence display remain `INCONCLUSIVE`.
+
+### Ticket 05 milestone
+
+Ticket 05 has a deterministic supervisor slice accepted with a browser residual.
+The explicit state graph routes typed intake/evidence inputs through named
+workers, logs handoffs, qualifies incomplete evidence, clarifies missing
+evidence, and blocks unsafe or uncited evidence before READY. The synthetic API
+and contract/integration tests pass 84/84. Full document-to-supervisor browser
+journey evidence remains `INCONCLUSIVE`.
