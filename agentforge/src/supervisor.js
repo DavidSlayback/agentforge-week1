@@ -1,0 +1,33 @@
+const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACTOR', EVIDENCE_RETRIEVER: 'EVIDENCE_RETRIEVER', VERIFY: 'VERIFY', READY: 'READY', QUALIFIED: 'QUALIFIED', CLARIFY: 'CLARIFY', BLOCKED: 'BLOCKED' });
+
+function hasUsableCitation(item) {
+  return item && typeof item.source_id === 'string' && item.source_id && typeof item.location === 'string' && item.location && typeof item.quote === 'string' && item.quote;
+}
+
+/** Inspectable deterministic state graph for the synthetic evidence workflow. */
+export function runDeterministicSupervisor({ intakeResult = { status: 'not_requested', facts: [] }, evidenceResult = null, unsafe = false } = {}) {
+  const transitions = [STATES.START];
+  const handoffs = [];
+  const stop = (state, reason) => ({ workflow_version: 'w2-supervisor-v1', final_state: state, readiness: 'stopped', stop_reason: reason, transitions, handoffs, typed_outputs: { intake: intakeResult, evidence: evidenceResult } });
+  if (unsafe) return stop(STATES.BLOCKED, 'unsafe_input');
+  if (intakeResult.status !== 'not_requested') {
+    transitions.push(STATES.INTAKE_EXTRACTOR);
+    handoffs.push({ worker: 'intake-extractor', input_type: 'intake_document', output_status: intakeResult.status });
+    if (!['complete', 'qualified'].includes(intakeResult.status)) return stop(STATES.BLOCKED, 'intake_extractor_failed');
+  }
+  transitions.push(STATES.EVIDENCE_RETRIEVER);
+  handoffs.push({ worker: 'evidence-retriever', input_type: 'follow_up_question', output_status: evidenceResult?.status || 'missing' });
+  if (!evidenceResult || evidenceResult.status !== 'ready') return stop(STATES.CLARIFY, 'evidence_retrieval_incomplete');
+  if (!Array.isArray(evidenceResult.patient_facts) || !Array.isArray(evidenceResult.guideline_evidence)) return stop(STATES.BLOCKED, 'typed_evidence_contract_invalid');
+  if (evidenceResult.guideline_evidence.some((item) => !hasUsableCitation(item))) return stop(STATES.BLOCKED, 'uncited_guideline_evidence');
+  transitions.push(STATES.VERIFY);
+  handoffs.push({ worker: 'deterministic-verifier', input_type: 'typed_evidence', output_status: 'checked' });
+  if (evidenceResult.qualification?.required) {
+    transitions.push(STATES.QUALIFIED);
+    return { workflow_version: 'w2-supervisor-v1', final_state: STATES.QUALIFIED, readiness: 'qualified', stop_reason: null, transitions, handoffs, typed_outputs: { intake: intakeResult, evidence: evidenceResult } };
+  }
+  transitions.push(STATES.READY);
+  return { workflow_version: 'w2-supervisor-v1', final_state: STATES.READY, readiness: 'ready', stop_reason: null, transitions, handoffs, typed_outputs: { intake: intakeResult, evidence: evidenceResult } };
+}
+
+export { STATES as SUPERVISOR_STATES };

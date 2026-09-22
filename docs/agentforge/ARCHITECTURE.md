@@ -24,7 +24,7 @@ The existing REST and FHIR routes remain useful integration references and a
 future external deployment seam, not a model-facing tool surface.
 
 Stage 5 starts with a fixture adapter and deterministic evaluator/renderer.
-The seven synthetic cases in `fixtures/clinical-cases.json` exercise complete,
+The nine synthetic cases in `fixtures/clinical-cases.json` exercise complete,
 duplicate, conflicting, stale, missing-provenance, untrusted-note, and partial
 retrieval behavior without loading data into OpenEMR. A future model provider
 can be placed behind the same bounded synthesis interface only after provider,
@@ -33,20 +33,20 @@ processing is part of the architecture.
 
 Every retrieval group writes an attempt trace containing correlation ID,
 patient and clinician references in redacted form, operation name, outcome,
-duration, retry number, and coverage. It does not write raw chart content by
-default. A successful empty result is distinct from no prior visit, failed,
-timed-out, unauthorized, and not-requested coverage. The retry budget is at
-most two automatic retries per failed operation and is always constrained by
-the overall deadline. Partial results are prominently qualified; claims that
-depend on unavailable evidence are withheld. Failure to establish identity or
-authorization blocks the briefing entirely.
+duration, and coverage. It does not write raw chart content by default. A
+successful empty result is distinct from no prior visit, failed, timed-out,
+unauthorized, and not-requested coverage. Retrieval currently performs one
+bounded read per group; the two-retry budget applies to configured
+model calls, not retrieval. Partial results are prominently qualified; claims
+that depend on unavailable evidence are withheld. Failure to establish identity
+or authorization blocks the briefing entirely.
 
 The UI exposes the active patient and authorization state, an overall
 complete/qualified/partial disposition, a short orientation, and expandable
 BLUF sections for changes, plans, discrepancies, and missing coverage. Each
-displayed claim links to a server-resolved source reference showing record
-type, author when available, exact date, and supporting excerpt or original
-record. AgentForge never writes notes, diagnoses, medications, orders,
+displayed claim exposes server-resolved evidence metadata showing record type,
+source reference, author when available, date when available, and supporting
+excerpt. AgentForge never writes notes, diagnoses, medications, orders,
 appointments, messages, or other patient data and never treats chart text as
 an instruction.
 
@@ -181,24 +181,29 @@ returns a free-form tool result.
   "correlation_id": "opaque-request-id",
   "clinician_uuid": "authenticated-user",
   "patient_uuid": "active-patient",
-  "authorization": {"status": "authorized", "scope": "read-briefing"},
-  "current_visit_at": "2026-09-16T14:00:00Z",
-  "mode": "prepare_for_visit"
+  "demo_token": "server-verified-short-lived-context",
+  "case_id": "synthetic-case-id"
 }
 ```
 
 The server creates the correlation ID if the caller does not supply one. The
-client cannot provide SQL, a URL, an HTTP method, an arbitrary resource name,
-or a second patient identifier. Follow-up requests reuse conversation history
-only when the active patient and authorization binding still match.
+`demo_token` is a short-lived signed user-context assertion; the server
+verifies it and binds the clinician, active patient, read scope, issuer,
+authentication method, role, and expiry before retrieval. The client cannot
+provide SQL, a URL, an HTTP method, an arbitrary resource name, a second
+patient identifier, or a body-level authorization claim. Comparison baseline
+and visit mode are server-owned orchestration details, not request fields.
+Follow-up requests reuse conversation history only when the active patient and
+verified user-context binding still match.
 
 ### Evidence record
 
-Each record contains `field`, `value`, `recorded_at`, `author` (nullable),
-`source_ref`, `record_type`, `patient_uuid`, and
-`reassessment_documented`. Narrative text is data and remains untrusted. The
-renderer may quote a bounded excerpt, but control instructions embedded in a
-note never affect routing, authorization, reconciliation, or disposition.
+Each claim contains `field`, `value`, `patient_ref`, `source_ref`, a non-empty
+`evidence` array, and optional `reassessment_documented`. Each evidence item
+contains `patient_ref`, `source_ref`, `record_type`, `recorded_at`, `author`,
+and a bounded `excerpt`. Narrative text is data and remains untrusted. The
+renderer may quote only that bounded excerpt, but control instructions embedded
+in a note never affect routing, authorization, reconciliation, or disposition.
 
 ### Coverage outcome
 
@@ -259,29 +264,41 @@ No first-release capability is intentionally unmapped to a use case.
 
 ### Checkpoint implementation status
 
-The current checkpoint slice implements the separate service, fixture adapter,
-deterministic provider, verifier, golden evaluator, redacted local
-observability, Caddy same-origin routing, and a signed-context OpenEMR launcher.
-The service remains synthetic-only. The launcher uses a short-lived context and
-the service validates its signature; a URL patient ID is never treated as
-authorization. Real OpenEMR retrieval and PHI controls remain final-deadline
-gates.
+The current checkpoint slice implements the separate service, simulated
+OpenEMR adapter, deterministic provider, authorized synthetic Qwen lane,
+provider retry/fallback policy,
+verifier, golden evaluator, redacted local observability, Caddy same-origin
+routing, and a signed-context OpenEMR launcher. The service remains
+synthetic-only. The launcher uses a short-lived context and the service
+validates its signature, patient binding, clinician binding, and read-only
+scope; a URL patient ID is never treated as authorization. The optional
+`/v1/demo-context` route is an explicit synthetic context issuer for evaluator
+rehearsal, not a live identity provider.
+
+The provider interface is failure-shaped: a configured OpenAI-compatible
+provider may be retried twice, then the deterministic provider is used as a
+visible fallback. Retry and fallback outcomes are recorded without raw prompt,
+response, or patient content. The Qwen lane is authorized only for no-PHI
+synthetic evaluation; no hosted provider is approved for PHI processing. Real
+OpenEMR retrieval and PHI controls remain out of scope permanently for this
+synthetic build.
 
 1. **Contracts and fixture adapter:** define strict request, evidence,
    coverage, briefing, and trace schemas; load only the synthetic corpus.
 2. **Deterministic reconciliation and verifier:** implement baseline selection,
    latest-field selection, provenance/staleness flags, explicit-resolution
    rules, note isolation, and dependent-claim withholding.
-3. **Bounded orchestration:** add per-operation two-retry budgets, an overall
-   deadline, coverage accounting, and local redacted traces.
+3. **Bounded orchestration:** add the current model-call retry budget, an
+   overall retrieval deadline with cancellation, coverage accounting, and local
+   redacted traces.
 4. **Fixture evaluator:** turn every expected disposition in
    `clinical-cases.json` into a pass/fail test, including authorization and
    patient-switch cases added to the harness.
 5. **OpenEMR launcher seam:** the checkpoint includes the custom module shell,
    Caddy route, and signed synthetic context handoff behind the same boundary.
-   The adapter remains fixture-backed; live OpenEMR reads require the final
-   identity/session and read-authorization gates.
-6. **Panel and follow-up UI:** render the verified result and source links;
+   The simulated adapter enforces the verified context; the data remains
+   fixture-backed forever.
+6. **Panel and follow-up UI:** render the verified result and source metadata;
    keep all chart mutations absent from the module surface.
 
 ### Stop conditions
@@ -300,6 +317,40 @@ checkpoint implementation is maintained in `DECISIONS.md`. This document is
 the architecture source of truth; the decision log records why each boundary
 was selected and how it can migrate.
 
+### Pre-visit preparation module
+
+The public `AgentForgeService` facade delegates the briefing lifecycle to the
+`PreVisitPreparation` module. That module owns preparation, prewarm, opening a
+prepared briefing, and follow-up conversation, including authorization,
+retrieval, qualification, synthesis, verification, deadlines, tracing, and
+cache policy. The facade retains source-document, clinical-action,
+evidence-only, and supervisor workflows.
+
+This is a behavior-preserving extraction. Existing response contracts,
+patient/clinician binding, verification-before-synthesis/cache, qualified
+partial results, stale-cache refresh, prewarm deduplication, and conversation
+history limits remain unchanged. Cache and tracing stay injected collaborators;
+they do not receive new adapters until a second implementation justifies a
+real seam. See `docs/adr/0001-pre-visit-preparation-module.md` and
+`PRE_VISIT_PREPARATION_PLAN.md`.
+
+### Read-only chart and synthetic writeback seam
+
+The service composition now makes two different capabilities explicit. The
+`chartAdapter` is the only collaborator used for patient lookup, allowlisted
+chart retrieval, readiness, and preparation/follow-up evidence. It is either
+the fixture adapter or the live OpenEMR REST adapter, whose chart operations
+remain GET-only. The `writeback` collaborator owns only local synthetic source
+documents, derived observations, and clinician-confirmed action drafts; it is
+not constructed in live OpenEMR mode.
+
+`SimulatedOpenEMRAdapter` remains a compatibility composition for existing
+callers, but the server composition root no longer presents synthetic write
+methods as part of the chart integration seam. This preserves the current
+route and response contracts while making the synthetic/read-only boundary
+structurally visible. See `docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md`
+and `READ_WRITE_SEAM_PLAN.md`.
+
 ## Open decisions and measurements
 
 - Exact OpenEMR module endpoint and menu event wiring.
@@ -308,6 +359,6 @@ was selected and how it can migrate.
 - Local trace storage schema, retention, deletion, and dashboard mechanism.
 - Measured retrieval, synthesis, verification, queue, and end-to-end latency
   targets; current audit timings are health-probe baselines only.
-- Model/provider choice and any PHI processing boundary.
+- Broader model/provider choice and any PHI processing boundary.
 
 These are intentionally unresolved rather than hidden behind defaults.

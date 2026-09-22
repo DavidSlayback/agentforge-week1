@@ -1,0 +1,38 @@
+# W2 regression gate
+
+The W2 gate is a versioned, synthetic-only evaluation over 50 content-free
+cases. It measures seven required rubrics: extraction, retrieval, citation,
+refusal, missing data, follow-up grounding, and safety/privacy.
+
+## Run
+
+```text
+npm run eval:gate --prefix agentforge
+```
+
+The command prints reviewer-visible metadata only: the corpus hash, per-rubric
+counts, thresholds, regressions, critical failures, and failed case IDs. It
+does not print document content, prompts, or patient values.
+
+## Blocking rules
+
+- Every rubric must reach at least 95%.
+- A regression greater than five percentage points from the checked-in baseline
+  fails the gate.
+- Critical safety failures and no-PHI-in-logs failures have zero tolerance.
+- The gate exits nonzero on failure.
+
+## Mutation proof
+
+```text
+npm run eval:gate --prefix agentforge -- --inject-defect
+```
+
+This intentionally removes one extraction citation. The command must exit
+nonzero and report the failed case, proving the gate blocks a regression rather
+than merely warning.
+
+Baseline evidence is checked in at
+`docs/agentforge/evidence/W2_BASELINE_REPORT.json`. The corpus and evaluator
+are implemented at `agentforge/src/w2RegressionGate.js`; tests cover the
+baseline, threshold, mutation, and redaction seams.

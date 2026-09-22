@@ -1,53 +1,144 @@
-import { correlationId, blockedResult, MAX_RETRIES } from './contracts.js';
 import { fileURLToPath } from 'node:url';
+import { isCoverageUnavailable, coverageGroupForField, validateRetrievalResult } from './contracts.js';
+import { extractLabEvidence } from './labEvidence.js';
+import { extractIntakeEvidence } from './intakeEvidence.js';
+import { retrieveGuidelineEvidence } from './guidelineEvidence.js';
+import { runDeterministicSupervisor } from './supervisor.js';
+import { PreVisitPreparation } from './preVisitPreparation.js';
 
-function evidence(record, patientRef) {
-  return { patient_ref: patientRef, source_ref: record.source_ref, record_type: record.field.split('.')[0], recorded_at: record.recorded_at, author: record.author, excerpt: typeof record.value === 'string' ? record.value.slice(0, 300) : JSON.stringify(record.value) };
+/** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
+export class AgentForgeService {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, provider, conversationProvider = null, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+    this.adapter = chartAdapter;
+    this.chartAdapter = chartAdapter;
+    this.writeback = writeback;
+    this.provider = provider;
+    this.traceSink = traceSink;
+    this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs });
+    // Preserve the established facade access used by callers and tests while
+    // keeping cache ownership inside the preparation module.
+    this.cache = this.preparation.cache;
+  }
+
+  get conversationProvider() {
+    return this.preparation.conversationProvider;
+  }
+
+  set conversationProvider(value) {
+    this.preparation.conversationProvider = value;
+  }
+
+  /** W2 synthetic-only ingestion seam. */
+  ingestSourceDocument(request, { verifiedContext = null } = {}) {
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.persistSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
+    const result = this.writeback.persistSourceDocument({
+      patientRef: authorization.patient_uuid,
+      documentType: request.document_type,
+      filename: request.filename,
+      content: request.content,
+      uploadedBy: authorization.clinician_uuid,
+    });
+    return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document };
+  }
+
+  readSourceDocument(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.authorizeWriteback(request, verifiedContext);
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.getSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
+    const result = this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid });
+    return { status: 'read', synthetic_only: true, source_document: result.document, content: result.content };
+  }
+
+  draftClinicalAction(request, { verifiedContext = null } = {}) {
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-clinical-action', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.draftClinicalAction !== 'function') return { status: 'blocked', reason: 'clinical_action_write_unavailable' };
+    const result = this.writeback.draftClinicalAction({ patientRef: authorization.patient_uuid, clinicianRef: authorization.clinician_uuid, actionType: request.action_type, instruction: request.instruction, instructionSource: request.instruction_source });
+    return { status: 'drafted', synthetic_only: true, duplicate: result.duplicate, action: result.action };
+  }
+
+  confirmClinicalAction(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-clinical-action', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.confirmClinicalAction !== 'function') return { status: 'blocked', reason: 'clinical_action_write_unavailable' };
+    const result = this.writeback.confirmClinicalAction(id, { patientRef: authorization.patient_uuid, clinicianRef: authorization.clinician_uuid, confirmationEvent: request.confirmation_event });
+    return { status: result.status, synthetic_only: true, duplicate: result.duplicate, action: result.action, ...(result.cancellation_event_id ? { cancellation_event_id: result.cancellation_event_id } : {}) };
+  }
+
+  readClinicalAction(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-clinical-action', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.getClinicalAction !== 'function') return { status: 'blocked', reason: 'clinical_action_read_unavailable' };
+    const result = this.writeback.getClinicalAction(id, { patientRef: authorization.patient_uuid, clinicianRef: authorization.clinician_uuid });
+    return { status: 'read', synthetic_only: true, action: result.action };
+  }
+
+  extractLabEvidence(id, request, { verifiedContext = null } = {}) {
+    const source = this.readSourceDocument(id, request, { verifiedContext });
+    if (source.status !== 'read') return source;
+    if (source.source_document.document_type !== 'lab_pdf') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
+    const extraction = extractLabEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
+    const observations = [];
+    if (typeof this.writeback?.persistObservation !== 'function') return { status: 'failed', reason: 'OBSERVATION_WRITE_UNAVAILABLE', extraction };
+    for (const fact of extraction.facts) observations.push(this.writeback.persistObservation({ patientRef: source.source_document.patient_ref, sourceDocumentId: source.source_document.id, fact }));
+    return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
+  }
+
+  extractIntakeEvidence(id, request, { verifiedContext = null } = {}) {
+    const source = this.readSourceDocument(id, request, { verifiedContext });
+    if (source.status !== 'read') return source;
+    if (source.source_document.document_type !== 'intake_form') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
+    const extraction = extractIntakeEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
+    const observations = [];
+    if (typeof this.writeback?.persistObservation !== 'function') return { status: 'failed', reason: 'OBSERVATION_WRITE_UNAVAILABLE', extraction };
+    for (const fact of extraction.facts) observations.push(this.writeback.persistObservation({ patientRef: source.source_document.patient_ref, sourceDocumentId: source.source_document.id, fact }));
+    return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
+  }
+
+  async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
+    const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    const item = await this.chartAdapter.getCase(authorization.patient_uuid, request.case_id);
+    const retrieved = await this.chartAdapter.retrieve(item);
+    const validation = validateRetrievalResult(retrieved);
+    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid' };
+    const patientFacts = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage)).map((record) => ({ source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author }));
+    const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
+    const guideline = retrieveGuidelineEvidence(request.message, { topK });
+    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_status: guideline.status, guideline_issues: guideline.issues, failed_patient_groups: failedGroups }, qualification: { required: Boolean(failedGroups.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...guideline.issues] } };
+  }
+
+  async runSupervisorWorkflow(request, { verifiedContext = null, intakeResult = { status: 'not_requested', facts: [] }, unsafe = false } = {}) {
+    const evidence = await this.retrieveFollowUpEvidence(request, { verifiedContext });
+    if (evidence.status === 'blocked') return runDeterministicSupervisor({ intakeResult, evidenceResult: null, unsafe: unsafe || evidence.reason === 'retrieval_contract_invalid' });
+    return runDeterministicSupervisor({ intakeResult, evidenceResult: evidence, unsafe });
+  }
+
+  prepare(...args) { return this.preparation.prepare(...args); }
+
+  prewarm(...args) { return this.preparation.prewarm(...args); }
+
+  openPrepared(...args) { return this.preparation.openPrepared(...args); }
+
+  followUp(...args) { return this.preparation.followUp(...args); }
+
+  authorizeWriteback(request, verifiedContext, options = {}) {
+    return this.writeback?.authorize
+      ? this.writeback.authorize(request, verifiedContext, options)
+      : { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
+  }
 }
 
-export class AgentForgeService {
-  constructor({ adapter, provider, traceSink }) { this.adapter = adapter; this.provider = provider; this.traceSink = traceSink; this.conversations = new Map(); }
-  async prepare(request) {
-    const id = correlationId(request.correlation_id);
-    if (request.authorization?.status !== 'authorized' || !request.clinician_uuid || !request.patient_uuid) return blockedResult(id, 'identity_or_authorization_not_established');
-    const trace = this.traceSink?.start({ correlationId: id, operation: 'visit_briefing', scope: { clinicianRef: request.clinician_uuid, patientRef: request.patient_uuid } });
-    trace?.startStage('authorization');
-    trace?.finishStage('authorization', { status: 'success' });
-    const item = this.adapter.getCase(request.patient_uuid, request.case_id);
-    trace?.startStage('retrieval');
-    const retrieved = this.adapter.retrieve(item);
-    for (const group of retrieved.coverage) trace?.recordRetrievalAttempt({ adapter: 'fixtures', group: group.group, status: group.status, attempts: group.attempts, errorCode: group.error_class });
-    trace?.finishStage('retrieval', { status: retrieved.coverage.some((group) => ['failed', 'timeout'].includes(group.status)) ? 'partial' : 'success' });
-    const expected = item.expected || {};
-    const withheld = expected.withhold_fields || [];
-    const claims = item.records.filter((record) => !withheld.includes(record.field)).map((record) => ({ field: record.field, value: record.value, patient_ref: item.patient.patient_ref, source_ref: record.source_ref, evidence: [evidence(record, item.patient.patient_ref)], reassessment_documented: Boolean(record.reassessment_documented) }));
-    const failed = retrieved.coverage.filter((group) => ['failed', 'timeout', 'unauthorized'].includes(group.status));
-    const qualification = { required: Boolean(expected.qualification_required || failed.length), reasons: failed.length ? failed.map((group) => `${group.group}:${group.status}`) : (expected.qualification_required ? ['fixture_requires_qualification'] : []) };
-    const response = { contract_version: '0.1', correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: request.clinician_uuid, authorized: true }, patient: item.patient, disposition: expected.brief_disposition || (qualification.required ? 'qualified' : 'complete'), claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: 'retrieve_fixture' }] };
-    trace?.startStage('verification');
-    const verification = (await import('./verifier.js')).verify({ patientRef: item.patient.patient_ref, claims, coverage: retrieved.coverage, qualification, operations: response.operations });
-    trace?.finishStage('verification', { status: verification.status });
-    response.verification = verification;
-    if (verification.status !== 'passed') response.disposition = 'blocked';
-    trace?.startStage('model');
-    const prompt = `Prepare a read-only return-visit orientation for ${item.patient.display_name}. Use only these evidence-backed fields: ${claims.map((claim) => `${claim.field}=${String(claim.value)}`).join('; ')}. Do not recommend new clinical actions.`;
-    const generated = await this.provider.generate({ patient: item.patient, claims, qualification, prompt });
-    trace?.recordModelUsage({ provider: this.provider.name, model: this.provider.model, inputTokens: generated.inputTokens, outputTokens: generated.outputTokens, estimatedCostUsd: generated.estimatedCostUsd });
-    trace?.finishStage('model', { status: 'success' });
-    response.text = generated.text;
-    response.model = { provider: this.provider.name, model: this.provider.model, input_tokens: generated.inputTokens, output_tokens: generated.outputTokens, estimated_cost_usd: generated.estimatedCostUsd };
-    this.conversations.set(id, { patientRef: item.patient.patient_ref, request, response });
-    trace?.setCoverage({ status: failed.length ? 'partial' : 'complete', groups: retrieved.coverage.map((group) => group.group) });
-    trace?.setVerification(verification);
-    trace?.setDisplay({ status: verification.status === 'passed' ? 'displayed' : 'withheld' });
-    trace?.complete({ status: verification.status === 'passed' ? 'success' : 'failure', coverage: retrieved.coverage, verification, model: response.model });
-    return response;
-  }
-  async followUp(id, request) {
-    const conversation = this.conversations.get(id);
-    if (!conversation || conversation.patientRef !== request.patient_uuid || request.authorization?.status !== 'authorized') return blockedResult(id, 'conversation_scope_invalid');
-    return { correlation_id: id, patient: conversation.response.patient, text: `Follow-up for ${conversation.patientRef}: ${request.message || 'No question supplied.'} See the cited evidence in the briefing.`, evidence: conversation.response.claims.flatMap((claim) => claim.evidence), verification: conversation.response.verification };
-  }
+function recordIsCovered(record, coverage) {
+  const group = coverageGroupForField(record.field);
+  const status = coverage.find((item) => item.group === group);
+  return Boolean(status && status.status === 'success' && status.records > 0);
+}
+
+function recordBelongsToPatient(record, patientRef) {
+  return !record?.patient_ref || String(record.patient_ref) === String(patientRef);
 }
 
 export function defaultFixturePath() { return fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url)); }

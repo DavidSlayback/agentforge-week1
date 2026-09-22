@@ -42,6 +42,42 @@ docker exec agentforge-week1-openemr-1 /root/devtools dev-reset-install-demodata
 
 The local compose project exposes OpenEMR on ports 8300 (HTTP) and 9300 (HTTPS), phpMyAdmin on 8310, and MariaDB on 8320. These defaults are for local development only.
 
+### AgentForge service and reviewer path
+
+AgentForge is the separate read-only Node service under `agentforge/`. For a
+fixture-backed local run, use Node 24 and start it with a server-only synthetic
+secret:
+
+```powershell
+$env:AGENTFORGE_DEMO_SECRET = "local-synthetic-secret"
+$env:AGENTFORGE_SYNTHETIC_CONTEXT = "true"
+node agentforge/src/server.js
+```
+
+Open `http://localhost:8787/`, choose a fixture patient, prepare the briefing,
+then ask a follow-up. Operational and evaluation surfaces are `/observability`
+and `/evals` under the app base path; with the default local server these are
+`/observability` and `/evals`, while the deployed browser URLs are
+`/agentforge/observability` and `/agentforge/evals`. The runnable API collection is
+`agentforge/api/collection.ps1`. Run the verification gate with:
+
+```powershell
+node --test agentforge/test/*.test.js evals/test/*.test.js observability/test/*.test.js
+node --test scripts/test/*.test.mjs
+node evals/lib/runner.js
+```
+
+The verified synthetic deployment is
+`https://dtstest.64.177.10.182.nip.io/agentforge/`. Qwen is active for
+ahead-of-visit synthesis and OpenRouter Gemini Flash-Lite is active for
+patient-scoped follow-ups. Deterministic output remains the fail-closed
+fallback. See [`docs/agentforge/SUBMISSION.md`](docs/agentforge/SUBMISSION.md)
+for the current candidate and evidence boundaries.
+See [`docs/agentforge/PROJECT_EXPLAINER.md`](docs/agentforge/PROJECT_EXPLAINER.md),
+[`ARCHITECTURE.md`](docs/agentforge/ARCHITECTURE.md), and
+[`REQUIREMENTS_MATRIX.md`](docs/agentforge/REQUIREMENTS_MATRIX.md) for the
+assignment-grounded implementation and evidence map.
+
 ### Contributing
 
 OpenEMR is a leader in healthcare open source software and comprises a large and diverse community of software developers, medical providers and educators with a very healthy mix of both volunteers and professionals. [Join us and learn how to start contributing today!](https://open-emr.org/wiki/index.php/FAQ#How_do_I_begin_to_volunteer_for_the_OpenEMR_project.3F)

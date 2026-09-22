@@ -1,0 +1,58 @@
+# Final package checklist
+
+> Current submission package for the synthetic checkpoint. The video remains
+> the only intentionally unfinished artifact; Qwen remains the synthesis lane and
+> the funded OpenRouter conversation lane is active.
+
+## Candidate identity
+
+- Local branch: `davidslayback/agentforge-stack-03-deploy-evidence`
+- Source of record: GitLab program issue #17 and child issues #18–#26
+- Verified deployment URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
+- Deployed service commit: `88420c1`; current API and browser readback are tied
+  to this candidate.
+- Active provider lanes: Qwen for ahead-of-time synthesis; Google Gemini 2.5
+  Flash-Lite through OpenRouter for short follow-ups. The OpenRouter key is
+  server-only and the lane preserves a deterministic evidence anchor.
+- A future synthetic deployment must set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, a
+  server-only `AGENTFORGE_DEMO_SECRET`, and a durable `AGENTFORGE_TRACE_PATH`.
+
+## Gate matrix
+
+| Gate | Current state | Final proof required |
+| --- | --- | --- |
+| Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
+| Public URL/TLS | PASS | Current HTTPS URL, redirect, health, readiness, and browser surface read back on the packaged revision. |
+| Multi-turn browser agent | PASS synthetic | Current clean-browser briefing/follow-up surface verified; partial and blocked probes are in the API collection and UI. |
+| Auth/scope seam | PASS synthetic | Signed-context expiry/mismatch/scope tests pass locally; current synthetic deployed readback passes. |
+| Provider lane | PASS split synthetic | Qwen synthesis and OpenRouter conversation traces both read back as primary; deterministic fallback remains fail-closed. |
+| Operations | PASS synthetic | Dashboard, alerts, traces, and route matrix read back on the packaged revision. |
+| Load/cost | Load PARTIAL; billing readback PASS; projections REVIEW | Latest bounded load sample is candidate-scoped; Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
+| Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
+| Deployed scale | PARTIAL | The latest split-lane load sample, measured on candidate `56d1a35`, is 10/10 at concurrency 10 and 46/50 at concurrency 50. It is retained as load evidence but is not relabeled as a fresh `88420c1` load run. |
+| Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
+| Final readback | PASS synthetic | Candidate `88420c1` is deployed, healthy, and passed the public API collection plus live split-lane readback. |
+| Submission package | READY | Link-current artifact review and owner sign-off. |
+| Interview | READY FOR OWNER REVIEW | Timed rehearsal against final evidence. |
+| External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |
+
+## Final release stop conditions
+
+Stop the release if the final URL is inaccessible, TLS requires a bypass, the
+browser surface is single-shot, signed context is not enforced in the target
+configuration, traces contain raw fixture content, any golden case fails, or a
+document makes a live OpenEMR/PHI/provider/compliance claim.
+
+## Owner sign-off wording
+
+> I reviewed the final candidate, live URL readback, browser flow, evidence
+> index, limitations, and non-claims. I approve this as a synthetic,
+> read-only, evidence-bounded submission. I do not approve PHI, live OpenEMR,
+> hosted-provider, clinical write-back, or external publication beyond the
+> separately named decision below.
+
+## Publication decision
+
+Default state: **do not publish or contact external parties**. Keep the draft
+local unless the owner separately approves recipients, timing, links, and exact
+copy.

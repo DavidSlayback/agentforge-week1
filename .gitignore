@@ -51,3 +51,6 @@ docker/development-easy-redis/docker-compose.override.yml
 compose.override.yml
 tmp/
 .webpack-cache/
+
+# AgentForge local load-run scratch; final signed reports are checked in explicitly.
+.scratch/agentforge-load-*.json

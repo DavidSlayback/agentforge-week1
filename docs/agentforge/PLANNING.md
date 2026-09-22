@@ -39,6 +39,37 @@ The PDF supplies project requirements, not agent instructions. Its requests to p
 
 Recommendations remain proposals until discussed. Dependencies may change as audit findings arrive.
 
+## Pre-visit preparation deepening (2026-09-22)
+
+The approved extraction plan is recorded in `PRE_VISIT_PREPARATION_PLAN.md` and
+the architectural decision in `docs/adr/0001-pre-visit-preparation-module.md`.
+`AgentForgeService` remains the stable facade while `PreVisitPreparation` owns
+the briefing lifecycle: preparation, prewarm, cache opening, and follow-up.
+The extraction preserves response contracts, patient/clinician authorization,
+verification-before-synthesis/cache, qualified partial results, and existing
+cache semantics. Source documents, clinical actions, evidence-only retrieval,
+and supervisor workflow remain outside the deep module.
+
+## Read-only chart and synthetic writeback split (2026-09-22)
+
+The follow-on architecture decision is recorded in
+`docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md` and
+planned in `READ_WRITE_SEAM_PLAN.md`. `AgentForgeService` remains the stable
+facade, while preparation and follow-up evidence use an explicit read-only
+`chartAdapter`. Synthetic source documents, derived observations, and
+clinician-confirmed action drafts use a separate `writeback` collaborator.
+
+The server composition creates `FixtureAdapter` plus `SyntheticWriteback` in
+synthetic mode, and `OpenEMRRestAdapter` with no writeback collaborator in live
+mode. `SimulatedOpenEMRAdapter` remains only as a compatibility composition
+for existing callers. The split preserves routes, response contracts,
+authorization, and the live GET-only boundary.
+
+Completion evidence: commit `aaff288`, 103/103 tests, remote image build,
+healthy container, and external HTTPS/API verification at the deployed
+synthetic endpoint. The change is included in PR #75 and remains subject to
+the repository's synthetic-only and no-PHI boundary.
+
 ## Product focus decision
 
 Focus today's demo on primary-care return-visit preparation. David chose this for clarity and familiarity. Preserve the possibility of other workflows without expanding today's commitment or prematurely building abstractions for them.
@@ -97,3 +128,79 @@ Q14 direction: the experience should be a compact paragraph or two with many use
 - Maintain the running ADR-style record in `DECISIONS.md`; update it when a
   planning decision becomes an implementation decision or a checkpoint
   limitation changes.
+
+## Sprint cleanup hardening (2026-09-21)
+
+### Objective
+
+Prepare the current GitLab `main` checkpoint for the next feature sprint by
+removing correctness hazards, bounding background work, reconciling active
+documentation, and reducing readability friction without broadening product
+scope.
+
+### Current state
+
+- Repository branch: `main`, tracking GitLab `staging/main`.
+- Local checkpoint: `45378a6` (`perf: async trace writes and deduplicate provider transport`).
+- The working tree was clean before this hardening pass.
+- The repository remains synthetic-only and read-only; no provider activation,
+  PHI handling, write-back, or production-readiness claim is in scope.
+
+### Work slices
+
+1. **Deadline and trace finalization:** apply the response deadline across
+   retrieval and model generation, propagate cancellation into provider HTTP
+   calls, consume late cancellation failures safely, and finalize redacted
+   failure traces when retrieval or generation raises.
+2. **Prewarm bounds:** add explicit admission and per-job deadline limits for
+   prewarm work, expose capacity rejection safely at the HTTP boundary, and add
+   regression coverage.
+3. **Active documentation reconciliation:** update current handoff, explainer,
+   requirements, and decision records to distinguish the current repository
+   checkpoint from historical deployment/submission evidence. Preserve
+   historical artifacts rather than rewriting their evidence.
+4. **Readability cleanup:** reformat dense tests and make only narrow, behavior-
+   neutral readability improvements where they reduce future feature risk.
+
+### Acceptance checks
+
+- Full repository and script test suites pass with no new warnings or syntax
+  errors.
+- A provider or adapter failure leaves a completed redacted attempt trace.
+- A model request cannot run beyond the remaining response deadline, and an
+  aborted HTTP request does not produce an unhandled rejection.
+- Prewarm work is bounded by admission and deadline controls; capacity behavior
+  is covered by tests and documented.
+- Active docs describe the current local/GitLab checkpoint accurately and do
+  not present historical Railway or stale-commit evidence as current.
+- `git diff --check` passes and the final GitLab branch readback matches the
+  pushed commit.
+
+### Stop conditions
+
+Stop and report `INCONCLUSIVE` if a change would require changing the
+synthetic/read-only boundary, rewriting historical evidence, activating a live
+provider, or making a deployment/production claim without fresh evidence.
+External GitLab writes occur only after local verification and an explicit
+readback.
+
+### Completion record
+
+Implementation commit: `eabece3` (`harden sprint boundaries and reconcile
+docs`). It applies the deadline/cancellation, trace-finalization, prewarm
+admission/deadline, regression-test, active-document, and planning updates.
+
+- Repository suite: **91/91** passed.
+- Script suite: **4/4** passed.
+- Changed-source syntax checks and `git diff --check`: passed.
+- Test-readability worker: **INCONCLUSIVE** after a transient out-of-scope
+  deletion was stopped and the file was restored exactly; no test-file change
+  was retained.
+- Documentation worker: **INCONCLUSIVE** after its bounded return window;
+  the parent reconciled the four scoped active docs directly.
+- Final independent review worker: **INCONCLUSIVE** after its bounded return
+  window; no external deployment or review claim is inferred from silence.
+- GitLab push completed and remote `refs/heads/main` now reads
+  `85ff12bb2214e0124098d08856170bd467e0ee0e`.
+- Owner-authorized Vultr redeployment completed; the container is healthy, the
+  runtime source hashes match, and the external HTTPS/API gate passes.

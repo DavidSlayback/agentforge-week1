@@ -1,0 +1,67 @@
+# AgentForge requirements matrix
+
+**Rebaseline date:** 2026-09-19.
+**Source:** verified `Week 1 - AgentForge.pdf`, pp. 2–13, supplied outside the
+repository; `REQUIREMENTS.md` is the repository transcription.
+**Status vocabulary:** Done = supported for this synthetic checkpoint; Partial = some evidence exists but a required boundary is open; Missing = no adequate evidence; Blocked = requires an owner/external decision; Undecided = draft exists but no decision is authorized.
+
+**Current repository state (2026-09-21):** local `main` tracks GitLab
+`staging/main` at deployed commit `d8b4ba8`. The current synthetic Vultr
+runtime was rebuilt from that source; runtime hashes match the local changed
+files. Local verification is 91/91 repository checks plus 4/4 script checks.
+Deployment rows now distinguish current candidate readback from historical load
+and submission evidence.
+
+| Requirement | Source | Artifact / implementation | Verification | Status | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Clinical co-pilot embedded in OpenEMR and grounded in selected chart | pp. 2, 4, 7 | `USERS.md`, `ARCHITECTURE.md`, `agentforge/src/openemrAdapter.js`, module launcher | 56/56 local AgentForge tests; seeded synthetic OpenEMR corpus; historical selected Vultr synthetic readback | Partial | Synthetic E2E is verified; PHI, production identity semantics, compliance, and clinician usefulness remain open. |
+| Start from Gauntlet OpenEMR base | p. 4 | `upstream` remote; repository history | `git remote -v`, history | Done for provenance | Literal fork-network/public provenance needs owner disposition. |
+| Run locally with sample patient data | p. 5 | OpenEMR compose docs; synthetic corpus and fixtures | Local tests; full seeded OpenEMR/AgentForge path exercised on Vultr | Done for synthetic checkpoint | Reproducible local seed/readback procedure should be documented if this becomes a handoff requirement. |
+| Public deployment reachable for submissions | pp. 4–5, 9 | `SUBMISSION.md`, `deploy/vultr`, Vultr readback | Current candidate `d8b4ba8`; HTTPS redirect and landing page; `/health`, `/ready`, visual `/observability` 200; Qwen synthesis, OpenRouter follow-up, synthetic prewarm/open, and API collection verified | Done for synthetic checkpoint | Submission custody and owner release decision remain open. |
+| Complete security/performance/architecture/data-quality/compliance audit | pp. 4–6 | `AUDIT.md` | Document inspection | Done for audit gate | Audit findings are not production certification. |
+| Narrow user, workflow, and agent justification per use case | p. 6 | `USERS.md`, `USER.md` | Document inspection; service/UI tests | Done | Keep capability trace current as scope changes. |
+| Audit-derived integration plan | pp. 6–7 | `ARCHITECTURE.md`, `DECISIONS.md`, `agentforge/src/openemrAdapter.js` | Document/code seam review; REST adapter tests; deployed synthetic E2E | Partial | Production identity, PHI/data-processing, retention, and rollback policy remain open. |
+| Authorization and access control is explicit | pp. 2–3 | `AUDIT.md`, `ARCHITECTURE.md`, `accessContext.js`, OpenEMR REST adapter | B strict issuer/session/role tests; historical selected Vultr synthetic readback with server-only OAuth user-context | Partial | Production role/session semantics remain out of scope while PHI is prohibited. |
+| Verification and trust: claims trace to records and respect domain constraints | p. 3 | `verifier.js`, fixture corpus, eval oracle | 9/9 local golden cases; 10/10 evaluation tests; service tests | Done synthetic locally | New local fixture cases are not deployed evidence until the candidate is rebuilt. No live chart source or clinical rule system is connected. |
+| Speed versus completeness and uncertainty are deliberate | p. 3 | `ARCHITECTURE.md`, `RESILIENCE.md`, service deadlines/coverage | Deadline/partial-result tests; split-lane load reports | Partial | Qwen synthesis tail latency is accepted for asynchronous preparation; interactive follow-up latency remains separately bounded and should not be inferred from synthesis load. |
+| Data security and HIPAA constraints shape the design; demo data only | p. 3 | `AUDIT.md`, `DECISIONS.md`, `RESILIENCE.md` | Document/code boundary review | Done for synthetic boundary | No HIPAA/compliance/BAA readiness claim; PHI remains blocked. |
+| Key metrics with rationale | p. 3 | `KEY_METRICS.md`, `OBSERVABILITY.md` | Document inspection; observability tests | Done for checkpoint | Prove success with real target users/runtime if making product claims. |
+| Demo data only | p. 3 | Fixtures and safety docs | Tests; no PHI authorized | Done | Preserve synthetic-only boundary. |
+| Agentic chatbot: multi-turn conversation and justified tool use | p. 7 | `agentforge/src/service.js`, `ui.js` | Conversation/UI tests; current synthetic Vultr browser E2E; physician-readable grouped briefing and follow-up prompts | Done synthetic | Clinician usefulness remains a demo-review judgment. |
+| Verify every response before display | p. 7 | `verifier.js`, contracts, evals | 9/9 local golden cases; 10/10 evaluation tests; 56/56 AgentForge tests | Done synthetic locally | No PHI or production clinical correctness claim. |
+| Enforce requester authorization and patient scope | pp. 2–3, 8 | `accessContext.js`, `openemrAdapter.js` | Access-context, adapter, and seeded synthetic E2E tests | Done synthetic | Validate real production role/session semantics only if PHI scope is later authorized. |
+| Predictable failure and partial-data behavior | pp. 3–4, 8 | Coverage statuses, service, UI, fixtures | Golden/eval and service tests | Done synthetic | External failure drill must match current deployment. |
+| Evaluations cover boundaries and document failure modes | p. 8 | `evals/`, `error-analysis.json`, fixture corpus | 9/9 local golden cases; 10/10 evaluation tests; injected defects detected | Done synthetic locally | The saved deployed report remains the prior 7-case snapshot until redeployment. |
+| Correlation ID across service, tool, and model calls | p. 8 | Trace contracts and service | Observability tests; redacted traces | Done synthetic | Confirm provider/network trace semantics if a provider is activated. |
+| Canonical strict API/event/schema contracts | p. 8 | `agentforge/src/contracts.js`, API README/collection | Contract tests; collection | Done synthetic | Contract versioning and external consumer review remain. |
+| Real observability from the start | pp. 7–8 | `observability/`, trace sink, metrics | 17/17 observability tests; Langfuse exporter contract; bounded alert-window and threshold readback | Done synthetic | Provider cost/token, deployment, dashboard readback, and production retention controls are open. |
+| Live dashboard with requests/errors/latency/queue/retries/decisions | p. 8 | Visual `/observability` dashboard backed by `/v1/metrics`, `/v1/traces`, and `/v1/alerts` | Focused UI test; public browser readback with metric cards, latency bars, outcomes, queue/fallback, three alert panels, and redacted traces | Done for synthetic checkpoint | External notification delivery/on-call ownership remains open. |
+| Runnable API collection | p. 8 | `agentforge/api/collection.ps1` | Current external collection passed health/readiness, complete/partial briefing, follow-up, blocked safety cases, invalid request, metrics, traces, alerts, and observability | Done synthetic | Preserve candidate identity and refresh if deployment configuration changes. |
+| Separate `/health` and meaningful `/ready` | p. 8 | `server.js` readiness checker | Local tests; historical Vultr `/health` and `/ready` 200 after server-only model credential rotation; prior 503 was correctly surfaced; readiness remains dependency/configuration evidence | Partial | Latency, provider quality, and production suitability remain open; readiness is not production readiness. |
+| Three alerts with meaning and response | p. 8 | `/v1/alerts`, `OBSERVABILITY.md`, `INCIDENT_RESPONSE.md` | Alert tests and historical drill | Done synthetic | External notification delivery/on-call ownership is open. |
+| Realistic deployed load/stress tests at 10 and 50 concurrent users | p. 9 | `scripts/agentforge-load.mjs`, current smoke readback in `RELEASE_READINESS.md` | Historical split-lane sample on `56d1a35`: 10/10 passed at concurrency 10; 46/50 at concurrency 50 with 8% client timeouts | Partial | Current candidate `d8b4ba8` needs a fresh 10/50 run if current-candidate capacity evidence is required. |
+| CPU, memory, latency, throughput baselines | p. 9 | `LOAD_TEST.md`, current bounded load readback | Latency/throughput/error metrics plus container CPU/memory sample captured | Partial | Host-wide/database saturation and production SLO evidence remain open. |
+| Cost analysis: actual spend and 100/1K/10K/100K projections | p. 9 | `COST_MODEL.md`, AF-18 | Account billing readback and draft model | Partial | Provider billing attribution and scale validation remain open now that both provider lanes are real. |
+| Repository setup guide, architecture overview, deployed link | p. 9 | `README`/docs, `ARCHITECTURE.md`, `SUBMISSION.md` | Repository inspection | Partial | Final link must identify the verified candidate, not a stale snapshot. |
+| Audit document with ~500-word opening summary | p. 9 | `AUDIT.md` | Document inspection | Done | Refresh only if source/code changes. |
+| User document | p. 9 | `USERS.md`, `USER.md` pointer | Document inspection | Done | Keep dual-name accommodation explicit. |
+| Agent architecture document with opening summary | p. 9 | `ARCHITECTURE.md` | Document inspection | Done | No claim of production readiness. |
+| Demo video, 3–5 minutes | p. 9 | Untracked `agentforge-*.mp4`, screenshots/logs; demo HTML | File inventory only | Partial/unknown custody | Verify final media duration, content, provenance, and intended deliverable before publication. |
+| Eval dataset and results | p. 9 | `evals/`, fixture corpus, evidence | 9/9 local golden cases; 10/10 evaluation tests; current candidate API readback passes complete/partial workflow probes | Done synthetic | Saved deployed report remains a historical 7-case artifact; current candidate parity is bounded to the exercised API collection. |
+| Deployed application works in live environment | p. 9 | Vultr deployment docs/evidence | Current candidate `d8b4ba8`; HTTPS readback; `/health`, `/ready`, visual `/observability` 200; Qwen synthesis, OpenRouter follow-up, synthetic prewarm/open, API collection, and current runtime hash readback | Partial | Historical 50-concurrency smoke has 8% client timeouts and p95 ~45s; host-wide/database capacity remains open. |
+| Early technical interview | pp. 4, 9–10 | archived local `INTERVIEW_PREP.md`, `FINAL_INTERVIEW_PREP.md` | Draft inspection | Undecided | The untracked draft was moved to the local archive on 2026-09-19; scheduling/attendance is external and owner-gated. |
+| Final social post | p. 9 | `FINAL_SOCIAL_DRAFT.md` | Draft inspection | Undecided | No publication authorized. |
+| Final AI interview | p. 9 | Interview prep docs | Draft inspection | Undecided | External invitation/recording not established. |
+| Early/final checkpoint schedule and interview gates | pp. 4, 9 | `REQUIREMENTS.md`, package/interview docs | Document inspection | Undecided | Dates, submission state, and external interview completion require owner evidence. |
+| Audit, architecture, evaluation, and production-thinking defense | p. 10 | Interview prep and visual companion | Evidence-linked drafts | Partial | Rehearse against the current matrix and explicitly labeled historical candidate evidence only. |
+| Pre-search checklist: constraints, architecture, failure, security, testing, release | pp. 11–13 | `AUDIT.md`, `ARCHITECTURE.md`, `DECISIONS.md`, planning docs | Cross-document inspection | Partial | Provider, retention, publication, and deployment decisions remain open. |
+
+## Reconciliation notes
+
+- Historical local proof on 2026-09-20 was **87/87** across the checked AgentForge, evaluation, observability, helper, PHP, provider, and load-harness suites. The local fixture corpus and golden gate were **9/9**; the deployed saved report remains a prior **7/7** snapshot. Older counts in handoff/overnight evidence are retained as historical snapshots only.
+
+- `USER.md` now points to canonical `USERS.md`; this resolves the brief's filename inconsistency without duplicating the user model.
+- Railway evidence is earlier checkpoint evidence. Current candidate `d8b4ba8` has synthetic selected-Vultr runtime readback for the externally reachable workflow and primary Qwen success; this remains candidate-scoped proof, not PHI or production release evidence.
+- The former local queue and tickets are summarized in `HISTORICAL_QUEUE_SUMMARY.md` and are no longer an execution source. New work must be mapped to this matrix and an explicitly approved GitLab issue.
+- The deterministic provider remains the local/default fallback. Vultr has authorized Qwen3.6 synthesis and OpenRouter Gemini Flash-Lite follow-up lanes for synthetic evaluation; neither establishes a BAA, authorizes PHI, or closes spending/retention terms.
+- Synthetic OpenEMR context and fixture parity demonstrate safety behavior; the seeded Vultr corpus and read-only path additionally verify current synthetic E2E integration, but not HIPAA compliance, PHI authorization, or production readiness.

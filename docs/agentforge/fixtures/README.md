@@ -13,5 +13,13 @@ Cases:
 - `missing_provenance`: a value exists without an author; retain it as qualified evidence.
 - `unstructured_note`: narrative chart text that is evidence, not agent instructions.
 - `partial_retrieval`: successful, empty, failed, and timed-out coverage groups; produce a partial brief with a heavily qualified missing-data panel.
+- `empty_successful_lookup`: every requested group returns successfully, but no clinical records exist; keep this distinct from retrieval failure.
+- `no_prior_comparison`: the current chart is complete, but the conversation must not invent a prior baseline.
+
+The browser demo exposes all patient-backed cases, not just the three original
+demo IDs. `complete_return_visit` is the primary synthesis/follow-up example;
+`partial_retrieval` demonstrates qualified withholding; `empty_successful_lookup`
+demonstrates successful emptiness; and `no_prior_comparison` demonstrates the
+honest fallback when a comparison baseline is unavailable.
 
 Expected behavior is part of each case so tests can assert withholding and qualification decisions without relying on an LLM judge.

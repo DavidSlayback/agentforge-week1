@@ -4,7 +4,9 @@
 
 The initial user is a primary-care physician seeing returning patients in an
 outpatient clinic. The physician has a roughly 20-patient day with visits of
-about 30 minutes each. They are responsible for deciding what matters in the
+about 30 minutes each. The AgentForge interaction is designed for a focused
+90–180-second orientation immediately before the encounter. They are
+responsible for deciding what matters in the
 current encounter, but the record is distributed across encounters, problems,
 medications, results, forms, documents, and narrative notes.
 
@@ -17,9 +19,9 @@ workflows are explicitly out of scope for the first agent.
 ## The moment the agent enters the workflow
 
 Between appointments, the physician opens the next returning patient's chart.
-In the thirty seconds before opening AgentForge, they have just finished the
-previous encounter and are trying to orient themselves before the next patient
-arrives. They need a compact answer to three questions:
+In the 90–180 seconds before the next patient arrives, they have just finished
+the previous encounter and are trying to orient themselves. They need a compact
+answer to three questions:
 
 1. Why is this patient here, based on the documented visit reason?
 2. What ongoing concerns and prior plans should remain in view?
@@ -36,7 +38,8 @@ or review during the visit; the agent does not recommend a new clinical action
 or write anything into the chart.
 
 Preparation may run asynchronously because visits are about 30 minutes apart.
-The physician still needs a bounded result before the visit, a clear deadline,
+The physician still needs a bounded result within the 90–180-second orientation
+window, a clear deadline,
 and a useful partial result when some record groups cannot be retrieved. A
 failed identity or authorization check blocks the briefing entirely.
 

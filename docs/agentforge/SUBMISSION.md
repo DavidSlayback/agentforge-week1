@@ -1,60 +1,101 @@
-# Early checkpoint evidence
+# AgentForge Sunday final-submission package
 
-## Current status
+> Current synthetic checkpoint package. Candidate evidence is tracked in
+> `RELEASE_READINESS.md` and `REQUIREMENTS_MATRIX.md`; the video is the only
+> intentionally unfinished artifact. Qwen remains the synthesis lane and
+> OpenRouter Gemini Flash-Lite handles follow-ups.
 
-The checkpoint branch contains a synthetic-only AgentForge service with a
-fixture retrieval adapter, deterministic provider, evidence verifier, golden
-evaluation runner, and redacted local traces. The service is deliberately
-separate from OpenEMR so the provider and retrieval seams can be replaced
-without coupling safety logic to PHP internals.
+## Release position
 
-Live deployment: `http://64.177.10.182/agentforge/`
+This repository contains a synthetic, read-only, production-shaped AgentForge
+ checkpoint. The verified Vultr evidence URL is:
 
-The local demo capture is a three-minute browser-only recording. It is silent
-so narration can be added during final editing.
+`https://dtstest.64.177.10.182.nip.io/agentforge/`
 
-## Verified locally
+The current deployed candidate is `d8b4ba8`; Qwen is active for synthesis and
+OpenRouter is active for follow-ups. No external publication occurred.
 
-- AgentForge tests: 5 passed with `npm --prefix agentforge test`.
-- Evaluation tests: 10 passed with `npm --prefix evals test`.
-- Focused test total: 15 passed.
-- Golden fixtures: 7/7 passed, 0 critical failures in both reference and
-  actual-service modes; deployed-service result is captured in
-  `evals/deployed-service-results.json`.
-- Service smoke test: `/health`, dependency-aware `/ready`, and a complete
-  synthetic briefing request passed.
-- Hosted smoke test: the authenticated OpenEMR chart for synthetic `Test
-  Patient One` launched the active module, handed off a five-minute signed
-  context, and returned a qualified briefing for `fixture-patient-002`.
-- Error analysis: six injected critical defects detected, 6/6 (100%).
-- `git diff --check` passed.
-- `/observability` dashboard and `/v1/metrics` expose actual-run timing,
-  retrieval attempts, verification/display outcomes, and redacted traces.
+## What the synthetic checkpoint proves
 
-The package test commands resolve fixtures relative to the repository rather
-than the caller's working directory, so the documented commands are
-reproducible from a clean checkout.
+- A signed synthetic session binds patient, clinician, and `read-briefing`
+  scope at the service boundary.
+- Fixture-backed retrieval preserves complete, partial, conflict, stale,
+  missing-provenance, untrusted-note, and duplicate-identity behavior.
+- Verification precedes display and the surface remains read-only.
+- The browser supports briefing, follow-up, evidence expansion, qualification,
+  reset, and blocked cross-patient probing.
+- A configured provider can retry twice and fall back deterministically without
+  making provider output an authorization or verification decision.
+- Redacted file-backed traces, interaction-specific latency/cache/deadline
+  metrics, alerts, retention/deletion,
+  backup/restore, rollback, and load evidence are inspectable.
 
-## Known checkpoint limitation
+## Verification commands
 
-The deployed OpenEMR module is active and has been exercised from an
-authenticated synthetic patient chart through the signed launcher to a
-qualified AgentForge briefing. Retrieval remains fixture-backed; trusted TLS,
-real OpenEMR retrieval, and PHI controls are not represented as complete.
-The launcher-to-fixture mapping is a named demo seam, not a production
-authorization implementation.
+Use the current requirements matrix and release-readiness record for
+candidate-specific evidence.
 
-## Interview talk track
+```text
+node --test agentforge/test/*.test.js
+node --test observability/test/*.test.js
+npm --prefix evals test
+git diff --check
+node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 10 --requests 100 --out .scratch/agentforge-load-10-final.json
+node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 50 --requests 500 --out .scratch/agentforge-load-50-final.json
+```
 
-- Separate service: isolates the agent boundary from the OpenEMR monolith and
-  makes retrieval/provider replacement possible.
-- Deterministic evaluation mode: makes safety regressions reproducible while a
-  live provider remains an optional demonstration adapter.
-- Verification before display: requires evidence support, patient scope, and
-  read-only behavior before returning a briefing.
-- Redacted local traces: preserve reconstruction value without making raw chart
-  content the default observability payload.
-- Launcher status: Caddy routing and signed synthetic context are wired in the
-  deployment bundle. The migration target is trusted TLS, real OpenEMR
-  retrieval, and PHI controls; the checkpoint deliberately stops before those
-  production commitments.
+Current local results are 91/91 repository tests plus 4/4 script checks, including the AgentForge,
+evaluation, observability, helper, PHP, and provider/load-harness regressions.
+The latest bounded split-lane load sample, measured on candidate `56d1a35`, is
+10/10 successful at concurrency 10 and 46/50 at concurrency 50; the latter
+shows the provider tail-latency boundary. Container sampling peaked at 29.06%
+CPU and 52.01 MiB resident memory. Larger workloads are not claimed as passing.
+
+The current live API and browser reports are tied to candidate `d8b4ba8`; the
+load sample is explicitly tied to `56d1a35` and was not relabeled as a fresh
+`d8b4ba8` capacity run.
+
+## Reviewer path
+
+The expanded local workflow and asynchronous open behavior are described in
+[`DEMO_SCRIPT.md`](DEMO_SCRIPT.md), including a timed voiceover and recording
+sequence. They are included in candidate `d8b4ba8` where applicable.
+For the current local demo, use `http://127.0.0.1:18790/`; select a patient, allow
+background preparation to finish, then use **Open prepared briefing**. Opening a
+fresh result rechecks authorization and cache expiry without another model call.
+The deployed path below remains a separate candidate readback.
+
+1. Open `https://dtstest.64.177.10.182.nip.io/agentforge/` in a clean browser.
+2. Prepare `fixture-patient-001` and show the synthesized documented change.
+3. Ask “What changed since the last visit?” and “What plan items need follow-through?”
+   to show two patient-scoped conversation turns.
+4. Prepare `fixture-patient-006` and show qualified partial retrieval and
+   withheld fields.
+5. Run the cross-patient probe and show the blocked response with no disclosure.
+6. Open evaluator evidence, health, readiness, metrics, alerts, traces, and
+   the observability dashboard.
+7. Run the final external API collection and record the deployment version.
+
+## Evidence index
+
+| Area | Evidence |
+| --- | --- |
+| Requirements and architecture | `docs/agentforge/REQUIREMENTS.md`, `ARCHITECTURE.md`, `DECISIONS.md` |
+| Early external checkpoint | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md` |
+| Authenticated synthetic seam | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md` |
+| Provider failure policy | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/RESILIENCE.md` |
+| Operations and recovery | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/RESILIENCE.md` |
+| Conversational latency/cache contract | `docs/agentforge/CONVERSATIONAL_AGENT_HANDOFF.md`, commit `1259fbb`, deployed `/v1/metrics` |
+| Load and cost boundary | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/LOAD_TEST.md` |
+| Current deployed scale | No current raw artifact; obtain fresh candidate-specific evidence. |
+| Final release checklist | `docs/agentforge/FINAL_PACKAGE.md` |
+| Interview defense | `docs/agentforge/FINAL_INTERVIEW_PREP.md` |
+| No-publish communication draft | `docs/agentforge/FINAL_SOCIAL_DRAFT.md` |
+
+## Non-claims
+
+This is not live clinical retrieval, PHI processing, HIPAA compliance, a BAA,
+clinical safety validation, provider suitability evidence, cross-region
+durability, or a production availability/SLO claim. No hosted vendor is
+selected. No clinical recommendation, chart write, diagnosis, order,
+medication change, or arbitrary OpenEMR action is supported.
