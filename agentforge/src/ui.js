@@ -223,10 +223,13 @@ h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-
 </script></body></html>`;
 }
 
-export function renderEvaluatorPage({ golden, errorAnalysis, basePath = '', localReport = false }) {
+export function renderEvaluatorPage({ golden, errorAnalysis, w2Gate = null, basePath = '', localReport = false }) {
   const goldenGate = golden?.gate_passed ? 'PASSED' : 'FAILED';
   const errorGate = errorAnalysis?.gate_passed ? 'PASSED' : 'FAILED';
   const rate = Math.round(Number(errorAnalysis?.detection_rate || 0) * 100);
+  const w2GateLabel = w2Gate?.passed ? 'PASSED' : 'FAILED';
+  const w2Passed = w2Gate?.by_label ? Object.values(w2Gate.by_label).reduce((sum, summary) => sum + summary.passed, 0) : '—';
+  const w2Failures = w2Gate?.by_label ? Object.values(w2Gate.by_label).reduce((sum, summary) => sum + summary.cases - summary.passed, 0) : '—';
   const route = (path) => `${basePath}${path}`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgentForge evaluator panel</title>
@@ -243,6 +246,7 @@ export function renderEvaluatorPage({ golden, errorAnalysis, basePath = '', loca
 <section aria-labelledby="prompt-heading"><h2 id="prompt-heading">Safe sample prompts</h2><div class="prompts"><span>“What changed since the last visit?”</span><span>“What plan items need follow-through?”</span><span>“Which records conflict?”</span><span>Failure probes: partial retrieval, denied authorization, cross-patient scope, malformed request.</span></div></section>
 <section aria-labelledby="golden-heading"><h2 id="golden-heading">Golden evidence${localReport ? ' · local build' : ' · saved deployment'}</h2><div class="cards"><div class="card"><span class="value">${golden?.total_cases ?? '—'}</span><span class="muted">total cases</span></div><div class="card"><span class="value pass">${golden?.passed_cases ?? '—'}</span><span class="muted">passed</span></div><div class="card"><span class="value">${golden?.failed_cases ?? '—'}</span><span class="muted">failed</span></div><div class="card"><span class="value">${golden?.critical_failures ?? '—'}</span><span class="muted">critical failures</span></div><div class="card"><span class="value pass">${goldenGate}</span><span class="muted">golden gate</span></div></div><p><a href="${route(localReport ? '/evals/active-service-results.json' : '/evals/deployed-service-results.json')}">${localReport ? 'Current local service report' : 'Saved deployed-service report'}</a></p></section>
 <section aria-labelledby="mutation-heading"><h2 id="mutation-heading">Mutation/error analysis</h2><div class="cards"><div class="card"><span class="value">${errorAnalysis?.total_mutations ?? '—'}</span><span class="muted">mutations</span></div><div class="card"><span class="value pass">${errorAnalysis?.detected_mutations ?? '—'}</span><span class="muted">detected</span></div><div class="card"><span class="value">${errorAnalysis?.missed_mutations ?? '—'}</span><span class="muted">missed</span></div><div class="card"><span class="value pass">${rate}%</span><span class="muted">detection rate</span></div><div class="card"><span class="value pass">${errorGate}</span><span class="muted">mutation gate</span></div></div><p><a href="${route('/evals/error-analysis.json')}">Saved error-analysis report</a></p></section>
+<section aria-labelledby="w2-heading"><h2 id="w2-heading">W2 regression gate</h2><div class="cards"><div class="card"><span class="value">${w2Gate?.total_cases ?? '—'}</span><span class="muted">cases</span></div><div class="card"><span class="value pass">${w2Passed}</span><span class="muted">passed</span></div><div class="card"><span class="value">${w2Failures}</span><span class="muted">failed</span></div><div class="card"><span class="value pass">${w2GateLabel}</span><span class="muted">blocking gate</span></div></div><p><a href="${route('/evals/w2-baseline.json')}">Current W2 baseline/gate metadata</a></p></section>
 <p class="warn"><strong>Limitations:</strong> these are synthetic fixture and harness results. They demonstrate contract sensitivity and observable behavior; they do not prove clinical safety, OpenEMR authorization parity, provider suitability, or production PHI compliance.</p>
 </main></body></html>`;
 }

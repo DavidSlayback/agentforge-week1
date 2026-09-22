@@ -349,7 +349,7 @@ block the required package by default.
 | W2-04 RAG | Hybrid retrieval/rerank returns source metadata and withholds unsupported evidence | INCONCLUSIVE | Select bounded local/provider adapters and corpus |
 | W2-05 graph | Supervisor routes explicit worker handoffs and produces qualified final state | INCONCLUSIVE | Implement Stage 3 state contract |
 | W2-07 eval gate | 50 cases, expected behavior, boolean rubrics, explicit judge config, 95% thresholds, >5-point regression failure, injected defect blocked | INCONCLUSIVE | Local gate and mutation proof pass; obtain hosted CI/deployed reviewer readback |
-| W2-08/W2-09 observability | Step latency/tokens/cost/hits/confidence/eval are logged without raw PHI | INCONCLUSIVE | Extend current redacted trace contract |
+| W2-08/W2-09 observability | Step latency/tokens/cost/hits/confidence/eval are logged without raw PHI | INCONCLUSIVE | Local dashboard readback passes; obtain current-candidate external readback |
 | W2-11–W2-13 release package | Named submission artifacts, W2 demo video, cost/latency report, matching GitLab/deployment revisions, external gates, and reviewer-visible proof | INCONCLUSIVE | Defer until early checkpoint and release authority |
 
 ## Quality gates and stop conditions
@@ -481,3 +481,12 @@ no-PHI-in-logs failures, and a five-percentage-point regression limit. The
 baseline passes 50/50; the injected citation defect fails at 7/8 extraction
 cases and exits nonzero. The AgentForge suite passes 94/94. Hosted CI execution
 and deployed reviewer-path readback remain `INCONCLUSIVE`.
+
+### Ticket 10 milestone
+
+Ticket 10 has a local early-checkpoint package accepted with HITL residuals.
+The browser-visible synthetic flow, grounded follow-up, W2 gate card, and
+redacted observability dashboard were read back locally. Setup/run instructions
+and a concise browser runbook are checked in. Current-candidate deployment,
+browser file-selection/upload proof, public URL, and the owner-recorded demo
+remain `NEEDS_HUMAN`/`INCONCLUSIVE`; older deployment evidence is not relabeled.

@@ -11,7 +11,7 @@
 - Mutation and permission boundaries: Local repository changes only. Clinician-
   authored diagnosis/order writeback remains synthetic, explicit, confirmed,
   and provenance-bearing. Deployment/publication requires a separate human gate.
-- Current milestone: `VERIFYING / 09-fifty-case-regression-gate`.
+- Current milestone: `VERIFYING / 10-early-checkpoint-package`.
 - Completed milestones: Planning, grilling, assignment rebaseline, ticket
   decomposition, resource preflight, ticket 01 synthetic implementation and
   verification, ticket 02 synthetic lab evidence, ticket 03 synthetic intake
@@ -36,6 +36,10 @@
   and CI evidence; stop on a failed safety/privacy check or user interruption.
 - Ticket 09 implementation evidence is now present: 50/50 local baseline,
   94/94 AgentForge tests, and an injected-defect run that exits nonzero.
+- Ticket 10 local evidence is present: clean-browser briefing and grounded
+  follow-up, `/evals` W2 card showing 50/50, `/observability` redaction readback,
+  and a checked-in local runbook. Deployment, upload-file browser proof, and
+  demo recording remain owner-gated.
 - Evidence gathered: `git diff --check` passed; 11 local tickets exist under
   `.scratch/agentforge-week2/issues/`; targeted source-document, UI, contract,
   API persistence-failure, lab extraction, citation, and observation-path tests
@@ -44,13 +48,14 @@
 - Gaps and risks: real OpenEMR source/observation persistence/readback, real
   PDF/OCR, browser citation-overlay/source-navigation evidence, and production
   retrieval/provider behavior, browser end-to-end workflow evidence, and
-  dedicated traces for the new evidence/supervisor endpoints, and the live Jev
-  comparison remain INCONCLUSIVE; the next implementation slice is the 50-case
-  regression gate.
+  dedicated traces for the new evidence/supervisor endpoints, live Jev
+  comparison, current-candidate deployment, browser upload interaction, and
+  owner recording remain INCONCLUSIVE; ticket 10 is locally packaged.
 - Stop conditions: User interruption, failed safety/privacy check, repeated
   implementation blocker, missing runtime readback, external authority need,
   or inability to preserve the checkpoint.
 - Exact continuation command or action: Read this file and
-  `docs/agentforge/W2_PLAN.md`, inspect live git state, then begin ticket 09
-  from its first unmet acceptance row. Preserve the ticket 01–07 real-OpenEMR,
-  browser, live-provider, and runtime residuals in every later evidence ledger.
+  `docs/agentforge/W2_PLAN.md`, inspect live git state, then resolve ticket 10
+  HITL residuals or begin ticket 08 only after ticket 09. Preserve the ticket
+  01–10 real-OpenEMR, browser-upload, live-provider, deployment, and runtime
+  residuals in every later evidence ledger.
