@@ -334,6 +334,23 @@ they do not receive new adapters until a second implementation justifies a
 real seam. See `docs/adr/0001-pre-visit-preparation-module.md` and
 `PRE_VISIT_PREPARATION_PLAN.md`.
 
+### Read-only chart and synthetic writeback seam
+
+The service composition now makes two different capabilities explicit. The
+`chartAdapter` is the only collaborator used for patient lookup, allowlisted
+chart retrieval, readiness, and preparation/follow-up evidence. It is either
+the fixture adapter or the live OpenEMR REST adapter, whose chart operations
+remain GET-only. The `writeback` collaborator owns only local synthetic source
+documents, derived observations, and clinician-confirmed action drafts; it is
+not constructed in live OpenEMR mode.
+
+`SimulatedOpenEMRAdapter` remains a compatibility composition for existing
+callers, but the server composition root no longer presents synthetic write
+methods as part of the chart integration seam. This preserves the current
+route and response contracts while making the synthetic/read-only boundary
+structurally visible. See `docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md`
+and `READ_WRITE_SEAM_PLAN.md`.
+
 ## Open decisions and measurements
 
 - Exact OpenEMR module endpoint and menu event wiring.

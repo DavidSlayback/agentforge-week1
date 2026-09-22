@@ -1,8 +1,6 @@
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { authorizeRequest } from './accessContext.js';
-import { SyntheticSourceDocumentStore } from './sourceDocuments.js';
-import { SyntheticObservationStore } from './observations.js';
-import { SyntheticClinicalActionStore } from './clinicalActions.js';
+import { SyntheticWriteback } from './syntheticWriteback.js';
 import fs from 'node:fs/promises';
 
 const REST_PREFIX = '/apis/default/api';
@@ -175,11 +173,9 @@ export class OpenEMRRefreshTokenProvider {
 
 /** Synthetic local fixture implementation of the adapter boundary. */
 export class SimulatedOpenEMRAdapter {
-  constructor({ fixturePath, sourceDocumentStore = new SyntheticSourceDocumentStore(), observationStore = new SyntheticObservationStore(), clinicalActionStore = new SyntheticClinicalActionStore() }) {
+  constructor({ fixturePath, sourceDocumentStore, observationStore, clinicalActionStore } = {}) {
     this.fixture = new FixtureAdapter(fixturePath);
-    this.sourceDocumentStore = sourceDocumentStore;
-    this.observationStore = observationStore;
-    this.clinicalActionStore = clinicalActionStore;
+    this.writeback = new SyntheticWriteback({ sourceDocumentStore, observationStore, clinicalActionStore });
     this.name = 'simulated-openemr';
   }
 
@@ -191,14 +187,14 @@ export class SimulatedOpenEMRAdapter {
   // contacting OpenEMR.
   getCase(patientRef, caseId) { return this.fixture.getCase(patientRef, caseId); }
   retrieve(item) { return this.fixture.retrieve(item); }
-  persistSourceDocument(input) { return this.sourceDocumentStore.persist(input); }
-  getSourceDocument(id, options) { return this.sourceDocumentStore.get(id, options); }
-  listSourceDocuments(patientRef) { return this.sourceDocumentStore.list(patientRef); }
-  persistObservation(input) { return this.observationStore.persist(input); }
-  listObservations(patientRef) { return this.observationStore.list(patientRef); }
-  draftClinicalAction(input) { return this.clinicalActionStore.draft(input); }
-  confirmClinicalAction(id, input) { return this.clinicalActionStore.confirm(id, input); }
-  getClinicalAction(id, options) { return this.clinicalActionStore.get(id, options); }
+  persistSourceDocument(input) { return this.writeback.persistSourceDocument(input); }
+  getSourceDocument(id, options) { return this.writeback.getSourceDocument(id, options); }
+  listSourceDocuments(patientRef) { return this.writeback.listSourceDocuments(patientRef); }
+  persistObservation(input) { return this.writeback.persistObservation(input); }
+  listObservations(patientRef) { return this.writeback.listObservations(patientRef); }
+  draftClinicalAction(input) { return this.writeback.draftClinicalAction(input); }
+  confirmClinicalAction(id, input) { return this.writeback.confirmClinicalAction(id, input); }
+  getClinicalAction(id, options) { return this.writeback.getClinicalAction(id, options); }
   async checkReady() { return this.fixture.checkReady(); }
 }
 

@@ -401,3 +401,21 @@ failure-policy evidence.
 - **Evidence:** `docs/agentforge/PRE_VISIT_PREPARATION_PLAN.md`,
   `agentforge/test/pre-visit-preparation.test.js`, and the full AgentForge
   suite provide the implementation and behavior evidence.
+
+## ADR-021: Separate chart retrieval from synthetic writeback
+
+- **Choice:** Compose `AgentForgeService` from an explicit read-only
+  `chartAdapter` and a separate synthetic-only `writeback` collaborator.
+- **Reason:** A mixed adapter made the read/write capability boundary implicit
+  and required optional-method checks throughout the service. The explicit
+  composition makes live mode structurally unable to receive synthetic
+  persistence methods.
+- **Compatibility:** Keep `SimulatedOpenEMRAdapter` as a composition shim for
+  existing tests and callers; new server composition uses `FixtureAdapter` or
+  `OpenEMRRestAdapter` plus `SyntheticWriteback` only in synthetic mode.
+- **Safety:** Chart retrieval remains GET-only. Source documents, derived
+  observations, and clinician-confirmed action drafts remain local and
+  synthetic; they are never represented as live OpenEMR writeback.
+- **Evidence:** `docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md`,
+  `docs/agentforge/READ_WRITE_SEAM_PLAN.md`, and
+  `agentforge/test/architecture-seams.test.js`.

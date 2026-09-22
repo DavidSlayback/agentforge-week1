@@ -3,7 +3,7 @@ import { authorizeRequest } from './accessContext.js';
 import { coverageGroupForField } from './contracts.js';
 
 export class FixtureAdapter {
-  constructor(path) { this.cases = JSON.parse(fs.readFileSync(path, 'utf8')).cases; }
+  constructor(path) { this.cases = JSON.parse(fs.readFileSync(path, 'utf8')).cases; this.name = 'fixture'; }
   authorize(request, verifiedContext = null, options = {}) { return authorizeRequest({ request, verifiedContext, ...options }); }
   getCase(patientRef, caseId) {
     const found = caseId ? this.cases.find((item) => item.id === caseId) : this.cases.find((item) => item.patient.patient_ref === patientRef);
