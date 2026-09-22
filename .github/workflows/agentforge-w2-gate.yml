@@ -1,0 +1,33 @@
+name: AgentForge W2 Regression Gate
+
+on:
+  push:
+    paths:
+      - 'agentforge/**'
+      - 'docs/agentforge/evidence/W2_BASELINE_REPORT.json'
+      - 'docs/agentforge/W2_EVAL_GATE.md'
+      - '.github/workflows/agentforge-w2-gate.yml'
+  pull_request:
+    paths:
+      - 'agentforge/**'
+      - 'docs/agentforge/evidence/W2_BASELINE_REPORT.json'
+      - 'docs/agentforge/W2_EVAL_GATE.md'
+      - '.github/workflows/agentforge-w2-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  w2-regression-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Run AgentForge tests
+        run: npm test --prefix agentforge
+      - name: Run W2 regression gate
+        run: npm run eval:gate --prefix agentforge

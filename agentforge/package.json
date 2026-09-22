@@ -2,5 +2,5 @@
   "name": "agentforge-service",
   "private": true,
   "type": "module",
-  "scripts": {"test": "node --test test/*.test.js", "start": "node src/server.js"}
+  "scripts": {"test": "node --test test/*.test.js", "start": "node src/server.js", "eval:gate": "node scripts/run-w2-gate.mjs"}
 }

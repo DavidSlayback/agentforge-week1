@@ -348,7 +348,7 @@ block the required package by default.
 | W2-03/W2-06 schemas and citations | Both schemas reject invalid data; every displayed claim has citation and PDF box | INCONCLUSIVE | Define contracts and fixture set |
 | W2-04 RAG | Hybrid retrieval/rerank returns source metadata and withholds unsupported evidence | INCONCLUSIVE | Select bounded local/provider adapters and corpus |
 | W2-05 graph | Supervisor routes explicit worker handoffs and produces qualified final state | INCONCLUSIVE | Implement Stage 3 state contract |
-| W2-07 eval gate | 50 cases, expected behavior, boolean rubrics, explicit judge config, 95% thresholds, >5-point regression failure, injected defect blocked | INCONCLUSIVE | Define baseline, judge config, mutation cases, and versioned CI invocation |
+| W2-07 eval gate | 50 cases, expected behavior, boolean rubrics, explicit judge config, 95% thresholds, >5-point regression failure, injected defect blocked | INCONCLUSIVE | Local gate and mutation proof pass; obtain hosted CI/deployed reviewer readback |
 | W2-08/W2-09 observability | Step latency/tokens/cost/hits/confidence/eval are logged without raw PHI | INCONCLUSIVE | Extend current redacted trace contract |
 | W2-11–W2-13 release package | Named submission artifacts, W2 demo video, cost/latency report, matching GitLab/deployment revisions, external gates, and reviewer-visible proof | INCONCLUSIVE | Defer until early checkpoint and release authority |
 
@@ -470,3 +470,14 @@ and applies a local safety guard to typed Jev output. The Jev lane remains
 optional and the deterministic lane remains runnable when the provider is not
 configured. The full suite passes 89/89. A live Jev run and a fair costed
 standard-supervisor comparator remain `INCONCLUSIVE`; no promotion is made.
+
+### Ticket 09 milestone
+
+Ticket 09 has a local 50-case regression gate accepted with a CI/runtime
+residual. The versioned synthetic corpus covers extraction, retrieval,
+citations, refusal, missing data, follow-up grounding, and safety/privacy. The
+gate applies a 95% per-rubric threshold, zero tolerance for critical safety or
+no-PHI-in-logs failures, and a five-percentage-point regression limit. The
+baseline passes 50/50; the injected citation defect fails at 7/8 extraction
+cases and exits nonzero. The AgentForge suite passes 94/94. Hosted CI execution
+and deployed reviewer-path readback remain `INCONCLUSIVE`.

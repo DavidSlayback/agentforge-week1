@@ -11,7 +11,7 @@
 - Mutation and permission boundaries: Local repository changes only. Clinician-
   authored diagnosis/order writeback remains synthetic, explicit, confirmed,
   and provenance-bearing. Deployment/publication requires a separate human gate.
-- Current milestone: `PAUSED AFTER 07 / 09-fifty-case-regression-gate READY`.
+- Current milestone: `VERIFYING / 09-fifty-case-regression-gate`.
 - Completed milestones: Planning, grilling, assignment rebaseline, ticket
   decomposition, resource preflight, ticket 01 synthetic implementation and
   verification, ticket 02 synthetic lab evidence, ticket 03 synthetic intake
@@ -30,10 +30,16 @@
   was made in this slice because `JEV_API_KEY` was absent from the process
   environment; any later Jev call must remain synthetic-only and redacted.
 - Current resource state: Preflight passed on the Windows workspace.
+- Active transition: `QUEUED -> IMPLEMENTING` for ticket 09. Entry evidence is
+  the completed ticket 07 checkpoint and the ticket 09 acceptance rows. Exit
+  condition is a checked-in 50-case gate with baseline, threshold, regression,
+  and CI evidence; stop on a failed safety/privacy check or user interruption.
+- Ticket 09 implementation evidence is now present: 50/50 local baseline,
+  94/94 AgentForge tests, and an injected-defect run that exits nonzero.
 - Evidence gathered: `git diff --check` passed; 11 local tickets exist under
   `.scratch/agentforge-week2/issues/`; targeted source-document, UI, contract,
   API persistence-failure, lab extraction, citation, and observation-path tests
-  pass; full AgentForge suite passes 89/89; changed JavaScript syntax checks
+  pass; full AgentForge suite passes 94/94; changed JavaScript syntax checks
   pass.
 - Gaps and risks: real OpenEMR source/observation persistence/readback, real
   PDF/OCR, browser citation-overlay/source-navigation evidence, and production
