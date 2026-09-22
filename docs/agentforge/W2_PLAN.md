@@ -344,7 +344,7 @@ block the required package by default.
 
 | Requirement group | Acceptance proof | Status | Next action |
 | --- | --- | --- | --- |
-| W2-02/W2-10 writeback | Source document and derived observation persist, re-read, deduplicate, and retain provenance in synthetic OpenEMR | INCONCLUSIVE | Freeze writeback contract; implement Stage 0–1 tests |
+| W2-02/W2-10 writeback | Source document, derived observation, and the optional clinician-confirmed action lane persist, re-read, deduplicate, and retain provenance in synthetic OpenEMR | INCONCLUSIVE | Local synthetic action proof passes; obtain real OpenEMR persistence/readback evidence |
 | W2-03/W2-06 schemas and citations | Both schemas reject invalid data; every displayed claim has citation and PDF box | INCONCLUSIVE | Define contracts and fixture set |
 | W2-04 RAG | Hybrid retrieval/rerank returns source metadata and withholds unsupported evidence | INCONCLUSIVE | Select bounded local/provider adapters and corpus |
 | W2-05 graph | Supervisor routes explicit worker handoffs and produces qualified final state | INCONCLUSIVE | Implement Stage 3 state contract |
@@ -490,3 +490,15 @@ redacted observability dashboard were read back locally. Setup/run instructions
 and a concise browser runbook are checked in. Current-candidate deployment,
 browser file-selection/upload proof, public URL, and the owner-recorded demo
 remain `NEEDS_HUMAN`/`INCONCLUSIVE`; older deployment evidence is not relabeled.
+
+### Ticket 08 milestone
+
+Ticket 08 has a synthetic clinician-confirmed action slice accepted with a live
+OpenEMR residual. Diagnosis and order instructions produce reviewable drafts
+under a distinct `write-clinical-action` scope; only an explicit clinician
+confirmation creates a synthetic action, with idempotent retry, cancellation,
+wrong-patient isolation, authorship, source instruction, timestamp, and
+provenance readback. Agent-originated instructions and live-mode writeback are
+blocked. The full AgentForge suite passes 99/99 and the W2 gate passes 50/50.
+Real OpenEMR diagnosis/order persistence and clinician-session readback remain
+`INCONCLUSIVE`.

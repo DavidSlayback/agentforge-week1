@@ -224,6 +224,56 @@ export function validateSourceDocumentRequest(value) {
   return { valid: issues.length === 0, issues };
 }
 
+const CLINICAL_ACTION_TYPES = new Set(['diagnosis', 'order']);
+
+export function validateClinicalActionDraftRequest(value) {
+  const issues = [];
+  const allowed = ['patient_uuid', 'clinician_uuid', 'demo_token', 'action_type', 'instruction', 'instruction_source'];
+  if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
+  unknownFields(issues, value, allowed);
+  requiredFields(issues, value, allowed);
+  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'instruction', 'instruction_source']) nonEmptyString(issues, value, field);
+  if (!CLINICAL_ACTION_TYPES.has(value.action_type)) issues.push('action_type_invalid');
+  if (value.instruction_source !== 'clinician') issues.push('instruction_source_must_be_clinician');
+  return { valid: issues.length === 0, issues };
+}
+
+export function validateClinicalActionConfirmationRequest(value) {
+  const issues = [];
+  const allowed = ['patient_uuid', 'clinician_uuid', 'demo_token', 'action_type', 'instruction', 'instruction_source', 'confirmation_event'];
+  if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
+  unknownFields(issues, value, allowed);
+  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'action_type', 'instruction', 'instruction_source']) nonEmptyString(issues, value, field);
+  if (!CLINICAL_ACTION_TYPES.has(value.action_type)) issues.push('action_type_invalid');
+  if (value.instruction_source !== 'clinician') issues.push('instruction_source_must_be_clinician');
+  if (!isRecord(value.confirmation_event)) issues.push('confirmation_event_must_be_object');
+  else {
+    if (typeof value.confirmation_event.confirmed !== 'boolean') issues.push('confirmation_event_confirmed_must_be_boolean');
+    nonEmptyString(issues, value.confirmation_event, 'event_id');
+    if (value.confirmation_event.actor !== 'clinician') issues.push('confirmation_event_actor_must_be_clinician');
+  }
+  return { valid: issues.length === 0, issues };
+}
+
+export function validateClinicalActionResponse(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
+  unknownFields(issues, value, ['status', 'synthetic_only', 'duplicate', 'action', 'cancellation_event_id']);
+  if (!['drafted', 'confirmed', 'cancelled', 'read'].includes(value.status)) issues.push('status_invalid');
+  if (value.synthetic_only !== true) issues.push('synthetic_only_is_required');
+  if (typeof value.duplicate !== 'boolean' && value.status !== 'read' && value.status !== 'cancelled') issues.push('duplicate_must_be_boolean');
+  if (value.status === 'cancelled') {
+    if (value.action !== null) issues.push('cancelled_action_must_be_null');
+  } else if (!isRecord(value.action)) {
+    issues.push('action_must_be_object');
+  } else {
+    for (const field of ['id', 'status', 'action_type', 'patient_ref', 'clinician_uuid', 'source_instruction', 'instruction_source', 'provenance']) nonEmptyString(issues, value.action, field);
+    if (!CLINICAL_ACTION_TYPES.has(value.action.action_type)) issues.push('action.action_type_invalid');
+    if (!isRecord(value.action.resource)) issues.push('action.resource_must_be_object');
+  }
+  return { valid: issues.length === 0, issues };
+}
+
 export function validateLabEvidenceResponse(value) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };

@@ -4,9 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DashScopeMultimodalProvider, DeterministicProvider, OpenAICompatibleProvider, OpenAIResponsesProvider, ResilientProvider } from './modelProvider.js';
 import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, SimulatedOpenEMRAdapter } from './openemrAdapter.js';
+import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
-import { validateBriefingResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest, validateSupervisorResponse } from './contracts.js';
+import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest, validateSupervisorResponse } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
@@ -52,7 +53,10 @@ const openEMRTokenProvider = liveOpenEMR && process.env.AGENTFORGE_OPENEMR_CLIEN
 const syntheticSourceDocumentStore = process.env.AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE === 'true'
   ? { persist() { throw Object.assign(new Error('SOURCE_DOCUMENT_PERSISTENCE_FAILED'), { code: 'SOURCE_DOCUMENT_PERSISTENCE_FAILED' }); } }
   : undefined;
-const adapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new SimulatedOpenEMRAdapter({ fixturePath: process.env.AGENTFORGE_FIXTURES || defaultFixturePath(), ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}) });
+const syntheticClinicalActionStore = process.env.AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE === 'true'
+  ? new SyntheticClinicalActionStore({ persist() { throw Object.assign(new Error('CLINICAL_ACTION_PERSISTENCE_FAILED'), { code: 'CLINICAL_ACTION_PERSISTENCE_FAILED' }); } })
+  : undefined;
+const adapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new SimulatedOpenEMRAdapter({ fixturePath: process.env.AGENTFORGE_FIXTURES || defaultFixturePath(), ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}), ...(syntheticClinicalActionStore ? { clinicalActionStore: syntheticClinicalActionStore } : {}) });
 const hasExternalProvider = [provider, conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
 const liveExternalProviderAllowed = !liveOpenEMR || !hasExternalProvider || process.env.AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED === 'true';
 // FileTraceSink redacts before persistence and listing; these endpoints expose
@@ -96,10 +100,18 @@ const invalidResponse = (res, error, issues) => json(res, 500, { error, issues }
 const tokenPayload = (token) => verifySignedContext(token, process.env.AGENTFORGE_DEMO_SECRET);
 const verifiedContextFor = (body) => tokenPayload(body.demo_token);
 const syntheticWritebackEnabled = () => adapter.name === 'simulated-openemr' && typeof adapter.persistSourceDocument === 'function';
+const syntheticClinicalActionWritebackEnabled = () => adapter.name === 'simulated-openemr' && typeof adapter.draftClinicalAction === 'function' && typeof adapter.confirmClinicalAction === 'function';
 const sourceDocumentErrorStatus = (error) => {
   const code = error.code || error.message;
   const contractCodes = new Set(['SOURCE_DOCUMENT_PATIENT_REQUIRED', 'SOURCE_DOCUMENT_TYPE_INVALID', 'SOURCE_DOCUMENT_FILENAME_REQUIRED', 'SOURCE_DOCUMENT_FILENAME_INVALID', 'SOURCE_DOCUMENT_CONTENT_INVALID', 'SOURCE_DOCUMENT_UPLOADER_REQUIRED']);
   return code === 'SOURCE_DOCUMENT_TOO_LARGE' ? 413 : code === 'DOCUMENT_NOT_FOUND' ? 404 : code === 'DOCUMENT_SCOPE_MISMATCH' ? 403 : ['SOURCE_DOCUMENT_TYPE_MISMATCH'].includes(code) || contractCodes.has(code) ? 400 : 500;
+};
+const clinicalActionErrorStatus = (error) => {
+  const code = error.code || error.message;
+  if (['CLINICAL_ACTION_DRAFT_NOT_FOUND', 'CLINICAL_ACTION_NOT_FOUND'].includes(code)) return 404;
+  if (code === 'CLINICAL_ACTION_SCOPE_MISMATCH') return 403;
+  if (['CLINICAL_ACTION_PATIENT_REQUIRED', 'CLINICAL_ACTION_CLINICIAN_REQUIRED', 'CLINICAL_ACTION_INSTRUCTION_REQUIRED', 'CLINICAL_ACTION_INSTRUCTION_TOO_LONG', 'CLINICAL_ACTION_TYPE_INVALID', 'CLINICAL_ACTION_INSTRUCTION_SOURCE_INVALID', 'CLINICAL_ACTION_CONFIRMATION_REQUIRED', 'CLINICAL_ACTION_EVENT_ID_REQUIRED', 'CLINICAL_ACTION_ACTOR_INVALID'].includes(code)) return 400;
+  return 500;
 };
 // The source-document contract accepts up to 5 MiB of decoded bytes. JSON
 // base64 encoding needs headroom above that limit before source validation.
@@ -139,6 +151,14 @@ const server = http.createServer(async (req, res) => {
       if (!patient || (!/^fixture-patient-\d{3}$/.test(patient) && patient !== 'fixture-patient-dup')) return json(res, 400, { error: 'invalid_synthetic_patient' });
       const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', secret: process.env.AGENTFORGE_DEMO_SECRET });
       return json(res, 200, { demo_token: token, patient_uuid: patient, clinician_uuid: 'fixture-physician-001', expires_in_seconds: 300, synthetic_only: true, scope: 'write-source-document' });
+    }
+    if (req.method === 'GET' && req.url.startsWith('/v1/clinical-action-context')) {
+      if (liveOpenEMR) return json(res, 403, { error: 'synthetic_writeback_only' });
+      if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });
+      const patient = new URL(req.url, 'http://localhost').searchParams.get('patient_uuid');
+      if (!patient || (!/^fixture-patient-\d{3}$/.test(patient) && patient !== 'fixture-patient-dup')) return json(res, 400, { error: 'invalid_synthetic_patient' });
+      const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-clinical-action', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', secret: process.env.AGENTFORGE_DEMO_SECRET });
+      return json(res, 200, { demo_token: token, patient_uuid: patient, clinician_uuid: 'fixture-physician-001', expires_in_seconds: 300, synthetic_only: true, scope: 'write-clinical-action' });
     }
     if (req.method === 'GET' && req.url === '/evals/deployed-service-results.json') return json(res, 200, readEvidence('deployed-service-results.json'));
     if (req.method === 'GET' && req.url === '/evals/error-analysis.json') return json(res, 200, readEvidence('error-analysis.json'));
@@ -200,6 +220,21 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (req.method === 'GET' && (req.url === '/observability' || req.url === '/observability/')) return html(res, renderObservabilityPage());
+    const clinicalActionMatch = req.url.match(/^\/v1\/clinical-actions\/([^?]+)(?:\?(.*))?$/);
+    if (req.method === 'GET' && clinicalActionMatch) {
+      if (!syntheticClinicalActionWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      try {
+        const result = service.readClinicalAction(decodeURIComponent(clinicalActionMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+        const response = { synthetic_only: true, status: result.status, action: result.action };
+        const validation = validateClinicalActionResponse(response);
+        return validation.valid ? json(res, 200, response) : invalidResponse(res, 'invalid_clinical_action_response', validation.issues);
+      } catch (error) { return json(res, clinicalActionErrorStatus(error), { error: error.code || error.message }); }
+    }
     if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; return html(res, renderAgentForgePage({ token, payload: tokenPayload(token), publicBasePath, liveOpenEMR })); }
     let body;
     try { body = await readJsonBody(req); } catch (error) { return json(res, error.code === 'REQUEST_BODY_TOO_LARGE' ? 413 : 400, { error: error.code === 'REQUEST_BODY_TOO_LARGE' ? error.code.toLowerCase() : 'invalid_json' }); }
@@ -217,6 +252,35 @@ const server = http.createServer(async (req, res) => {
       } catch (error) {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
+    }
+    if (req.method === 'POST' && req.url === '/v1/clinical-actions/drafts') {
+      if (!syntheticClinicalActionWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const validation = validateClinicalActionDraftRequest(body);
+      if (!validation.valid) return invalidContract(res, 'invalid_clinical_action_draft_request', validation.issues);
+      const token = verifiedContextFor(body);
+      if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      body.clinician_uuid = token.clinician_uuid;
+      try {
+        const result = service.draftClinicalAction(body, { verifiedContext: token });
+        if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+        const validation = validateClinicalActionResponse(result);
+        return validation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_clinical_action_response', validation.issues);
+      } catch (error) { return json(res, clinicalActionErrorStatus(error), { error: error.code || error.message }); }
+    }
+    const clinicalActionConfirmMatch = req.url.match(/^\/v1\/clinical-actions\/([^/]+)\/confirm$/);
+    if (req.method === 'POST' && clinicalActionConfirmMatch) {
+      if (!syntheticClinicalActionWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const validation = validateClinicalActionConfirmationRequest(body);
+      if (!validation.valid) return invalidContract(res, 'invalid_clinical_action_confirmation_request', validation.issues);
+      const token = verifiedContextFor(body);
+      if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      body.clinician_uuid = token.clinician_uuid;
+      try {
+        const result = service.confirmClinicalAction(decodeURIComponent(clinicalActionConfirmMatch[1]), body, { verifiedContext: token });
+        if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+        const validation = validateClinicalActionResponse(result);
+        return validation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_clinical_action_response', validation.issues);
+      } catch (error) { return json(res, clinicalActionErrorStatus(error), { error: error.code || error.message }); }
     }
     if (req.method === 'POST' && req.url === '/v1/briefings') { const validation = validatePrepareRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_prepare_request', validation.issues); const token = verifiedContextFor(body); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.prepare(body, { verifiedContext: token, reusePrepared: true, interactionType: 'background_preparation' }); const responseValidation = validateBriefingResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_briefing_response', responseValidation.issues); }
     if (req.method === 'POST' && req.url === '/v1/prewarm') { if (typeof body.patient_uuid !== 'string' || typeof body.clinician_uuid !== 'string' || typeof body.schedule_revision !== 'string' || !body.schedule_revision.trim()) return invalidContract(res, 'invalid_prewarm_request', ['patient_uuid, clinician_uuid, and schedule_revision are required']); const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = service.prewarm(body, { verifiedContext: token, scheduleRevision: body.schedule_revision, sourceRevision: body.source_revision }); if (result.status === 'blocked') return json(res, 403, { error: result.reason }); if (result.status === 'busy') return json(res, 429, { error: result.reason, status: result.status, synthetic_only: true }); return json(res, 202, { status: result.status, correlation_id: result.correlation_id, duplicate: result.duplicate, synthetic_only: true }); }

@@ -2,6 +2,7 @@ import { FixtureAdapter } from './fixtureAdapter.js';
 import { authorizeRequest } from './accessContext.js';
 import { SyntheticSourceDocumentStore } from './sourceDocuments.js';
 import { SyntheticObservationStore } from './observations.js';
+import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import fs from 'node:fs/promises';
 
 const REST_PREFIX = '/apis/default/api';
@@ -174,10 +175,11 @@ export class OpenEMRRefreshTokenProvider {
 
 /** Synthetic local fixture implementation of the adapter boundary. */
 export class SimulatedOpenEMRAdapter {
-  constructor({ fixturePath, sourceDocumentStore = new SyntheticSourceDocumentStore(), observationStore = new SyntheticObservationStore() }) {
+  constructor({ fixturePath, sourceDocumentStore = new SyntheticSourceDocumentStore(), observationStore = new SyntheticObservationStore(), clinicalActionStore = new SyntheticClinicalActionStore() }) {
     this.fixture = new FixtureAdapter(fixturePath);
     this.sourceDocumentStore = sourceDocumentStore;
     this.observationStore = observationStore;
+    this.clinicalActionStore = clinicalActionStore;
     this.name = 'simulated-openemr';
   }
 
@@ -194,6 +196,9 @@ export class SimulatedOpenEMRAdapter {
   listSourceDocuments(patientRef) { return this.sourceDocumentStore.list(patientRef); }
   persistObservation(input) { return this.observationStore.persist(input); }
   listObservations(patientRef) { return this.observationStore.list(patientRef); }
+  draftClinicalAction(input) { return this.clinicalActionStore.draft(input); }
+  confirmClinicalAction(id, input) { return this.clinicalActionStore.confirm(id, input); }
+  getClinicalAction(id, options) { return this.clinicalActionStore.get(id, options); }
   async checkReady() { return this.fixture.checkReady(); }
 }
 

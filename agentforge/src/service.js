@@ -89,6 +89,36 @@ export class AgentForgeService {
     return { status: 'read', synthetic_only: true, source_document: result.document, content: result.content };
   }
 
+  draftClinicalAction(request, { verifiedContext = null } = {}) {
+    const authorization = this.adapter.authorize
+      ? this.adapter.authorize(request, verifiedContext, { requiredScope: 'write-clinical-action', requiredAcl: 'write' })
+      : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.adapter.draftClinicalAction !== 'function') return { status: 'blocked', reason: 'clinical_action_write_unavailable' };
+    const result = this.adapter.draftClinicalAction({ patientRef: authorization.patient_uuid, clinicianRef: authorization.clinician_uuid, actionType: request.action_type, instruction: request.instruction, instructionSource: request.instruction_source });
+    return { status: 'drafted', synthetic_only: true, duplicate: result.duplicate, action: result.action };
+  }
+
+  confirmClinicalAction(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.adapter.authorize
+      ? this.adapter.authorize(request, verifiedContext, { requiredScope: 'write-clinical-action', requiredAcl: 'write' })
+      : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.adapter.confirmClinicalAction !== 'function') return { status: 'blocked', reason: 'clinical_action_write_unavailable' };
+    const result = this.adapter.confirmClinicalAction(id, { patientRef: authorization.patient_uuid, clinicianRef: authorization.clinician_uuid, confirmationEvent: request.confirmation_event });
+    return { status: result.status, synthetic_only: true, duplicate: result.duplicate, action: result.action, ...(result.cancellation_event_id ? { cancellation_event_id: result.cancellation_event_id } : {}) };
+  }
+
+  readClinicalAction(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.adapter.authorize
+      ? this.adapter.authorize(request, verifiedContext, { requiredScope: 'write-clinical-action', requiredAcl: 'write' })
+      : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.adapter.getClinicalAction !== 'function') return { status: 'blocked', reason: 'clinical_action_read_unavailable' };
+    const result = this.adapter.getClinicalAction(id, { patientRef: authorization.patient_uuid, clinicianRef: authorization.clinician_uuid });
+    return { status: 'read', synthetic_only: true, action: result.action };
+  }
+
   extractLabEvidence(id, request, { verifiedContext = null } = {}) {
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
