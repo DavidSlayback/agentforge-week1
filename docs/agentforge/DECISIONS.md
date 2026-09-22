@@ -381,3 +381,23 @@ failure-policy evidence.
 - **Next integration seam:** A calendar adapter should call the preparation
   service before the scheduled encounter, persist the correlation ID, and open
   the cached briefing when the clinician enters the visit.
+
+## ADR-020: Deepen the pre-visit preparation module behind the facade
+
+- **Choice:** Keep `AgentForgeService` as the stable caller-facing facade and
+  extract preparation, prewarm, prepared-briefing opening, and follow-up into
+  `PreVisitPreparation`.
+- **Ownership:** The deep module owns authorization, retrieval, qualification,
+  synthesis, verification, tracing, deadlines, and cache policy. Source
+  documents, clinical actions, evidence-only retrieval, and supervisor
+  workflow remain outside.
+- **Tradeoff:** The extraction improves locality and gives callers leverage
+  through one preparation interface, while preserving the existing facade and
+  response contracts. Cache and tracing remain injected collaborators without
+  new adapters because this checkpoint has only one implementation of each.
+- **Safety:** No synthesis or cache write follows failed retrieval validation
+  or evidence verification. Qualified partial results and patient/clinician
+  scope checks remain unchanged.
+- **Evidence:** `docs/agentforge/PRE_VISIT_PREPARATION_PLAN.md`,
+  `agentforge/test/pre-visit-preparation.test.js`, and the full AgentForge
+  suite provide the implementation and behavior evidence.

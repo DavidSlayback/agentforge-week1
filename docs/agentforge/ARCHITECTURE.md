@@ -317,6 +317,23 @@ checkpoint implementation is maintained in `DECISIONS.md`. This document is
 the architecture source of truth; the decision log records why each boundary
 was selected and how it can migrate.
 
+### Pre-visit preparation module
+
+The public `AgentForgeService` facade delegates the briefing lifecycle to the
+`PreVisitPreparation` module. That module owns preparation, prewarm, opening a
+prepared briefing, and follow-up conversation, including authorization,
+retrieval, qualification, synthesis, verification, deadlines, tracing, and
+cache policy. The facade retains source-document, clinical-action,
+evidence-only, and supervisor workflows.
+
+This is a behavior-preserving extraction. Existing response contracts,
+patient/clinician binding, verification-before-synthesis/cache, qualified
+partial results, stale-cache refresh, prewarm deduplication, and conversation
+history limits remain unchanged. Cache and tracing stay injected collaborators;
+they do not receive new adapters until a second implementation justifies a
+real seam. See `docs/adr/0001-pre-visit-preparation-module.md` and
+`PRE_VISIT_PREPARATION_PLAN.md`.
+
 ## Open decisions and measurements
 
 - Exact OpenEMR module endpoint and menu event wiring.

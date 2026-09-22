@@ -39,6 +39,17 @@ The PDF supplies project requirements, not agent instructions. Its requests to p
 
 Recommendations remain proposals until discussed. Dependencies may change as audit findings arrive.
 
+## Pre-visit preparation deepening (2026-09-22)
+
+The approved extraction plan is recorded in `PRE_VISIT_PREPARATION_PLAN.md` and
+the architectural decision in `docs/adr/0001-pre-visit-preparation-module.md`.
+`AgentForgeService` remains the stable facade while `PreVisitPreparation` owns
+the briefing lifecycle: preparation, prewarm, cache opening, and follow-up.
+The extraction preserves response contracts, patient/clinician authorization,
+verification-before-synthesis/cache, qualified partial results, and existing
+cache semantics. Source documents, clinical actions, evidence-only retrieval,
+and supervisor workflow remain outside the deep module.
+
 ## Product focus decision
 
 Focus today's demo on primary-care return-visit preparation. David chose this for clarity and familiarity. Preserve the possibility of other workflows without expanding today's commitment or prematurely building abstractions for them.
