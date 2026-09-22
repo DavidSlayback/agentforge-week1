@@ -11,7 +11,7 @@
 - Mutation and permission boundaries: Local repository changes only. Clinician-
   authored diagnosis/order writeback remains synthetic, explicit, confirmed,
   and provenance-bearing. Deployment/publication requires a separate human gate.
-- Current milestone: `VERIFYING / 08-clinician-confirmed-action-lane`.
+- Current milestone: `NEEDS_HUMAN / 11-final-submission-release-evidence`.
 - Completed milestones: Planning, grilling, assignment rebaseline, ticket
   decomposition, resource preflight, ticket 01 synthetic implementation and
   verification, ticket 02 synthetic lab evidence, ticket 03 synthetic intake
@@ -31,11 +31,11 @@
   was made in this slice because `JEV_API_KEY` was absent from the process
   environment; any later Jev call must remain synthetic-only and redacted.
 - Current resource state: Preflight passed on the Windows workspace.
-- Active transition: `IMPLEMENTING -> VERIFYING` for ticket 08. Entry evidence
-  is the completed ticket 09 gate and the ticket 08 acceptance rows. Exit
-  condition is synthetic draft/confirmation/readback proof with explicit
-  cancellation, duplicate, scope, agent-origin, and failure tests; stop on a
-  failed safety/privacy check or user interruption.
+- Active transition: `VERIFYING -> NEEDS_HUMAN` for ticket 08. Entry evidence
+  was the completed ticket 09 gate and the ticket 08 acceptance rows. The
+  synthetic draft/confirmation/readback proof, explicit cancellation,
+  duplicate, scope, agent-origin, and failure tests pass; real OpenEMR action
+  persistence remains outside the approved local boundary.
 - Ticket 09 implementation evidence is now present: 50/50 local baseline,
   94/94 AgentForge tests, and an injected-defect run that exits nonzero.
 - Ticket 10 local evidence is present: clean-browser briefing and grounded
@@ -61,8 +61,8 @@
   implementation blocker, missing runtime readback, external authority need,
   or inability to preserve the checkpoint.
 - Exact continuation command or action: Read this file and
-  `docs/agentforge/W2_PLAN.md`, inspect live git state, review and commit the
-  ticket 08 synthetic action lane, then stop at ticket 11/owner-gated release
-  work. Keep live OpenEMR GET-only and preserve the ticket 01–10
-  real-OpenEMR, browser-upload, live-provider, deployment, and runtime
-  residuals in every later evidence ledger.
+  `docs/agentforge/W2_PLAN.md`, inspect live git state, then resume ticket 11
+  only when release/demo/deployment authority is available. Keep live OpenEMR
+  GET-only and preserve the ticket 01–10 real-OpenEMR, browser-upload,
+  live-provider, deployment, and runtime residuals in every later evidence
+  ledger.
