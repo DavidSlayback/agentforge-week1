@@ -50,6 +50,26 @@ synthetic writeback collaborator.
 - Remove the compatibility facade immediately: rejected because it would
   widen the change surface without improving the current runtime contract.
 
+## Tradeoffs and limitations
+
+- The compatibility `SimulatedOpenEMRAdapter` still exposes delegated methods,
+  so existing callers do not break; the stronger separation is enforced at
+  the server composition root and the new service constructor boundary.
+- `SyntheticWriteback` remains one cohesive local collaborator rather than
+  splitting every document, observation, and action store into separate
+  services. That keeps the current scope small while leaving the next split
+  available if a second persistence implementation appears.
+- This is an architecture boundary, not a claim of live clinical writeback,
+  PHI readiness, or production compliance.
+
+## Migration path
+
+New integrations should construct `AgentForgeService` with explicit
+`chartAdapter` and `writeback` collaborators. Live OpenEMR mode supplies only
+the read-only chart adapter. If a future approved persistence system exists,
+it must implement a separately reviewed writeback contract and must not be
+silently substituted into the live chart adapter.
+
 ## Evidence
 
 - `agentforge/src/syntheticWriteback.js`

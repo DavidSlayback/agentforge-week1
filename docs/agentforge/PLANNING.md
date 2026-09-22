@@ -50,6 +50,26 @@ verification-before-synthesis/cache, qualified partial results, and existing
 cache semantics. Source documents, clinical actions, evidence-only retrieval,
 and supervisor workflow remain outside the deep module.
 
+## Read-only chart and synthetic writeback split (2026-09-22)
+
+The follow-on architecture decision is recorded in
+`docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md` and
+planned in `READ_WRITE_SEAM_PLAN.md`. `AgentForgeService` remains the stable
+facade, while preparation and follow-up evidence use an explicit read-only
+`chartAdapter`. Synthetic source documents, derived observations, and
+clinician-confirmed action drafts use a separate `writeback` collaborator.
+
+The server composition creates `FixtureAdapter` plus `SyntheticWriteback` in
+synthetic mode, and `OpenEMRRestAdapter` with no writeback collaborator in live
+mode. `SimulatedOpenEMRAdapter` remains only as a compatibility composition
+for existing callers. The split preserves routes, response contracts,
+authorization, and the live GET-only boundary.
+
+Completion evidence: commit `aaff288`, 103/103 tests, remote image build,
+healthy container, and external HTTPS/API verification at the deployed
+synthetic endpoint. The change is included in PR #75 and remains subject to
+the repository's synthetic-only and no-PHI boundary.
+
 ## Product focus decision
 
 Focus today's demo on primary-care return-visit preparation. David chose this for clarity and familiarity. Preserve the possibility of other workflows without expanding today's commitment or prematurely building abstractions for them.

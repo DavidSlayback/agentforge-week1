@@ -67,6 +67,8 @@ Stop and report `INCONCLUSIVE` if the extraction requires changing response cont
   verification-before-synthesis/cache, stale refresh, prewarm bounds, and
   synthetic/read-only policy.
 - **Remaining risk:** No external deployment or provider behavior was changed
-  or claimed. The pre-existing scratch-file edit remains untouched.
-- **Next action:** Review the scoped diff; no push, PR, or deployment was
-  requested or performed.
+  or claimed by the first extraction. The pre-existing scratch-file edit
+  remains untouched.
+- **Follow-on:** The read-only chart versus synthetic writeback boundary is
+  documented in `docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md`
+  and `READ_WRITE_SEAM_PLAN.md`, and is included in the same reviewed PR.
