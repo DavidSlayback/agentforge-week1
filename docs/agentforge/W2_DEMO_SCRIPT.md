@@ -4,6 +4,11 @@ Target: 3–4 minutes, recorded from the deployed browser page. Use only the
 synthetic sample. Provider selection and recording are still open; this script
 describes the deployed candidate and does not claim VLM extraction.
 
+> **Hold the recording if filled-form reading is a required demo claim.** The
+> current button exercises a tagged synthetic text fixture. It does not upload
+> or read a filled PDF. This script is for the existing worker workflow only
+> until the PDF OCR/VLM path is implemented and measured.
+
 ## Before recording
 
 - Open <https://dtstest.64.177.10.182.nip.io/agentforge-w2/> in the browser.

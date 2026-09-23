@@ -10,6 +10,22 @@ Turn the current brownfield AgentForge implementation into an assignment-credibl
 
 The target remains synthetic-only and evidence-bounded. The system may demonstrate clinician-confirmed synthetic action seams, but it must not claim PHI handling, production clinical use, autonomous diagnosis/order generation, or live clinical writeback.
 
+## Filled-PDF acceptance correction — 2026-09-23
+
+The owner clarified that the demo must read **filled forms**. A source link to a
+blank PDF and a tagged `.txt` fixture do not satisfy this requirement. The
+first acceptable browser path must upload a PDF containing synthetic filled
+values, read its actual page content, return extracted values with page/region
+citations and uncertainty, and show the worker handoffs. Keep completed
+personal/clinical records out of the public synthetic demo. Begin with local
+OCR/VLM and synthetic overlays; no hosted provider is selected or implied.
+
+The exact form set is being confirmed. Until then, keep the current FDA 3500
+and CDC 50.34 source links as references and investigate a provider-neutral
+PDF ingestion path. Promotion requires a typed-field benchmark on filled PDFs,
+including missing/unreadable/conflicting cases; raw OCR text alone is not a
+successful extraction result.
+
 ## Current state
 
 The repository already contains substantial local slices:
