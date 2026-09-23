@@ -4,6 +4,9 @@ Updated 2026-09-23. The current synthetic PDF candidate is deployed and
 externally checked. Provider selection, demo recording, and final submission
 remain open.
 
+For the stage-by-stage requirement table, see
+[`W2_REQUIREMENTS_BY_STAGE.md`](W2_REQUIREMENTS_BY_STAGE.md).
+
 ## Candidate identity
 
 - Staging branch: `davidslayback/w2-synthetic-scan-release`

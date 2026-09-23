@@ -3,6 +3,9 @@
 Status as of 2026-09-23: **synthetic PDF workflow is deployed and externally
 verified; provider choice and demo recording remain open.**
 
+Use [`W2_REQUIREMENTS_BY_STAGE.md`](W2_REQUIREMENTS_BY_STAGE.md) for the compact
+early-versus-final assignment checklist and current gaps.
+
 ## Implemented and verified
 
 - The assignment's two document types are supported: lab-result PDFs and
