@@ -73,5 +73,6 @@ a general binary-PDF, OCR, or VLM extraction system.
 - [Retrieval benchmark](W2_RETRIEVAL_BENCHMARK.md)
 - [Provider and managed-VLM decision frontier](HUMAN_DECISION_OPTIONS.md)
 - [Official blank form sources and status](W2_EXTERNAL_FORM_SOURCES.md)
+- [W2 browser demo recording script](W2_DEMO_SCRIPT.md)
 - [Early checkpoint package](W2_EARLY_CHECKPOINT.md)
 - [Gap-closure plan and evidence reconciliation](W2_GAP_CLOSURE_EXECUTION_PLAN.md)
