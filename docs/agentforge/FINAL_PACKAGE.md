@@ -20,8 +20,8 @@ and its container identity was unchanged during this W2 redeployment.
 | --- | --- | --- |
 | Synthetic scan-form contracts, extraction worker, evidence worker, supervisor, source preview | Local tests plus current-candidate public API workflow | 125/125 tests; complete 2-field fixture externally exercised |
 | Browser scan demo | One-tap included synthetic fixture; visible scan/evidence handoffs; source preview | Page/controls inspected; public API workflow passes; browser button and phone recording remain to verify |
-| Real blank form examples | Official FDA 3500 and CDC 50.34 source links | Links only; no PDF upload/OCR. CDC form is legacy and application retires October 30, 2026. |
-| Filled-form reading | Owner requirement added 2026-09-23 | **Not implemented.** Current sample is tagged text, not a filled PDF; do not present it as filled-form extraction. |
+| Real blank form examples | Official FDA 3500 and CDC 50.34 source links | Reference links only; current OCR has not been benchmarked on these layouts. CDC form is legacy and application retires October 30, 2026. |
+| Filled-form reading | Local synthetic PDF OCR slice added 2026-09-23 | **Partial, local only.** Tested on one vector-rendered intake PDF; two lab fields and three intake fields supported. Full assignment schemas, varied scanned layouts, and deployment proof remain open. |
 | W2 regression gate | Current candidate | 50/50; injected-defect and baseline checks pass |
 | Landing page, health, readiness, evaluator | Current public HTTPS route | HTTP 200; readiness dependencies ready |
 | Tesseract localization | 50/53 labels recognized; 32/53 in expected regions | Local baseline; localization needs improvement |
@@ -42,23 +42,23 @@ bundled in the release archive.
 1. Open the exact HTTPS URL above. A verified external HTTPS client received
    valid TLS, health and readiness returned 200, and readiness dependencies
    reported ready. Repeat the workflow in the intended browser before recording.
-2. The included “Try the synthetic lab scan sample” button uses tagged synthetic
-   text and does not satisfy the filled-form requirement. Do not present it as
-   PDF reading. The intended filled-PDF path is not implemented yet.
+2. PDF upload and local OCR are implemented in this branch but have not yet
+   been deployed. Hold the recording until the deployed route is verified and
+   the assignment's required fields are supported.
 3. Use the “Try the synthetic lab scan sample” button only to show the currently
    deployed synthetic worker workflow. Inspect the visible scan
    and evidence worker handoffs, `READY` state, and source preview with page and
    region citations. The deployed page loads; API path is externally verified,
    while the button interaction and phone-browser recording remain open.
-4. Use the official blank PDF links only to inspect real layouts. The app accepts
-   the included synthetic text fixture; it does not parse these PDFs.
+4. Use official blank PDFs only to inspect layouts. They have not been
+   processed or benchmarked. The recording must use the synthetic fixtures.
 5. Open `/evals` and `/observability`; both public pages returned 200. The W2
    evaluator shows the current 50-case result.
 6. Record 3–5 minutes from the browser tab, then verify playback and the key
    upload, citation, evaluation, and observability moments.
 
-The local fixture parser handles controlled synthetic text fixtures. It is not
-a general binary-PDF, OCR, or VLM extraction system.
+The local Docker image now rasterizes PDFs with Poppler and runs Tesseract. It
+has not been tested on scanned pages or promoted as a VLM system.
 
 ## Submission decisions and remaining work
 

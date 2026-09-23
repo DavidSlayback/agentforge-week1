@@ -20,11 +20,28 @@ citations and uncertainty, and show the worker handoffs. Keep completed
 personal/clinical records out of the public synthetic demo. Begin with local
 OCR/VLM and synthetic overlays; no hosted provider is selected or implied.
 
-The exact form set is being confirmed. Until then, keep the current FDA 3500
-and CDC 50.34 source links as references and investigate a provider-neutral
-PDF ingestion path. Promotion requires a typed-field benchmark on filled PDFs,
-including missing/unreadable/conflicting cases; raw OCR text alone is not a
-successful extraction result.
+The owner confirmed the assignment's two types: lab-result PDFs and patient
+intake forms. Provider-neutral local OCR is now wired for uploaded PDFs. The
+first implementation recognizes two lab values and three intake fields, so it
+is a vertical slice, not the assignment's full minimum schema. It must still
+add the required lab metadata and intake demographics/family history, and be
+measured across multiple scanned layouts and missing/unreadable/conflict cases.
+The user has not selected a final or early-submission provider; no hosted model
+is called by this slice.
+
+## Local filled-PDF slice — 2026-09-23
+
+- Browser accepts synthetic filled PDFs for both assignment types.
+- The service validates the PDF signature, caps processing at six pages,
+  rasterizes at 200 DPI, runs local Tesseract, and builds page-region
+  citations from OCR coordinates. Temporary raster files are removed.
+- A Docker smoke test on the synthetic intake-layout-A PDF read its three
+  supported fields and returned page 1 boxes. This is a vector-rendered local
+  fixture, not a scanned-document accuracy benchmark or deployed proof.
+- Docker now includes Poppler utilities and English Tesseract data. Re-run the
+  W2 regression gate, benchmark real scanned synthetic pages, complete the
+  assignment field schema, and verify the public deployed route before using
+  this in the recording.
 
 ## Current state
 

@@ -4,10 +4,9 @@ Target: 3–4 minutes, recorded from the deployed browser page. Use only the
 synthetic sample. Provider selection and recording are still open; this script
 describes the deployed candidate and does not claim VLM extraction.
 
-> **Hold the recording if filled-form reading is a required demo claim.** The
-> current button exercises a tagged synthetic text fixture. It does not upload
-> or read a filled PDF. This script is for the existing worker workflow only
-> until the PDF OCR/VLM path is implemented and measured.
+> **Hold the recording for now.** This branch has a local PDF OCR slice, but it
+> is not deployed and supports only a few assignment fields. Complete the
+> schema, scanned-layout benchmark, and deployment verification first.
 
 ## Before recording
 
@@ -39,9 +38,9 @@ fields. The extraction worker identifies those fields and their page regions;
 the evidence worker then checks whether supporting evidence is available.
 
 The page shows the worker handoffs and the final workflow state. In the preview,
-each accepted value points back to its source and region. This is a controlled
-text fixture that represents a scan layout. The deployed demo does not perform
-general PDF OCR or VLM extraction.”
+each accepted value points back to its source and region. The local PDF path
+uses Tesseract and supports only a small field set; this is not a VLM accuracy
+claim.”
 
 ## 1:35–2:05 — Official source examples
 

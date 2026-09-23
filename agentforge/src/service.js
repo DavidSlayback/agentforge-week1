@@ -6,6 +6,7 @@ import { extractIntakeEvidence } from './intakeEvidence.js';
 import { retrieveGuidelineEvidence } from './guidelineEvidence.js';
 import { executeSupervisorWorkflow, runActiveSupervisor } from './supervisor.js';
 import { extractScanForm } from './scanFormAdapter.js';
+import { extractPdfScanFixture } from './pdfScanAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
@@ -106,23 +107,32 @@ export class AgentForgeService {
     return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
   }
 
-  extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
+  async extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
-    const contentText = source.content.toString('utf8');
+    const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
+    const prepared = pdf ? await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type }) : { content: source.content, pageCount: 1 };
+    const content = prepared.content;
+    const contentText = content.toString('utf8');
     const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
     const pageCountMatch = contentText.match(/page_count=(\d+)/);
-    const extraction = extractScanForm({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || 'unknown', pageCount: Number(pageCountMatch?.[1] || 1), content: source.content });
-    return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations: [] };
+    const extraction = extractScanForm({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content });
+    if (pdf) extraction.provider = prepared.provider;
+    return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations: [], ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
   }
 
-  runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
+  async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
-    const contentText = source.content.toString('utf8');
+    const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
+    const prepared = pdf ? await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type }) : { content: source.content, pageCount: 1 };
+    const content = prepared.content;
+    const contentText = content.toString('utf8');
     const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
     const pageCountMatch = contentText.match(/page_count=(\d+)/);
-    return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow: runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || 'unknown', pageCount: Number(pageCountMatch?.[1] || 1), content: source.content, query }) };
+    const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query });
+    if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
+    return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
   }
 
   async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {

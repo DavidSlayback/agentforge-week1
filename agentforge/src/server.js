@@ -227,7 +227,7 @@ const server = http.createServer(async (req, res) => {
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       try {
-        const result = service.extractScanFormEvidence(decodeURIComponent(scanFormEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.extractScanFormEvidence(decodeURIComponent(scanFormEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
         if (result.status === 'blocked') return json(res, 403, { error: result.reason });
         if (result.status === 'failed') return json(res, 500, { error: result.reason });
         const sourcePreview = result.extraction.facts.map((fact) => ({ field_id: fact.field_id, page: fact.citation.page, bounding_box: fact.citation.bounding_box, quote: fact.citation.quote, source_document_id: fact.citation.source_document_id }));
@@ -244,7 +244,7 @@ const server = http.createServer(async (req, res) => {
       const patient_uuid = query.get('patient_uuid') || '';
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      const result = service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+      const result = await service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       if (result.status === 'failed') return json(res, 500, { error: result.reason });
       return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath }));
@@ -304,7 +304,7 @@ const server = http.createServer(async (req, res) => {
       if (!validation.valid) return invalidContract(res, 'invalid_scan_supervisor_request', validation.issues);
       const token = verifiedContextFor(body);
       if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      const result = service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message });
+      const result = await service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       return json(res, 200, result);
     }

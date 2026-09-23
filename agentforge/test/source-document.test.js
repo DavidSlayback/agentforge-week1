@@ -103,7 +103,8 @@ test('AgentForge UI exposes the two synthetic source-document types and upload r
   assert.match(page, /\/v1\/source-documents/);
   assert.match(page, /Try the synthetic lab scan sample/);
   assert.match(page, /https:\/\/www\.fda\.gov\/media\/76299\/download/);
-  assert.match(page, /PDF OCR is not enabled/);
+  assert.match(page, /Upload a synthetic filled lab PDF or intake form/);
+  assert.match(page, /Local OCR returns cited page regions/);
 });
 
 test('synthetic scan demo fixture route serves only the tracked sample with an explicit synthetic marker', async () => {
