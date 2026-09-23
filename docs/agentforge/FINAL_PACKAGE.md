@@ -19,6 +19,8 @@ and its container identity was unchanged during this W2 redeployment.
 | Area | Evidence | Status |
 | --- | --- | --- |
 | Synthetic scan-form contracts, extraction worker, evidence worker, supervisor, source preview | Local tests plus current-candidate public API workflow | 124/124 tests; complete 2-field fixture externally exercised |
+| Browser scan demo | One-tap included synthetic fixture; visible scan/evidence handoffs; source preview | To verify on this candidate after redeploy |
+| Real blank form examples | Official FDA 3500 and CDC 50.34 source links | Links only; no PDF upload/OCR. CDC form is legacy and application retires October 30, 2026. |
 | W2 regression gate | Current candidate | 50/50; injected-defect and baseline checks pass |
 | Landing page, health, readiness, evaluator | Current public HTTPS route | HTTP 200; readiness dependencies ready |
 | Tesseract localization | 50/53 labels recognized; 32/53 in expected regions | Local baseline; localization needs improvement |
@@ -38,14 +40,11 @@ Third-party blank form PDFs and model weights are not in the release archive.
 1. Open the exact HTTPS URL above. A verified external HTTPS client received
    valid TLS, health and readiness returned 200, and readiness dependencies
    reported ready. Repeat the workflow in the intended browser before recording.
-2. Use only synthetic inputs. Upload a supported synthetic fixture, open its
-   source preview, and inspect status, field values, and page/region citations.
-   The public API workflow passed; manual browser file selection remains open.
-3. `/v1/scan-supervisor` returns extraction and evidence worker handoffs and
-   reached `READY` on the two-field synthetic fixture. This is API evidence;
-   the upload UI does not yet display those scan-worker handoffs. The separate
-   established supervisor UI reports its document and evidence worker counts.
-   Do not present the new scan-worker path as a visible UI feature yet.
+2. Use the “Try the synthetic lab scan sample” button. Inspect the visible scan
+   and evidence worker handoffs, `READY` state, and source preview with page and
+   region citations. A manual phone-browser recording has not been captured.
+3. Use the official blank PDF links only to inspect real layouts. The app accepts
+   the included synthetic text fixture; it does not parse these PDFs.
 4. Open `/evals` and `/observability`; both public pages returned 200. The W2
    evaluator shows the current 50-case result.
 5. Record 3–5 minutes from the browser tab, then verify playback and the key
@@ -71,5 +70,6 @@ a general binary-PDF, OCR, or VLM extraction system.
 - [Extraction benchmark report](W2_SCAN_FORM_EXTRACTION_REPORT.md)
 - [Retrieval benchmark](W2_RETRIEVAL_BENCHMARK.md)
 - [Provider and managed-VLM decision frontier](HUMAN_DECISION_OPTIONS.md)
+- [Official blank form sources and status](W2_EXTERNAL_FORM_SOURCES.md)
 - [Early checkpoint package](W2_EARLY_CHECKPOINT.md)
 - [Gap-closure plan and evidence reconciliation](W2_GAP_CLOSURE_EXECUTION_PLAN.md)

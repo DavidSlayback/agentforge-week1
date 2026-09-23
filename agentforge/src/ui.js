@@ -51,13 +51,18 @@ form{gap:.8rem}#source-document-form .section-heading{margin-top:.4rem}
 #source-document-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:1rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 #source-document-form .section-heading,#source-status{grid-column:1/-1}
 #source-document-form button{justify-self:start}
+#official-sources{padding:.9rem 1rem;border:1px solid #c9e1dc;border-radius:.8rem;background:#edf7f4}
+#official-sources .source-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:.75rem 0}
+#official-sources a{display:block;padding:.75rem;border:1px solid #c9dcd8;border-radius:.65rem;background:#fff;color:#145e58;font-weight:700;text-decoration:none}
+#official-sources a span{display:block;color:var(--muted);font-size:.8rem;font-weight:500}
+#scan-sample{margin:.2rem 0}
 select,input,button{min-height:44px;border-radius:.65rem}input,select{border-color:#9aafb7;background:#fff}input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid #84cfc0;outline-offset:2px}
 button{background:#145e58;border-color:#145e58}button:hover{background:#104b47}button.secondary{color:#145e58;border-color:#b9d4cf}button.secondary:hover{background:#edf7f4}
 .message{border-color:var(--line);border-radius:.9rem;padding:clamp(.85rem,2vw,1.2rem)}.message[data-role="assistant"]{background:#f3f9f7}.message[data-role="user"]{background:#f7f8f8}
 .fact-card{border-color:#d6e4e1;border-radius:.75rem}.fact-label{color:var(--muted)}.evidence summary{color:var(--teal)}
 .qualification{border-left-color:#c8962b;background:#fff6df}.blocked{border-left-color:#aa4141;background:#fff1ef}
 button:disabled{opacity:.6;cursor:wait}
-@media(max-width:620px){#briefing-form,#source-document-form{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
+@media(max-width:620px){#briefing-form,#source-document-form,#official-sources .source-links{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button,#scan-sample{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
 </style>
 </head>
 <body><main id="agentforge-app">
@@ -65,7 +70,9 @@ button:disabled{opacity:.6;cursor:wait}
 <div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="hint">Read-only · clinician review required</span></div></header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
-<form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Attach source evidence</h2><span class="hint">Synthetic local storage; line-text fixtures only</span></div><label>Document schema<select name="document_type"><option value="lab_pdf">Lab document (schema: lab_pdf)</option><option value="intake_form">Intake form</option></select></label><label>Source text fixture<input type="file" name="source_file" accept=".txt,text/plain" required></label><p class="hint">Use synthetic UTF-8 lines beginning with LAB| or INTAKE|. PDF parsing and OpenEMR persistence are not implemented.</p><button type="submit">Upload source evidence</button><p id="source-status" class="status" role="status"></p></form>
+<form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Scan form workflow</h2><span class="hint">Synthetic local storage · no external provider</span></div><label>Document schema<select name="document_type"><option value="lab_pdf">Lab scan form</option><option value="intake_form">Intake form</option></select></label><label>Synthetic text fixture<input type="file" name="source_file" accept=".txt,text/plain" required></label><p class="hint">The included sample shows extraction, evidence retrieval, worker handoffs, and page region citations. PDF OCR is not enabled.</p><button type="submit">Run selected text fixture</button><p id="source-status" class="status" role="status"></p></form>
+<button id="scan-sample" class="secondary" type="button"${liveOpenEMR ? ' hidden' : ''}>Try the synthetic lab scan sample</button>
+<section id="official-sources" aria-labelledby="official-sources-heading"><h2 id="official-sources-heading">Official blank PDF examples</h2><p class="hint">Open a real source form to inspect the document layout. These PDFs are not uploaded or processed by this demo.</p><div class="source-links"><a href="https://www.fda.gov/media/76299/download" target="_blank" rel="noopener noreferrer">FDA MedWatch Form 3500<span>Official health professional adverse event report · PDF</span></a><a href="https://www.cdc.gov/laboratory/specimen-submission/pdf/form-50-34.pdf" target="_blank" rel="noopener noreferrer">CDC Form 50.34<span>Official legacy specimen submission form · scheduled for retirement October 30, 2026</span></a></div><p class="hint">Source: FDA and CDC. Government agency attribution; AgentForge is not endorsed by either agency. Select the synthetic sample above to see this demo’s supported extraction path.</p></section>
 <form id="followup-form" class="hidden"><label for="followup-input">Ask a follow-up</label><input id="followup-input" name="message" autocomplete="off" placeholder="What changed since the last visit?"><div class="samples" aria-label="Safe sample follow-ups"><button type="button" class="secondary" data-prompt="What changed since the last visit?">Documented changes</button><button type="button" class="secondary" data-prompt="What plan items need follow-through?">Plan follow-through</button><button type="button" class="secondary" data-prompt="Which records conflict?">Conflicting records</button></div><button type="submit">Send follow-up</button></form>
 <button id="cross-patient-probe" class="secondary hidden" type="button">Probe cross-patient block</button>
 <p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button>
@@ -79,6 +86,7 @@ button:disabled{opacity:.6;cursor:wait}
   const briefingForm = document.getElementById('briefing-form');
   const sourceDocumentForm = document.getElementById('source-document-form');
   const sourceStatus = document.getElementById('source-status');
+  const scanSampleButton = document.getElementById('scan-sample');
   const followupForm = document.getElementById('followup-form');
   const transcript = document.getElementById('transcript');
   const status = document.getElementById('status');
@@ -90,7 +98,7 @@ button:disabled{opacity:.6;cursor:wait}
   const initialContextStatus = contextStatus?.textContent || '';
   let busy = false;
   const setStatus = (message, error = false) => { status.textContent = message; status.className = error ? 'status error' : 'status'; };
-  const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); crossPatientProbe.disabled = value; };
+  const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); if (scanSampleButton) scanSampleButton.disabled = value; crossPatientProbe.disabled = value; };
   const humanize = (value) => String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
@@ -216,10 +224,8 @@ button:disabled{opacity:.6;cursor:wait}
       setStatus(error.message, true);
     } finally { setBusy(false); }
   });
-  sourceDocumentForm?.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  const uploadSourceDocument = async (file) => {
     if (busy) return;
-    const file = sourceDocumentForm.elements.source_file.files[0];
     const patient = patientSelector?.value || state.patient;
     if (!file || !patient) return setStatus('Choose a synthetic patient and source file first.', true);
     setBusy(true);
@@ -236,20 +242,44 @@ button:disabled{opacity:.6;cursor:wait}
       }
       const content = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
       const result = await request('/v1/source-documents', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, document_type: sourceDocumentForm.elements.document_type.value, filename: file.name, content_base64: content });
-      const workflow = await request('/v1/supervisor', authorizedRequest({ patient_uuid: patient, message: 'Review the synthetic uploaded evidence and identify relevant documented facts.', source_document_ids: [result.source_document.id], source_document_context_token: writeContext.demo_token }));
-      const documentResults = workflow.typed_outputs.intake.documents || [];
-      const factCount = workflow.typed_outputs.intake.facts?.length || 0;
-      const evidenceCount = workflow.typed_outputs.evidence?.guideline_evidence?.length || 0;
-      sourceStatus.textContent = (result.duplicate ? 'Existing synthetic source reused; ' : 'Synthetic source stored; ') + documentResults.length + ' document worker result(s), ' + factCount + ' extracted fact(s), ' + evidenceCount + ' guideline source(s).';
-      setStatus('Supervisor completed the synthetic document and evidence workers.');
+      const isScanFixture = file.name === 'lab-layout-a-complete.scan.txt';
+      let workflowSummary;
+      if (isScanFixture) {
+        const readToken = state.demoToken;
+        const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: readToken, source_document_id: result.source_document.id, message: 'Review synthetic lab evidence.' });
+        const active = workflow.workflow;
+        workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Final state: ' + active.final_state + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
+        setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
+      } else {
+        const workflow = await request('/v1/supervisor', authorizedRequest({ patient_uuid: patient, message: 'Review the synthetic uploaded evidence and identify relevant documented facts.', source_document_ids: [result.source_document.id], source_document_context_token: writeContext.demo_token }));
+        const documentResults = workflow.typed_outputs.intake.documents || [];
+        const factCount = workflow.typed_outputs.intake.facts?.length || 0;
+        const evidenceCount = workflow.typed_outputs.evidence?.guideline_evidence?.length || 0;
+        workflowSummary = documentResults.length + ' document worker result(s), ' + factCount + ' extracted fact(s), ' + evidenceCount + ' guideline source(s).';
+        setStatus('Supervisor completed the synthetic document and evidence workers.');
+      }
+      sourceStatus.textContent = (result.duplicate ? 'Existing synthetic source reused; ' : 'Synthetic source stored; ') + workflowSummary;
       const preview = document.createElement('a');
-      preview.href = basePath + '/v1/source-documents/' + encodeURIComponent(result.source_document.id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(writeContext.demo_token);
+      preview.href = basePath + '/v1/source-documents/' + encodeURIComponent(result.source_document.id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken);
       preview.textContent = 'Open source preview';
       preview.target = '_blank';
       sourceStatus.append(document.createTextNode(' '), preview);
       sourceDocumentForm.reset();
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
     finally { setBusy(false); }
+  };
+  sourceDocumentForm?.addEventListener('submit', (event) => { event.preventDefault(); uploadSourceDocument(sourceDocumentForm.elements.source_file.files[0]); });
+  scanSampleButton?.addEventListener('click', async () => {
+    if (busy) return;
+    sourceStatus.className = 'status'; sourceStatus.textContent = 'Loading the included synthetic scan sample…';
+    try {
+      const response = await fetch(basePath + '/v1/demo-scan-fixture');
+      if (!response.ok) throw new Error('Synthetic sample is unavailable.');
+      const sample = await response.json();
+      if (!sample.synthetic_only) throw new Error('Sample source could not be verified.');
+      sourceDocumentForm.elements.document_type.value = sample.document_type;
+      await uploadSourceDocument(new File([Uint8Array.from(atob(sample.content_base64), (character) => character.charCodeAt(0))], sample.filename, { type: 'text/plain' }));
+    } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
   });
   followupForm.addEventListener('submit', async (event) => { event.preventDefault(); if (busy) return; const message = input.value.trim(); if (!state.conversationId || !state.patient || !message) return setStatus('Prepare a briefing and enter a question first.', true); setBusy(true); addMessage('user', message); setStatus('Checking the patient-scoped conversation…'); try { const response = await request('/v1/conversations/' + encodeURIComponent(state.conversationId) + '/messages', authorizedRequest({ patient_uuid: state.patient, message })); addMessage('assistant', response.text, response, 'followup'); setStatus(response.disposition === 'blocked' ? 'Follow-up blocked at the patient-scope boundary.' : response.disposition === 'deadline-exceeded' ? 'Follow-up deadline exceeded before verified content was available.' : 'Follow-up complete.'); input.value = ''; } catch (error) { setStatus(error.message, true); } finally { setBusy(false); } });
   crossPatientProbe.addEventListener('click', async () => { if (busy) return; if (!state.conversationId || !state.patient) return setStatus('Prepare a briefing first.', true); setBusy(true); const otherPatient = state.patient === ${JSON.stringify(primaryProbePatient)} ? ${JSON.stringify(secondaryProbePatient)} : ${JSON.stringify(primaryProbePatient)}; addMessage('user', 'Probe cross-patient context: ' + otherPatient); setStatus('Checking the patient-scope boundary…'); try { const response = await request('/v1/conversations/' + encodeURIComponent(state.conversationId) + '/messages', authorizedRequest({ patient_uuid: otherPatient, message: 'What changed?' }, false)); addMessage('assistant', response.text, response, 'followup'); setStatus(response.disposition === 'blocked' ? 'Cross-patient follow-up blocked without disclosure.' : 'Unexpected cross-patient response.', response.disposition !== 'blocked'); } catch (error) { setStatus(error.message, true); } finally { setBusy(false); } });

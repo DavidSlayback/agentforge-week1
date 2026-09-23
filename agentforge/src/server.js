@@ -163,6 +163,11 @@ const server = http.createServer(async (req, res) => {
       const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', secret: process.env.AGENTFORGE_DEMO_SECRET });
       return json(res, 200, { demo_token: token, patient_uuid: patient, clinician_uuid: 'fixture-physician-001', expires_in_seconds: 300, synthetic_only: true, scope: 'write-source-document' });
     }
+    if (req.method === 'GET' && req.url === '/v1/demo-scan-fixture') {
+      if (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 403, { error: 'synthetic_fixture_unavailable' });
+      const fixturePath = path.join(projectRoot, 'docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt');
+      return json(res, 200, { synthetic_only: true, filename: 'lab-layout-a-complete.scan.txt', document_type: 'lab_pdf', content_base64: fs.readFileSync(fixturePath).toString('base64') });
+    }
     if (req.method === 'GET' && req.url.startsWith('/v1/clinical-action-context')) {
       if (liveOpenEMR) return json(res, 403, { error: 'synthetic_writeback_only' });
       if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });

@@ -101,6 +101,24 @@ test('AgentForge UI exposes the two synthetic source-document types and upload r
   assert.match(page, /value="lab_pdf"/);
   assert.match(page, /value="intake_form"/);
   assert.match(page, /\/v1\/source-documents/);
+  assert.match(page, /Try the synthetic lab scan sample/);
+  assert.match(page, /https:\/\/www\.fda\.gov\/media\/76299\/download/);
+  assert.match(page, /PDF OCR is not enabled/);
+});
+
+test('synthetic scan demo fixture route serves only the tracked sample with an explicit synthetic marker', async () => {
+  const port = 18808;
+  const child = await startServer(port);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/v1/demo-scan-fixture`);
+    assert.equal(response.status, 200);
+    const sample = await response.json();
+    assert.equal(sample.synthetic_only, true);
+    assert.equal(sample.document_type, 'lab_pdf');
+    assert.match(Buffer.from(sample.content_base64, 'base64').toString('utf8'), /^SYNTHETIC_SCAN_FORM\|layout=lab-a/);
+  } finally {
+    child.kill();
+  }
 });
 
 test('AgentForge UI keeps the isolated W2 public path for links and API calls', () => {
