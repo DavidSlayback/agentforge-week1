@@ -23,6 +23,7 @@
     "persistent_volume_mounts": [],
     "published_host_ports": [],
     "rag_provider": "local-lexical-proxy",
+    "cohere_credential_configured": false,
     "live_cohere": false,
     "caddyfile_sha256": "dfed17c46b044bcdb811120d20cf03de2e790328b85ed3226311b87caaa13f61",
     "previous_caddyfile_backup": "/opt/agentforge-week1/deploy/vultr/Caddyfile.pre-w2-67f376c",

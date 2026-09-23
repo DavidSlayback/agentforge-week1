@@ -53,7 +53,7 @@ and must never be described as OpenEMR persistence.
 | Claim clarity | `CLEANED UP; REGRESSION TESTED` | Dashboard no longer calls a deterministic primary model “live”; saved 7-case results are labeled Week 1; fixture chart-cache trace metadata uses a neutral current-source label. |
 | Local browser proof | `VERIFIED, RECORDED` | [`W2_LOCAL_BROWSER_PROOF.json`](evidence/W2_LOCAL_BROWSER_PROOF.json) records the synthetic upload, worker handoffs, redacted trace, alert state, and explicit non-claims. |
 | Existing Week 1 public surface | `HEALTHY; NOT THE W2 CANDIDATE` | `/agentforge/health` and `/ready` returned 200 before and after rollout; its container ID remained unchanged. |
-| Early deployed candidate | `DEPLOYED; EXTERNALLY VERIFIED` | GitLab `staging/main` reads back `67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`; isolated `/agentforge-w2` is healthy, accepts a synthetic upload, and passes the public 50-case report. The Week 1 `/agentforge` container ID remained unchanged and its health/readiness still pass. |
+| Early deployed candidate | `DEPLOYED; EXTERNALLY VERIFIED` | The app image was built and deployed from GitLab SHA `67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`; isolated `/agentforge-w2` is healthy, accepts a synthetic upload, and passes the public 50-case report. A later documentation-only commit records release evidence. The Week 1 `/agentforge` container ID remained unchanged and its health/readiness still pass. |
 | 3–5 minute demo | `OPEN, USER-OWNED` | Record only after browser walkthrough on the candidate; do not reuse Week 1 video as W2 proof. |
 | Final architecture and metrics | `PARTIAL` | Current architecture notes exist; create W2 architecture and measured W2 latency/cost report Sunday. |
 | Early public app | `PASS` | Current candidate is deployed and externally verified at `/agentforge-w2`; CI required-check evidence and Sunday release dataset remain open. |
@@ -86,9 +86,12 @@ Week 1 service stayed healthy with the same container ID.
 
 ### Verified facts
 
-- GitLab `staging/main` read back as
+- At publication, GitLab `staging/main` read back as
   `67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`. The service was built from the
-  exact commit archive; its archive SHA-256 matched on upload. The W2 container
+  exact commit archive; its archive SHA-256 matched on upload. A subsequent
+  documentation-only release-evidence commit was pushed to `staging/main`; it
+  does not alter the deployed application image, which remains the verified
+  build from `67f376c`. The W2 container
   image is `sha256:b492274ed28ea4470086743b67539c170846c9a2517c93fb3f7bcbad6683ac84`.
 - Caddy serves the exact `/agentforge-w2` prefix before the existing
   `/agentforge*` handler. The candidate Caddyfile validates and its mounted
@@ -158,7 +161,7 @@ server-only `.env`, or existing data volumes as part of the W2 work.
 | E4 | Week 1 route remains read-only and unchanged | existing service and W2 separation | Full suite, W1 health/readiness, container identity | Live-mode write-disable tests passed; W1 remained healthy with unchanged container ID across W2/proxy startup | `PASS` | Preserve same route/config/data boundary |
 | E5 | Existing Week 1 public service remains available | existing Vultr `/agentforge` | HTTPS GET health/readiness before and after rollout | 200/ok and 200/ready; same AgentForge container ID before and after | `PASS` | W2 is separately served at `/agentforge-w2` |
 | E6 | Current W2 candidate is deployed and upload works publicly | GitLab revision, W2 route | Exact SHA readback and external browser/page plus public API upload | SHA `67f376ca`; HTTPS health/readiness 200; UI 200 with W2 prefix; generated upload yielded 1 fact, 3 sources, and expected handoffs; gate 50/50 | `PASS` | Manual browser file selection remains unperformed; keep API-vs-UI boundary explicit |
-| E7 | Live Cohere RAG is active and evidenced | Cohere adapter/config | Provider invocation and safe synthetic query | Adapter mocked in tests; no key configured; local proof used lexical retriever | `INCONCLUSIVE` | Configure key only if live Cohere proof is required; otherwise claim adapter available, not active |
+| E7 | Live Cohere RAG is active and evidenced | Cohere adapter/config | Provider invocation and safe synthetic query | Cohere adapter is implemented; no credential is configured locally or on the VM, and the deployed/public traces use `local-lexical-proxy` | `INCONCLUSIVE` | Do not claim Cohere is active; the adapter is available, but live Cohere proof needs a server-side key and a safe synthetic invocation |
 | E8 | Owner demo recording is ready | recording artifact | Verify playback and candidate identity | No W2 recording | `INCONCLUSIVE` | Owner records after one candidate passes external walkthrough |
 
 ## Sunday final path
