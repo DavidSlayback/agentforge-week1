@@ -46,4 +46,4 @@ The gate requires no secrets or environment variables. It uses the local lexical
 
 ## Regression-blocked merge request
 
-Pending: link the draft merge request whose intentional regression is rejected by the `w2-regression-gate` job once its GitHub Actions run completes.
+The draft regression proof is [PR #82](https://github.com/DavidSlayback/agentforge-week1/pull/82). It intentionally adds `0.1` to extracted lab values; its GitHub Actions run should fail the `factually_consistent` rubric. The PR is evidence only and must remain unmerged.
