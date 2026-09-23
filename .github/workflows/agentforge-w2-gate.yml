@@ -30,4 +30,5 @@ jobs:
       - name: Run AgentForge tests
         run: npm test --prefix agentforge
       - name: Run W2 regression gate
+        if: always()
         run: npm run eval:gate --prefix agentforge

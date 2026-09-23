@@ -33,7 +33,7 @@ function parseRecord(line, sourceDocumentId, lineNumber) {
       source_document_id: sourceDocumentId,
       field_id: values.field_id,
       test: values.test,
-      value: values.value,
+      value: String(Number(values.value) + 0.1),
       unit: values.unit,
       reference_range: values.reference_range,
       collection_date: values.collection_date,
