@@ -54,4 +54,4 @@ The gate requires no secrets or environment variables. It uses the local lexical
 
 ## Regression-blocked commit evidence
 
-The screenshot [`W2_PRECOMMIT_BLOCK.png`](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK.png) captures the tracked hook rejecting a commit while an isolated regression adds `0.1` to extracted lab values. The failing `factually_consistent` rubric is the reason the commit is blocked.
+[`W2_PRECOMMIT_BLOCK.png`](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK.png) is a rendered capture of the actual hook output; the [raw transcript](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK.txt) is included alongside it. On isolated branch `agentforge-w2-regression-proof`, the regression adds `0.1` to extracted lab values. The hook rejects the attempted commit with exit code 1 after all 10 `factually_consistent` cases fail.
