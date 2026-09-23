@@ -1,55 +1,67 @@
 # Week 2 reviewer package
 
-Updated 2026-09-23. This is a local working package, not a release approval.
+Updated 2026-09-23. The synthetic W2 candidate is deployed and externally
+verified. Provider selection and demo recording remain open.
 
 ## Candidate identity
 
-- Working tree is detached at `dcc8a48` with uncommitted source, evidence, and
-  documentation changes. It is not yet an immutable submission revision.
-- The previous public W2 deployment was built from `67f376c` at
-  `/agentforge-w2`. Its health/readiness and synthetic workflow checks do not
-  prove the current working tree or the new scan-form preview path. Refresh
-  the public URL, TLS, candidate identity, and intended-browser workflow before
-  recording.
-- The older `/agentforge` package and provider claims are historical and do
-  not describe this W2 candidate.
+- Staging branch: `davidslayback/w2-synthetic-scan-release`
+- Git commit: `0cecbd11879fd3f69cbaedea5e0e2e170ee629fa`
+- Public URL: <https://dtstest.64.177.10.182.nip.io/agentforge-w2/>
+- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-0cecbd1`
+- External checks and runtime identity: [W2 deployment proof](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF_0CECBD1.json)
+
+The deployed surface remains synthetic-only. Week 1 `/agentforge` is healthy
+and its container identity was unchanged during this W2 redeployment.
 
 ## Current evidence
 
 | Area | Evidence | Status |
 | --- | --- | --- |
-| Synthetic scan-form contracts, workers, supervisor, and source preview | Local implementation and prior integration evidence in `W2_GAP_CLOSURE_EXECUTION_PLAN.md` | Local; not deployed on the previous W2 candidate |
-| Local AgentForge tests | Current working tree: 118/118, serial run | Rerun on the immutable candidate |
-| W2 regression gate | Current working tree: 50/50; gate includes injected-defect coverage | Rerun on the immutable candidate |
+| Synthetic scan-form contracts, extraction worker, evidence worker, supervisor, source preview | Local tests plus current-candidate public API workflow | 124/124 tests; complete 2-field fixture externally exercised |
+| W2 regression gate | Current candidate | 50/50; injected-defect and baseline checks pass |
+| Landing page, health, readiness, evaluator | Current public HTTPS route | HTTP 200; readiness dependencies ready |
 | Tesseract localization | 50/53 labels recognized; 32/53 in expected regions | Local baseline; localization needs improvement |
 | PaddleOCR-VL typed extraction | 0/8 typed matches; 8/8 invalid-JSON abstentions | Not promoted |
-| Retrieval provider | Local lexical proxy on the previously verified W2 route | Cohere is not active |
+| Synthesis provider | Existing W2 configuration | Qwen; no new provider selected |
+| Retrieval provider | Current W2 configuration | Local lexical proxy; Cohere is not active |
 | Jev comparison | Injected-mock, off by default, no provider calls | Not connected to deployed requests |
 | Scan-form provider choice | No provider/model selected | Owner decision required |
-| Demo recording | No current W2 recording | Owner-recorded 3–5 minute video remains open |
-| Current-candidate deployment/browser proof | Not performed for this working tree | Required before recording or submission |
+| Demo recording | No current W2 recording | Record and inspect a 3–5 minute browser video |
 
-All scan-form and patient data in this package are synthetic. No local result
-establishes PHI readiness, real OpenEMR parity, provider suitability, or clinical
-safety.
+All fixture and patient data are synthetic. These results do not establish PHI
+readiness, real OpenEMR parity, provider suitability, or clinical safety.
+Third-party blank form PDFs and model weights are not in the release archive.
 
-## Reviewer path after deployment
+## Reviewer path
 
-1. Open the immutable candidate's exact HTTPS URL in a clean browser and verify
-   candidate identity plus health and readiness.
-2. Use only synthetic fixtures. Prepare the visit, upload a supported synthetic
-   source, open its evidence preview, and inspect extraction status, field
-   values, and page/region citations. Missing, uncertain, or conflicting fields
-   must remain visibly qualified.
-3. The active worker and retrieval workflow currently exists behind the
-   `/v1/scan-supervisor` API, but the upload UI does not yet invoke or display
-   its handoffs. Do not present multi-agent handoffs as a visible browser
-   feature until that path is wired and exercised. The local fixture parser is
-   not a promoted general PDF OCR/VLM system.
-4. Open `/evals` and `/observability`; show the candidate's current evaluation
-   and redacted operational evidence.
+1. Open the exact HTTPS URL above. A verified external HTTPS client received
+   valid TLS, health and readiness returned 200, and readiness dependencies
+   reported ready. Repeat the workflow in the intended browser before recording.
+2. Use only synthetic inputs. Upload a supported synthetic fixture, open its
+   source preview, and inspect status, field values, and page/region citations.
+   The public API workflow passed; manual browser file selection remains open.
+3. `/v1/scan-supervisor` returns extraction and evidence worker handoffs and
+   reached `READY` on the two-field synthetic fixture. This is API evidence;
+   the upload UI does not yet display those scan-worker handoffs. The separate
+   established supervisor UI reports its document and evidence worker counts.
+   Do not present the new scan-worker path as a visible UI feature yet.
+4. Open `/evals` and `/observability`; both public pages returned 200. The W2
+   evaluator shows the current 50-case result.
 5. Record 3–5 minutes from the browser tab, then verify playback and the key
    upload, citation, evaluation, and observability moments.
+
+The local fixture parser handles controlled synthetic text fixtures. It is not
+a general binary-PDF, OCR, or VLM extraction system.
+
+## Submission decisions and remaining work
+
+- Choose the extraction provider/model and data-processing path for final
+  submission. Separately decide whether the early submission requires that
+  provider live or can present it as an open decision with local evidence.
+- Record and inspect the demo. Do not claim the recording or submission is
+  complete until the exact artifact and link are available.
+- Approve external sharing or submission separately.
 
 ## Submission evidence
 
@@ -61,14 +73,3 @@ safety.
 - [Provider and managed-VLM decision frontier](HUMAN_DECISION_OPTIONS.md)
 - [Early checkpoint package](W2_EARLY_CHECKPOINT.md)
 - [Gap-closure plan and evidence reconciliation](W2_GAP_CLOSURE_EXECUTION_PLAN.md)
-
-## Remaining owner decisions and release gates
-
-- Select the provider/model and data-processing path for final extraction;
-  separately decide whether an early submission needs that provider live or can
-  accurately present it as an open decision with local evidence.
-- Choose and authorize the exact deployment revision; verify public HTTPS and
-  the intended browser workflow after deployment.
-- Record and inspect the demo. Do not claim the recording or submission is
-  complete until their exact artifacts and links are available.
-- Approve any external sharing or submission separately.
