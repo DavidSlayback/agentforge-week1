@@ -1,0 +1,83 @@
+{
+  "schema_version": "w2-scan-fixtures-v1",
+  "synthetic_only": true,
+  "source": "synthetic fixture corpus generated for local contract tests",
+  "fixtures": [
+    {
+      "id": "lab-layout-a-complete",
+      "document_type": "lab_pdf",
+      "layout_id": "lab-a",
+      "variant": "complete",
+      "path": "scan-forms/lab-layout-a-complete.scan.txt",
+      "page_count": 1,
+      "rendered_preview": "scan-forms/lab-layout-a.svg",
+      "expected_status": "complete",
+      "expected_fields": ["lab.hgb", "lab.a1c"],
+      "source_regions": {"lab.hgb": [72, 126, 246, 150], "lab.a1c": [72, 164, 246, 188]}
+    },
+    {
+      "id": "lab-layout-b-partial",
+      "document_type": "lab_pdf",
+      "layout_id": "lab-b",
+      "variant": "partial",
+      "path": "scan-forms/lab-layout-b-partial.scan.txt",
+      "page_count": 1,
+      "rendered_preview": "scan-forms/lab-layout-b.svg",
+      "expected_status": "partial",
+      "expected_fields": ["lab.hgb"],
+      "missing_fields": ["lab.a1c"],
+      "source_regions": {"lab.hgb": [418, 208, 650, 235]}
+    },
+    {
+      "id": "intake-layout-a-complete",
+      "document_type": "intake_form",
+      "layout_id": "intake-a",
+      "variant": "complete",
+      "path": "scan-forms/intake-layout-a-complete.scan.txt",
+      "page_count": 1,
+      "rendered_preview": "scan-forms/intake-layout-a.svg",
+      "expected_status": "complete",
+      "expected_fields": ["chief_concern", "medication.metformin", "allergy.penicillin"],
+      "source_regions": {"chief_concern": [86, 104, 704, 139], "medication.metformin": [86, 238, 704, 273], "allergy.penicillin": [86, 332, 704, 367]}
+    },
+    {
+      "id": "intake-layout-b-conflict",
+      "document_type": "intake_form",
+      "layout_id": "intake-b",
+      "variant": "conflicting",
+      "path": "scan-forms/intake-layout-b-conflict.scan.txt",
+      "page_count": 1,
+      "rendered_preview": "scan-forms/intake-layout-b.svg",
+      "expected_status": "qualified",
+      "expected_fields": [],
+      "conflict_fields": ["medication.metformin"],
+      "source_regions": {"medication.metformin": [112, 188, 488, 219]}
+    },
+    {
+      "id": "intake-layout-b-missing",
+      "document_type": "intake_form",
+      "layout_id": "intake-b",
+      "variant": "missing",
+      "path": "scan-forms/intake-layout-b-missing.scan.txt",
+      "page_count": 1,
+      "rendered_preview": "scan-forms/intake-layout-b.svg",
+      "expected_status": "partial",
+      "expected_fields": ["chief_concern"],
+      "missing_fields": ["medication.metformin", "allergy.penicillin"],
+      "source_regions": {"chief_concern": [112, 98, 488, 129]}
+    },
+    {
+      "id": "lab-layout-b-unreadable",
+      "document_type": "lab_pdf",
+      "layout_id": "lab-b",
+      "variant": "unreadable",
+      "path": "scan-forms/lab-layout-b-unreadable.scan.txt",
+      "page_count": 1,
+      "rendered_preview": "scan-forms/lab-layout-b.svg",
+      "expected_status": "qualified",
+      "expected_fields": [],
+      "unreadable_fields": ["lab.hgb", "lab.a1c"],
+      "source_regions": {}
+    }
+  ]
+}

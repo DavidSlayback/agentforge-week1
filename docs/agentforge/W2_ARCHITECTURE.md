@@ -1,66 +1,58 @@
-# Week 2 architecture and evidence boundary
+# AgentForge Week 2 architecture checkpoint
 
-Status: local implementation architecture, updated 2026-09-22. This describes
-what the current working tree implements and calls out assignment gaps; it is
-not a claim of deployed behavior.
+Status: local synthetic evidence checkpoint with an agreed local-VLM lane, 2026-09-22.
 
-## Week 1 boundary
-
-The Week 1 OpenEMR adapter remains patient-scoped and read-only. W2's synthetic
-source-document and derived-observation stores are separate in-memory
-collaborators and do not write to OpenEMR. W2 does not broaden the chart adapter
-or change the Week 1 authorization boundary.
-
-## Current W2 local flow
-
-1. The synthetic UI accepts UTF-8 text fixtures, not binary PDFs. The two schema
-   names are `lab_pdf` and `intake_form`; the supported fixture records begin
-   with `LAB|` and `INTAKE|` respectively.
-2. A scoped synthetic source-document context authorizes local source storage.
-   Stored content is associated with the selected synthetic patient and
-   deduplicated. This is not an OpenEMR round trip.
-3. When source IDs are provided, the deterministic supervisor invokes the
-   extraction worker. That worker reads each source and calls the matching
-   strict parser. Citations carry the source ID, page/section, field ID, quote,
-   and for lab records a bounding box.
-4. The supervisor also invokes the evidence-retrieval worker and then its
-   deterministic verifier. Worker outputs, transitions, handoffs, and stage
-   metadata are returned in a typed result and redacted trace.
-5. Retrieval defaults to local lexical matching. Optional Cohere Embed plus
-   Rerank requires explicit configuration and a server-only key. User text is
-   matched locally to fixed synthetic queries; unsupported free text is not
-   sent. No real Cohere call is verified yet.
+## Flow
 
 ```text
-synthetic text fixture
-        |
-        v
-scoped in-memory source store --> extraction worker --+
-                                                     |
-synthetic patient context --> evidence worker ------+--> supervisor verifier
-                                  |                  |        |
-                                  +--> lexical or    |        +--> typed facts,
-                                       Cohere RAG ---+             citations,
-                                                                     qualified state
-
-Week 1 live chart request --> read-only OpenEMR adapter --> Week 1 verifier
-                    (separate path; no W2 document writeback)
+source form (synthetic fixture or approved public blank form)
+  -> source-document synthetic roundtrip
+  -> scan-form extraction worker
+     (Tesseract/deterministic baseline, then optional larger local VLM crop resolver)
+     (inspect -> extract -> validate/qualify)
+  -> evidence retrieval worker
+     (inspect -> formulate -> retrieve/check -> qualify)
+  -> inspectable active supervisor
+  -> cited READY or qualified/blocked result
 ```
 
-## Assignment gaps for Sunday
+The existing standard supervisor and deterministic extraction/tool path remain
+the safety baseline for the clinical co-pilot. The active path is a bounded
+multi-worker document/evidence seam and does not write clinical actions. The
+local VLM adapter is opt-in, typed, crop-bounded, and fail-closed when no local
+model runner is configured or measured. The eventual API/managed provider can
+replace this runner without changing the worker contract. The separate
+`write-clinical-action` lane still
+requires explicit clinician confirmation and remains synthetic-only.
 
-- Real synthetic PDF/scan fixtures and OCR/VLM extraction with source regions,
-  uncertainty, partial/missing/conflicting outcomes, and labeled ground truth.
-- A decision and proof for assignment-required OpenEMR source/derived-fact
-  round trip that preserves the Week 1 live chart read-only boundary.
-- Direct source-preview/click-to-region UI evidence.
-- Real Cohere request/cost/latency evidence if the provider is configured; until
-  then the retriever status is adapter-implemented, live-not-run.
-- CI required-check evidence and same-revision deployment/browser proof.
-- Measured W2 metrics and a cost/latency report, final dataset/results, and
-  3–5 minute final demo.
+## Evidence and retrieval
 
-The local 50-case gate covers implemented parser, lexical retrieval, citation,
-refusal, and redaction behavior. It does not close the scan/OCR, external
-provider, OpenEMR runtime, browser, CI, or deployment gaps. Scope remains two
-document types; no third type is planned.
+Observed fields carry a `w2-scan-v1` citation with source document, page, field,
+quote, layout, and bounding box. Missing, unreadable, low-confidence, and
+conflicting values are represented as qualification metadata and are not
+promoted to facts. Guideline evidence is returned separately from patient
+facts. The local retrieval choice is the existing deterministic sparse plus
+dense-proxy index because the fixed synthetic benchmark is replayable, cited,
+and zero-cost; `dense_score` is not a true embedding score.
+
+## Evaluation and observability
+
+The 50-case gate retains its seven behavioral labels and now emits an explicit
+mapping to `schema_valid`, `citation_present`, `factually_consistent`,
+`safe_refusal`, and `no_phi_in_logs`. Worker handoffs expose step decisions and
+redacted metrics only. Source preview shows page/region citation metadata in a
+reviewable HTML table.
+
+## Boundaries and residuals
+
+The sourced forms are public blank layouts held for local/internal evaluation.
+The free small local VLM was installed and smoke-tested, then rejected for
+field extraction after a redacted 8-case crop benchmark scored 0/8. Tesseract
+5.4.0 is now the measured deterministic OCR baseline at 50/53 manifest labels
+with coordinates on every page. The larger official PaddleOCR-VL GGUF was
+loaded locally through llama.cpp and recovered 8/8 synthetic values as raw
+text, but failed the typed JSON contract at 0/8; it remains an experimental
+reader. A managed model remains an explicit future decision. Vector retrieval,
+live OpenEMR read/writeback, current deployment identity, external reviewer
+access, owner-recorded video, social post, and interviews remain
+`INCONCLUSIVE` or `NEEDS_HUMAN` until separately evidenced.

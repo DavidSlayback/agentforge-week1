@@ -36,7 +36,30 @@ export function renderAgentForgePage({ token = '', payload = null, publicBasePat
 main{background:#fff;border:1px solid #d9e2ec;border-radius:1rem;padding:clamp(1rem,3vw,2rem);box-shadow:0 8px 28px #17202a12}.eyebrow{color:#53657a;font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.header-row{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}.subtitle{color:#52606d;margin:.2rem 0 0}.context{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.2rem 0;padding:.8rem 1rem;border:1px solid #d9e2ec;border-radius:.7rem;background:#f7fbff}.context strong{color:#174a7e}.badge{display:inline-block;border-radius:999px;padding:.25rem .65rem;font-size:.8rem;font-weight:750;background:#e8f1fb;color:#174a7e;white-space:nowrap}.badge[data-disposition="blocked"],.badge[data-disposition="deadline-exceeded"]{background:#fde8e7;color:#9b1c1c}.badge[data-disposition="partial"],.badge[data-disposition="qualified"]{background:#fff4cc;color:#6b4e00}
 h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-heading{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-top:1.6rem}h2{font-size:1.1rem}h3{font-size:.92rem;margin:0}.hint{color:#66788a;font-size:.82rem}form{display:grid;gap:.6rem;margin:1rem 0}label{font-weight:700;display:grid;gap:.25rem}select,input,button{font:inherit;padding:.68rem .75rem;border:1px solid #9fb3c8;border-radius:.5rem}input:focus,select:focus,button:focus{outline:3px solid #b9d8f5;outline-offset:1px}button{cursor:pointer;background:#174a7e;color:#fff;border-color:#174a7e;font-weight:700}button:hover{background:#123f6b}button.secondary{background:#fff;color:#174a7e}.samples{display:flex;flex-wrap:wrap;gap:.5rem}.samples button{font-size:.88rem}.hidden{display:none!important}.status{min-height:1.5rem;color:#52606d}.status.error{color:#9b1c1c}
 #transcript{display:grid;gap:.9rem;list-style:none;padding:0}.message{border:1px solid #d9e2ec;border-radius:.8rem;padding:1rem}.message[data-role="assistant"]{background:#f7fbff}.message[data-role="user"]{background:#f7f7f7}.message header{display:flex;justify-content:space-between;gap:1rem;font-size:.85rem;color:#52606d;margin-bottom:.7rem}.message p{white-space:pre-wrap;margin:.5rem 0}.response-copy{font-size:1rem;margin:0 0 1rem}.briefing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:.8rem 0}.fact-card{background:#fff;border:1px solid #d9e2ec;border-radius:.65rem;padding:.8rem}.fact-label{display:block;color:#66788a;font-size:.76rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.fact-value{display:block;font-size:1.02rem;font-weight:750;margin-top:.2rem}.claim-list{display:grid;gap:.55rem;padding:0;margin:.6rem 0;list-style:none}.claim{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;border-top:1px solid #edf1f5;padding-top:.55rem}.claim:first-child{border-top:0;padding-top:0}.claim-label{color:#52606d}.claim-value{font-weight:700;text-align:right}.evidence{margin-top:.8rem;border-top:1px solid #edf1f5;padding-top:.65rem}.evidence summary{cursor:pointer;color:#174a7e;font-weight:700}.evidence li{margin:.35rem 0;font-size:.85rem;color:#52606d}.qualification{border-left:4px solid #d39e00;padding:.65rem .75rem;margin:.8rem 0;background:#fff9e8}.blocked{border-left-color:#c53030;background:#fff3f2}.empty{color:#66788a}.loading{opacity:.7;cursor:wait}@media(max-width:620px){.header-row{display:block}.briefing-grid{grid-template-columns:1fr}.claim{display:block}.claim-value{text-align:left;margin-top:.2rem}}
-</style></head>
+</style>
+<style>
+/* Visual polish for the synthetic return-visit workspace. */
+:root{color-scheme:light;--ink:#172b3a;--muted:#5c6f7d;--line:#d8e2e8;--teal:#126b63;--teal-soft:#e3f3ef}
+body{max-width:72rem;padding:clamp(.65rem,3vw,1.5rem);color:var(--ink);background:#f2f6f5}
+main{border-color:var(--line);border-radius:1.1rem;padding:clamp(1rem,3.4vw,2.25rem);box-shadow:0 14px 42px #173b3510}
+.eyebrow{color:var(--teal);letter-spacing:.14em}.subtitle{color:var(--muted)}
+.context{align-items:center;border-color:#c9e1dc;border-radius:.8rem;background:#edf7f4}.context strong{color:var(--teal)}
+.badge{background:var(--teal-soft);color:#14564f}
+.section-heading{margin-top:1.9rem;padding-bottom:.35rem;border-bottom:1px solid #e9eff0}.section-heading h2{margin:.25rem 0 .55rem}
+form{gap:.8rem}#source-document-form .section-heading{margin-top:.4rem}
+#briefing-form{grid-template-columns:minmax(0,1fr) auto;align-items:end;padding:.25rem 0 .8rem}
+#source-document-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:1rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#source-document-form .section-heading,#source-status{grid-column:1/-1}
+#source-document-form button{justify-self:start}
+select,input,button{min-height:44px;border-radius:.65rem}input,select{border-color:#9aafb7;background:#fff}input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid #84cfc0;outline-offset:2px}
+button{background:#145e58;border-color:#145e58}button:hover{background:#104b47}button.secondary{color:#145e58;border-color:#b9d4cf}button.secondary:hover{background:#edf7f4}
+.message{border-color:var(--line);border-radius:.9rem;padding:clamp(.85rem,2vw,1.2rem)}.message[data-role="assistant"]{background:#f3f9f7}.message[data-role="user"]{background:#f7f8f8}
+.fact-card{border-color:#d6e4e1;border-radius:.75rem}.fact-label{color:var(--muted)}.evidence summary{color:var(--teal)}
+.qualification{border-left-color:#c8962b;background:#fff6df}.blocked{border-left-color:#aa4141;background:#fff1ef}
+button:disabled{opacity:.6;cursor:wait}
+@media(max-width:620px){#briefing-form,#source-document-form{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
+</style>
+</head>
 <body><main id="agentforge-app">
 <header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge">Synthetic demonstration only</span></div>
 <div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="hint">Read-only · clinician review required</span></div></header>
@@ -219,6 +242,11 @@ h1{font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.05;margin:.25rem 0}.section-
       const evidenceCount = workflow.typed_outputs.evidence?.guideline_evidence?.length || 0;
       sourceStatus.textContent = (result.duplicate ? 'Existing synthetic source reused; ' : 'Synthetic source stored; ') + documentResults.length + ' document worker result(s), ' + factCount + ' extracted fact(s), ' + evidenceCount + ' guideline source(s).';
       setStatus('Supervisor completed the synthetic document and evidence workers.');
+      const preview = document.createElement('a');
+      preview.href = basePath + '/v1/source-documents/' + encodeURIComponent(result.source_document.id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(writeContext.demo_token);
+      preview.textContent = 'Open source preview';
+      preview.target = '_blank';
+      sourceStatus.append(document.createTextNode(' '), preview);
       sourceDocumentForm.reset();
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
     finally { setBusy(false); }
@@ -259,4 +287,60 @@ export function renderEvaluatorPage({ golden, errorAnalysis, w2Gate = null, base
 <section aria-labelledby="w2-heading"><h2 id="w2-heading">W2 regression gate</h2><div class="cards"><div class="card"><span class="value">${w2Gate?.total_cases ?? '—'}</span><span class="muted">cases</span></div><div class="card"><span class="value pass">${w2Passed}</span><span class="muted">passed</span></div><div class="card"><span class="value">${w2Failures}</span><span class="muted">failed</span></div><div class="card"><span class="value pass">${w2GateLabel}</span><span class="muted">blocking gate</span></div></div><p><a href="${route('/evals/w2-baseline.json')}">Current W2 baseline/gate metadata</a></p></section>
 <p class="warn"><strong>Limitations:</strong> these are synthetic fixture and harness results. They demonstrate contract sensitivity and observable behavior; they do not prove clinical safety, OpenEMR authorization parity, provider suitability, or production PHI compliance.</p>
 </main></body></html>`;
+}
+
+export function renderScanSourcePreview({ sourceDocument, extraction, basePath = '' }) {
+  const facts = extraction?.facts || [];
+  const missing = extraction?.missing_fields || [];
+  const uncertain = extraction?.uncertain_fields || [];
+  const conflicts = extraction?.conflicts || [];
+  const reviewCount = missing.length + uncertain.length + conflicts.length;
+  const status = ['complete', 'partial', 'qualified', 'blocked'].includes(extraction?.status) ? extraction.status : 'unknown';
+  const factRows = facts.map((fact) => {
+    const box = fact.citation.bounding_box.join(',');
+    return `<article class="evidence-row" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>Page ${escapeHtml(fact.citation.page)}</span><span>Region <code>[${escapeHtml(box)}]</code></span></div><p>${escapeHtml(fact.citation.quote)}</p></div></article>`;
+  }).join('');
+  const reviewGroups = [
+    ['Missing fields', missing],
+    ['Needs a closer look', uncertain],
+    ['Conflicting values', conflicts],
+  ].filter(([, items]) => items.length).map(([label, items]) => `<section class="review-group"><h3>${label}</h3><ul>${items.map((item) => {
+    const name = item.field_id || 'Unspecified field';
+    const detail = Array.isArray(item.values) ? item.values.join(' / ') : item.reason;
+    return `<li><strong>${escapeHtml(name)}</strong>${detail ? `<span>${escapeHtml(detail)}</span>` : ''}</li>`;
+  }).join('')}</ul></section>`).join('');
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Source evidence · AgentForge</title>
+  <style>
+    :root{color-scheme:light;--ink:#172b3a;--muted:#5c6f7d;--line:#d8e2e8;--paper:#fff;--canvas:#f2f6f5;--teal:#126b63;--teal-soft:#e3f3ef;--amber:#815600;--amber-soft:#fff4d9;--red:#9c3434;--red-soft:#fff0ee}
+    *{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.9rem max(1.25rem,calc((100vw - 70rem)/2));background:#123c42;color:#f2fbf8}
+    .brand{font-weight:800;letter-spacing:.02em;color:inherit;text-decoration:none}.brand span{margin-left:.55rem;color:#b9d8d1;font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+    .badge,.status{display:inline-flex;align-items:center;border-radius:999px;padding:.28rem .7rem;font-size:.78rem;font-weight:750;white-space:nowrap}.badge{background:#d8eee8;color:#174d48}.status[data-status="complete"]{background:var(--teal-soft);color:var(--teal)}.status[data-status="partial"],.status[data-status="qualified"]{background:var(--amber-soft);color:var(--amber)}.status[data-status="blocked"]{background:var(--red-soft);color:var(--red)}.status[data-status="unknown"]{background:#e9eef1;color:#435663}
+    main{width:min(calc(100% - 2rem),70rem);margin:2rem auto 4rem}.back-link{display:inline-flex;align-items:center;min-height:44px;color:var(--teal);font-weight:700;text-decoration:none}.back-link:hover{text-decoration:underline}
+    .hero{padding:1.3rem 0 1.1rem;border-bottom:1px solid var(--line)}.eyebrow{margin:0 0 .45rem;color:var(--teal);font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.hero-row{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}h1{margin:0;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.12;overflow-wrap:anywhere}.meta{margin:.65rem 0 0;color:var(--muted);font-size:.9rem}.meta code{overflow-wrap:anywhere}
+    .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.5rem;padding:1.2rem 0;border-bottom:1px solid var(--line)}.summary-item{display:flex;align-items:baseline;gap:.55rem}.summary-item strong{font-size:1.45rem;font-variant-numeric:tabular-nums}.summary-item span{color:var(--muted);font-size:.88rem}
+    .notice{margin:1.4rem 0;padding:1rem 1.1rem;border-left:4px solid #d8a638;background:var(--amber-soft);color:#573e08}.notice strong{display:block;margin-bottom:.35rem}.review-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem;margin-top:.8rem}.review-group h3{margin:0 0 .4rem;font-size:.9rem}.review-group ul{margin:0;padding:0;list-style:none}.review-group li{display:grid;gap:.1rem;padding:.45rem 0;border-top:1px solid #e5d8b6;font-size:.84rem}.review-group li span{color:#6a5526}
+    .section-title{margin:1.8rem 0 .2rem;font-size:1.25rem}.section-intro{margin:0 0 .8rem;color:var(--muted);font-size:.9rem}.evidence-list{border-top:1px solid var(--line)}.evidence-row{display:grid;grid-template-columns:minmax(10rem,.7fr) minmax(0,1.3fr);gap:1.5rem;padding:1rem 0;border-bottom:1px solid var(--line)}.evidence-value{display:grid;align-content:start;gap:.3rem}.field-id{color:var(--muted);font-size:.78rem;font-weight:700;letter-spacing:.025em}.evidence-value strong{font-size:1.06rem}.citation{min-width:0;padding-left:1rem;border-left:2px solid #9dcfc5}.citation-meta{display:flex;flex-wrap:wrap;gap:.4rem 1rem;color:var(--teal);font-size:.8rem;font-weight:750}.citation code{color:var(--ink);font-size:.78rem;font-weight:600;overflow-wrap:anywhere}.citation p{margin:.45rem 0 0;color:#405563;font-size:.9rem}
+    .empty{padding:1.2rem 0;color:var(--muted)}footer{margin-top:2rem;padding-top:1rem;border-top:1px solid var(--line)}footer a{display:inline-flex;align-items:center;min-height:44px;color:var(--teal);font-weight:750;text-decoration:none}footer a:hover{text-decoration:underline}
+    @media(max-width:600px){.topbar{padding:.8rem 1rem}.brand span{display:block;margin:.1rem 0 0}.topbar .badge{font-size:.7rem}main{width:min(calc(100% - 1.25rem),70rem);margin-top:1rem}.hero-row{display:grid}.summary{gap:.5rem;grid-template-columns:1fr}.summary-item{justify-content:flex-start}.evidence-row{grid-template-columns:1fr;gap:.55rem}.citation{padding:.2rem 0 .1rem .8rem}}
+    @media print{body{background:#fff}.topbar{background:#fff;color:var(--ink);border-bottom:1px solid var(--line);padding:.5rem 0}.badge{border:1px solid var(--line)}main{width:100%;margin:1rem 0}.back-link,footer{display:none}.notice{break-inside:avoid}}
+  </style>
+</head>
+<body>
+  <div class="topbar"><a class="brand" href="${escapeHtml(basePath)}/">AgentForge <span>evidence review</span></a><span class="badge">Synthetic source preview</span></div>
+  <main id="source-preview">
+    <a class="back-link" href="${escapeHtml(basePath)}/">← Return to visit workspace</a>
+    <header class="hero"><p class="eyebrow">Source document</p><div class="hero-row"><div><h1>${escapeHtml(sourceDocument?.filename || 'Source document')}</h1><p class="meta">Document ID <code>${escapeHtml(sourceDocument?.id || 'unavailable')}</code></p></div><span class="status" data-status="${status}">Extraction ${escapeHtml(status)}</span></div></header>
+    <section class="summary" aria-label="Extraction summary"><div class="summary-item"><strong>${facts.length}</strong><span>verified fields</span></div><div class="summary-item"><strong>${extraction?.metrics?.pages ?? '—'}</strong><span>pages processed</span></div><div class="summary-item"><strong>${reviewCount}</strong><span>items needing review</span></div></section>
+    ${reviewCount ? `<aside class="notice" aria-labelledby="review-heading"><strong id="review-heading">Human review required</strong><span>Values listed here are incomplete, uncertain, or conflicting. They are not promoted as verified facts.</span><div class="review-groups">${reviewGroups}</div></aside>` : ''}
+    <section aria-labelledby="evidence-heading"><h2 class="section-title" id="evidence-heading">Verified field evidence</h2><p class="section-intro">Each accepted value includes its page, captured region, and source text.</p>${factRows ? `<div class="evidence-list">${factRows}</div>` : '<p class="empty">No verified fields were extracted from this document.</p>'}</section>
+    <footer><a href="${escapeHtml(basePath)}/">← Return to visit workspace</a></footer>
+  </main>
+</body>
+</html>`;
 }

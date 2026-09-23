@@ -1,0 +1,126 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { extractScanForm } from '../src/scanFormAdapter.js';
+import { REQUIRED_SCAN_FIELDS, SCAN_FORM_CONTRACT_VERSION, validateScanExtraction } from '../src/scanFormContracts.js';
+import { runRetrievalBenchmark } from '../src/retrievalBenchmark.js';
+import { runEvidenceWorker, runExtractionWorker } from '../src/activeWorkers.js';
+import { runActiveSupervisor } from '../src/supervisor.js';
+import { createLocalVlmAdapter } from '../src/localVlmAdapter.js';
+
+const fixture = (name) => fs.readFileSync(fileURLToPath(new URL(`../../docs/agentforge/fixtures/scan-forms/${name}`, import.meta.url)));
+
+test('scan-form adapter extracts cited complete lab fields under the frozen contract', () => {
+  const result = extractScanForm({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt') });
+  assert.equal(result.contract_version, SCAN_FORM_CONTRACT_VERSION);
+  assert.equal(result.status, 'complete');
+  assert.deepEqual(result.facts.map((fact) => fact.field_id), REQUIRED_SCAN_FIELDS.lab_pdf);
+  assert.ok(result.facts.every((fact) => fact.citation.source_document_id === 'src-lab-a' && fact.citation.bounding_box.length === 4));
+  assert.equal(validateScanExtraction(result, { sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf' }).valid, true);
+});
+
+test('scan-form adapter qualifies missing, unreadable, and conflicting values', () => {
+  const partial = extractScanForm({ sourceDocumentId: 'src-lab-b', documentType: 'lab_pdf', layoutId: 'lab-b', content: fixture('lab-layout-b-partial.scan.txt') });
+  assert.equal(partial.status, 'partial');
+  assert.deepEqual(partial.missing_fields.map((item) => item.field_id), ['lab.a1c']);
+  const unreadable = extractScanForm({ sourceDocumentId: 'src-lab-u', documentType: 'lab_pdf', layoutId: 'lab-b', content: fixture('lab-layout-b-unreadable.scan.txt') });
+  assert.equal(unreadable.status, 'qualified');
+  assert.ok(unreadable.uncertain_fields.length >= 2);
+  const conflict = extractScanForm({ sourceDocumentId: 'src-intake-c', documentType: 'intake_form', layoutId: 'intake-b', content: fixture('intake-layout-b-conflict.scan.txt') });
+  assert.equal(conflict.status, 'qualified');
+  assert.ok(conflict.conflicts.some((item) => item.field_id === 'medication.metformin'));
+  assert.equal(conflict.facts.some((fact) => fact.field_id === 'medication.metformin'), false);
+});
+
+test('active workers expose inspect-act-qualify handoffs and never promote empty evidence', () => {
+  const extraction = runExtractionWorker({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt') });
+  assert.equal(extraction.output_status, 'complete');
+  assert.deepEqual(extraction.steps.map((step) => step.name), ['inspect', 'extract', 'validate_or_qualify']);
+  assert.equal(JSON.stringify(extraction.redacted_metrics).includes('13.2'), false);
+  const evidence = runEvidenceWorker({ query: '' });
+  assert.equal(evidence.output_status, 'qualified');
+  assert.equal(evidence.guideline_evidence.length, 0);
+});
+
+test('active supervisor keeps worker handoffs inspectable and qualifies incomplete evidence', () => {
+  const ready = runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence' });
+  assert.equal(ready.final_state, 'READY');
+  assert.equal(ready.handoffs.length, 2);
+  assert.equal(ready.handoffs[0].worker, 'scan-form-extraction-worker');
+  const qualified = runActiveSupervisor({ sourceDocumentId: 'src-lab-b', documentType: 'lab_pdf', layoutId: 'lab-b', content: fixture('lab-layout-b-partial.scan.txt'), query: '' });
+  assert.equal(qualified.readiness, 'qualified');
+  assert.equal(qualified.final_state, 'QUALIFIED');
+});
+
+test('retrieval benchmark records a defended deterministic local choice', () => {
+  const report = runRetrievalBenchmark();
+  assert.equal(report.synthetic_only, true);
+  assert.equal(report.recommendation, 'retain_deterministic_index_for_local_checkpoint');
+  assert.ok(report.summary.lexical_sparse_dense_proxy.citation_rate >= 0.66);
+  assert.equal(report.summary.lexical_sparse_dense_proxy.estimated_cost_usd, 0);
+  assert.ok(report.summary.provider_vector_candidate.deterministic_replay.includes('not_executed'));
+});
+
+test('local VLM adapter normalizes visual candidates without weakening the deterministic contract', () => {
+  const adapter = createLocalVlmAdapter({ model: 'test-local-vlm', modelRevision: 'fixture-rev-1', runModel: () => ({
+    fields: [
+      { field_id: 'lab.hgb', label: 'Hemoglobin', value: '13.2', page: 1, bounding_box: [10, 20, 100, 40], confidence: 0.94, quote: 'Hemoglobin 13.2 g/dL' },
+      { field_id: 'lab.a1c', label: 'A1c', value: '6.1', page: 1, bounding_box: [10, 50, 100, 70], confidence: 0.91, quote: 'A1c 6.1 %' },
+    ],
+  }) });
+  const result = adapter({ sourceDocumentId: 'public-lab-a', documentType: 'lab_pdf', layoutId: 'public-layout-a', content: Buffer.from('%PDF-public-blank-form'), pageCount: 1, sourceClass: 'public_blank', syntheticOnly: false, processingMode: 'local_only' });
+  assert.equal(result.provider, 'local-vlm-adapter');
+  assert.equal(result.model, 'test-local-vlm');
+  assert.equal(result.status, 'complete');
+  assert.equal(result.synthetic_only, false);
+  assert.deepEqual(result.facts.map((fact) => fact.field_id), REQUIRED_SCAN_FIELDS.lab_pdf);
+  assert.equal(result.facts[0].citation.source_type, 'public_blank_form');
+  assert.equal(validateScanExtraction(result, { sourceDocumentId: 'public-lab-a', documentType: 'lab_pdf' }).valid, true);
+});
+
+test('local VLM adapter fails closed when no local model runner is configured', () => {
+  const result = createLocalVlmAdapter()({ sourceDocumentId: 'public-lab-a', documentType: 'lab_pdf', layoutId: 'public-layout-a', content: Buffer.from('%PDF-public-blank-form'), sourceClass: 'public_blank', syntheticOnly: false, processingMode: 'local_only' });
+  assert.equal(result.status, 'blocked');
+  assert.ok(result.issues.includes('local_vlm_runtime_not_configured'));
+  assert.equal(result.facts.length, 0);
+});
+
+test('local VLM adapter parses strict JSON and abstains on unlabeled raw text', () => {
+  const extract = createLocalVlmAdapter({ model: 'test-local-vlm', runModel: () => JSON.stringify({ fields: [
+    { field_id: 'lab.hgb', label: 'Hemoglobin', value: '13.2', page: 1, bounding_box: [10, 20, 100, 40], confidence: 0.94, quote: 'Hemoglobin 13.2 g/dL' },
+    { field_id: 'lab.a1c', label: 'A1c', value: '6.1', page: 1, bounding_box: [10, 50, 100, 70], confidence: 0.91, quote: 'A1c 6.1 %' },
+  ] }) });
+  const result = extract({ sourceDocumentId: 'public-lab-json', documentType: 'lab_pdf', layoutId: 'public-layout-a', content: Buffer.from('%PDF-public-blank-form'), sourceClass: 'public_blank', syntheticOnly: false, processingMode: 'local_only' });
+  assert.equal(result.status, 'complete');
+  assert.equal(result.facts.length, 2);
+
+  const malformed = createLocalVlmAdapter({ model: 'test-local-vlm', runModel: () => 'Hemoglobin: 13.2' })({ sourceDocumentId: 'public-lab-raw', documentType: 'lab_pdf', layoutId: 'public-layout-a', content: Buffer.from('%PDF-public-blank-form'), sourceClass: 'public_blank', syntheticOnly: false, processingMode: 'local_only' });
+  assert.equal(malformed.status, 'qualified');
+  assert.equal(malformed.facts.length, 0);
+  assert.ok(malformed.issues.includes('local_vlm_response_invalid_json'));
+});
+
+test('local VLM adapter requires cited labels and withholds duplicate field candidates', () => {
+  const result = createLocalVlmAdapter({ model: 'test-local-vlm', runModel: () => ({ fields: [
+    { field_id: 'lab.hgb', label: 'Hemoglobin', value: '13.2', page: 1, bounding_box: [10, 20, 100, 40], confidence: 0.94, quote: '13.2 g/dL' },
+    { field_id: 'lab.a1c', label: 'A1c', value: '6.1', page: 1, bounding_box: [10, 50, 100, 70], confidence: 0.91, quote: 'A1c 6.1 %' },
+    { field_id: 'lab.a1c', label: 'A1c', value: '6.2', page: 1, bounding_box: [10, 72, 100, 92], confidence: 0.91, quote: 'A1c 6.2 %' },
+  ] }) })({ sourceDocumentId: 'public-lab-duplicate', documentType: 'lab_pdf', layoutId: 'public-layout-a', content: Buffer.from('%PDF-public-blank-form'), sourceClass: 'public_blank', syntheticOnly: false, processingMode: 'local_only' });
+  assert.equal(result.status, 'qualified');
+  assert.equal(result.facts.some((fact) => fact.field_id === 'lab.hgb'), false);
+  assert.equal(result.facts.some((fact) => fact.field_id === 'lab.a1c'), false);
+  assert.ok(result.conflicts.some((item) => item.field_id === 'lab.a1c'));
+  assert.ok(result.issues.some((item) => item.startsWith('citation_quote_missing_label_or_value:lab.hgb')));
+});
+
+test('active workers can run the local VLM lane as a bounded second agent path', () => {
+  const adapter = createLocalVlmAdapter({ model: 'test-local-vlm', runModel: () => ({ fields: [
+    { field_id: 'lab.hgb', label: 'Hemoglobin', value: '13.2', page: 1, bounding_box: [10, 20, 100, 40], confidence: 0.94, quote: 'Hemoglobin 13.2' },
+    { field_id: 'lab.a1c', label: 'A1c', value: '6.1', page: 1, bounding_box: [10, 50, 100, 70], confidence: 0.94, quote: 'A1c 6.1' },
+  ] }) });
+  const handoff = runExtractionWorker({ sourceDocumentId: 'public-lab-a', documentType: 'lab_pdf', layoutId: 'public-layout-a', content: Buffer.from('%PDF-public-blank-form'), sourceClass: 'public_blank', syntheticOnly: false, processingMode: 'local_only', adapter });
+  assert.equal(handoff.output_status, 'complete');
+  assert.equal(handoff.extraction.provider, 'local-vlm-adapter');
+  assert.equal(handoff.steps[0].decision, 'accepted public_blank scan-form envelope');
+});

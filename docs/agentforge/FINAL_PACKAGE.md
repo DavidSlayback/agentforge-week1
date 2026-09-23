@@ -1,58 +1,74 @@
-# Final package checklist
+# Week 2 reviewer package
 
-> Current submission package for the synthetic checkpoint. The video remains
-> the only intentionally unfinished artifact; Qwen remains the synthesis lane and
-> the funded OpenRouter conversation lane is active.
+Updated 2026-09-23. This is a local working package, not a release approval.
 
 ## Candidate identity
 
-- Local branch: `davidslayback/agentforge-stack-03-deploy-evidence`
-- Source of record: GitLab program issue #17 and child issues #18–#26
-- Verified deployment URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
-- Deployed service commit: `88420c1`; current API and browser readback are tied
-  to this candidate.
-- Active provider lanes: Qwen for ahead-of-time synthesis; Google Gemini 2.5
-  Flash-Lite through OpenRouter for short follow-ups. The OpenRouter key is
-  server-only and the lane preserves a deterministic evidence anchor.
-- A future synthetic deployment must set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, a
-  server-only `AGENTFORGE_DEMO_SECRET`, and a durable `AGENTFORGE_TRACE_PATH`.
+- Working tree is detached at `dcc8a48` with uncommitted source, evidence, and
+  documentation changes. It is not yet an immutable submission revision.
+- The previous public W2 deployment was built from `67f376c` at
+  `/agentforge-w2`. Its health/readiness and synthetic workflow checks do not
+  prove the current working tree or the new scan-form preview path. Refresh
+  the public URL, TLS, candidate identity, and intended-browser workflow before
+  recording.
+- The older `/agentforge` package and provider claims are historical and do
+  not describe this W2 candidate.
 
-## Gate matrix
+## Current evidence
 
-| Gate | Current state | Final proof required |
+| Area | Evidence | Status |
 | --- | --- | --- |
-| Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
-| Public URL/TLS | PASS | Current HTTPS URL, redirect, health, readiness, and browser surface read back on the packaged revision. |
-| Multi-turn browser agent | PASS synthetic | Current clean-browser briefing/follow-up surface verified; partial and blocked probes are in the API collection and UI. |
-| Auth/scope seam | PASS synthetic | Signed-context expiry/mismatch/scope tests pass locally; current synthetic deployed readback passes. |
-| Provider lane | PASS split synthetic | Qwen synthesis and OpenRouter conversation traces both read back as primary; deterministic fallback remains fail-closed. |
-| Operations | PASS synthetic | Dashboard, alerts, traces, and route matrix read back on the packaged revision. |
-| Load/cost | Load PARTIAL; billing readback PASS; projections REVIEW | Latest bounded load sample is candidate-scoped; Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
-| Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | PARTIAL | The latest split-lane load sample, measured on candidate `56d1a35`, is 10/10 at concurrency 10 and 46/50 at concurrency 50. It is retained as load evidence but is not relabeled as a fresh `88420c1` load run. |
-| Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
-| Final readback | PASS synthetic | Candidate `88420c1` is deployed, healthy, and passed the public API collection plus live split-lane readback. |
-| Submission package | READY | Link-current artifact review and owner sign-off. |
-| Interview | READY FOR OWNER REVIEW | Timed rehearsal against final evidence. |
-| External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |
+| Synthetic scan-form contracts, workers, supervisor, and source preview | Local implementation and prior integration evidence in `W2_GAP_CLOSURE_EXECUTION_PLAN.md` | Local; not deployed on the previous W2 candidate |
+| Local AgentForge tests | Current working tree: 118/118, serial run | Rerun on the immutable candidate |
+| W2 regression gate | Current working tree: 50/50; gate includes injected-defect coverage | Rerun on the immutable candidate |
+| Tesseract localization | 50/53 labels recognized; 32/53 in expected regions | Local baseline; localization needs improvement |
+| PaddleOCR-VL typed extraction | 0/8 typed matches; 8/8 invalid-JSON abstentions | Not promoted |
+| Retrieval provider | Local lexical proxy on the previously verified W2 route | Cohere is not active |
+| Jev comparison | Injected-mock, off by default, no provider calls | Not connected to deployed requests |
+| Scan-form provider choice | No provider/model selected | Owner decision required |
+| Demo recording | No current W2 recording | Owner-recorded 3–5 minute video remains open |
+| Current-candidate deployment/browser proof | Not performed for this working tree | Required before recording or submission |
 
-## Final release stop conditions
+All scan-form and patient data in this package are synthetic. No local result
+establishes PHI readiness, real OpenEMR parity, provider suitability, or clinical
+safety.
 
-Stop the release if the final URL is inaccessible, TLS requires a bypass, the
-browser surface is single-shot, signed context is not enforced in the target
-configuration, traces contain raw fixture content, any golden case fails, or a
-document makes a live OpenEMR/PHI/provider/compliance claim.
+## Reviewer path after deployment
 
-## Owner sign-off wording
+1. Open the immutable candidate's exact HTTPS URL in a clean browser and verify
+   candidate identity plus health and readiness.
+2. Use only synthetic fixtures. Prepare the visit, upload a supported synthetic
+   source, open its evidence preview, and inspect extraction status, field
+   values, and page/region citations. Missing, uncertain, or conflicting fields
+   must remain visibly qualified.
+3. The active worker and retrieval workflow currently exists behind the
+   `/v1/scan-supervisor` API, but the upload UI does not yet invoke or display
+   its handoffs. Do not present multi-agent handoffs as a visible browser
+   feature until that path is wired and exercised. The local fixture parser is
+   not a promoted general PDF OCR/VLM system.
+4. Open `/evals` and `/observability`; show the candidate's current evaluation
+   and redacted operational evidence.
+5. Record 3–5 minutes from the browser tab, then verify playback and the key
+   upload, citation, evaluation, and observability moments.
 
-> I reviewed the final candidate, live URL readback, browser flow, evidence
-> index, limitations, and non-claims. I approve this as a synthetic,
-> read-only, evidence-bounded submission. I do not approve PHI, live OpenEMR,
-> hosted-provider, clinical write-back, or external publication beyond the
-> separately named decision below.
+## Submission evidence
 
-## Publication decision
+- [Architecture](W2_ARCHITECTURE.md)
+- [Frozen scan-form contracts](W2_STAGE0_CONTRACT_PACKET.md)
+- [W2 evaluation gate](W2_EVAL_GATE.md)
+- [Extraction benchmark report](W2_SCAN_FORM_EXTRACTION_REPORT.md)
+- [Retrieval benchmark](W2_RETRIEVAL_BENCHMARK.md)
+- [Provider and managed-VLM decision frontier](HUMAN_DECISION_OPTIONS.md)
+- [Early checkpoint package](W2_EARLY_CHECKPOINT.md)
+- [Gap-closure plan and evidence reconciliation](W2_GAP_CLOSURE_EXECUTION_PLAN.md)
 
-Default state: **do not publish or contact external parties**. Keep the draft
-local unless the owner separately approves recipients, timing, links, and exact
-copy.
+## Remaining owner decisions and release gates
+
+- Select the provider/model and data-processing path for final extraction;
+  separately decide whether an early submission needs that provider live or can
+  accurately present it as an open decision with local evidence.
+- Choose and authorize the exact deployment revision; verify public HTTPS and
+  the intended browser workflow after deployment.
+- Record and inspect the demo. Do not claim the recording or submission is
+  complete until their exact artifacts and links are available.
+- Approve any external sharing or submission separately.

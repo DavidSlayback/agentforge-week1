@@ -1,0 +1,478 @@
+{
+  "schema_version": "w2-tesseract-baseline-v2",
+  "tool": "tesseract",
+  "tesseract_path": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+  "tesseract_version": "tesseract v5.4.0.20240606",
+  "dpi": 200,
+  "synthetic_only": false,
+  "input_boundary": "public blank forms only; no patient data or completed forms",
+  "labels_total": 53,
+  "labels_recognized": 50,
+  "label_recall": 0.9433962264150944,
+  "labels_recognized_in_region": 32,
+  "region_localization_rate": 0.6037735849056604,
+  "coordinate_output_available": true,
+  "forms": [
+    {
+      "id": "lab-hawaii-crl-2013",
+      "layout_id": "external-lab-hawaii-crl",
+      "source_sha256": "d85242e50065c933d299c0852486fea3f50a706d249b22b9f3faa9f548809994",
+      "page_count": 1,
+      "labels_total": 10,
+      "labels_recognized": 10,
+      "labels_recognized_in_region": 4,
+      "region_localization_rate": 0.4,
+      "pages": [
+        {
+          "page": 1,
+          "image_sha256": "977974fa917990f46a02671be51af1ab0351711f6a8276b5686b4837d7d4782e",
+          "coordinate_word_count": 108,
+          "labels": [
+            {
+              "field_id": "submitter.name",
+              "label_hash": "dcd1d5223f73b3a9",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "submitter.organization",
+              "label_hash": "d764d42592fc9687",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "patient.patient_id",
+              "label_hash": "61e3897b83cb2544",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.name",
+              "label_hash": "dcd1d5223f73b3a9",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.date_of_birth",
+              "label_hash": "fdc739f52650c2c8",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "specimen.specimen_id",
+              "label_hash": "e8e333f026519ad3",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "specimen.date_collected",
+              "label_hash": "9c3ad02ffd10c353",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "specimen.source",
+              "label_hash": "ef073888d0b62e5f",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "specimen.description",
+              "label_hash": "e507b67c4aa35057",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "specimen.analysis_requested",
+              "label_hash": "a1a11d74286a5482",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.3291
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lab-maine-arbovirus-2017",
+      "layout_id": "external-lab-maine-arbovirus",
+      "source_sha256": "8da07b3f81c14f73f3fa3e6ae4b0793ce405e9a859ab7c6f9125a163d17d7e3b",
+      "page_count": 1,
+      "labels_total": 13,
+      "labels_recognized": 13,
+      "labels_recognized_in_region": 11,
+      "region_localization_rate": 0.8461538461538461,
+      "pages": [
+        {
+          "page": 1,
+          "image_sha256": "fb58dc683df0d1f2875e6e55d3d6df74cb9a821f7017d72d2acdab90be80a832",
+          "coordinate_word_count": 232,
+          "labels": [
+            {
+              "field_id": "patient.name",
+              "label_hash": "dfc06f22ff070266",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.date_of_birth",
+              "label_hash": "b758a5f34167b9cd",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.address",
+              "label_hash": "56ef8f20955f2564",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.gender",
+              "label_hash": "a04630ef8bc3da8c",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.9532
+            },
+            {
+              "field_id": "patient.race_ethnicity",
+              "label_hash": "08efc094cb90d52c",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.9532
+            },
+            {
+              "field_id": "patient.pregnant",
+              "label_hash": "d4818f908a6cd859",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "provider.name",
+              "label_hash": "00666bc478607ee0",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "provider.phone",
+              "label_hash": "72dba9aeed897e53",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "clinical.symptom_onset_date",
+              "label_hash": "d42bf72e5111e993",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "specimen.acute_serum",
+              "label_hash": "ee42b39605f49e56",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "specimen.convalescent_serum",
+              "label_hash": "602f5bd20b616599",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.8788
+            },
+            {
+              "field_id": "specimen.csf",
+              "label_hash": "6e587f8a282ae34f",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "specimen.urine",
+              "label_hash": "c07d2df59e429241",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "intake-broom-road-adult-v02",
+      "layout_id": "external-intake-broom-road",
+      "source_sha256": "b7db3de867c4b3043517f544601e8c42b9e26274a5fe4e89e57102282e982097",
+      "page_count": 2,
+      "labels_total": 14,
+      "labels_recognized": 12,
+      "labels_recognized_in_region": 6,
+      "region_localization_rate": 0.42857142857142855,
+      "pages": [
+        {
+          "page": 1,
+          "image_sha256": "bb5f54f510668cc59eaa276572f037d256c6bb86a612bd68fbbf9eb65000f4d6",
+          "coordinate_word_count": 460,
+          "labels": [
+            {
+              "field_id": "patient.surname",
+              "label_hash": "f762da05f4d47af5",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "patient.forenames",
+              "label_hash": "7a12d88066f5483e",
+              "recognized": false,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "patient.nhs_number",
+              "label_hash": "3a8316f138c7b40a",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.date_of_birth",
+              "label_hash": "fdc739f52650c2c8",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.5244
+            },
+            {
+              "field_id": "patient.address",
+              "label_hash": "56ef8f20955f2564",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "patient.telephone_home",
+              "label_hash": "e149c23beb69e0fd",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.9591
+            },
+            {
+              "field_id": "patient.email",
+              "label_hash": "09bf25ef30833633",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.8222
+            },
+            {
+              "field_id": "patient.next_of_kin",
+              "label_hash": "58ce2723c0f188a6",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.4798
+            },
+            {
+              "field_id": "medical.illnesses",
+              "label_hash": "96c25dc13923b66c",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "medications",
+              "label_hash": "af45afa952e3fe5f",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "allergies",
+              "label_hash": "6834a85b77971c87",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.7719
+            }
+          ]
+        },
+        {
+          "page": 2,
+          "image_sha256": "8372bb88f166a36a2347b47c6296bca8bd177d8bd156a62bdd425892b3eae03e",
+          "coordinate_word_count": 410,
+          "labels": [
+            {
+              "field_id": "family_history",
+              "label_hash": "47b182a9c0568bb8",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "vaccination.flu",
+              "label_hash": "3e677735bfbe2d7e",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "signature",
+              "label_hash": "08251562b3407a16",
+              "recognized": false,
+              "localized": false,
+              "overlap_ratio": 0.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "intake-erskine-new-patient",
+      "layout_id": "external-intake-erskine",
+      "source_sha256": "4d0f55e5051cf4b8f76f0fe0d1073d33d839cf1091f76db495f4432165385a22",
+      "page_count": 2,
+      "labels_total": 16,
+      "labels_recognized": 15,
+      "labels_recognized_in_region": 11,
+      "region_localization_rate": 0.6875,
+      "pages": [
+        {
+          "page": 1,
+          "image_sha256": "bdf46f6e81ca1002cd7c8a55a2f96d8aa642392f058f05a7351eb9d252223da6",
+          "coordinate_word_count": 80,
+          "labels": [
+            {
+              "field_id": "patient.title",
+              "label_hash": "7e8cd2056da73a7f",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "patient.surname",
+              "label_hash": "f762da05f4d47af5",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.4414
+            },
+            {
+              "field_id": "patient.date_of_birth",
+              "label_hash": "fdc739f52650c2c8",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.5661
+            },
+            {
+              "field_id": "patient.forenames",
+              "label_hash": "3c9764d7498970c1",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 0.8301
+            },
+            {
+              "field_id": "patient.address",
+              "label_hash": "56ef8f20955f2564",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.post_code",
+              "label_hash": "8a660f6c9c5453e5",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.home_telephone",
+              "label_hash": "822b7de619e57cc2",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "patient.mobile",
+              "label_hash": "cbaad3cf4a6507e5",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "medical.previous_history",
+              "label_hash": "a3b8419aff7571f3",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "medical.present_problems",
+              "label_hash": "4f703568474fb63e",
+              "recognized": false,
+              "localized": false,
+              "overlap_ratio": 0.0
+            }
+          ]
+        },
+        {
+          "page": 2,
+          "image_sha256": "b184a04e849b5fdf74929a910651efe3b2c9665987a2d97b8fbb7837b8a2b90b",
+          "coordinate_word_count": 126,
+          "labels": [
+            {
+              "field_id": "medications",
+              "label_hash": "108d3c6c5e8ba4a8",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "allergies",
+              "label_hash": "4142f7c7f501fe02",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "family_history",
+              "label_hash": "47b182a9c0568bb8",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "lifestyle.smoking",
+              "label_hash": "c5f22fabfe8bbf1c",
+              "recognized": true,
+              "localized": true,
+              "overlap_ratio": 1.0
+            },
+            {
+              "field_id": "women.cervical_smear",
+              "label_hash": "1a95ce9c37f60921",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            },
+            {
+              "field_id": "women.mammogram",
+              "label_hash": "0d834281961f2057",
+              "recognized": true,
+              "localized": false,
+              "overlap_ratio": 0.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

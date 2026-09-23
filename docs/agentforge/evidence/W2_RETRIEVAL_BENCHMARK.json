@@ -1,0 +1,32 @@
+{
+  "benchmark_version": "w2-retrieval-benchmark-v1",
+  "synthetic_only": true,
+  "query_count": 3,
+  "recommendation": "retain_deterministic_index_for_local_checkpoint",
+  "summary": {
+    "lexical_sparse_dense_proxy": {
+      "cases": 3,
+      "relevant_hits": 3,
+      "hit_rate": 1,
+      "citation_rate": 1,
+      "p50_latency_ms": 0.035,
+      "p95_latency_ms": 0.255,
+      "estimated_cost_usd": 0
+    },
+    "provider_vector_candidate": {
+      "cases": 3,
+      "relevant_hits": null,
+      "hit_rate": null,
+      "citation_rate": null,
+      "p50_latency_ms": null,
+      "p95_latency_ms": null,
+      "estimated_cost_usd": null,
+      "status": "INCONCLUSIVE: not executed without authorized provider"
+    }
+  },
+  "rows": [
+    {"id": "diabetes-follow-up", "expected": "guideline-diabetes-follow-up-1", "top_source": "guideline-diabetes-follow-up-1", "status": "complete", "hit": true, "citation_preserved": true},
+    {"id": "fatigue-review", "expected": "guideline-fatigue-review-1", "top_source": "guideline-fatigue-review-1", "status": "complete", "hit": true, "citation_preserved": true},
+    {"id": "unsupported", "expected": null, "top_source": null, "status": "qualified", "hit": true, "citation_preserved": true}
+  ]
+}

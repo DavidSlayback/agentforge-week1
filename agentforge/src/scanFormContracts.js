@@ -1,0 +1,117 @@
+export const SCAN_FORM_CONTRACT_VERSION = 'w2-scan-v1';
+export const SCAN_DOCUMENT_TYPES = Object.freeze(['lab_pdf', 'intake_form']);
+export const EXTRACTION_STATUSES = Object.freeze(['complete', 'partial', 'qualified', 'blocked']);
+export const FIELD_DISPOSITIONS = Object.freeze(['observed', 'missing', 'unreadable', 'conflicting']);
+export const SCAN_SOURCE_CLASSES = Object.freeze(['synthetic_fixture', 'public_blank']);
+
+export const REQUIRED_SCAN_FIELDS = Object.freeze({
+  lab_pdf: Object.freeze(['lab.hgb', 'lab.a1c']),
+  intake_form: Object.freeze(['chief_concern', 'medication.metformin', 'allergy.penicillin']),
+});
+
+export const EXTERNAL_FORM_FIELDS = Object.freeze({
+  'external-lab-hawaii': Object.freeze(['submitter.name', 'submitter.organization', 'patient.patient_id', 'patient.name', 'patient.date_of_birth', 'specimen.specimen_id', 'specimen.date_collected', 'specimen.source', 'specimen.description', 'specimen.analysis_requested']),
+  'external-lab-maine': Object.freeze(['patient.name', 'patient.date_of_birth', 'patient.address', 'patient.gender', 'patient.race_ethnicity', 'patient.pregnant', 'provider.name', 'provider.phone', 'clinical.symptom_onset_date', 'specimen.acute_serum', 'specimen.convalescent_serum', 'specimen.csf', 'specimen.urine']),
+  'external-intake-broom-road': Object.freeze(['patient.surname', 'patient.forenames', 'patient.nhs_number', 'patient.date_of_birth', 'patient.address', 'patient.telephone_home', 'patient.email', 'patient.next_of_kin', 'medical.illnesses', 'medications', 'allergies', 'family_history', 'vaccination.flu', 'signature']),
+  'external-intake-erskine': Object.freeze(['patient.title', 'patient.surname', 'patient.date_of_birth', 'patient.forenames', 'patient.address', 'patient.post_code', 'patient.home_telephone', 'patient.mobile', 'medical.previous_history', 'medical.present_problems', 'medications', 'allergies', 'family_history', 'lifestyle.smoking', 'women.cervical_smear', 'women.mammogram']),
+});
+
+export function requiredScanFields({ documentType, layoutId } = {}) {
+  return EXTERNAL_FORM_FIELDS[layoutId] || REQUIRED_SCAN_FIELDS[documentType] || [];
+}
+
+const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const nonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
+const validBox = (value) => Array.isArray(value) && value.length === 4 && value.every((item) => Number.isFinite(item) && item >= 0);
+
+export function validateScanInput(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['scan_input_must_be_object'] };
+  if (value.contract_version !== SCAN_FORM_CONTRACT_VERSION) issues.push('scan_input_contract_version_invalid');
+  if (!nonEmpty(value.source_document_id)) issues.push('source_document_id_required');
+  if (!SCAN_DOCUMENT_TYPES.includes(value.document_type)) issues.push('document_type_invalid');
+  if (!nonEmpty(value.layout_id)) issues.push('layout_id_required');
+  if (!Number.isInteger(value.page_count) || value.page_count < 1) issues.push('page_count_invalid');
+  if (!Buffer.isBuffer(value.content) || value.content.length === 0) issues.push('content_required');
+  if (value.synthetic_only === true) {
+    if (value.source_class && value.source_class !== 'synthetic_fixture') issues.push('synthetic_source_class_invalid');
+  } else if (value.synthetic_only === false) {
+    if (value.source_class !== 'public_blank') issues.push('public_blank_source_class_required');
+    if (value.processing_mode !== 'local_only') issues.push('local_only_processing_required');
+  } else {
+    issues.push('synthetic_only_boolean_required');
+  }
+  return { valid: issues.length === 0, issues };
+}
+
+export function validateCitation(value, { sourceDocumentId = null } = {}) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['citation_must_be_object'] };
+  for (const field of ['source_type', 'source_document_id', 'field_id', 'quote', 'layout_id']) if (!nonEmpty(value[field])) issues.push(`citation_${field}_required`);
+  if (sourceDocumentId && value.source_document_id !== sourceDocumentId) issues.push('citation_source_document_mismatch');
+  if (!Number.isInteger(value.page) || value.page < 1) issues.push('citation_page_invalid');
+  if (!validBox(value.bounding_box)) issues.push('citation_bounding_box_invalid');
+  return { valid: issues.length === 0, issues };
+}
+
+export function validateExtractedField(value, { sourceDocumentId = null } = {}) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['field_must_be_object'] };
+  if (!nonEmpty(value.field_id)) issues.push('field_id_required');
+  if (!nonEmpty(value.value)) issues.push('value_required');
+  if (!Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) issues.push('confidence_invalid');
+  if (value.disposition !== 'observed') issues.push('observed_field_disposition_required');
+  const citation = validateCitation(value.citation, { sourceDocumentId });
+  issues.push(...citation.issues);
+  if (value.uncertainty !== null && !nonEmpty(value.uncertainty)) issues.push('uncertainty_must_be_null_or_string');
+  return { valid: issues.length === 0, issues };
+}
+
+export function validateScanExtraction(value, { sourceDocumentId = null, documentType = null, layoutId = null } = {}) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['extraction_must_be_object'] };
+  if (value.contract_version !== SCAN_FORM_CONTRACT_VERSION) issues.push('extraction_contract_version_invalid');
+  if (!nonEmpty(value.provider)) issues.push('provider_required');
+  if (!EXTRACTION_STATUSES.includes(value.status)) issues.push('extraction_status_invalid');
+  for (const field of ['facts', 'missing_fields', 'uncertain_fields', 'conflicts', 'issues']) if (!Array.isArray(value[field])) issues.push(`${field}_must_be_array`);
+  if (Array.isArray(value.facts)) value.facts.forEach((fact) => issues.push(...validateExtractedField(fact, { sourceDocumentId }).issues));
+  if (documentType && Array.isArray(value.facts)) {
+    const allowed = new Set(requiredScanFields({ documentType, layoutId }));
+    value.facts.forEach((fact) => { if (!allowed.has(fact.field_id)) issues.push(`unexpected_field:${fact.field_id}`); });
+  }
+  if (!isRecord(value.metrics)) issues.push('metrics_must_be_object');
+  else for (const field of ['pages', 'candidate_fields', 'accepted_fields', 'duration_ms']) if (!Number.isFinite(value.metrics[field]) || value.metrics[field] < 0) issues.push(`metrics_${field}_invalid`);
+  return { valid: issues.length === 0, issues: [...new Set(issues)] };
+}
+
+export function validateWorkerHandoff(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['handoff_must_be_object'] };
+  if (value.contract_version !== SCAN_FORM_CONTRACT_VERSION) issues.push('handoff_contract_version_invalid');
+  for (const field of ['worker', 'input_type', 'output_status']) if (!nonEmpty(value[field])) issues.push(`${field}_required`);
+  if (!Array.isArray(value.steps) || value.steps.length < 3) issues.push('handoff_requires_three_steps');
+  if (Array.isArray(value.steps)) value.steps.forEach((step) => { if (!isRecord(step) || !nonEmpty(step.name) || !nonEmpty(step.decision)) issues.push('handoff_step_invalid'); });
+  if (!Number.isInteger(value.retry_count) || value.retry_count < 0) issues.push('retry_count_invalid');
+  if (!Array.isArray(value.citations)) issues.push('handoff_citations_must_be_array');
+  if (!isRecord(value.redacted_metrics)) issues.push('redacted_metrics_must_be_object');
+  return { valid: issues.length === 0, issues: [...new Set(issues)] };
+}
+
+export function validateRetrievalEvidence(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['retrieval_evidence_must_be_object'] };
+  for (const field of ['source_type', 'source_id', 'title', 'version', 'section', 'location', 'quote']) if (!nonEmpty(value[field])) issues.push(`retrieval_${field}_required`);
+  if (value.source_type !== 'guideline') issues.push('retrieval_source_type_invalid');
+  if (!Number.isFinite(value.score)) issues.push('retrieval_score_invalid');
+  if (!Array.isArray(value.matched_terms)) issues.push('retrieval_matched_terms_must_be_array');
+  return { valid: issues.length === 0, issues };
+}
+
+export function validateActiveSupervisorRequest(value) {
+  const issues = [];
+  if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
+  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id', 'message']) if (!nonEmpty(value[field])) issues.push(`${field}_required`);
+  const allowed = new Set(['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id', 'message']);
+  for (const field of Object.keys(value)) if (!allowed.has(field)) issues.push(`${field}_not_allowed`);
+  return { valid: issues.length === 0, issues };
+}

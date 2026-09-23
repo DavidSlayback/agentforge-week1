@@ -1,0 +1,3 @@
+SYNTHETIC_SCAN_FORM|layout=lab-b|page_count=1|document_type=lab_pdf
+UNREADABLE|field_id=lab.hgb|reason=blurred
+UNREADABLE|field_id=lab.a1c|reason=blurred

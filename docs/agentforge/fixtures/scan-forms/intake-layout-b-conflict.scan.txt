@@ -1,0 +1,4 @@
+SYNTHETIC_SCAN_FORM|layout=intake-b|page_count=1|document_type=intake_form
+FIELD|field_id=chief_concern|label=Reason|value=Fatigue for two weeks|section=Reason for visit|page=1|box=112,98,488,129|confidence=0.97
+FIELD|field_id=medication.metformin|label=Current medication|value=Metformin 500 mg daily|section=Medication list|page=1|box=112,188,488,219|confidence=0.91
+FIELD|field_id=medication.metformin|label=Medication correction|value=Metformin stopped|section=Medication corrections|page=1|box=112,236,488,267|confidence=0.90

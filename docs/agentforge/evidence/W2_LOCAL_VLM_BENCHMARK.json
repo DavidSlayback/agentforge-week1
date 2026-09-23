@@ -1,0 +1,139 @@
+{
+  "schema_version": "w2-local-vlm-benchmark-v1",
+  "model": "huggingface.co/ggml-org/smolvlm-256m-instruct-gguf:Q8_0",
+  "endpoint": "http://localhost:12434/engines/v1",
+  "data_class": "public_blank_forms_with_synthetic_overlays",
+  "raw_images_retained": false,
+  "raw_responses_retained": false,
+  "deterministic_baseline": {
+    "type": "manifest_coordinate_oracle",
+    "not_ocr_accuracy": true,
+    "cases": 8
+  },
+  "summary": {
+    "cases": 8,
+    "matched": 0,
+    "match_rate": 0.0,
+    "completed": 8,
+    "abstained": 8,
+    "latency_ms": {
+      "min": 2413.774,
+      "max": 2696.705
+    }
+  },
+  "results": [
+    {
+      "form_id": "lab-hawaii-crl-2013",
+      "document_type": "lab_pdf",
+      "layout_id": "external-lab-hawaii",
+      "field_id": "patient.patient_id",
+      "expected_value_hash": "72d7d965514cff976dc978d12c686e9a3714cd126c2d0c508eb0420c193d0404",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2696.705,
+      "crop_bytes": 2316,
+      "error": null,
+      "response_hash": "f5afc2d44eef85e23c68319417009ecdd55c51035e0cfa84a2acca9c1c17eceb"
+    },
+    {
+      "form_id": "lab-hawaii-crl-2013",
+      "document_type": "lab_pdf",
+      "layout_id": "external-lab-hawaii",
+      "field_id": "specimen.specimen_id",
+      "expected_value_hash": "588c52a5018fbdcc5fa451ea1e8f82bc51eeb2c21976a333b6dbddc347515116",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2417.6,
+      "crop_bytes": 3389,
+      "error": null,
+      "response_hash": "f5afc2d44eef85e23c68319417009ecdd55c51035e0cfa84a2acca9c1c17eceb"
+    },
+    {
+      "form_id": "lab-maine-arbovirus-2017",
+      "document_type": "lab_pdf",
+      "layout_id": "external-lab-maine",
+      "field_id": "patient.name",
+      "expected_value_hash": "d8b5a5a9bb3fcc9a5e63df67bcd983132bfdb1acce4d19ee75fc571ed79bdd60",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2497.039,
+      "crop_bytes": 8617,
+      "error": null,
+      "response_hash": "3603ef99fea9d05b86f75fe38d8ea24d8455087b00083446d2e8772607d1e6ac"
+    },
+    {
+      "form_id": "lab-maine-arbovirus-2017",
+      "document_type": "lab_pdf",
+      "layout_id": "external-lab-maine",
+      "field_id": "clinical.symptom_onset_date",
+      "expected_value_hash": "82834e611c7a6600f59af1f079b2b69841ebaa32aeb511bb431d766be20eb1eb",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2444.02,
+      "crop_bytes": 2623,
+      "error": null,
+      "response_hash": "f5afc2d44eef85e23c68319417009ecdd55c51035e0cfa84a2acca9c1c17eceb"
+    },
+    {
+      "form_id": "intake-broom-road-adult-v02",
+      "document_type": "intake_form",
+      "layout_id": "external-intake-broom-road",
+      "field_id": "patient.surname",
+      "expected_value_hash": "6ffbbe12c3d609cbd5297aa4418f8371ce1ee554ce8b6919fee54d90398d44db",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2511.5,
+      "crop_bytes": 7458,
+      "error": null,
+      "response_hash": "f5afc2d44eef85e23c68319417009ecdd55c51035e0cfa84a2acca9c1c17eceb"
+    },
+    {
+      "form_id": "intake-broom-road-adult-v02",
+      "document_type": "intake_form",
+      "layout_id": "external-intake-broom-road",
+      "field_id": "patient.date_of_birth",
+      "expected_value_hash": "0cdcdfa346c2941ebb9ee8d5a8a98db8181e68ab7a76edaebb62ab7e181bd2bf",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2518.89,
+      "crop_bytes": 5560,
+      "error": null,
+      "response_hash": "f5afc2d44eef85e23c68319417009ecdd55c51035e0cfa84a2acca9c1c17eceb"
+    },
+    {
+      "form_id": "intake-erskine-new-patient",
+      "document_type": "intake_form",
+      "layout_id": "external-intake-erskine",
+      "field_id": "patient.surname",
+      "expected_value_hash": "6ffbbe12c3d609cbd5297aa4418f8371ce1ee554ce8b6919fee54d90398d44db",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2427.619,
+      "crop_bytes": 14933,
+      "error": null,
+      "response_hash": "f5afc2d44eef85e23c68319417009ecdd55c51035e0cfa84a2acca9c1c17eceb"
+    },
+    {
+      "form_id": "intake-erskine-new-patient",
+      "document_type": "intake_form",
+      "layout_id": "external-intake-erskine",
+      "field_id": "patient.date_of_birth",
+      "expected_value_hash": "0cdcdfa346c2941ebb9ee8d5a8a98db8181e68ab7a76edaebb62ab7e181bd2bf",
+      "recognized_value_hash": "a87d452e851c34b976a235381fc66d602e750b1aefb95ce29da6478b5be42572",
+      "matched": false,
+      "abstained": true,
+      "latency_ms": 2413.774,
+      "crop_bytes": 8028,
+      "error": null,
+      "response_hash": "f5afc2d44eef85e23c68319417009ecdd55c51035e0cfa84a2acca9c1c17eceb"
+    }
+  ],
+  "promotion": "not_ready_without_crop_accuracy_and_abstention_review"
+}

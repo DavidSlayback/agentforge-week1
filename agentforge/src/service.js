@@ -4,7 +4,8 @@ import { isCoverageUnavailable, coverageGroupForField, validateRetrievalResult }
 import { extractLabEvidence } from './labEvidence.js';
 import { extractIntakeEvidence } from './intakeEvidence.js';
 import { retrieveGuidelineEvidence } from './guidelineEvidence.js';
-import { executeSupervisorWorkflow } from './supervisor.js';
+import { executeSupervisorWorkflow, runActiveSupervisor } from './supervisor.js';
+import { extractScanForm } from './scanFormAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
@@ -103,6 +104,25 @@ export class AgentForgeService {
     if (typeof this.writeback?.persistObservation !== 'function') return { status: 'failed', reason: 'OBSERVATION_WRITE_UNAVAILABLE', extraction };
     for (const fact of extraction.facts) observations.push(this.writeback.persistObservation({ patientRef: source.source_document.patient_ref, sourceDocumentId: source.source_document.id, fact }));
     return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
+  }
+
+  extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
+    const source = this.readSourceDocument(id, request, { verifiedContext });
+    if (source.status !== 'read') return source;
+    const contentText = source.content.toString('utf8');
+    const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
+    const pageCountMatch = contentText.match(/page_count=(\d+)/);
+    const extraction = extractScanForm({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || 'unknown', pageCount: Number(pageCountMatch?.[1] || 1), content: source.content });
+    return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations: [] };
+  }
+
+  runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
+    const source = this.readSourceDocument(id, request, { verifiedContext });
+    if (source.status !== 'read') return source;
+    const contentText = source.content.toString('utf8');
+    const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
+    const pageCountMatch = contentText.match(/page_count=(\d+)/);
+    return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow: runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || 'unknown', pageCount: Number(pageCountMatch?.[1] || 1), content: source.content, query }) };
   }
 
   async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {

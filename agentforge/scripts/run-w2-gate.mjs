@@ -11,6 +11,8 @@ const report = {
   corpus_sha256: result.corpus_sha256,
   judge_config: result.judge_config,
   by_label: result.by_label,
+  by_rubric: result.by_rubric,
+  rubric_mapping: result.rubric_mapping,
   regressions: result.regressions,
   critical_failures: result.critical_failures,
   failed_cases: result.failed_cases
