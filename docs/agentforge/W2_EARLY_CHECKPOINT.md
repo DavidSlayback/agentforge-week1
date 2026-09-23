@@ -1,8 +1,8 @@
 # Week 2 early checkpoint status
 
-Status: **local early checkpoint prepared; external candidate proof remains
-open, so this is not a complete submission.** This document records current
-proof and gaps as of 2026-09-22.
+Status: **the W2 candidate is published and externally verified; recording and
+submission remain open.** This document records current proof and gaps as of
+2026-09-23.
 Everything in the W2 workflow is synthetic. The owner has authorized publishing
 this candidate and a separate synthetic `/agentforge-w2` route. That scope does
 not authorize PHI, live clinical records, changes to `/agentforge`, or final
@@ -28,10 +28,10 @@ assignment submission.
   retrieval, and trace-redaction code using the five named rubric categories.
   Its corpus is generated in code; it is not a labeled scanned-form dataset.
 - W2 source and derived-fact storage is an in-memory synthetic seam, not an
-  OpenEMR round trip. The existing external service is healthy and serves a
-  50-case W2 report, but its revision was not matched to this working tree and
-  its home page does not display the current text-fixture label. It is not
-  current-candidate deployment or upload proof.
+  OpenEMR round trip. The isolated public W2 service was built from GitLab
+  `staging/main` SHA `67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`; external
+  health/readiness, page, evaluation, alert, trace, and synthetic upload checks
+  passed. It is separate from the existing Week 1 `/agentforge` route.
 - Reviewer pages now label the saved 7-case results as the Week 1 baseline;
   model traces say `primary` rather than implying every non-fallback model is
   live, and chart-cache metadata no longer says `openemr-live` for the fixture
@@ -39,8 +39,8 @@ assignment submission.
 
 ## Local verification
 
-Verified 2026-09-22 on the current working tree over HEAD `dcc8a48`: AgentForge
-suite **109/109 passed**; normal W2 gate **50/50 passed**
+Verified 2026-09-23 on release candidate `67f376c`: AgentForge suite
+**109/109 passed**; normal W2 gate **50/50 passed**
 (10/10 in each rubric); injected schema defect was blocked and the gate exited
 nonzero. These code checks do not prove deployment, PDF/OCR, live Cohere
 execution, OpenEMR round-trip, or recording. The separate local browser proof
@@ -60,6 +60,21 @@ app; the W2 follow-up trace is separately labeled.
 The redacted evidence record is
 [`W2_LOCAL_BROWSER_PROOF.json`](evidence/W2_LOCAL_BROWSER_PROOF.json).
 
+## Public release verification
+
+The public page was loaded in CUA over HTTPS at
+`https://dtstest.64.177.10.182.nip.io/agentforge-w2/`. Health and readiness
+returned 200; the UI showed the line-text fixture label and used the W2 API
+prefix. A generated synthetic `LAB|` record was uploaded through the public API
+and the supervisor returned one extraction result, one fact, three guideline
+sources, and handoffs for `intake-extractor`, `evidence-retriever`, and
+`deterministic-verifier`. The public 50-case report passed, observability and
+evaluator pages returned 200, and alerts were clear. This upload used an API
+client; a manual browser file-selection session and video recording remain
+open. The Week 1 `/agentforge` health/readiness stayed healthy and its service
+container ID did not change. Full evidence is in
+[`W2_EXTERNAL_DEPLOYMENT_PROOF.json`](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF.json).
+
 Run these from the repository root:
 
 ```powershell
@@ -68,7 +83,7 @@ npm.cmd run eval:gate --prefix agentforge
 npm.cmd run eval:gate --prefix agentforge -- --inject-defect
 ```
 
-Verified: the serialized test suite passed 108/108, the ordinary 50-case gate
+Verified: the serialized test suite passed 109/109, the ordinary 50-case gate
 passed, and the injected defect made the gate exit nonzero. Rerun against the
 exact release revision before submission.
 
@@ -76,10 +91,9 @@ exact release revision before submission.
 
 1. Local suite, gate, and mutation proof are recorded above; rerun against the
    exact release revision before submission.
-2. Local browser upload and worker-handoff proof is now recorded above. The
-   end-to-end citation-visible walkthrough and deployed candidate remain open.
-3. Build and verify an early-candidate deployment if the submission requires a
-   public app. Older deployment notes are not current W2 proof.
+2. Public API upload and worker-handoff proof is recorded above. Manual browser
+   file selection and a citation-visible walkthrough remain open.
+3. The isolated current-candidate deployment and public checks are complete.
 4. Record the requested 3–5 minute W2 demo against the same revision.
 5. Reconcile any rubric requirement that specifically requires actual scans,
    binary PDFs, or OpenEMR persistence; these are not implemented by the local
@@ -93,8 +107,8 @@ the README and preserve its read-only runtime boundary.
 
 ## User-owned release actions
 
-Current-candidate public deployment, recording, and external submission remain
-open. The existing `/agentforge` service is not being represented as this W2
-candidate. See the deployment decision frontier in
-[`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md) before
-adding a side-by-side public W2 route.
+The W2 candidate is deployed at `/agentforge-w2`. Recording and external
+submission remain open. The existing `/agentforge` service is not being
+represented as this W2 candidate. See the deployment decision frontier in
+[`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md) for the
+record of the completed side-by-side rollout.

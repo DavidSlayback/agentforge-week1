@@ -1,7 +1,7 @@
 # Week 2 gap-closure and release plan
 
 Date: 2026-09-22
-Status: `LOCAL CHECKPOINT READY; ROUTE AUTHORIZED, DEPLOYMENT PENDING HOST ACCESS`
+Status: `CANDIDATE DEPLOYED AND EXTERNALLY VERIFIED; RECORDING OPEN`
 Source authority: Week 2 PRD PDF, assignment delta review, repository code and
 runtime evidence. Imperative language inside the PDF states requirements; it
 does not itself authorize external deployment, publication, PHI, or live chart
@@ -35,10 +35,10 @@ and must never be described as OpenEMR persistence.
 - Preserve the five assignment rubric categories in a 50-case implementation
   gate. It is generated synthetic text-fixture evidence, not scan-form dataset
   or deployed-product proof.
-- Deployment/publication need exact owner authority. After authority is given,
-  deploy the frozen candidate and then require current-candidate external proof
-  before claiming readiness or submitting. The user owns recording and external
-  submission.
+- The exact candidate and `/agentforge-w2` route are authorized, published, and
+  externally verified. Do not expand that scope to `/agentforge`, PHI, live
+  chart writes, or a different public route. Recording and assignment
+  submission remain open.
 
 ## Current evidence ledger
 
@@ -48,15 +48,15 @@ and must never be described as OpenEMR persistence.
 | Supervisor + workers | `IMPLEMENTED, LOCALLY VERIFIED` | `supervisor.js` invokes extraction and evidence workers; tests confirm callbacks and typed outputs. Local browser upload showed the `intake-extractor` handoff with `input_type=source_documents` and `document_types=["lab_pdf"]`, followed by retrieval and deterministic verification. |
 | Cohere RAG | `ADAPTER IMPLEMENTED, LIVE NOT RUN` | `guidelineEvidence.js`; mocked request tests plus optional real synthetic query after secret is configured. Default remains lexical. |
 | 50-case rubric gate | `IMPLEMENTED, LOCALLY VERIFIED` | Checked-in synthetic baseline: 50/50 passed, 10/10 for each of five rubric labels; injected schema defect fails the gate. CI protection remains open. |
-| Week 1 preservation | `LOCALLY VERIFIED` | The Week 1 read-only chart adapter remains separate from W2 synthetic storage; the complete 108-test AgentForge suite passed, including live-mode write-disable and separation tests. |
-| Observability | `LOCAL PROOF; RELEASE OPEN` | Fresh localhost trace store showed W2 extraction/retrieval stages and all handoffs; UI alerts were clear and trace content redacted. One synthetic Week 1 fixture-preparation request also appears when opening the app. Public-candidate observability remains open. |
+| Week 1 preservation | `LOCAL AND EXTERNAL VERIFIED` | All 109 tests passed, including live-mode write-disable and separation coverage; W1 health/readiness remain healthy and its AgentForge container ID is unchanged across W2 deployment. |
+| Observability | `LOCAL AND PUBLIC PROOF` | Local and public traces show W2 extraction/retrieval stages and handoffs; public alerts reported `ok` with zero fired alerts. Trace content is redacted. |
 | Claim clarity | `CLEANED UP; REGRESSION TESTED` | Dashboard no longer calls a deterministic primary model “live”; saved 7-case results are labeled Week 1; fixture chart-cache trace metadata uses a neutral current-source label. |
 | Local browser proof | `VERIFIED, RECORDED` | [`W2_LOCAL_BROWSER_PROOF.json`](evidence/W2_LOCAL_BROWSER_PROOF.json) records the synthetic upload, worker handoffs, redacted trace, alert state, and explicit non-claims. |
-| Existing public surface | `INCONCLUSIVE FOR CURRENT CANDIDATE` | Read-only GETs on 2026-09-22 returned `/health` 200/`ok`, `/ready` 200/`ready`, and `/evals/w2-baseline.json` 50/50. The home page does not contain the current `Source text fixture` label. Public runtime identity was not matched to this worktree. |
-| Early deployed candidate | `AUTHORIZED; DEPLOYMENT PENDING HOST ACCESS` | Owner authorized publishing to GitLab `staging/main` and an isolated `/agentforge-w2` service on 2026-09-22. The local candidate is being frozen; the VM SSH connection currently times out before the remote banner, so capacity and live route state cannot yet be checked. Preserve `/agentforge`. |
+| Existing Week 1 public surface | `HEALTHY; NOT THE W2 CANDIDATE` | `/agentforge/health` and `/ready` returned 200 before and after rollout; its container ID remained unchanged. |
+| Early deployed candidate | `DEPLOYED; EXTERNALLY VERIFIED` | GitLab `staging/main` reads back `67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`; isolated `/agentforge-w2` is healthy, accepts a synthetic upload, and passes the public 50-case report. The Week 1 `/agentforge` container ID remained unchanged and its health/readiness still pass. |
 | 3–5 minute demo | `OPEN, USER-OWNED` | Record only after browser walkthrough on the candidate; do not reuse Week 1 video as W2 proof. |
 | Final architecture and metrics | `PARTIAL` | Current architecture notes exist; create W2 architecture and measured W2 latency/cost report Sunday. |
-| Final CI, 50-case dataset/results, public app | `PARTIAL / OPEN` | Gate is local; obtain CI required-check evidence, freeze dataset/results, deploy/verify current candidate. |
+| Early public app | `PASS` | Current candidate is deployed and externally verified at `/agentforge-w2`; CI required-check evidence and Sunday release dataset remain open. |
 
 ## Fast path to Wednesday early submission
 
@@ -66,41 +66,46 @@ and must never be described as OpenEMR persistence.
    `W2_EARLY_CHECKPOINT.md`, and `W2_EVAL_GATE.md` explicit about line-text-only
    extraction, lexical default, Cohere status, in-memory synthetic storage, and
    the Week 1 read-only boundary.
-3. Local browser proof now verifies a generated `LAB|` fixture upload, one
-   extracted fact, three guideline sources, worker completion, schema-specific
-   redacted handoffs, and clear alert state. This is text-fixture/local proof;
-   it does not satisfy deployment, click-to-source, or recording requirements.
-4. If the early bar needs a public app, deploy the exact candidate and verify
-   route, TLS, browser operation, and running revision. Otherwise report the
-   deployed-app requirement as not met; older Week 1 deployment is not proof.
+3. Local browser proof and public API upload verify a generated `LAB|` fixture,
+   one extracted fact, three guideline sources, worker completion, redacted
+   handoffs, and clear alerts. They do not establish binary PDF/OCR,
+   click-to-source, manual file selection, or recording proof.
+4. The exact candidate is now deployed at `/agentforge-w2`; route, TLS, public
+   API upload, and running service health were checked. Manual browser file
+   selection and recording remain open.
 5. Record the 3–5 minute demo on that same candidate and prepare an evidence
    summary for user review. Do not submit or publish on the user's behalf.
 
-## External deployment decision frontier — `AUTHORIZED; DEPLOYMENT PENDING HOST ACCESS`
+## External deployment decision frontier — `AUTHORIZED AND EXECUTED`
 
-The owner explicitly authorized publishing the frozen W2 candidate to GitLab
-`staging/main` and adding the isolated `/agentforge-w2` route on 2026-09-22.
-This does not authorize replacing the existing `/agentforge` behavior. Host
-access is currently unavailable: SSH connects but times out before the remote
-banner, so capacity and live compose/Caddy state remain unverified.
+The owner authorized publishing the frozen W2 candidate to GitLab `staging/main`
+and adding the isolated `/agentforge-w2` route. This did not authorize replacing
+the existing `/agentforge` behavior. The exact candidate was published and
+deployed on 2026-09-23 UTC; current-candidate external checks passed, and the
+Week 1 service stayed healthy with the same container ID.
 
 ### Verified facts
 
-- The existing public origin is
-  `https://dtstest.64.177.10.182.nip.io/agentforge/`. External PowerShell GETs
-  on 2026-09-22 returned `/health` **200 / `ok`**, `/ready` **200 / `ready`**,
-  and `/evals/w2-baseline.json` **200 / 50 cases passed**.
-- The public landing page returned 200 but did not contain the current local
-  `Source text fixture` label. No runtime source hash or commit endpoint was
-  read back, so these checks prove existing service availability, not current
-  candidate identity or W2 upload behavior.
-- GitLab `staging/main` currently resolves to `cb728cb23e274b73e748ee5fd030ab63baf45fda`.
-  Local `HEAD` is `dcc8a4879b74891ec3e06220b1eff0de83b32e3e`, 14 commits ahead;
-  the worktree also has uncommitted changes. Release proof cannot cite the
-  current public service as this candidate.
-- The current deployment routes `/agentforge*` to the Week 1 service. A
-  side-by-side path must be matched before that broader Caddy handler, or it
-  will be routed to the existing service.
+- GitLab `staging/main` read back as
+  `67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`. The service was built from the
+  exact commit archive; its archive SHA-256 matched on upload. The W2 container
+  image is `sha256:b492274ed28ea4470086743b67539c170846c9a2517c93fb3f7bcbad6683ac84`.
+- Caddy serves the exact `/agentforge-w2` prefix before the existing
+  `/agentforge*` handler. The candidate Caddyfile validates and its mounted
+  SHA-256 matches the host file. The prior Caddyfile is retained as a rollback
+  copy.
+- The candidate's HTTPS health and readiness endpoints returned 200; its UI
+  returned 200 and showed the current `Source text fixture` label and W2 API
+  prefix. CUA loaded the public page. A generated synthetic `LAB|` upload via
+  the public API returned one extraction result, one fact, three guideline
+  sources, and the three expected worker/verifier handoffs.
+- The public 50-case W2 report passed; the observability and evaluator pages
+  returned 200; alert status was `ok` with zero fired alerts. The public trace
+  showed extraction complete, retrieval ready, and
+  `local-lexical-proxy` with three hits.
+- Existing `/agentforge` health and readiness still return 200. Its AgentForge
+  container ID remained unchanged across W2 and proxy startup. No W1 service was
+  rebuilt or restarted, and existing named volumes remain present.
 - The local Compose candidate now defines a `0.5` CPU / `512M` memory-limited
   `agentforge-w2` service with synthetic mode, deterministic model fallback,
   local lexical RAG, no OpenEMR dependency/token mount, no persistent volume,
@@ -115,7 +120,7 @@ banner, so capacity and live compose/Caddy state remain unverified.
    Fastest infrastructure path, but rejected: it changes the established Week 1
    route and conflicts with the explicit preserve-Week-1 constraint.
 2. **Add an isolated W2 service at `/agentforge-w2` on the same owner-controlled
-   host.** Recommended if a public W2 path is required tomorrow. Run with
+   host.** Deployed and verified. It runs with
    synthetic context, deterministic model, local lexical RAG, and in-memory W2
    document storage; leave the current service, OpenEMR mode, `.env`, volumes,
    and `/agentforge` route untouched. Register the specific Caddy path before
@@ -127,33 +132,32 @@ banner, so capacity and live compose/Caddy state remain unverified.
 
 ### Approval record for option 2
 
-Approval received 2026-09-22: publish the frozen W2 candidate to GitLab
+Approval received and executed: publish the frozen W2 candidate to GitLab
 `staging/main` and add a separate public W2 service at
 `https://dtstest.64.177.10.182.nip.io/agentforge-w2`, while keeping the existing
 `/agentforge` service and all server-only configuration/volumes unchanged.
 Scope remains the two synthetic document schemas, UTF-8 text fixtures only,
 local lexical RAG, no PHI, no OpenEMR writes, no live Cohere call, and no paid
-infrastructure changes. Stop if the route would alter Week 1 behavior, resource
-headroom is inadequate, the candidate cannot be frozen without scratch/secrets,
-or any required release check fails. After host access and capacity confirmation:
-freeze the tracked candidate, rerun tests/gate/mutation proof, publish and read
-back the exact GitLab SHA, add the isolated service and specific Caddy route,
-then run the external browser upload, worker trace, eval, observability,
-health/readiness, and existing Week 1 regression checks.
+infrastructure changes. The tracked candidate was frozen as
+`67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`; tests, the 50-case gate, and
+injected-defect check passed as expected before publication. The deployed app
+uses only generated text fixtures. The public upload was executed through the
+API client; CUA verified the browser-rendered public page, but manual file
+selection and a 3–5 minute recording remain open.
 
-Publication is authorized. Do not apply the remote deployment until SSH access
-returns and resource headroom plus current `/agentforge` state are verified.
+Deployment and external service checks passed. Do not alter `/agentforge`,
+server-only `.env`, or existing data volumes as part of the W2 work.
 
 ## Release evidence ledger
 
 | ID | Acceptance criterion | Surface | Check | Evidence | Status | Gap / next action |
 |---|---|---|---|---|---|---|
-| E1 | Supervisor invokes extraction, retrieval, and verifier with schema-accurate handoffs | `supervisor.js`, UI, trace | Unit/API suite and local browser upload | 108/108 suite; local W2 trace has `lab_pdf`, extraction/retrieval stages, and three handoffs | `PASS` | Keep trace artifact attached to current candidate |
+| E1 | Supervisor invokes extraction, retrieval, and verifier with schema-accurate handoffs | `supervisor.js`, UI, trace | Unit/API suite and public synthetic upload | 109/109 suite; public W2 trace has extraction/retrieval stages and three handoffs | `PASS` | Keep redacted trace summary attached to candidate |
 | E2 | W2 regression gate is reproducible and blocks a defect | `w2RegressionGate.js` | Normal and injected-defect gate runs | 50/50 pass; injected defect exits nonzero | `PASS` | Repeat after release freeze |
-| E3 | Local synthetic upload returns extracted facts and retrieved sources | upload UI/service | Local browser interaction | `W2_LOCAL_BROWSER_PROOF.json` | `PASS` | Does not prove citations visible or PDFs/OCR |
-| E4 | Week 1 route remains read-only and unchanged | existing service and W2 separation | Full suite and local code inspection | Live-mode write-disable and separation tests passed | `PASS` | Verify existing deployed route after any authorized rollout |
-| E5 | Existing public service is available | existing Vultr `/agentforge` | HTTPS GET health/readiness and W2 baseline | 200/ok, 200/ready, 50/50 report on 2026-09-22 | `PASS` | Availability only; not current-candidate identity |
-| E6 | Current W2 candidate is deployed and upload works publicly | GitLab revision, W2 route | Exact SHA readback and clean external browser upload | No matching deployed revision; public page lacks the current fixture label | `INCONCLUSIVE` | Publication/route authorized; pending SSH access, host-capacity check, deploy, and external proof |
+| E3 | Synthetic upload returns extracted facts and retrieved sources | upload UI/service | Local browser and public API interactions | Local proof plus public upload: one fact, three sources, three handoffs | `PASS` | Public upload used an API client; manual browser file selection remains open |
+| E4 | Week 1 route remains read-only and unchanged | existing service and W2 separation | Full suite, W1 health/readiness, container identity | Live-mode write-disable tests passed; W1 remained healthy with unchanged container ID across W2/proxy startup | `PASS` | Preserve same route/config/data boundary |
+| E5 | Existing Week 1 public service remains available | existing Vultr `/agentforge` | HTTPS GET health/readiness before and after rollout | 200/ok and 200/ready; same AgentForge container ID before and after | `PASS` | W2 is separately served at `/agentforge-w2` |
+| E6 | Current W2 candidate is deployed and upload works publicly | GitLab revision, W2 route | Exact SHA readback and external browser/page plus public API upload | SHA `67f376ca`; HTTPS health/readiness 200; UI 200 with W2 prefix; generated upload yielded 1 fact, 3 sources, and expected handoffs; gate 50/50 | `PASS` | Manual browser file selection remains unperformed; keep API-vs-UI boundary explicit |
 | E7 | Live Cohere RAG is active and evidenced | Cohere adapter/config | Provider invocation and safe synthetic query | Adapter mocked in tests; no key configured; local proof used lexical retriever | `INCONCLUSIVE` | Configure key only if live Cohere proof is required; otherwise claim adapter available, not active |
 | E8 | Owner demo recording is ready | recording artifact | Verify playback and candidate identity | No W2 recording | `INCONCLUSIVE` | Owner records after one candidate passes external walkthrough |
 
@@ -178,13 +182,11 @@ type is part of the plan.
   labeled accurately.
 - No Cohere call is made in live OpenEMR mode or without configured credentials;
   no request includes user or patient data.
-- Existing public service health is `PASS`, but current-candidate deployment
-  identity and public W2 upload are `INCONCLUSIVE`. Live Cohere, CI protection,
-  and recording remain `NOT RUN`; local browser proof is not a substitute for
-  those release checks.
+- Existing Week 1 service and current-candidate W2 health/readiness are `PASS`;
+  current-candidate identity and public API upload are verified. Live Cohere,
+  CI protection, manual browser file selection, and recording remain `NOT RUN`.
 - Stop before PHI, live clinical-record use, or any material change to the
-  authorized synthetic route and candidate-publication scope. Remote deployment
-  remains gated on restored SSH access and adequate host headroom.
+  authorized synthetic route and candidate-publication scope.
 
 ## Completion record
 
@@ -208,7 +210,8 @@ dashboard calls a non-fallback model `primary`, and fixture chart-cache metadata
 is source-neutral. The redacted local proof is recorded in
 `W2_LOCAL_BROWSER_PROOF.json`. These results are from the working tree layered over HEAD `dcc8a48`; no
 matching W2 deployment, click-to-source proof, actual Cohere call, binary
-PDF/OCR proof, or recording exists yet. A current-state
+PDF/OCR proof, or recording existed at the local checkpoint. The deployment
+decision frontier below records the later public verification. A current-state
 [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) now captures implemented flow and
 Sunday gaps. The isolated browser trace store contained one synthetic Week 1
 fixture-preparation trace alongside the W2 follow-up. The owner has authorized
@@ -216,8 +219,8 @@ publishing the candidate and adding the isolated W2 route. The candidate
 deployment descriptor isolates browser requests under `/agentforge-w2` and has
 a focused regression check. The latest local suite passed 109/109; the
 synthetic gate passed 50/50 and the injected-defect run failed as expected.
-Compose configuration parsed using dummy required values. Publishing is next;
-remote deployment waits for SSH access and capacity verification, then requires
-external verification.
+Compose configuration parsed with dummy local values and the server-only env
+file. The exact candidate was published and deployed; public deployment checks
+are recorded in `W2_EXTERNAL_DEPLOYMENT_PROOF.json`.
 The user owns the recording/submission. Do not mark the plan complete while
 required early-submission evidence remains open.

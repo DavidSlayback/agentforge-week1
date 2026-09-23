@@ -1,0 +1,98 @@
+{
+  "schema_version": "agentforge-w2-external-deployment-proof-v1",
+  "verified_at_utc": "2026-09-23T01:53:06Z",
+  "candidate": {
+    "git_remote": "staging",
+    "git_ref": "refs/heads/main",
+    "git_sha": "67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e",
+    "build_context_archive_sha256": "55a3d738ffd74e36f31dcce4fea92571b686ae503159e89846fed6446352f68",
+    "runtime_image_id": "sha256:b492274ed28ea4470086743b67539c170846c9a2517c93fb3f7bcbad6683ac84",
+    "runtime_container_id": "19d95cdb035fbf2e53ebb1ff009753e8c88bff64fb4df5712a7947fa8634659d",
+    "runtime_health": "healthy"
+  },
+  "deployment": {
+    "public_url": "https://dtstest.64.177.10.182.nip.io/agentforge-w2/",
+    "compose_project": "vultr",
+    "release_directory": "/opt/agentforge-week1/.releases/agentforge-w2-67f376c",
+    "service": "agentforge-w2",
+    "cpu_limit": 0.5,
+    "memory_limit_mib": 512,
+    "openemr_mode": "synthetic",
+    "openemr_dependency": false,
+    "openemr_token_mount": false,
+    "persistent_volume_mounts": [],
+    "published_host_ports": [],
+    "rag_provider": "local-lexical-proxy",
+    "live_cohere": false,
+    "caddyfile_sha256": "dfed17c46b044bcdb811120d20cf03de2e790328b85ed3226311b87caaa13f61",
+    "previous_caddyfile_backup": "/opt/agentforge-week1/deploy/vultr/Caddyfile.pre-w2-67f376c",
+    "previous_caddyfile_sha256": "e165894995feeb45627c88265688fc1a5048242739bca3eb9bbf8453aa126cd6"
+  },
+  "external_checks": {
+    "https_client_certificate_validation": "pass",
+    "health": {
+      "http_status": 200,
+      "body_status": "ok"
+    },
+    "readiness": {
+      "http_status": 200,
+      "body_status": "ready"
+    },
+    "browser_page": {
+      "cua_loaded_public_page": true,
+      "http_status": 200,
+      "text_fixture_label_visible": true,
+      "w2_api_prefix_in_page": true
+    },
+    "public_evaluation": {
+      "http_status": 200,
+      "passed": true,
+      "total_cases": 50
+    },
+    "public_synthetic_upload": {
+      "method": "public API client using generated UTF-8 LAB text fixture",
+      "http_status": 200,
+      "status": "persisted",
+      "synthetic_only": true,
+      "document_worker_results": 1,
+      "extracted_facts": 1,
+      "guideline_sources": 3,
+      "handoffs": [
+        "intake-extractor",
+        "evidence-retriever",
+        "deterministic-verifier"
+      ]
+    },
+    "public_trace": {
+      "trace_count": 2,
+      "operation": "w2-supervisor",
+      "stages": [
+        "extraction:complete",
+        "retrieval:ready"
+      ],
+      "retrieval_provider": "local-lexical-proxy",
+      "retrieved_sources": 3
+    },
+    "observability_page_http_status": 200,
+    "evaluator_page_http_status": 200,
+    "alerts": {
+      "status": "ok",
+      "fired": 0
+    },
+    "week1_route": {
+      "health_http_status": 200,
+      "health_body_status": "ok",
+      "readiness_http_status": 200,
+      "readiness_body_status": "ready",
+      "agentforge_container_id_before_and_after": "a05e2832ad828c286dcedb473eb51ca2fe3ab001911272c9d65c18c8a799a4d4",
+      "container_id_unchanged": true
+    }
+  },
+  "known_gaps": [
+    "The public upload flow was exercised with an API client; manual browser file selection was not performed.",
+    "The two schemas accept synthetic UTF-8 line-text fixtures; binary PDF, scan, and OCR/VLM extraction are not implemented.",
+    "W2 source and fact storage is in-memory and synthetic, not OpenEMR persistence.",
+    "The active RAG provider is local lexical retrieval; live Cohere was not run.",
+    "Click-to-source visual proof and the 3-5 minute demo recording remain open."
+  ]
+}
