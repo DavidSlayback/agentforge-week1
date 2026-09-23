@@ -1,6 +1,10 @@
 const MODEL_DEFAULT = 'gemini-3.8-flash';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 const MAX_INLINE_BYTES = 12 * 1024 * 1024;
+const MAX_ATTEMPTS = 3;
+const BASE_RETRY_DELAY_MS = 500;
+const MAX_RETRY_DELAY_MS = 5000;
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 const FIELDS = {
   lab_pdf: [
@@ -65,6 +69,17 @@ function responseText(body) {
   return parts.find((part) => part.type === 'text' && typeof part.text === 'string')?.text || '';
 }
 
+function retryDelayMs(response, retryIndex) {
+  const retryAfter = response.headers?.get?.('retry-after')?.trim();
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    const parsed = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
+    if (Number.isFinite(parsed) && parsed > MAX_RETRY_DELAY_MS) return null;
+    if (Number.isFinite(parsed) && parsed > 0) return Math.max(BASE_RETRY_DELAY_MS * 2 ** retryIndex, parsed);
+  }
+  return Math.min(MAX_RETRY_DELAY_MS, BASE_RETRY_DELAY_MS * 2 ** retryIndex);
+}
+
 export function createGeminiScanAdapter({ apiKey, model = MODEL_DEFAULT, timeoutMs = 45000, dailyLimit = 12, fetchImpl = fetch } = {}) {
   if (!apiKey) throw new Error('GEMINI_SCAN_API_KEY_REQUIRED');
   const requestLimit = Number.isFinite(dailyLimit) ? Math.max(1, Math.min(50, Math.floor(dailyLimit))) : 12;
@@ -79,40 +94,49 @@ export function createGeminiScanAdapter({ apiKey, model = MODEL_DEFAULT, timeout
       if (imageBytes > MAX_INLINE_BYTES) throw new Error('GEMINI_SCAN_INLINE_LIMIT_EXCEEDED');
       const input = [{ type: 'text', text: `Read this synthetic ${documentType} form. Images are pages 1 through ${pages.length}, in order. Extract only these field_id values: ${allowedFields.join(', ')}. For each observed field, return its exact value as visibly written, a short exact source quote containing that value, and the 1-based page number. Omit absent or unreadable fields. Do not infer, normalize, or fill missing information. The quote must be visible in that image.` }];
       pages.forEach((page) => input.push({ type: 'image', mime_type: 'image/png', data: page.image_base64 }));
-      const today = new Date().toISOString().slice(0, 10);
-      if (today !== budgetDay) { budgetDay = today; requestsToday = 0; }
-      if (requestsToday >= requestLimit) throw new Error('GEMINI_SCAN_DAILY_LIMIT_REACHED');
-      requestsToday++;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const response = await fetchImpl(ENDPOINT, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({
-            model,
-            input,
-            response_format: { type: 'text', mime_type: 'application/json', schema: schema(documentType) },
-            generation_config: { thinking_level: 'low', max_output_tokens: 2048 },
-          }),
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(`GEMINI_SCAN_HTTP_${response.status}`);
-        const text = responseText(await response.json());
-        let result;
-        try { result = JSON.parse(text); } catch { throw new Error('GEMINI_SCAN_JSON_INVALID'); }
-        if (!Array.isArray(result?.fields)) throw new Error('GEMINI_SCAN_FIELDS_INVALID');
-        const fields = [];
-        for (const field of result.fields) {
-          if (!field || !allowedFields.includes(field.field_id) || typeof field.value !== 'string' || !field.value.trim() || typeof field.quote !== 'string' || !field.quote.trim() || !Number.isInteger(field.page) || field.page < 1 || field.page > pages.length) continue;
-          const source = locateQuote(field, pages);
-          if (!source) continue;
-          fields.push({ field_id: field.field_id, label: field.field_id, value: field.value.trim(), quote: source.quote, page: source.page, box: source.box, confidence: source.confidence });
+      const requestBody = JSON.stringify({
+        model,
+        input,
+        response_format: { type: 'text', mime_type: 'application/json', schema: schema(documentType) },
+        generation_config: { thinking_level: 'low', max_output_tokens: 2048 },
+      });
+      let response;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (today !== budgetDay) { budgetDay = today; requestsToday = 0; }
+        if (requestsToday >= requestLimit) throw new Error('GEMINI_SCAN_DAILY_LIMIT_REACHED');
+        requestsToday++;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          response = await fetchImpl(ENDPOINT, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+            body: requestBody,
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timer);
         }
-        return { fields, model };
-      } finally {
-        clearTimeout(timer);
+        if (response.ok) break;
+        const error = new Error(`GEMINI_SCAN_HTTP_${response.status}`);
+        if (!RETRYABLE_STATUSES.has(response.status) || attempt === MAX_ATTEMPTS - 1 || requestsToday >= requestLimit) throw error;
+        const delayMs = retryDelayMs(response, attempt);
+        if (delayMs === null) throw error;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
+      const text = responseText(await response.json());
+      let result;
+      try { result = JSON.parse(text); } catch { throw new Error('GEMINI_SCAN_JSON_INVALID'); }
+      if (!Array.isArray(result?.fields)) throw new Error('GEMINI_SCAN_FIELDS_INVALID');
+      const fields = [];
+      for (const field of result.fields) {
+        if (!field || !allowedFields.includes(field.field_id) || typeof field.value !== 'string' || !field.value.trim() || typeof field.quote !== 'string' || !field.quote.trim() || !Number.isInteger(field.page) || field.page < 1 || field.page > pages.length) continue;
+        const source = locateQuote(field, pages);
+        if (!source) continue;
+        fields.push({ field_id: field.field_id, label: field.field_id, value: field.value.trim(), quote: source.quote, page: source.page, box: source.box, confidence: source.confidence });
+      }
+      return { fields, model };
     },
   };
 }

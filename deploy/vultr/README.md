@@ -120,6 +120,12 @@ in `/opt/agentforge-week1/.env`; never commit it or expose it to the browser,
 traces, or request payloads. Google model output remains untrusted and must
 pass local schema, quote, page, and bounding-box validation.
 
+The adapter retries HTTP 429, 500, 502, 503, and 504 responses up to two times
+with bounded exponential backoff. It honors `Retry-After` up to five seconds;
+longer delays are returned as failures for a later user retry. The daily limit
+counts every outbound attempt, including retries. Timeouts and malformed
+responses are not retried.
+
 ## Prepared Jev shadow lane
 
 The Jev seam is prepared as an optional, server-only typed-evidence review

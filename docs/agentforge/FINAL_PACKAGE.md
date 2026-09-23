@@ -2,8 +2,9 @@
 
 Updated 2026-09-23. The current W2 deployment is usable in local Tesseract
 mode: one public Lab Layout B run reached READY with 12 cited fields. Gemini
-is configured server-side but disabled after two Google HTTP 503 responses.
-Demo recording and final submission remain open.
+is configured server-side but disabled after two Google HTTP 503 responses;
+the adapter now has bounded status-based retries. Demo recording and final
+submission remain open.
 
 For the stage-by-stage requirement table, see
 [`W2_REQUIREMENTS_BY_STAGE.md`](W2_REQUIREMENTS_BY_STAGE.md).
@@ -11,10 +12,10 @@ For the stage-by-stage requirement table, see
 ## Candidate identity
 
 - Staging branch: `davidslayback/w2-synthetic-scan-release`
-- Deployed code commit: `902ea99` (`feat(agentforge): add opt-in Gemini scan extraction`)
+- Deployed code commit: pending retry-resilience release
 - Public URL: <https://dtstest.64.177.10.182.nip.io/agentforge-w2/>
-- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-902ea99`
-- Candidate proof: [W2 demo readiness proof](evidence/W2_DEMO_READINESS_902EA99.json)
+- Release directory: pending retry-resilience release
+- Candidate proof: pending post-deploy verification
 - Week 1 `/agentforge` stayed healthy with its existing container identity.
 
 The W2 route is synthetic-only. It has no OpenEMR dependency or persistence.
