@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
@@ -226,6 +227,36 @@ test('synthetic intake evidence API links derived observations to the source', a
     const body = await evidence.json();
     assert.equal(body.extraction.facts[0].citation.section, 'Chief concern');
     assert.equal(body.observations[0].observation.source_document_id, upload.source_document.id);
+  } finally {
+    child.kill();
+  }
+});
+
+test('synthetic scan-form evidence API and source preview preserve page-region citations', async () => {
+  const port = 18807;
+  const child = await startServer(port);
+  try {
+    const patient = 'fixture-patient-001';
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
+    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-layout-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
+    const evidencePath = `/v1/source-documents/${upload.source_document.id}/scan-form-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`;
+    const evidenceResponse = await fetch(`http://127.0.0.1:${port}${evidencePath}`);
+    assert.equal(evidenceResponse.status, 200);
+    const evidence = await evidenceResponse.json();
+    assert.equal(evidence.extraction.status, 'complete');
+    assert.equal(evidence.source_preview[0].source_document_id, upload.source_document.id);
+    assert.deepEqual(evidence.source_preview[0].bounding_box, [72, 126, 246, 150]);
+    const preview = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/source-preview?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`).then((response) => response.text());
+    assert.match(preview, /Synthetic source preview/);
+    assert.match(preview, /data-bounding-box="72,126,246,150"/);
+    const workflow = await fetch(`http://127.0.0.1:${port}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: readContext.demo_token, source_document_id: upload.source_document.id, message: 'documented glycemic values medication adherence' }) });
+    assert.equal(workflow.status, 200);
+    const workflowBody = await workflow.json();
+    assert.equal(workflowBody.workflow.handoffs[0].worker, 'scan-form-extraction-worker');
+    assert.equal(workflowBody.workflow.handoffs[1].worker, 'evidence-retrieval-worker');
+    assert.equal(workflowBody.workflow.final_state, 'READY');
   } finally {
     child.kill();
   }

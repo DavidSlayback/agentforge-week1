@@ -1,3 +1,5 @@
+import { runEvidenceWorker, runExtractionWorker } from './activeWorkers.js';
+
 const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACTOR', EVIDENCE_RETRIEVER: 'EVIDENCE_RETRIEVER', VERIFY: 'VERIFY', READY: 'READY', QUALIFIED: 'QUALIFIED', CLARIFY: 'CLARIFY', BLOCKED: 'BLOCKED' });
 
 function hasUsableCitation(item) {
@@ -28,6 +30,28 @@ export function runDeterministicSupervisor({ intakeResult = { status: 'not_reque
   }
   transitions.push(STATES.READY);
   return { workflow_version: 'w2-supervisor-v1', final_state: STATES.READY, readiness: 'ready', stop_reason: null, transitions, handoffs, typed_outputs: { intake: intakeResult, evidence: evidenceResult } };
+}
+
+/**
+ * Run the inspectable multi-worker scan-form path.
+ *
+ * The supervisor owns readiness and qualification; workers only return typed
+ * evidence and never write clinical actions or bypass citation validation.
+ */
+export function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter } = {}) {
+  const transitions = [STATES.START];
+  const extractionWorker = runExtractionWorker({ sourceDocumentId, documentType, layoutId, pageCount, content, sourceClass, syntheticOnly, processingMode, ...(extractionAdapter ? { adapter: extractionAdapter } : {}) });
+  transitions.push(STATES.INTAKE_EXTRACTOR);
+  if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null);
+  const evidenceWorker = runEvidenceWorker({ query, patientFacts, documentFacts: extractionWorker.extraction.facts, ...(retrievalAdapter ? { retrieve: retrievalAdapter } : {}) });
+  transitions.push(STATES.EVIDENCE_RETRIEVER);
+  if (evidenceWorker.output_status === 'ready') transitions.push(STATES.VERIFY, STATES.READY);
+  else transitions.push(STATES.CLARIFY);
+  return { workflow_version: 'w2-active-supervisor-v1', final_state: evidenceWorker.output_status === 'ready' ? STATES.READY : STATES.QUALIFIED, readiness: evidenceWorker.output_status === 'ready' ? 'ready' : 'qualified', stop_reason: null, transitions, handoffs: [extractionWorker, evidenceWorker], typed_outputs: { extraction: extractionWorker.extraction, evidence: evidenceWorker } };
+}
+
+function activeStop(state, reason, transitions, extraction, evidence) {
+  return { workflow_version: 'w2-active-supervisor-v1', final_state: state, readiness: 'stopped', stop_reason: reason, transitions, handoffs: [extraction, ...(evidence ? [evidence] : [])], typed_outputs: { extraction: extraction.extraction, evidence } };
 }
 
 export { STATES as SUPERVISOR_STATES };

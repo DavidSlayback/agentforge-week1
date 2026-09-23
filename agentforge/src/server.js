@@ -10,11 +10,12 @@ import { SyntheticWriteback } from './syntheticWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest, validateSupervisorResponse } from './contracts.js';
-import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
+import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
 import { runW2RegressionGate } from './w2RegressionGate.js';
+import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -206,6 +207,36 @@ const server = http.createServer(async (req, res) => {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
     }
+    const scanFormEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/scan-form-evidence(?:\?(.*))?$/);
+    if (req.method === 'GET' && scanFormEvidenceMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      try {
+        const result = service.extractScanFormEvidence(decodeURIComponent(scanFormEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+        if (result.status === 'failed') return json(res, 500, { error: result.reason });
+        const sourcePreview = result.extraction.facts.map((fact) => ({ field_id: fact.field_id, page: fact.citation.page, bounding_box: fact.citation.bounding_box, quote: fact.citation.quote, source_document_id: fact.citation.source_document_id }));
+        return json(res, 200, { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations, source_preview: sourcePreview });
+      } catch (error) {
+        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
+        return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
+      }
+    }
+    const scanSourcePreviewMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/source-preview(?:\?(.*))?$/);
+    if (req.method === 'GET' && scanSourcePreviewMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      const result = service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+      if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+      if (result.status === 'failed') return json(res, 500, { error: result.reason });
+      return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath }));
+    }
     const sourceDocumentMatch = req.url.match(/^\/v1\/source-documents\/([^?]+)(?:\?(.*))?$/);
     if (req.method === 'GET' && sourceDocumentMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -255,6 +286,15 @@ const server = http.createServer(async (req, res) => {
       } catch (error) {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
+    }
+    if (req.method === 'POST' && req.url === '/v1/scan-supervisor') {
+      const validation = validateActiveSupervisorRequest(body);
+      if (!validation.valid) return invalidContract(res, 'invalid_scan_supervisor_request', validation.issues);
+      const token = verifiedContextFor(body);
+      if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      const result = service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message });
+      if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+      return json(res, 200, result);
     }
     if (req.method === 'POST' && req.url === '/v1/clinical-actions/drafts') {
       if (!syntheticClinicalActionWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });

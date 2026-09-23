@@ -96,6 +96,13 @@ services:
       AGENTFORGE_CONVERSATION_OPENROUTER_SITE_URL: ${AGENTFORGE_CONVERSATION_OPENROUTER_SITE_URL:-}
       AGENTFORGE_CONVERSATION_OPENROUTER_SITE_NAME: ${AGENTFORGE_CONVERSATION_OPENROUTER_SITE_NAME:-AgentForge}
       AGENTFORGE_CONVERSATION_OPENROUTER_TIMEOUT_MS: ${AGENTFORGE_CONVERSATION_OPENROUTER_TIMEOUT_MS:-5000}
+      # Jev is an optional typed-evidence review lane. Keep it disabled in the
+      # current synthetic release; these references only prepare server-side
+      # secret injection for a separately authorized shadow run.
+      AGENTFORGE_JEV_MODE: ${AGENTFORGE_JEV_MODE:-off}
+      JEV_ENDPOINT: ${JEV_ENDPOINT:-https://www.jevai.org/api/v1/decisions}
+      JEV_MODEL: ${JEV_MODEL:-typesafe-ai/jev}
+      JEV_API_KEY: ${JEV_API_KEY:-}
       LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}

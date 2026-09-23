@@ -1,0 +1,4 @@
+SYNTHETIC_SCAN_FORM|layout=intake-a|page_count=1|document_type=intake_form
+FIELD|field_id=chief_concern|label=Chief concern|value=Fatigue for two weeks|section=Reason for visit|page=1|box=86,104,704,139|confidence=0.98
+FIELD|field_id=medication.metformin|label=Medication|value=Metformin 500 mg daily|section=Medications|page=1|box=86,238,704,273|confidence=0.97
+FIELD|field_id=allergy.penicillin|label=Allergy|value=Penicillin|section=Allergies|page=1|box=86,332,704,367|confidence=0.99

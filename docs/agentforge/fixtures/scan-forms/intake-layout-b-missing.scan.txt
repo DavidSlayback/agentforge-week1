@@ -1,0 +1,4 @@
+SYNTHETIC_SCAN_FORM|layout=intake-b|page_count=1|document_type=intake_form
+FIELD|field_id=chief_concern|label=Reason|value=Fatigue for two weeks|section=Reason for visit|page=1|box=112,98,488,129|confidence=0.97
+MISSING|field_id=medication.metformin|reason=blank
+MISSING|field_id=allergy.penicillin|reason=blank

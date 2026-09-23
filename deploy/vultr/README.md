@@ -5,12 +5,14 @@ demonstration only. It is not approved for real patient data.
 
 The current owner-controlled VM is reached as `linuxuser@64.177.10.182` with
 the local private key `C:\Users\david\.ssh\agentforge-week1-vultr`. The remote
-deployment root is `/opt/agentforge-week1`; its `.env` is server-only and is not
-part of the repository.
+deployment root is `/opt/agentforge-week1`; its mode-600 `.env` is stored at
+that root and is not part of the repository. The Compose file is under
+`deploy/vultr/`; when running Compose from that directory, pass the root env
+file explicitly with `--env-file /opt/agentforge-week1/.env`.
 
 ## Required secrets
 
-Create a server-only `.env` beside `docker-compose.yml`:
+Create a server-only `.env` at `/opt/agentforge-week1/.env`:
 
 ```dotenv
 MYSQL_ROOT_PASSWORD=<long-random-value>
@@ -30,9 +32,10 @@ AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH=/run/secrets/agentforge-openemr-token.json
 
 Do not commit this file. Keep `secrets/openemr-token.json` root-only and
 server-side; AgentForge refreshes the short-lived OpenEMR access token and
-persists rotation of the refresh token there. Start with
-`docker compose up -d --build` and verify both OpenEMR readiness and
-`http://<host>:8787/ready` before using the instance.
+persists rotation of the refresh token there. From
+`/opt/agentforge-week1/deploy/vultr`, start with
+`docker compose --env-file /opt/agentforge-week1/.env up -d --build` and verify
+OpenEMR readiness and AgentForge readiness before using the instance.
 
 AgentForge is a separate service beside OpenEMR. Caddy owns the public 80/443
 entrypoints and routes `/agentforge` to the service while routing the root path
@@ -93,6 +96,33 @@ To switch lanes, set `AGENTFORGE_PROVIDER_MODE=openrouter`, supply an approved
 model, and redeploy the AgentForge service. Do not put the key in the
 repository, browser URL, traces, or prompt data. Run the full evaluation,
 failure, API-collection, and dashboard readback gates after switching.
+
+## Prepared Jev shadow lane
+
+The Jev seam is prepared as an optional, server-only typed-evidence review
+lane. It is downstream of OCR/VLM extraction and evidence retrieval; it is not
+the image reader and it does not receive raw documents or images. The
+application-owned deterministic supervisor and safety guard remain
+authoritative. The current release leaves the lane off:
+
+```dotenv
+AGENTFORGE_JEV_MODE=off
+JEV_ENDPOINT=https://www.jevai.org/api/v1/decisions
+JEV_MODEL=typesafe-ai/jev
+JEV_API_KEY=<server-only-jev-key>
+```
+
+These values belong only in the server-side `/opt/agentforge-week1/.env` file.
+The repository contains no Jev credential, and adding `JEV_API_KEY` does not
+activate a call. `AGENTFORGE_JEV_MODE` is currently a reserved deployment
+setting; the public AgentForge service does not yet read it or invoke the Jev
+adapter. The local Jev adapter source rejects requests unless the mode is
+explicitly `shadow` and accepts only the documented Jev HTTPS endpoint before
+attaching the bearer key; that adapter is not part of the current public
+container path. A future shadow run requires explicit owner authorization,
+the same synthetic labeled corpus as the deterministic baseline, redacted
+readback, and an outcome report covering quality, safety, traceability,
+latency, and cost. Do not send PHI, raw scans, or live OpenEMR data to Jev.
 
 ## Active split provider lanes
 

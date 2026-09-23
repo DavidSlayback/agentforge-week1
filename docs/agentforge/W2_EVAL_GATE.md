@@ -1,8 +1,10 @@
 # W2 regression gate
 
 The W2 gate is a versioned, synthetic-only evaluation over 50 content-free
-cases. It measures seven required rubrics: extraction, retrieval, citation,
-refusal, missing data, follow-up grounding, and safety/privacy.
+cases. It measures seven behavioral labels: extraction, retrieval, citation,
+refusal, missing data, follow-up grounding, and safety/privacy. It also emits
+the assignment-facing rubric mapping: `schema_valid`, `citation_present`,
+`factually_consistent`, `safe_refusal`, and `no_phi_in_logs`.
 
 ## Run
 
@@ -12,7 +14,8 @@ npm run eval:gate --prefix agentforge
 
 The command prints reviewer-visible metadata only: the corpus hash, per-rubric
 counts, thresholds, regressions, critical failures, and failed case IDs. It
-does not print document content, prompts, or patient values.
+does not print document content, prompts, or patient values. The checked-in
+judge configuration contains the label-to-rubric mapping and per-rubric rate.
 
 ## Blocking rules
 

@@ -1,5 +1,12 @@
 # AgentForge Week 2 execution plan
 
+> **Current rebaseline:** The confirmed assignment recording adds stronger
+> requirements for scan-form VLM extraction, varied labeled forms, active
+> worker workflows, and rubric-aligned evidence. Use
+> [`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md) for
+> remaining work; this document preserves the earlier plan and completed local
+> milestones but does not override that gap-closure plan where the two differ.
+
 **Goal:** Extend the Week 1 synthetic clinical co-pilot with a narrow,
 source-grounded document-evidence flow for a lab PDF and intake form, bounded
 synthetic OpenEMR writeback for source documents and derived observations, an
@@ -7,29 +14,27 @@ inspectable supervisor plus two workers, and a regression-blocking evaluation
 gate.
 
 **Current state:** The source-linked intake and gap analysis are recorded in
-[`W2_ASSIGNMENT_REBASELINE.md`](W2_ASSIGNMENT_REBASELINE.md). Week 1 has a Node
-service, read-only OpenEMR adapter, strict evidence/verifier seams, synthetic
-fixtures, a 9-case golden corpus, and redacted observability. No W2 document
-ingestion, W2 schemas, hybrid retriever, supervisor graph, citation overlay, or
-50-case W2 gate is evidenced in the current tree. The Week 2 source explicitly
-requires source-document and derived-fact round-trip through OpenEMR, so the W2
-plan supersedes Week 1's read-only boundary only for controlled synthetic
-document/observation persistence; autonomous or unconfirmed clinical action
-writes remain prohibited.
+[`W2_ASSIGNMENT_REBASELINE.md`](W2_ASSIGNMENT_REBASELINE.md) and the remaining
+frontier is tracked in [`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md).
+The repository now has the earlier synthetic source/observation seam, 50-case
+gate, redacted observability, plus a frozen `w2-scan-v1` contract packet, six
+varied synthetic scan-form fixtures with SVG previews, cited extraction and
+uncertainty handling, active worker handoffs, a source-preview route, rubric
+mapping, and a deterministic retrieval benchmark. These local artifacts do
+not claim real OCR/VLM quality, live OpenEMR persistence, deployment, or
+external submission. Autonomous or unconfirmed clinical action writes remain
+prohibited.
 
-**Workflow state:** `QUEUED`. Completed `RESEARCHING -> DESIGNING ->
-PLANNED -> QUEUED -> IMPLEMENTING -> VERIFYING -> REVIEWING -> RECONCILING`
-for ticket 01, grilling rounds
-1–3, and the product/scope decisions needed for a fast build. The current
-bounded run is executing the approved ticket DAG with one implementation lane
-and a durable checkpoint after each milestone.
+**Workflow state:** `VERIFYING -> NEEDS_HUMAN` for provider, deployment,
+browser-clean-user, demo, interview, and publication evidence. Completed
+`RESEARCHING -> DESIGNING -> PLANNED -> IMPLEMENTING -> VERIFYING` for the
+local gap-closure slice with a durable checkpoint after each milestone.
 Technical planning uses bounded assumptions for the writeback seam,
 idempotency, citation interaction, and early checkpoint. The remaining items
 are implementation proof, spike acceptance, and external release authority.
-Checkpoint:
-`docs/agentforge/W2_ASSIGNMENT_REBASELINE.md`. Stop before implementation or
-ticket publication while any material acceptance or authority boundary remains
-ambiguous.
+Checkpoint: `docs/agentforge/W2_GAP_CLOSURE_EXECUTION_PLAN.md` and
+`docs/agentforge/W2_STAGE0_CONTRACT_PACKET.md`. Stop at the external authority
+boundary; do not relabel local synthetic evidence as production proof.
 
 ## Brainstorm
 
