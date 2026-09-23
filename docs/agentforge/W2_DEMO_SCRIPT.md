@@ -1,20 +1,20 @@
 # W2 browser demo recording script
 
 Target: 3–4 minutes, recorded from the deployed browser page. Use only the
-synthetic sample. Provider selection and recording are still open; this script
-describes the deployed candidate and does not claim VLM extraction.
+completed synthetic PDF samples. Provider selection and recording are still
+open; this demonstrates local OCR, not a selected VLM.
 
-> **Hold the recording for now.** This branch has a local PDF OCR slice, but it
-> is not deployed and supports only a few assignment fields. Complete the
-> schema, scanned-layout benchmark, and deployment verification first.
+> Record only after checking that the public page exposes all four completed
+> PDF samples and the matching candidate has passed the deployed upload path.
+> The rasterized samples are clean generated pages, not physical scans.
 
 ## Before recording
 
 - Open <https://dtstest.64.177.10.182.nip.io/agentforge-w2/> in the browser.
 - Confirm the patient picker shows a synthetic fixture and the page badge says
   “Synthetic demonstration only.”
-- Use the “Try the synthetic lab scan sample” button. Do not enter real or
-  completed form data.
+- Choose “Run this sample” under a completed synthetic PDF. For a 3–4 minute
+  run, use one lab and one intake sample. Do not upload personal forms.
 - If showing a real layout, open an official blank FDA or CDC PDF from the page
   in a separate tab. Return to the demo without uploading that PDF.
 - Close unrelated tabs and hide notifications before capture.
@@ -30,29 +30,37 @@ to inspect the source regions. No real patient information is used.”
 
 ## 0:30–1:35 — Run the sample
 
-[Tap “Try the synthetic lab scan sample.” Pause on the worker names and final
-state. Open the source preview.]
+[Tap “Run this sample” under Lab result · Layout A. Pause on the worker names
+and final state. Open the source preview.]
 
-“I’m loading the sample included with the app. It contains two synthetic lab
-fields. The extraction worker identifies those fields and their page regions;
-the evidence worker then checks whether supporting evidence is available.
+“This completed lab PDF is generated with fictional values. Local Tesseract
+reads the test name, value, unit, reference range, collection date, and
+abnormal status. Each accepted field links to its page region; the evidence
+worker then checks for relevant support.
 
 The page shows the worker handoffs and the final workflow state. In the preview,
-each accepted value points back to its source and region. The local PDF path
-uses Tesseract and supports only a small field set; this is not a VLM accuracy
-claim.”
+each accepted value points back to its source and region. This demo uses local
+OCR. We have not selected a hosted VLM, and the clean generated sample does not
+establish real scanned-form accuracy.”
 
-## 1:35–2:05 — Official source examples
+## 1:35–2:15 — Intake form
+
+[Return to the page and tap “Run this sample” under Patient intake · Layout A.
+Open its source preview.]
+
+“The second assignment type is a patient intake form. This example includes
+demographics, the reason for visit, medications, allergies, and family history.
+The workflow keeps the same source and review trail.”
+
+## 2:15–2:35 — Public source references
 
 [Return to the main page. Open the FDA Form 3500 link and show the PDF title. If
 time permits, return and show the CDC Form 50.34 source link and its legacy note.]
 
-“The links open actual forms at their agency sources, so a reviewer can inspect
-real layouts. They are reference examples only: this app does not upload or
-process them. The CDC page marks its 50.34 application for retirement in
-October 2026.”
+“These FDA and CDC links are reference examples only. The downloadable samples
+above are the completed PDFs used by the synthetic extraction demo.”
 
-## 2:05–2:40 — Evaluation and operations
+## 2:35–3:05 — Evaluation and operations
 
 [Open the evaluator panel, then the operations dashboard.]
 
@@ -61,7 +69,7 @@ safe qualification, and log redaction. The operations page shows service health
 and redacted operational measures. These checks describe this synthetic
 candidate; they do not establish readiness for real patient data.”
 
-## 2:40–3:00 — Close
+## 3:05–3:25 — Close
 
 [Return to the landing page and hold on the sample and source links.]
 

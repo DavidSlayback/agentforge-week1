@@ -3,6 +3,7 @@ RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
 WORKDIR /app
 COPY agentforge/package.json agentforge/package.json
 COPY agentforge/src agentforge/src
+COPY agentforge/scripts agentforge/scripts
 COPY agentforge/test agentforge/test
 COPY observability observability
 COPY evals/deployed-service-results.json evals/deployed-service-results.json

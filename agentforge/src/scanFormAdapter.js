@@ -33,15 +33,15 @@ function parseFixture(content) {
 
 function citationFor(sourceDocumentId, layoutId, field) {
   const quote = [field.label, field.value, field.unit, field.reference_range].filter(Boolean).join(': ');
-  return { source_type: 'synthetic_scan_form', source_document_id: sourceDocumentId, page: field.page, field_id: field.field_id, quote, bounding_box: field.bounding_box, layout_id: layoutId };
+  return { source_type: 'synthetic_scan_form', source_document_id: sourceDocumentId, page: field.page, field_id: field.field_id, quote, bounding_box: field.bounding_box, layout_id: layoutId, coordinate_space: layoutId.startsWith('pdf-ocr-') ? 'raster_pixels_200dpi' : 'fixture_coordinates' };
 }
 
 /**
  * Provider-neutral local scan-form extraction seam.
  *
- * The current implementation parses controlled synthetic form fixtures. It is
- * intentionally not represented as a real OCR/VLM accuracy claim; a future
- * provider can replace the parser behind this contract.
+ * This adapter validates a normalized tagged-field envelope. The PDF lane
+ * prepares that envelope with local OCR before calling this parser. The parser
+ * itself performs no OCR and makes no model-accuracy claim.
  */
 export function extractScanForm({ sourceDocumentId, documentType, layoutId, pageCount = 1, content }) {
   const input = { contract_version: SCAN_FORM_CONTRACT_VERSION, source_document_id: sourceDocumentId, document_type: documentType, layout_id: layoutId, page_count: pageCount, content, synthetic_only: true };

@@ -53,8 +53,13 @@ form{gap:.8rem}#source-document-form .section-heading{margin-top:.4rem}
 #source-document-form button{justify-self:start}
 #official-sources{padding:.9rem 1rem;border:1px solid #c9e1dc;border-radius:.8rem;background:#edf7f4}
 #official-sources .source-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:.75rem 0}
+#synthetic-samples{grid-column:1/-1;padding:.9rem 1rem;border:1px solid #c9e1dc;border-radius:.8rem;background:#edf7f4}
+#synthetic-samples .source-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:.65rem 0 0}
+#synthetic-samples .sample-card{display:grid;gap:.45rem;padding:.6rem;border:1px solid #c9dcd8;border-radius:.7rem;background:#fff}
 #official-sources a{display:block;padding:.75rem;border:1px solid #c9dcd8;border-radius:.65rem;background:#fff;color:#145e58;font-weight:700;text-decoration:none}
 #official-sources a span{display:block;color:var(--muted);font-size:.8rem;font-weight:500}
+#synthetic-samples a{display:block;padding:.75rem;border:1px solid #c9dcd8;border-radius:.65rem;background:#fff;color:#145e58;font-weight:700;text-decoration:none}
+#synthetic-samples a span{display:block;color:var(--muted);font-size:.8rem;font-weight:500}
 #scan-sample{margin:.2rem 0}
 select,input,button{min-height:44px;border-radius:.65rem}input,select{border-color:#9aafb7;background:#fff}input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid #84cfc0;outline-offset:2px}
 button{background:#145e58;border-color:#145e58}button:hover{background:#104b47}button.secondary{color:#145e58;border-color:#b9d4cf}button.secondary:hover{background:#edf7f4}
@@ -62,7 +67,7 @@ button{background:#145e58;border-color:#145e58}button:hover{background:#104b47}b
 .fact-card{border-color:#d6e4e1;border-radius:.75rem}.fact-label{color:var(--muted)}.evidence summary{color:var(--teal)}
 .qualification{border-left-color:#c8962b;background:#fff6df}.blocked{border-left-color:#aa4141;background:#fff1ef}
 button:disabled{opacity:.6;cursor:wait}
-@media(max-width:620px){#briefing-form,#source-document-form,#official-sources .source-links{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button,#scan-sample{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
+@media(max-width:620px){#briefing-form,#source-document-form,#official-sources .source-links,#synthetic-samples .source-links{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button,#scan-sample{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
 </style>
 </head>
 <body><main id="agentforge-app">
@@ -71,8 +76,9 @@ button:disabled{opacity:.6;cursor:wait}
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
 <form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Scan form workflow</h2><span class="hint">Synthetic local storage · OCR runs on this server</span></div><label>Document schema<select name="document_type"><option value="lab_pdf">Lab scan PDF</option><option value="intake_form">Patient intake form</option></select></label><label>Filled synthetic PDF or text fixture<input type="file" name="source_file" accept=".pdf,application/pdf,.txt,text/plain" required></label><p class="hint">Upload a synthetic filled lab PDF or intake form. Local OCR returns cited page regions and worker handoffs; unclear values require review.</p><button type="submit">Read filled form</button><p id="source-status" class="status" role="status"></p></form>
-<button id="scan-sample" class="secondary" type="button"${liveOpenEMR ? ' hidden' : ''}>Try the synthetic lab scan sample</button>
-<section id="official-sources" aria-labelledby="official-sources-heading"><h2 id="official-sources-heading">Official blank PDF examples</h2><p class="hint">Open a real source form to inspect the document layout. These PDFs are not uploaded or processed by this demo.</p><div class="source-links"><a href="https://www.fda.gov/media/76299/download" target="_blank" rel="noopener noreferrer">FDA MedWatch Form 3500<span>Official health professional adverse event report · PDF</span></a><a href="https://www.cdc.gov/laboratory/specimen-submission/pdf/form-50-34.pdf" target="_blank" rel="noopener noreferrer">CDC Form 50.34<span>Official legacy specimen submission form · scheduled for retirement October 30, 2026</span></a></div><p class="hint">Source: FDA and CDC. Government agency attribution; AgentForge is not endorsed by either agency. Select the synthetic sample above to see this demo’s supported extraction path.</p></section>
+<section id="synthetic-samples" aria-labelledby="synthetic-samples-heading"${liveOpenEMR ? ' hidden' : ''}><h3 id="synthetic-samples-heading">Completed synthetic PDF samples</h3><p class="hint">Fictional patient details. Run a sample here or download it to upload later. Each type has a vector and rasterized layout.</p><div class="source-links"><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=lab-a" download>Lab result · Layout A<span>Vector PDF · complete results</span></a><button type="button" class="secondary" data-run-pdf-sample="lab-a" data-document-type="lab_pdf">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=lab-b" download>Lab result · Layout B<span>Rasterized PDF · alternate labels and values</span></a><button type="button" class="secondary" data-run-pdf-sample="lab-b" data-document-type="lab_pdf">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=intake-a" download>Patient intake · Layout A<span>Vector PDF · demographics and history</span></a><button type="button" class="secondary" data-run-pdf-sample="intake-a" data-document-type="intake_form">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=intake-b" download>Patient intake · Layout B<span>Rasterized PDF · alternate labels and values</span></a><button type="button" class="secondary" data-run-pdf-sample="intake-b" data-document-type="intake_form">Run this sample</button></div></div></section>
+<button id="scan-sample" class="secondary" type="button"${liveOpenEMR ? ' hidden' : ''}>Run sample text-fixture workflow</button>
+<section id="official-sources" aria-labelledby="official-sources-heading"><h2 id="official-sources-heading">Public blank PDF references</h2><p class="hint">Agency forms are included as layout references only; these source PDFs are not modified or processed here.</p><div class="source-links"><a href="https://www.fda.gov/media/76299/download" target="_blank" rel="noopener noreferrer">FDA MedWatch Form 3500<span>Official health professional adverse event report · PDF</span></a><a href="https://www.cdc.gov/laboratory/specimen-submission/pdf/form-50-34.pdf" target="_blank" rel="noopener noreferrer">CDC Form 50.34<span>Official legacy specimen submission form · scheduled for retirement October 30, 2026</span></a></div><p class="hint">Source: FDA and CDC. Government agency attribution; AgentForge is not endorsed by either agency. For extraction, use the synthetic completed PDFs above.</p></section>
 <form id="followup-form" class="hidden"><label for="followup-input">Ask a follow-up</label><input id="followup-input" name="message" autocomplete="off" placeholder="What changed since the last visit?"><div class="samples" aria-label="Safe sample follow-ups"><button type="button" class="secondary" data-prompt="What changed since the last visit?">Documented changes</button><button type="button" class="secondary" data-prompt="What plan items need follow-through?">Plan follow-through</button><button type="button" class="secondary" data-prompt="Which records conflict?">Conflicting records</button></div><button type="submit">Send follow-up</button></form>
 <button id="cross-patient-probe" class="secondary hidden" type="button">Probe cross-patient block</button>
 <p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button>
@@ -87,6 +93,7 @@ button:disabled{opacity:.6;cursor:wait}
   const sourceDocumentForm = document.getElementById('source-document-form');
   const sourceStatus = document.getElementById('source-status');
   const scanSampleButton = document.getElementById('scan-sample');
+  const pdfSampleButtons = [...document.querySelectorAll('[data-run-pdf-sample]')];
   const followupForm = document.getElementById('followup-form');
   const transcript = document.getElementById('transcript');
   const status = document.getElementById('status');
@@ -98,7 +105,7 @@ button:disabled{opacity:.6;cursor:wait}
   const initialContextStatus = contextStatus?.textContent || '';
   let busy = false;
   const setStatus = (message, error = false) => { status.textContent = message; status.className = error ? 'status error' : 'status'; };
-  const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); if (scanSampleButton) scanSampleButton.disabled = value; crossPatientProbe.disabled = value; };
+  const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); if (scanSampleButton) scanSampleButton.disabled = value; pdfSampleButtons.forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); }); crossPatientProbe.disabled = value; };
   const humanize = (value) => String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
@@ -269,6 +276,16 @@ button:disabled{opacity:.6;cursor:wait}
     finally { setBusy(false); }
   };
   sourceDocumentForm?.addEventListener('submit', (event) => { event.preventDefault(); uploadSourceDocument(sourceDocumentForm.elements.source_file.files[0]); });
+  pdfSampleButtons.forEach((button) => button.addEventListener('click', async () => {
+    const sample = button.dataset.runPdfSample;
+    try {
+      const response = await fetch(basePath + '/v1/demo-scan-pdf?sample=' + encodeURIComponent(sample));
+      if (!response.ok) throw new Error('Synthetic PDF sample is unavailable.');
+      sourceDocumentForm.elements.document_type.value = button.dataset.documentType;
+      const file = new File([await response.blob()], 'agentforge-' + sample + '-synthetic.pdf', { type: 'application/pdf' });
+      await uploadSourceDocument(file);
+    } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
+  }));
   scanSampleButton?.addEventListener('click', async () => {
     if (busy) return;
     sourceStatus.className = 'status'; sourceStatus.textContent = 'Loading the included synthetic scan sample…';
@@ -328,7 +345,8 @@ export function renderScanSourcePreview({ sourceDocument, extraction, basePath =
   const status = ['complete', 'partial', 'qualified', 'blocked'].includes(extraction?.status) ? extraction.status : 'unknown';
   const factRows = facts.map((fact) => {
     const box = fact.citation.bounding_box.join(',');
-    return `<article class="evidence-row" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>Page ${escapeHtml(fact.citation.page)}</span><span>Region <code>[${escapeHtml(box)}]</code></span></div><p>${escapeHtml(fact.citation.quote)}</p></div></article>`;
+    const coordinateSpace = fact.citation.coordinate_space === 'raster_pixels_200dpi' ? '200 DPI raster pixels' : 'fixture coordinates';
+    return `<article class="evidence-row" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>Page ${escapeHtml(fact.citation.page)}</span><span>Region <code>[${escapeHtml(box)}]</code></span><span>${coordinateSpace}</span></div><p>${escapeHtml(fact.citation.quote)}</p></div></article>`;
   }).join('');
   const reviewGroups = [
     ['Missing fields', missing],

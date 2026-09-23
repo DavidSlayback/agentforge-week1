@@ -33,6 +33,25 @@ external provider.
 | `intake-layout-b-conflict` | intake / B | conflicting | withhold conflicting medication | qualified, conflict retained |
 | `intake-layout-b-missing` | intake / B | missing | concern plus two missing fields | partial, missing fields retained |
 
+## Filled-PDF fixture benchmark — 2026-09-23
+
+The separate assignment PDF path recognizes the complete minimum field sets:
+
+- Lab result: two named tests with value, unit, reference range, collection
+  date, abnormal flag, and one page-region citation per field (12 facts).
+- Intake form: patient name, date of birth, phone, chief concern, medications,
+  allergies, and family history (7 facts).
+
+Four fixed synthetic PDFs cover both types. Layout A is vector PDF text; Layout
+B is a rasterized page image with alternate common labels. The reproducible
+runner is `npm run eval:pdf-samples` inside the service container. Current
+result: 38/38 exact expected values, all 38 fields contract-valid and cited,
+4/4 documents complete. PDF boxes are measured in 200 DPI raster pixels.
+This is exact recovery on clean generated fixtures;
+it does not measure physical scans, handwriting, or general layouts. The
+fixtures and expected values are in
+`docs/agentforge/fixtures/scan-forms/pdf-samples/`.
+
 ## Evidence
 
 - The manifest and ground truth are in

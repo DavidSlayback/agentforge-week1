@@ -1,0 +1,49 @@
+{
+  "schema_version": "agentforge-synthetic-pdf-samples-v1",
+  "synthetic_only": true,
+  "patient_fixture": "fixture-patient-001",
+  "purpose": "Assignment-scoped PDF extraction demos and exact-value OCR regression fixtures.",
+  "samples": [
+    {
+      "layout": "lab-a",
+      "document_type": "lab_pdf",
+      "filename": "filled-lab-a.pdf",
+      "render_style": "vector",
+      "expected_fields": {
+        "lab.hgb.test_name": "Hemoglobin", "lab.hgb.value": "13.2", "lab.hgb.unit": "g/dL", "lab.hgb.reference_range": "12.0-16.0", "lab.hgb.collection_date": "2026-09-20", "lab.hgb.abnormal": "No",
+        "lab.a1c.test_name": "A1C", "lab.a1c.value": "6.1", "lab.a1c.unit": "%", "lab.a1c.reference_range": "under 5.7", "lab.a1c.collection_date": "2026-09-20", "lab.a1c.abnormal": "Yes"
+      }
+    },
+    {
+      "layout": "lab-b",
+      "document_type": "lab_pdf",
+      "filename": "filled-lab-b.pdf",
+      "render_style": "rasterized",
+      "expected_fields": {
+        "lab.hgb.test_name": "Hemoglobin", "lab.hgb.value": "11.9", "lab.hgb.unit": "g/dL", "lab.hgb.reference_range": "12.0-16.0", "lab.hgb.collection_date": "2026-09-21", "lab.hgb.abnormal": "Yes",
+        "lab.a1c.test_name": "A1C", "lab.a1c.value": "7.2", "lab.a1c.unit": "%", "lab.a1c.reference_range": "under 5.7", "lab.a1c.collection_date": "2026-09-21", "lab.a1c.abnormal": "Yes"
+      }
+    },
+    {
+      "layout": "intake-a",
+      "document_type": "intake_form",
+      "filename": "filled-intake-a.pdf",
+      "render_style": "vector",
+      "expected_fields": {
+        "patient.name": "Test Patient One", "patient.date_of_birth": "1980-04-12", "patient.phone": "555-0100",
+        "chief_concern": "Fatigue for two weeks", "medications": "Metformin 500 mg daily", "allergies": "Penicillin", "family_history": "Mother has type 2 diabetes"
+      }
+    },
+    {
+      "layout": "intake-b",
+      "document_type": "intake_form",
+      "filename": "filled-intake-b.pdf",
+      "render_style": "rasterized",
+      "expected_fields": {
+        "patient.name": "Test Patient One", "patient.date_of_birth": "1980-04-12", "patient.phone": "555-0198",
+        "chief_concern": "Dizziness after standing", "medications": "Lisinopril 10 mg daily", "allergies": "Sulfa antibiotics", "family_history": "Mother has diabetes"
+      }
+    }
+  ],
+  "limitation": "The vector/raster distinction tests PDF and OCR paths, but these clean computer-generated pages do not simulate a physical scan, noise, blur, handwriting, or diverse real-form layouts."
+}

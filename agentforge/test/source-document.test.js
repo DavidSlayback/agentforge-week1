@@ -101,7 +101,9 @@ test('AgentForge UI exposes the two synthetic source-document types and upload r
   assert.match(page, /value="lab_pdf"/);
   assert.match(page, /value="intake_form"/);
   assert.match(page, /\/v1\/source-documents/);
-  assert.match(page, /Try the synthetic lab scan sample/);
+  assert.match(page, /Completed synthetic PDF samples/);
+  assert.match(page, /data-run-pdf-sample="lab-a"/);
+  for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b']) assert.match(page, new RegExp(`/v1/demo-scan-pdf\\?sample=${sample}`));
   assert.match(page, /https:\/\/www\.fda\.gov\/media\/76299\/download/);
   assert.match(page, /Upload a synthetic filled lab PDF or intake form/);
   assert.match(page, /Local OCR returns cited page regions/);
@@ -117,6 +119,23 @@ test('synthetic scan demo fixture route serves only the tracked sample with an e
     assert.equal(sample.synthetic_only, true);
     assert.equal(sample.document_type, 'lab_pdf');
     assert.match(Buffer.from(sample.content_base64, 'base64').toString('utf8'), /^SYNTHETIC_SCAN_FORM\|layout=lab-a/);
+  } finally {
+    child.kill();
+  }
+});
+
+test('synthetic PDF sample route serves only the four fixed completed form samples', async () => {
+  const port = 18809;
+  const child = await startServer(port);
+  try {
+    for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b']) {
+      const response = await fetch(`http://127.0.0.1:${port}/v1/demo-scan-pdf?sample=${sample}`);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('content-type'), 'application/pdf');
+      assert.equal(response.headers.get('x-agentforge-synthetic'), 'true');
+      assert.ok(Buffer.from(await response.arrayBuffer()).subarray(0, 5).equals(Buffer.from('%PDF-')));
+    }
+    assert.equal((await fetch(`http://127.0.0.1:${port}/v1/demo-scan-pdf?sample=../../.env`)).status, 400);
   } finally {
     child.kill();
   }

@@ -45,6 +45,20 @@ hosted model is called by this slice.
   before using this in the recording; browser selection and phone capture also
   remain open.
 
+## Next local PDF slice
+
+**Local acceptance: PASS.** The two PDF schemas represent the assignment
+minimums (lab test name/value/unit/reference range/collection date/abnormal
+flag and intake name, DOB, phone, chief concern, medications, allergies,
+family history). Each fact has a page-region citation. A repeatable container
+benchmark recovered all 38/38 expected values across two layouts per type
+(one vector and one rasterized each). The web page now offers four allowlisted
+completed synthetic PDFs, direct run buttons, and downloads. Do not process
+real patient forms. This exact-fixture score is not a general accuracy claim.
+Next: deploy this candidate on the isolated W2 service; verify all four public
+sample routes, extraction responses, citations, readiness, and unchanged Week
+1 identity; update deployment evidence. Then complete user-side phone capture.
+
 ## Current state
 
 The repository already contains substantial local slices:

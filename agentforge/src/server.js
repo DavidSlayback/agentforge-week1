@@ -168,6 +168,19 @@ const server = http.createServer(async (req, res) => {
       const fixturePath = path.join(projectRoot, 'docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt');
       return json(res, 200, { synthetic_only: true, filename: 'lab-layout-a-complete.scan.txt', document_type: 'lab_pdf', content_base64: fs.readFileSync(fixturePath).toString('base64') });
     }
+    if (req.method === 'GET' && req.url.startsWith('/v1/demo-scan-pdf')) {
+      if (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 403, { error: 'synthetic_fixture_unavailable' });
+      const sample = new URL(req.url, 'http://localhost').searchParams.get('sample');
+      const pdfSamples = {
+        'lab-a': 'filled-lab-a.pdf', 'lab-b': 'filled-lab-b.pdf',
+        'intake-a': 'filled-intake-a.pdf', 'intake-b': 'filled-intake-b.pdf',
+      };
+      const filename = pdfSamples[sample];
+      if (!filename) return json(res, 400, { error: 'invalid_synthetic_pdf_sample' });
+      const content = fs.readFileSync(path.join(projectRoot, 'docs/agentforge/fixtures/scan-forms/pdf-samples', filename));
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="agentforge-${sample}-synthetic.pdf"`, 'cache-control': 'no-store', 'x-agentforge-synthetic': 'true' });
+      return res.end(content);
+    }
     if (req.method === 'GET' && req.url.startsWith('/v1/clinical-action-context')) {
       if (liveOpenEMR) return json(res, 403, { error: 'synthetic_writeback_only' });
       if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });

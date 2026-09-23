@@ -9,6 +9,11 @@ export const REQUIRED_SCAN_FIELDS = Object.freeze({
   intake_form: Object.freeze(['chief_concern', 'medication.metformin', 'allergy.penicillin']),
 });
 
+export const PDF_SCAN_FIELDS = Object.freeze({
+  lab_pdf: Object.freeze(['lab.hgb.test_name', 'lab.hgb.value', 'lab.hgb.unit', 'lab.hgb.reference_range', 'lab.hgb.collection_date', 'lab.hgb.abnormal', 'lab.a1c.test_name', 'lab.a1c.value', 'lab.a1c.unit', 'lab.a1c.reference_range', 'lab.a1c.collection_date', 'lab.a1c.abnormal']),
+  intake_form: Object.freeze(['patient.name', 'patient.date_of_birth', 'patient.phone', 'chief_concern', 'medications', 'allergies', 'family_history']),
+});
+
 export const EXTERNAL_FORM_FIELDS = Object.freeze({
   'external-lab-hawaii': Object.freeze(['submitter.name', 'submitter.organization', 'patient.patient_id', 'patient.name', 'patient.date_of_birth', 'specimen.specimen_id', 'specimen.date_collected', 'specimen.source', 'specimen.description', 'specimen.analysis_requested']),
   'external-lab-maine': Object.freeze(['patient.name', 'patient.date_of_birth', 'patient.address', 'patient.gender', 'patient.race_ethnicity', 'patient.pregnant', 'provider.name', 'provider.phone', 'clinical.symptom_onset_date', 'specimen.acute_serum', 'specimen.convalescent_serum', 'specimen.csf', 'specimen.urine']),
@@ -17,6 +22,7 @@ export const EXTERNAL_FORM_FIELDS = Object.freeze({
 });
 
 export function requiredScanFields({ documentType, layoutId } = {}) {
+  if (layoutId === `pdf-ocr-${documentType}`) return PDF_SCAN_FIELDS[documentType] || [];
   return EXTERNAL_FORM_FIELDS[layoutId] || REQUIRED_SCAN_FIELDS[documentType] || [];
 }
 

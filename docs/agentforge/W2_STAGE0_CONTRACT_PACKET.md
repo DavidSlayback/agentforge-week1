@@ -20,6 +20,14 @@ Scope: synthetic scan-form evidence and local workflow proof only.
 
 `w2-scan-v1` is the contract version for the new local slice.
 
+### Additive PDF implementation note — 2026-09-23
+
+The frozen Stage 0 output contract remains unchanged. The assignment PDF path
+adds `PDF_SCAN_FIELDS` to map the full required fields for lab-result PDFs and
+intake forms. It accepts synthetic PDF bytes, uses local Poppler/Tesseract, and
+returns the same field/citation contract with page boxes. This is a later
+implementation extension; it does not revise Stage 0's original text fixtures.
+
 ### Scan inpu
 
 ```tex
