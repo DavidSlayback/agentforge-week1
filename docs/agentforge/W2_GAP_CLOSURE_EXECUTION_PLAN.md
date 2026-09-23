@@ -21,13 +21,10 @@ personal/clinical records out of the public synthetic demo. Begin with local
 OCR/VLM and synthetic overlays; no hosted provider is selected or implied.
 
 The owner confirmed the assignment's two types: lab-result PDFs and patient
-intake forms. Provider-neutral Tesseract OCR is now wired for uploaded PDFs
-and deployed at `cded30d`. It recognizes two lab values and three intake fields,
-so it is a vertical slice, not the assignment's full minimum schema. It must
-still add the required lab metadata and intake demographics/family history, and
-be measured across multiple scanned layouts and missing/unreadable/conflict
-cases. The user has not selected a final or early-submission provider; no
-hosted model is called by this slice.
+intake forms. Provider-neutral Tesseract OCR is wired for uploaded PDFs. The
+assignment minimum fields and four synthetic sample layouts are complete and
+deployed at `41682f5`. The user has not selected a final or early-submission
+provider; no hosted model is called by this slice.
 
 ## Local filled-PDF slice — 2026-09-23
 
@@ -35,19 +32,17 @@ hosted model is called by this slice.
 - The service validates the PDF signature, caps processing at six pages,
   rasterizes at 200 DPI, runs local Tesseract, and builds page-region
   citations from OCR coordinates. Temporary raster files are removed.
-- A Docker smoke test on the synthetic intake-layout-A PDF read its three
-  supported fields and returned page 1 boxes. The same PDF was uploaded to the
-  public synthetic route and the supervisor returned all three fields at
-  `READY`; see `evidence/W2_PDF_OCR_SMOKE_PROOF_CDED30D.json`. This is a
-  vector-rendered fixture, not a scanned-document accuracy benchmark.
+- The initial Docker smoke test on the synthetic intake-layout-A PDF read its
+  three then-supported fields and returned page 1 boxes; see the historical
+  [`W2_PDF_OCR_SMOKE_PROOF_CDED30D.json`](evidence/W2_PDF_OCR_SMOKE_PROOF_CDED30D.json).
 - Docker now includes Poppler utilities and English Tesseract data. Benchmark
   real scanned synthetic pages and complete the assignment field schema
   before using this in the recording; browser selection and phone capture also
   remain open.
 
-## Next local PDF slice
+## Assignment PDF minimum and deployed sample verification
 
-**Local acceptance: PASS.** The two PDF schemas represent the assignment
+**Local and deployed acceptance: PASS for fixed synthetic fixtures.** The two PDF schemas represent the assignment
 minimums (lab test name/value/unit/reference range/collection date/abnormal
 flag and intake name, DOB, phone, chief concern, medications, allergies,
 family history). Each fact has a page-region citation. A repeatable container
@@ -55,9 +50,13 @@ benchmark recovered all 38/38 expected values across two layouts per type
 (one vector and one rasterized each). The web page now offers four allowlisted
 completed synthetic PDFs, direct run buttons, and downloads. Do not process
 real patient forms. This exact-fixture score is not a general accuracy claim.
-Next: deploy this candidate on the isolated W2 service; verify all four public
-sample routes, extraction responses, citations, readiness, and unchanged Week
-1 identity; update deployment evidence. Then complete user-side phone capture.
+Candidate `41682f5` is deployed on the isolated W2 service. All four public
+API sample workflows returned `READY` with expected values and raster-coordinate
+citations; health/readiness/page returned 200 and Week 1 identity stayed
+unchanged. See
+[`W2_PDF_SAMPLE_DEPLOYMENT_PROOF_41682F5.json`](evidence/W2_PDF_SAMPLE_DEPLOYMENT_PROOF_41682F5.json).
+Next: record and inspect the user-side browser demo, then resolve provider and
+assignment scope decisions.
 
 ## Current state
 

@@ -1,85 +1,60 @@
 # Week 2 reviewer package
 
-Updated 2026-09-23. The synthetic W2 candidate at `cded30d` is deployed.
-Provider selection and demo recording remain open.
+Updated 2026-09-23. The current synthetic PDF candidate is deployed and
+externally checked. Provider selection, demo recording, and final submission
+remain open.
 
 ## Candidate identity
 
 - Staging branch: `davidslayback/w2-synthetic-scan-release`
-- Deployed code commit: `cded30d` (`feat(agentforge): add local filled PDF OCR slice`)
+- Deployed code commit: `41682f5` (`feat(agentforge): complete synthetic PDF form samples`)
 - Public URL: <https://dtstest.64.177.10.182.nip.io/agentforge-w2/>
-- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-cded30d`
-- Existing deployment checks: [W2 deployment proof](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF_6AB0EDC.json)
-- Filled-PDF route check: [PDF OCR smoke proof](evidence/W2_PDF_OCR_SMOKE_PROOF_CDED30D.json)
+- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-41682f5`
+- Candidate proof: [W2 PDF sample deployment proof](evidence/W2_PDF_SAMPLE_DEPLOYMENT_PROOF_41682F5.json)
+- Week 1 `/agentforge` stayed healthy with its existing container identity.
 
-The deployed surface remains synthetic-only. Week 1 `/agentforge` is healthy
-and its container identity was unchanged during this W2 redeployment.
+The W2 route is synthetic-only. It has no OpenEMR dependency or persistence.
+The existing Week 1 read-only workflow remains separate.
 
-## Current evidence
+## Evidence status
 
-| Area | Evidence | Status |
+| Area | Current evidence | Status |
 | --- | --- | --- |
-| Synthetic scan-form contracts, workers, supervisor, source preview | Serial local tests, synthetic gate, current-candidate public API workflows | 127/127 tests; 50/50 gate; text-fixture and filled-intake-PDF workflows externally exercised |
-| Browser scan demo | File chooser supports PDFs and text fixtures; results show worker handoffs | Public page and upload API verified; manual browser file selection and phone recording remain open |
-| Real blank form examples | Official FDA 3500 and CDC 50.34 source links | Reference links only; OCR has not been benchmarked on these layouts. CDC form is legacy and application retires October 30, 2026. |
-| Filled-form reading | Synthetic PDF local OCR deployed at `cded30d` | **Partial.** Deployed smoke read three intake fields with page boxes from one vector PDF. Two lab fields are mapped. Assignment minimum schemas and varied scanned layouts remain open. |
-| W2 regression gate | Current candidate | 50/50; injected-defect and baseline checks pass |
-| Landing page, health, readiness, evaluator | Current public HTTPS route | HTTP 200; readiness dependencies ready |
-| Tesseract localization | 50/53 labels recognized; 32/53 in expected regions | Local baseline; localization needs improvement |
-| PaddleOCR-VL typed extraction | 0/8 typed matches; 8/8 invalid-JSON abstentions | Not promoted |
-| Synthesis provider | Existing W2 configuration | Qwen; no new provider selected |
-| Retrieval provider | Current W2 configuration | Local lexical proxy; Cohere is not active |
-| Jev comparison | Injected-mock, off by default, no provider calls | Not connected to deployed requests |
-| Scan-form provider choice | No provider/model selected | Owner decision required |
-| Demo recording | No current W2 recording | Record and inspect a 3–5 minute browser video |
+| Assignment schemas | Lab: two tests with name, value, unit, reference range, collection date, abnormal flag. Intake: name, DOB, phone, chief concern, medications, allergies, family history. | Implemented |
+| PDF fixture matrix | Four generated synthetic PDFs; two layouts per type, with vector and rasterized pages. | 38/38 expected values exact, valid, and cited locally |
+| Public PDF workflow | Each of four fixed samples uploaded and processed through the public synthetic API. | READY; expected fields and 200 DPI raster citation boxes returned |
+| Public page | HTTPS landing page, health, readiness, and four downloadable sample controls. | HTTP 200; current page inspected |
+| Regression | AgentForge serial suite and 50-case W2 gate on this candidate. | 130/130 and 50/50 |
+| VLM/provider | PaddleOCR-VL structured extraction did not meet the typed contract; no provider/model chosen for submission. | Open owner decision |
+| Real scan accuracy | Fixtures are clean computer-generated pages. Physical scans, handwriting, and arbitrary layouts are not benchmarked. | Open |
+| Recording | No W2 recording artifact is available. | Open |
 
-All fixture and patient data are synthetic. These results do not establish PHI
-readiness, real OpenEMR parity, provider suitability, or clinical safety.
-Official PDFs stay at their FDA/CDC source links; no PDFs or model weights are
-bundled in the release archive.
+FDA Form 3500 and CDC Form 50.34 are linked as layout references. They are
+blank source documents and were not used in the 38-field filled-form benchmark.
+The downloadable PDF samples are generated synthetic fixtures, not sourced
+patient forms.
 
 ## Reviewer path
 
-1. Open the exact HTTPS URL above. A verified external HTTPS client received
-   valid TLS, health and readiness returned 200, and readiness dependencies
-   reported ready. Repeat the workflow in the intended browser before recording.
-2. This candidate accepts synthetic PDFs and runs local Tesseract OCR. Hold
-   the recording until the assignment's required fields and scanned-layout
-   coverage are complete; this smoke test recognizes only a narrow subset.
-3. Use the “Try the synthetic lab scan sample” button only to show the currently
-   deployed synthetic worker workflow. Inspect the visible scan
-   and evidence worker handoffs, `READY` state, and source preview with page and
-   region citations. The deployed page loads; API path is externally verified,
-   while the button interaction and phone-browser recording remain open.
-4. Use official blank PDFs only to inspect layouts. They have not been
-   processed or benchmarked. The recording must use the synthetic fixtures.
-5. Open `/evals` and `/observability`; both public pages returned 200. The W2
-   evaluator shows the current 50-case result.
-6. Record 3–5 minutes from the browser tab, then verify playback and the key
-   upload, citation, evaluation, and observability moments.
+1. Open the HTTPS URL above and confirm the synthetic-only badge.
+2. Choose “Run this sample” for one lab and one intake PDF. Review the worker
+   handoffs, final state, and source preview citations. Public API workflows
+   for all four samples passed; the UI exposes each sample and run control.
+3. Open the evaluator and observability pages to inspect the current synthetic
+   gate and redacted operations view.
+4. Keep any recording synthetic. The clean generated pages demonstrate the
+   implemented workflow, not real scan or handwriting accuracy.
 
-The Docker image rasterizes PDFs with Poppler and runs Tesseract. The deployed
-proof covers one vector-rendered synthetic intake PDF, not scanned-page
-accuracy or VLM extraction.
+## Remaining decisions and work
 
-## Submission decisions and remaining work
+- Select the VLM/extraction provider and data-processing path for final
+  submission; decide separately whether the early submission can document
+  this as an open decision.
+- Record and review the requested 3–5 minute demo against this deployed
+  candidate. Verify playback, citations, evaluation, and observability.
+- Reconcile whether the assignment requires physical scanned forms or an
+  OpenEMR round trip beyond the current synthetic implementation.
+- Approve external sharing or final submission separately.
 
-- Choose the extraction provider/model and data-processing path for final
-  submission. Separately decide whether the early submission requires that
-  provider live or can present it as an open decision with local evidence.
-- Record and inspect the demo. Do not claim the recording or submission is
-  complete until the exact artifact and link are available.
-- Approve external sharing or submission separately.
-
-## Submission evidence
-
-- [Architecture](W2_ARCHITECTURE.md)
-- [Frozen scan-form contracts](W2_STAGE0_CONTRACT_PACKET.md)
-- [W2 evaluation gate](W2_EVAL_GATE.md)
-- [Extraction benchmark report](W2_SCAN_FORM_EXTRACTION_REPORT.md)
-- [Retrieval benchmark](W2_RETRIEVAL_BENCHMARK.md)
-- [Provider and managed-VLM decision frontier](HUMAN_DECISION_OPTIONS.md)
-- [Official blank form sources and status](W2_EXTERNAL_FORM_SOURCES.md)
-- [W2 browser demo recording script](W2_DEMO_SCRIPT.md)
-- [Early checkpoint package](W2_EARLY_CHECKPOINT.md)
-- [Gap-closure plan and evidence reconciliation](W2_GAP_CLOSURE_EXECUTION_PLAN.md)
+All fixture and patient data are synthetic. These results do not establish
+PHI readiness, real OpenEMR parity, provider suitability, or clinical safety.

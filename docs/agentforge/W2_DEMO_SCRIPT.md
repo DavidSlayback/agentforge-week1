@@ -1,11 +1,12 @@
 # W2 browser demo recording script
 
-Target: 3–4 minutes, recorded from the deployed browser page. Use only the
+Target: 3–4 minutes, recorded from deployed candidate `41682f5`. Use only the
 completed synthetic PDF samples. Provider selection and recording are still
-open; this demonstrates local OCR, not a selected VLM.
+open; this demonstrates local OCR, not a selected VLM. Current candidate proof
+is in `evidence/W2_PDF_SAMPLE_DEPLOYMENT_PROOF_41682F5.json`.
 
-> Record only after checking that the public page exposes all four completed
-> PDF samples and the matching candidate has passed the deployed upload path.
+> The current candidate exposes all four PDF samples and each public API sample
+> workflow passed. Confirm the page in the recording browser before capture.
 > The rasterized samples are clean generated pages, not physical scans.
 
 ## Before recording
@@ -83,6 +84,8 @@ open decision.”
 - Play the entire recording and confirm the button, two worker handoffs, `READY`
   state, source preview citations, official PDF links, evaluation page, and
   operations page are legible.
+- Confirm both layouts for lab and intake are available on the page; the spoken
+  demo only needs one of each.
 - Confirm the recording contains only the demo browser and has usable audio.
 - Record the file location, duration, and review result in the submission
   package. Do not describe the current script as a completed recording.
