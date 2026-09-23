@@ -6,10 +6,10 @@ verified. Provider selection and demo recording remain open.
 ## Candidate identity
 
 - Staging branch: `davidslayback/w2-synthetic-scan-release`
-- Git commit: `0cecbd11879fd3f69cbaedea5e0e2e170ee629fa`
+- Deployed code commit: `6ab0edc60956825554fb6501c1ad7bd4897f5a7c`
 - Public URL: <https://dtstest.64.177.10.182.nip.io/agentforge-w2/>
-- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-0cecbd1`
-- External checks and runtime identity: [W2 deployment proof](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF_0CECBD1.json)
+- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-6ab0edc`
+- External checks and runtime identity: [W2 deployment proof](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF_6AB0EDC.json)
 
 The deployed surface remains synthetic-only. Week 1 `/agentforge` is healthy
 and its container identity was unchanged during this W2 redeployment.
@@ -18,8 +18,8 @@ and its container identity was unchanged during this W2 redeployment.
 
 | Area | Evidence | Status |
 | --- | --- | --- |
-| Synthetic scan-form contracts, extraction worker, evidence worker, supervisor, source preview | Local tests plus current-candidate public API workflow | 124/124 tests; complete 2-field fixture externally exercised |
-| Browser scan demo | One-tap included synthetic fixture; visible scan/evidence handoffs; source preview | To verify on this candidate after redeploy |
+| Synthetic scan-form contracts, extraction worker, evidence worker, supervisor, source preview | Local tests plus current-candidate public API workflow | 125/125 tests; complete 2-field fixture externally exercised |
+| Browser scan demo | One-tap included synthetic fixture; visible scan/evidence handoffs; source preview | Page/controls inspected; public API workflow passes; browser button and phone recording remain to verify |
 | Real blank form examples | Official FDA 3500 and CDC 50.34 source links | Links only; no PDF upload/OCR. CDC form is legacy and application retires October 30, 2026. |
 | W2 regression gate | Current candidate | 50/50; injected-defect and baseline checks pass |
 | Landing page, health, readiness, evaluator | Current public HTTPS route | HTTP 200; readiness dependencies ready |
@@ -33,7 +33,8 @@ and its container identity was unchanged during this W2 redeployment.
 
 All fixture and patient data are synthetic. These results do not establish PHI
 readiness, real OpenEMR parity, provider suitability, or clinical safety.
-Third-party blank form PDFs and model weights are not in the release archive.
+Official PDFs stay at their FDA/CDC source links; no PDFs or model weights are
+bundled in the release archive.
 
 ## Reviewer path
 
@@ -42,7 +43,8 @@ Third-party blank form PDFs and model weights are not in the release archive.
    reported ready. Repeat the workflow in the intended browser before recording.
 2. Use the “Try the synthetic lab scan sample” button. Inspect the visible scan
    and evidence worker handoffs, `READY` state, and source preview with page and
-   region citations. A manual phone-browser recording has not been captured.
+   region citations. The deployed page loads; API path is externally verified,
+   while the button interaction and phone-browser recording remain open.
 3. Use the official blank PDF links only to inspect real layouts. The app accepts
    the included synthetic text fixture; it does not parse these PDFs.
 4. Open `/evals` and `/observability`; both public pages returned 200. The W2
