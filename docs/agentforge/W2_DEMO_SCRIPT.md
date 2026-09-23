@@ -118,13 +118,14 @@ redacted traces**. Expand nothing else.
 
 **Say:**
 
-> “Each upload now records extraction and retrieval stages, worker handoffs,
-> retrieval hit count, and duration in a redacted trace. The two runs appear in
-> the dashboard; model tokens and model cost are zero here because OCR and
-> guideline retrieval run locally. The 50-case evaluator is a separate saved
-> regression result, not an encounter score. The W2 service stays on its own
-> route, and this early slice does not round-trip documents or extracted facts
-> through OpenEMR.”
+> “Each upload now records OCR preparation, extraction, retrieval, worker
+> handoffs, retrieval hit count, and duration in a redacted trace. The dashboard
+> snapshot includes the page's initial visit preparation as well as these two
+> scan runs; use the two `scan_form` rows to see the document path. Those scan
+> rows have no model call because OCR and guideline retrieval run locally. The
+> 50-case evaluator is a separate saved regression result, not an encounter
+> score. W2 stays on its own route, and this early slice does not round-trip
+> documents or extracted facts through OpenEMR.”
 
 ## After recording
 

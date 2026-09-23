@@ -42,7 +42,7 @@ export function renderObservabilityPage() {
   <script>
   (() => {
     // Endpoint contract: basePath+'/v1/metrics', basePath+'/v1/alerts', basePath+'/v1/traces'.
-    const basePath = location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
+    const basePath = location.pathname.startsWith('/agentforge-w2') ? '/agentforge-w2' : location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
     const byId = (id) => document.getElementById(id);
     const number = (value, suffix = '') => Number.isFinite(Number(value)) ? \`\${Number(value).toLocaleString()}\${suffix}\` : '—';
     const pct = (value) => \`\${(Number(value || 0) * 100).toFixed(1)}%\`;
