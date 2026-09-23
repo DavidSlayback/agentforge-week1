@@ -126,15 +126,32 @@ export class AgentForgeService {
   async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
-    const prepared = await this.prepareScanSource(source);
-    const pdf = Boolean(prepared.pdf);
-    const content = prepared.content;
-    const contentText = content.toString('utf8');
-    const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
-    const pageCountMatch = contentText.match(/page_count=(\d+)/);
-    const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query });
-    if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
-    return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
+    const trace = this.traceSink?.start?.({ correlationId: `w2-scan-${randomUUID()}`, operation: 'w2-scan-supervisor', interactionType: 'scan_form', scope: { patientRef: request.patient_uuid } });
+    try {
+      trace?.startStage('source_preparation');
+      let prepared;
+      try {
+        prepared = await this.prepareScanSource(source);
+        trace?.finishStage('source_preparation', { status: 'complete' });
+      } catch (error) {
+        trace?.finishStage('source_preparation', { status: 'failed', errorCode: error.code || 'source_preparation_failed' });
+        throw error;
+      }
+      const pdf = Boolean(prepared.pdf);
+      const content = prepared.content;
+      const contentText = content.toString('utf8');
+      const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
+      const pageCountMatch = contentText.match(/page_count=(\d+)/);
+      const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace });
+      if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
+      for (const handoff of workflow.handoffs || []) trace?.recordHandoff(handoff);
+      trace?.setEvaluation({ status: 'not_run', reason: 'the golden-set gate runs separately from an individual document workflow' });
+      trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
+      return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
+    } catch (error) {
+      trace?.complete({ status: 'failure' });
+      throw error;
+    }
   }
 
   async prepareScanSource(source) {

@@ -70,12 +70,26 @@ export async function executeSupervisorWorkflow({ request, sourceDocumentIds = [
 }
 
 /** Run the inspectable multi-worker scan-form path against synthetic input. */
-export function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter } = {}) {
+export function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null } = {}) {
   const transitions = [STATES.START];
-  const extractionWorker = runExtractionWorker({ sourceDocumentId, documentType, layoutId, pageCount, content, sourceClass, syntheticOnly, processingMode, ...(extractionAdapter ? { adapter: extractionAdapter } : {}) });
+  observer?.startStage('extraction');
+  let extractionWorker;
+  try {
+    extractionWorker = runExtractionWorker({ sourceDocumentId, documentType, layoutId, pageCount, content, sourceClass, syntheticOnly, processingMode, ...(extractionAdapter ? { adapter: extractionAdapter } : {}) });
+  } finally {
+    observer?.finishStage('extraction', { status: extractionWorker?.output_status || 'failed' });
+  }
+  observer?.setExtraction({ status: extractionWorker.output_status, confidence: null, document_count: 1, fact_count: extractionWorker.extraction?.facts?.length || 0, issue_count: extractionWorker.extraction?.issues?.length || 0 });
   transitions.push(STATES.INTAKE_EXTRACTOR);
   if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null);
-  const evidenceWorker = runEvidenceWorker({ query, patientFacts, documentFacts: extractionWorker.extraction.facts, ...(retrievalAdapter ? { retrieve: retrievalAdapter } : {}) });
+  observer?.startStage('retrieval');
+  let evidenceWorker;
+  try {
+    evidenceWorker = runEvidenceWorker({ query, patientFacts, documentFacts: extractionWorker.extraction.facts, ...(retrievalAdapter ? { retrieve: retrievalAdapter } : {}) });
+  } finally {
+    observer?.finishStage('retrieval', { status: evidenceWorker?.output_status || 'failed' });
+  }
+  observer?.recordRetrievalAttempt({ tool: 'evidence-retriever', provider: 'local-lexical-proxy', status: evidenceWorker.output_status === 'ready' ? 'complete' : 'qualified', hit_count: evidenceWorker.guideline_evidence?.length || 0 });
   transitions.push(STATES.EVIDENCE_RETRIEVER);
   if (evidenceWorker.output_status === 'ready') transitions.push(STATES.VERIFY, STATES.READY);
   else transitions.push(STATES.CLARIFY);

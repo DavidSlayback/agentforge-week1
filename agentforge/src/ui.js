@@ -251,11 +251,15 @@ button:disabled{opacity:.6;cursor:wait}
       const result = await request('/v1/source-documents', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, document_type: sourceDocumentForm.elements.document_type.value, filename: file.name, content_base64: content });
       const isScanFixture = file.name.endsWith('.scan.txt') || file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       let workflowSummary;
+      let guidelineEvidence = [];
       if (isScanFixture) {
         const readToken = state.demoToken;
-        const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: readToken, source_document_id: result.source_document.id, message: 'Review synthetic lab evidence.' });
+        const documentType = sourceDocumentForm.elements.document_type.value;
+        const retrievalQuery = documentType === 'lab_pdf' ? 'documented glycemic values medication adherence' : 'medication reconciliation current documented list prior records';
+        const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: readToken, source_document_id: result.source_document.id, message: retrievalQuery });
         const active = workflow.workflow;
         workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
+        guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
         setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
       } else {
         const workflow = await request('/v1/supervisor', authorizedRequest({ patient_uuid: patient, message: 'Review the synthetic uploaded evidence and identify relevant documented facts.', source_document_ids: [result.source_document.id], source_document_context_token: writeContext.demo_token }));
@@ -271,6 +275,32 @@ button:disabled{opacity:.6;cursor:wait}
       preview.textContent = 'Open source preview';
       preview.target = '_blank';
       sourceStatus.append(document.createTextNode(' '), preview);
+      if (isScanFixture) {
+        const evidencePanel = document.createElement('details');
+        const evidenceHeading = document.createElement('summary');
+        evidenceHeading.textContent = 'Guideline evidence (' + guidelineEvidence.length + ')';
+        evidencePanel.append(evidenceHeading);
+        if (guidelineEvidence.length) {
+          for (const item of guidelineEvidence) {
+            const card = document.createElement('article');
+            const title = document.createElement('strong');
+            title.textContent = item.title + ' · ' + item.version;
+            const section = document.createElement('p');
+            section.textContent = item.section;
+            const quote = document.createElement('blockquote');
+            quote.textContent = item.quote;
+            const location = document.createElement('small');
+            location.textContent = 'Source: ' + item.location;
+            card.append(title, section, quote, location);
+            evidencePanel.append(card);
+          }
+        } else {
+          const empty = document.createElement('p');
+          empty.textContent = 'No guideline source met the retrieval threshold; the workflow stays qualified.';
+          evidencePanel.append(empty);
+        }
+        sourceStatus.append(document.createTextNode(' '), evidencePanel);
+      }
       sourceDocumentForm.reset();
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
     finally { setBusy(false); }

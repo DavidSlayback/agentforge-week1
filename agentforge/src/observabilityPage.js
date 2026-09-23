@@ -47,7 +47,7 @@ export function renderObservabilityPage() {
     const number = (value, suffix = '') => Number.isFinite(Number(value)) ? \`\${Number(value).toLocaleString()}\${suffix}\` : '—';
     const pct = (value) => \`\${(Number(value || 0) * 100).toFixed(1)}%\`;
     const safe = (value) => String(value ?? 'unknown').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-    const interactionLabels = { background_preparation: 'Preparation', scheduled_preparation: 'Scheduled prep', prepared_open: 'Prepared open', cache_followup: 'Follow-up', fresh_followup: 'Fresh follow-up' };
+    const interactionLabels = { background_preparation: 'Preparation', scheduled_preparation: 'Scheduled prep', prepared_open: 'Prepared open', cache_followup: 'Follow-up', fresh_followup: 'Fresh follow-up', scan_form: 'Scanned documents' };
     const barRows = (values, formatter = number) => {
       const entries = Object.entries(values || {}); const max = Math.max(1, ...entries.map(([, value]) => Number(value) || 0));
       return entries.length ? entries.map(([key, value]) => \`<div class="bar-row"><span>\${safe(key)}</span><div class="bar-track"><div class="bar-fill" style="width:\${Math.min(100, ((Number(value) || 0) / max) * 100)}%"></div></div><strong>\${formatter(value)}</strong></div>\`).join('') : '<div class="empty">No observations in window.</div>';

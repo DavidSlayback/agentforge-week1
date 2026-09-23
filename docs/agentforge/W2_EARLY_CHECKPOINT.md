@@ -1,5 +1,27 @@
 # Week 2 early checkpoint status
 
+## Demo and telemetry repair in the current release
+
+The W2 scan upload now displays the retrieved guideline title, section, quote,
+and source identifier in an expandable **Guideline evidence** panel. The active
+scan supervisor records extraction and retrieval stages, worker handoffs,
+retrieval hit counts, outcome, and duration through the existing redacted trace
+sink. The operations dashboard labels these interactions as scanned documents.
+The required root-level [`KEY_METRICS.md`](../../KEY_METRICS.md) defines the
+quality, citation, retrieval, qualification, trace, latency, and no-leakage
+measures without inventing runtime measurements.
+
+Release acceptance for this repair: deploy the exact current W2 checkout to
+`/agentforge-w2`; upload both PDF types in the browser; confirm guideline
+evidence is visible; confirm extraction/retrieval stages and hit counts appear
+in fresh traces and the dashboard; record the deployed commit and public
+readback below. The W2 trace file is ephemeral and resets when that isolated
+container restarts, so perform the uploads before opening the operations page.
+
+Current-candidate deployment and readback are pending until this release is
+published. Do not use the prior `6e5d691` deployment record as evidence for
+these changes.
+
 Status as of 2026-09-23: **synthetic PDF workflow is deployed and externally
 verified; provider choice and demo recording remain open.**
 

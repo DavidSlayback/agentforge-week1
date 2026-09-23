@@ -1,91 +1,148 @@
-# W2 browser demo recording script
+# W2 early submission demo script
 
-Target: 3–4 minutes, recorded from deployed candidate `41682f5`. Use only the
-completed synthetic PDF samples. Provider selection and recording are still
-open; this demonstrates local OCR, not a selected VLM. Current candidate proof
-is in `evidence/W2_PDF_SAMPLE_DEPLOYMENT_PROOF_41682F5.json`.
-
-> The current candidate exposes all four PDF samples and each public API sample
-> workflow passed. Confirm the page in the recording browser before capture.
-> The rasterized samples are clean generated pages, not physical scans.
+Target: 3–5 minutes. Record the deployed W2 page in Chrome. Use the page's
+generated sample PDFs for the walkthrough.
 
 ## Before recording
 
-- Open <https://dtstest.64.177.10.182.nip.io/agentforge-w2/> in the browser.
-- Confirm the patient picker shows a synthetic fixture and the page badge says
-  “Synthetic demonstration only.”
-- Choose “Run this sample” under a completed synthetic PDF. For a 3–4 minute
-  run, use one lab and one intake sample. Do not upload personal forms.
-- If showing a real layout, open an official blank FDA or CDC PDF from the page
-  in a separate tab. Return to the demo without uploading that PDF.
-- Close unrelated tabs and hide notifications before capture.
+- In Chrome's address bar, open the [W2 demo page](https://dtstest.64.177.10.182.nip.io/agentforge-w2/).
+  Confirm the page title is “Prepare for visit.”
+- Scroll to “Completed synthetic PDF samples.” Click the linked title
+  **Lab result · Layout B** (not its **Run this sample** button). Confirm Chrome
+  downloads `agentforge-lab-b-synthetic.pdf`.
+- Click the linked title **Patient intake · Layout B** (not its button). Confirm
+  Chrome downloads `agentforge-intake-b-synthetic.pdf`.
+- Return to the top of the page. During the recording, select these downloaded
+  files in the browser's upload control to show the actual upload path.
+- Close unrelated tabs and hide desktop notifications. Record the Chrome window.
 
-## 0:00–0:30 — Scope
+## 0:00–0:35 — Establish the Week 1 baseline and Week 2 delta
 
-[Show the landing page and the synthetic patient context.]
+**Action:** Show the “Prepare for visit” heading and the patient-context and
+read-only labels. Scroll down past “Visit orientation” and “Scan form workflow”
+until the “Completed synthetic PDF samples” heading and sample cards are visible.
 
-“AgentForge is a synthetic clinical workflow demonstration. The page uses
-fictional patient fixtures and requires clinician review. Today I’ll show a
-small form extraction path, how its workers hand off typed evidence, and where
-to inspect the source regions. No real patient information is used.”
+**Say:**
 
-## 0:30–1:35 — Run the sample
+> “Week 1 established the return-visit workflow: prepare a briefing from
+> patient-scoped chart evidence, keep chart access read-only, and leave clinical
+> judgment with the clinician. Week 2 extends that workflow to source documents.
+> The new problem is turning a lab PDF or intake form into reviewable facts that
+> can be used alongside the existing visit context.”
 
-[Tap “Run this sample” under Lab result · Layout A. Pause on the worker names
-and final state. Open the source preview.]
+## 0:35–1:55 — Upload a lab PDF and follow the new pipeline
 
-“This completed lab PDF is generated with fictional values. Local Tesseract
-reads the test name, value, unit, reference range, collection date, and
-abnormal status. Each accepted field links to its page region; the evidence
-worker then checks for relevant support.
+**Action:** Scroll to **Scan form workflow**. Leave **Document schema** set to
+**Lab scan PDF**. Click the **Filled synthetic PDF or text fixture** file
+control. In Downloads, select `agentforge-lab-b-synthetic.pdf` and confirm the
+file selection. Click **Read filled form** once. Wait for the status line below
+that button to say the workflow completed. Keep the line visible.
 
-The page shows the worker handoffs and the final workflow state. In the preview,
-each accepted value points back to its source and region. This demo uses local
-OCR. We have not selected a hosted VLM, and the clean generated sample does not
-establish real scanned-form accuracy.”
+**Expected screen:** `READY`; 12 cited fields; summary names
+`scan-form-extraction-worker` and `evidence-retrieval-worker`; extractor
+`tesseract-local-pdf`.
 
-## 1:35–2:15 — Intake form
+**Say:**
 
-[Return to the page and tap “Run this sample” under Patient intake · Layout A.
-Open its source preview.]
+> “Week 2 adds a document path beside the Week 1 visit workflow. The extraction
+> worker converts the page into typed lab fields and retains the quote, page,
+> and region for review. The retrieval worker separately finds a relevant
+> guideline passage. The supervisor combines their typed outputs and only marks
+> the workflow ready when both contracts pass. Keeping extraction and retrieval
+> separate makes a bad OCR field distinguishable from missing guideline
+> support, and lets us replace either adapter without changing the supervisor.”
 
-“The second assignment type is a patient intake form. This example includes
-demographics, the reason for visit, medications, allergies, and family history.
-The workflow keeps the same source and review trail.”
+**Action:** In the **Guideline evidence** row just below the upload status, click
+the row to expand it. Point to the guideline title, section, quoted passage, and
+source identifier.
 
-## 2:15–2:35 — Public source references
+**Action:** In the same status line below **Read filled form**, click the
+**Open source preview** link. It opens in a new tab. Point to one field's value,
+source quote, page number, and region coordinates.
 
-[Return to the main page. Open the FDA Form 3500 link and show the PDF title. If
-time permits, return and show the CDC Form 50.34 source link and its legacy note.]
+**Say:**
 
-“These FDA and CDC links are reference examples only. The downloadable samples
-above are the completed PDFs used by the synthetic extraction demo.”
+> “The guideline passage is a separate source from the uploaded document. The
+> evidence panel shows exactly what retrieval returned; the source preview lets
+> us inspect the extracted field against the page itself. Unsupported or
+> uncertain values remain qualified for review. This run uses local Tesseract
+> OCR, so there is no hosted model call in this document path.”
 
-## 2:35–3:05 — Evaluation and operations
+**Action:** In the same status line below **Read filled form**, click **Open
+source preview**. It opens in a new tab. Point to one field's value, source
+quote, page number, and region coordinates.
 
-[Open the evaluator panel, then the operations dashboard.]
+## 2:05–2:45 — Upload the second document type
 
-“The synthetic regression gate covers schema validity, citations, consistency,
-safe qualification, and log redaction. The operations page shows service health
-and redacted operational measures. These checks describe this synthetic
-candidate; they do not establish readiness for real patient data.”
+**Action:** In the source-preview tab, click **← Return to visit workspace** at
+the top of the page. In **Scan form workflow**, open **Document schema** and
+select **Patient intake form**. Click **Filled synthetic PDF or text fixture**.
+In Downloads, select `agentforge-intake-b-synthetic.pdf` and confirm the file
+selection. Click **Read filled form** once. Wait for the completion status line
+below that button.
 
-## 3:05–3:25 — Close
+**Expected screen:** `READY` with cited intake fields.
 
-[Return to the landing page and hold on the sample and source links.]
+**Say:**
 
-“The demo’s scan path uses deterministic extraction and local evidence
-retrieval. I have not selected a scan-form provider or VLM for the final
-submission. That choice, along with any provider terms or data path, remains an
-open decision.”
+> “The intake PDF goes through the same supervisor and citation path. Its schema
+> captures the visit reason and documented history. The query selects the
+> medication-reconciliation guideline, and the evidence panel makes that
+> retrieved support inspectable next to the extracted source.”
 
-## After capture
+## 2:45–3:25 — Show how the eval gate protects the addition
 
-- Play the entire recording and confirm the button, two worker handoffs, `READY`
-  state, source preview citations, official PDF links, evaluation page, and
-  operations page are legible.
-- Confirm both layouts for lab and intake are available on the page; the spoken
-  demo only needs one of each.
-- Confirm the recording contains only the demo browser and has usable audio.
-- Record the file location, duration, and review result in the submission
-  package. Do not describe the current script as a completed recording.
+**Action:** Scroll to the bottom of the main page. Click the collapsed
+**Evaluator notes** row to expand it. Click the **Open evaluator panel** link
+inside the expanded notes. Pause on the W2 regression gate.
+
+**Expected screen:** 50/50 cases passed across schema validity, citation
+presence, factual consistency, safe refusal, and `no_phi_in_logs`.
+
+**Say:**
+
+> “We extended the Week 1 evaluation seam with a Week 2 gate for the new
+> document and evidence contracts. It checks that outputs match the schema,
+> cite their sources, stay consistent with the fixture, qualify unsupported
+> cases, and keep sensitive content out of traces. The saved result is fifty
+> synthetic regression cases; it is evidence about this gate, not a general
+> accuracy score for every form.”
+
+## 3:25–4:35 — Show operations and close
+
+**Action:** Use the browser Back button to return to the main page. Scroll to the
+bottom and click **Evaluator notes** to expand it. Click **Open operations
+dashboard** inside the expanded notes. Point to **Requests**, **Retrieval
+attempts**, **p95 latency**, and the two `scan_form` entries under **Recent
+redacted traces**. Expand nothing else.
+
+**Say:**
+
+> “Each upload now records extraction and retrieval stages, worker handoffs,
+> retrieval hit count, and duration in a redacted trace. The two runs appear in
+> the dashboard; model tokens and model cost are zero here because OCR and
+> guideline retrieval run locally. The 50-case evaluator is a separate saved
+> regression result, not an encounter score. The W2 service stays on its own
+> route, and this early slice does not round-trip documents or extracted facts
+> through OpenEMR.”
+
+## After recording
+
+- Play the full video. Confirm it shows the actual file selection and **Read
+  filled form** action for each PDF, each run shows guideline evidence, the Lab
+  B run shows both workers, `READY`, and 12 cited fields, the source preview
+  shows quotes and region coordinates, the evaluator shows its saved 50/50
+  result, and the operations page shows the two fresh redacted scan traces.
+- Check that the Chrome window is legible, the audio is usable, and the runtime
+  is between 3 and 5 minutes.
+- Record the video's location and duration in the submission package.
+
+## Evidence boundary
+
+Before recording, confirm the deployed commit and perform both browser uploads.
+The trace sink is in-memory on the isolated W2 container and resets on restart;
+record the uploads first, then open the dashboard during the same run. If the
+fresh traces are missing, stop and repair the release rather than narrating
+metrics that are not on screen. The 50/50 result is from the saved synthetic
+regression gate. This candidate does not establish arbitrary scan accuracy,
+hosted-provider quality, or OpenEMR persistence.
