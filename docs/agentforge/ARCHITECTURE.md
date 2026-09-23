@@ -13,6 +13,21 @@ comparison baseline. A separate verification stage checks patient scope,
 provenance, dates, coverage, claim support, and discrepancy status before the
 result can be displayed.
 
+## Week 1 and Week 2 boundary
+
+This architecture describes the Week 1 live chart-preparation path: it remains
+patient-scoped and read-only. Week 2 adds a separate synthetic local document
+workflow with two schemas (`lab_pdf`, `intake_form`), a supervisor that invokes
+the extractor and evidence-retriever workers, and a rubric gate. Its present
+extractors parse line-encoded UTF-8 text fixtures; they do not read binary PDFs
+or scans. Its source/derived-fact store is in-memory and is not an OpenEMR
+roundtrip. Local RAG defaults to lexical matching; the Cohere adapter requires
+explicit configuration and a server-only key. See
+[`W2_EARLY_CHECKPOINT.md`](W2_EARLY_CHECKPOINT.md) for current proof and gaps.
+
+These W2 additions do not broaden the Week 1 OpenEMR adapter's read authority.
+There is no third document type in the current scope.
+
 The narrowest OpenEMR seam is a custom module with a server-side adapter and a
 small controller owned by AgentForge. The module is the embedded-panel and
 session boundary; the adapter is the only component allowed to call OpenEMR

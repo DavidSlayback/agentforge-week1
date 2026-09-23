@@ -23,7 +23,7 @@ test('W2 gate blocks an injected defect instead of warning', () => {
   const result = runW2RegressionGate({ injectDefect: true });
   assert.equal(result.passed, false);
   assert.ok(result.failed_cases.length > 0);
-  assert.ok(result.regressions.extraction > 0.05);
+  assert.ok(result.regressions.schema_valid > 0.05);
 });
 
 test('W2 gate blocks corpus drift against the checked-in baseline', () => {

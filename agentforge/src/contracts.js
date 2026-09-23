@@ -205,6 +205,21 @@ export function validateFollowUpRequest(value) {
   return { valid: issues.length === 0, issues };
 }
 
+export function validateSupervisorRequest(value) {
+  const issues = [];
+  const allowed = ['patient_uuid', 'message', 'clinician_uuid', 'demo_token', 'source_document_ids', 'source_document_context_token'];
+  if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
+  unknownFields(issues, value, allowed);
+  requiredFields(issues, value, ['patient_uuid', 'message', 'clinician_uuid']);
+  for (const field of ['patient_uuid', 'message', 'clinician_uuid']) if (field in value) nonEmptyString(issues, value, field);
+  if ('demo_token' in value && typeof value.demo_token !== 'string') issues.push('demo_token_must_be_string');
+  if ('source_document_ids' in value) {
+    if (!Array.isArray(value.source_document_ids) || value.source_document_ids.length > 10 || value.source_document_ids.some((id) => typeof id !== 'string' || !id.trim()) || new Set(value.source_document_ids).size !== value.source_document_ids.length) issues.push('source_document_ids_invalid');
+    if (typeof value.source_document_context_token !== 'string' || !value.source_document_context_token.trim()) issues.push('source_document_context_token_required');
+  } else if ('source_document_context_token' in value) issues.push('source_document_ids_required_for_source_context');
+  return { valid: issues.length === 0, issues };
+}
+
 export function validateSourceDocumentRequest(value) {
   const issues = [];
   const allowed = ['patient_uuid', 'clinician_uuid', 'demo_token', 'document_type', 'filename', 'content_base64'];

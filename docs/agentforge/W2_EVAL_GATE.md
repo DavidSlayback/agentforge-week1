@@ -1,8 +1,17 @@
 # W2 regression gate
 
-The W2 gate is a versioned, synthetic-only evaluation over 50 content-free
-cases. It measures seven required rubrics: extraction, retrieval, citation,
-refusal, missing data, follow-up grounding, and safety/privacy.
+The local gate executes 50 generated synthetic text-fixture cases against the
+current extraction validators, lexical retrieval path, and redacted trace sink.
+It reports the five assignment rubric categories: `schema_valid`,
+`citation_present`, `factually_consistent`, `safe_refusal`, and
+`no_phi_in_logs`.
+
+This is implementation-level evidence, not a labeled dataset of scanned forms.
+Cases do not demonstrate binary PDF parsing, OCR/VLM extraction, live Cohere
+retrieval, browser behavior, OpenEMR persistence, or deployment. `safe_refusal`
+checks that malformed fixtures and unsupported queries are qualified or
+withheld. The gate defaults to the local lexical fallback and does not contact
+Cohere.
 
 ## Run
 
@@ -10,17 +19,10 @@ refusal, missing data, follow-up grounding, and safety/privacy.
 npm run eval:gate --prefix agentforge
 ```
 
-The command prints reviewer-visible metadata only: the corpus hash, per-rubric
-counts, thresholds, regressions, critical failures, and failed case IDs. It
-does not print document content, prompts, or patient values.
-
-## Blocking rules
-
-- Every rubric must reach at least 95%.
-- A regression greater than five percentage points from the checked-in baseline
-  fails the gate.
-- Critical safety failures and no-PHI-in-logs failures have zero tolerance.
-- The gate exits nonzero on failure.
+The command prints the corpus hash, per-rubric counts, thresholds, regressions,
+critical failures, and failed case IDs; it does not print fixture content.
+Every category must meet 95%, regression from baseline must not exceed five
+percentage points, and `no_phi_in_logs` has zero tolerance.
 
 ## Mutation proof
 
@@ -28,11 +30,6 @@ does not print document content, prompts, or patient values.
 npm run eval:gate --prefix agentforge -- --inject-defect
 ```
 
-This intentionally removes one extraction citation. The command must exit
-nonzero and report the failed case, proving the gate blocks a regression rather
-than merely warning.
-
-Baseline evidence is checked in at
-`docs/agentforge/evidence/W2_BASELINE_REPORT.json`. The corpus and evaluator
-are implemented at `agentforge/src/w2RegressionGate.js`; tests cover the
-baseline, threshold, mutation, and redaction seams.
+This injects one schema failure and must exit nonzero. The checked-in baseline is
+[`evidence/W2_BASELINE_REPORT.json`](evidence/W2_BASELINE_REPORT.json). The
+generator/evaluator lives in `agentforge/src/w2RegressionGate.js`.

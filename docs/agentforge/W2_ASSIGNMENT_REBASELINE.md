@@ -1,5 +1,13 @@
 # AgentForge Week 2 assignment-to-evidence rebaseline
 
+> **Historical snapshot:** this file records the initial 2026-09-21 intake and
+> planning rebaseline. Its `PLANNED` statuses and “no W2 implementation” claims
+> are superseded by the current code and the
+> [`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md).
+> Consult [`W2_EARLY_CHECKPOINT.md`](W2_EARLY_CHECKPOINT.md) for verified vs
+> pending current-candidate evidence. Week 1 remains read-only; the user's
+> two-document scope remains `lab_pdf` and `intake_form`.
+
 **Workflow state:** `PLANNED`
 
 **Last updated:** 2026-09-21, America/Chicago

@@ -23,7 +23,7 @@ test.after(() => child?.kill());
 test('evaluator panel exposes operational routes and saved evidence', async () => {
   const page = await fetch(`http://127.0.0.1:${port}/evals`).then((response) => response.text());
   for (const href of ['/health', '/ready', '/v1/metrics', '/v1/traces', '/v1/alerts', '/observability', '/evals/deployed-service-results.json', '/evals/error-analysis.json', '/evals/w2-baseline.json']) assert.match(page, new RegExp(`href="${href.replaceAll('/', '\\/')}"`));
-  assert.match(page, /Golden evidence/);
+  assert.match(page, /Week 1 baseline evidence/);
   assert.match(page, /Mutation\/error analysis/);
   assert.match(page, /W2 regression gate/);
   assert.match(page, /50/);
@@ -33,6 +33,8 @@ test('evaluator panel exposes operational routes and saved evidence', async () =
   for (const id of ['metric-cards', 'latency-bars', 'verification-bars', 'alerts', 'traces']) assert.match(dashboard, new RegExp(`id="${id}"`));
   assert.match(dashboard, /Runtime dashboard/);
   assert.match(dashboard, /synthetic data only/i);
+  assert.match(dashboard, / · primary/);
+  assert.doesNotMatch(dashboard, /live provider/);
   assert.doesNotMatch(dashboard, /<pre id="alerts"/);
 
   const golden = await fetch(`http://127.0.0.1:${port}/evals/deployed-service-results.json`).then((response) => response.json());

@@ -1,0 +1,78 @@
+{
+  "evidence_type": "local_synthetic_browser_smoke",
+  "verified_date": "2026-09-22",
+  "candidate_base_revision": "dcc8a4879b74891ec3e06220b1eff0de83b32e3e",
+  "working_tree_changes_included": true,
+  "environment": {
+    "origin": "http://127.0.0.1:18787",
+    "provider_mode": "deterministic",
+    "trace_store": "isolated temporary file",
+    "data_scope": "generated synthetic UTF-8 LAB| text fixture"
+  },
+  "browser_results": {
+    "source_upload_status": "stored",
+    "document_count": 1,
+    "extracted_fact_count": 1,
+    "guideline_source_count": 3,
+    "supervisor_status": "completed document and evidence workers",
+    "evaluator_page": {
+      "week_1_saved_cases": "7/7",
+      "week_2_regression_gate": "50/50"
+    }
+  },
+  "w2_trace": {
+    "correlation_id": "w2-cda2c5a8-cebc-4fd7-9205-509cc72e82e5",
+    "operation": "w2-supervisor",
+    "interaction_type": "follow_up",
+    "status": "success",
+    "stages": ["extraction", "retrieval"],
+    "extraction": {
+      "status": "complete",
+      "document_count": 1,
+      "fact_count": 1,
+      "issue_count": 0
+    },
+    "retrieval": {
+      "provider": "local-lexical-proxy",
+      "status": "complete",
+      "guideline_hit_count": 3
+    },
+    "handoffs": [
+      {
+        "worker": "intake-extractor",
+        "input_type": "source_documents",
+        "document_types": ["lab_pdf"],
+        "output_status": "complete"
+      },
+      {
+        "worker": "evidence-retriever",
+        "input_type": "follow_up_question",
+        "output_status": "ready"
+      },
+      {
+        "worker": "deterministic-verifier",
+        "input_type": "typed_evidence",
+        "output_status": "checked"
+      }
+    ],
+    "raw_document_or_prompt_logged": false
+  },
+  "observability": {
+    "recent_trace_count": 2,
+    "other_trace": "synthetic Week 1 fixture preparation triggered by opening the app",
+    "alerts": {
+      "p95_latency": "clear",
+      "error_rate": "clear",
+      "tool_failure_rate": "clear"
+    },
+    "sample_metrics_are_not_w2_benchmark": true
+  },
+  "not_proven": [
+    "binary PDF parsing, OCR, or scan extraction",
+    "clickable source citations in the browser",
+    "OpenEMR persistence or round trip",
+    "live Cohere execution; the active retriever was local lexical",
+    "public deployment or current deployed revision",
+    "3-5 minute recording"
+  ]
+}

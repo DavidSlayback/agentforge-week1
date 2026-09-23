@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { retrieveGuidelineEvidence } from '../src/guidelineEvidence.js';
+import { createCohereGuidelineRetriever, retrieveGuidelineEvidence } from '../src/guidelineEvidence.js';
 
 test('guideline retrieval ranks relevant synthetic evidence with provenance', () => {
   const result = retrieveGuidelineEvidence('diabetes medication follow-up');
@@ -15,6 +15,46 @@ test('guideline retrieval qualifies empty or irrelevant questions', () => {
   const result = retrieveGuidelineEvidence('volcano telemetry');
   assert.equal(result.status, 'qualified');
   assert.ok(result.issues.includes('insufficient_guideline_evidence'));
+});
+
+test('Cohere retriever embeds synthetic corpus and query, reranks, and preserves provenance', async () => {
+  const calls = [];
+  const retriever = createCohereGuidelineRetriever({
+    apiKey: 'unit-test-key',
+    fetchImpl: async (url, options) => {
+      const payload = JSON.parse(options.body);
+      calls.push({ url, headers: options.headers, payload });
+      if (url.endsWith('/v2/embed')) {
+        const vectors = payload.texts.map((text) => text.toLowerCase().includes('diabetes') ? [1, 0] : [0, 1]);
+        return { ok: true, json: async () => ({ embeddings: { float: vectors }, meta: { billed_units: { input_tokens: payload.texts.length } } }) };
+      }
+      return { ok: true, json: async () => ({ results: [{ index: 0, relevance_score: 0.98 }], meta: { billed_units: { search_units: 1 } } }) };
+    },
+  });
+  const result = await retriever.retrieve('diabetes medication follow-up', { topK: 1 });
+  assert.equal(result.status, 'complete');
+  assert.equal(result.provider, 'cohere');
+  assert.equal(result.evidence.length, 1);
+  assert.match(result.evidence[0].location, /^synthetic:\/\/guidelines\//);
+  assert.equal(calls.filter(({ url }) => url.endsWith('/v2/embed')).length, 2);
+  assert.equal(calls.find(({ url }) => url.endsWith('/v2/rerank')).payload.model, 'rerank-v4.0-fast');
+  assert.equal(calls.find(({ url }) => url.endsWith('/v2/rerank')).payload.query, 'synthetic diabetes follow-up documented glycemic values medication history');
+  assert.ok(calls.every(({ headers }) => headers.authorization === 'Bearer unit-test-key'));
+});
+
+test('Cohere retriever requires a server-side key and sanitizes provider failures', async () => {
+  assert.throws(() => createCohereGuidelineRetriever(), /COHERE_API_KEY_REQUIRED/);
+  const retriever = createCohereGuidelineRetriever({ apiKey: 'unit-test-key', fetchImpl: async () => { throw new Error('secret-bearing network detail'); } });
+  await assert.rejects(retriever.retrieve('diabetes follow-up'), /COHERE_REQUEST_FAILED/);
+});
+
+test('Cohere retriever does not transmit free-form unsupported user text', async () => {
+  let calls = 0;
+  const retriever = createCohereGuidelineRetriever({ apiKey: 'unit-test-key', fetchImpl: async () => { calls += 1; throw new Error('should not be called'); } });
+  const result = await retriever.retrieve('Patient David Smith at 123 Example Street needs help with astronomy');
+  assert.equal(result.status, 'qualified');
+  assert.deepEqual(result.issues, ['no_approved_synthetic_query']);
+  assert.equal(calls, 0);
 });
 
 const root = new URL('../', import.meta.url);

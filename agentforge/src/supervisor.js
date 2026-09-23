@@ -12,7 +12,12 @@ export function runDeterministicSupervisor({ intakeResult = { status: 'not_reque
   if (unsafe) return stop(STATES.BLOCKED, 'unsafe_input');
   if (intakeResult.status !== 'not_requested') {
     transitions.push(STATES.INTAKE_EXTRACTOR);
-    handoffs.push({ worker: 'intake-extractor', input_type: 'intake_document', output_status: intakeResult.status });
+    handoffs.push({
+      worker: 'intake-extractor',
+      input_type: 'source_documents',
+      document_types: (intakeResult.documents || []).map((document) => document.document_type).filter(Boolean),
+      output_status: intakeResult.status,
+    });
     if (!['complete', 'qualified'].includes(intakeResult.status)) return stop(STATES.BLOCKED, 'intake_extractor_failed');
   }
   transitions.push(STATES.EVIDENCE_RETRIEVER);
@@ -28,6 +33,38 @@ export function runDeterministicSupervisor({ intakeResult = { status: 'not_reque
   }
   transitions.push(STATES.READY);
   return { workflow_version: 'w2-supervisor-v1', final_state: STATES.READY, readiness: 'ready', stop_reason: null, transitions, handoffs, typed_outputs: { intake: intakeResult, evidence: evidenceResult } };
+}
+
+/** Execute the W2 workers under an inspectable deterministic supervisor.
+ *
+ * Args:
+ *   request: Patient-scoped question and workflow options.
+ *   sourceDocumentIds: Synthetic source-document IDs requiring extraction.
+ *   workers: The document extractor and evidence retriever implementations.
+ *   unsafe: Whether the request failed an upstream safety check.
+ *
+ * Returns:
+ *   Final graph state with typed outputs from workers that actually ran.
+ */
+export async function executeSupervisorWorkflow({ request, sourceDocumentIds = [], workers, unsafe = false } = {}) {
+  if (!workers || typeof workers.evidenceRetriever !== 'function' || (sourceDocumentIds.length && typeof workers.intakeExtractor !== 'function')) {
+    return runDeterministicSupervisor({ evidenceResult: { status: 'blocked' }, unsafe: true });
+  }
+  let intakeResult = { status: 'not_requested', facts: [], documents: [] };
+  if (sourceDocumentIds.length) {
+    try {
+      intakeResult = await workers.intakeExtractor({ request, sourceDocumentIds });
+    } catch {
+      intakeResult = { status: 'failed', facts: [], documents: [], issues: ['intake_worker_failed'] };
+    }
+  }
+  let evidenceResult;
+  try {
+    evidenceResult = await workers.evidenceRetriever(request);
+  } catch {
+    evidenceResult = { status: 'blocked', patient_facts: [], guideline_evidence: [], issues: ['evidence_worker_failed'] };
+  }
+  return runDeterministicSupervisor({ intakeResult, evidenceResult, unsafe });
 }
 
 export { STATES as SUPERVISOR_STATES };

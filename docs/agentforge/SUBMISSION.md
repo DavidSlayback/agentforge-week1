@@ -1,9 +1,13 @@
 # AgentForge Sunday final-submission package
 
-> Current synthetic checkpoint package. Candidate evidence is tracked in
-> `RELEASE_READINESS.md` and `REQUIREMENTS_MATRIX.md`; the video is the only
-> intentionally unfinished artifact. Qwen remains the synthesis lane and
-> OpenRouter Gemini Flash-Lite handles follow-ups.
+> **Historical Week 1 checkpoint package.** The deployment, providers, and
+> evidence below refer to older candidate `d8b4ba8`, not the current Week 2
+> working tree. Do not submit or present this as W2 evidence. See
+> [`W2_EARLY_CHECKPOINT.md`](W2_EARLY_CHECKPOINT.md) and
+> [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) for current W2 status and gaps.
+
+> At the time of that Week 1 checkpoint, candidate evidence was tracked in
+> `RELEASE_READINESS.md`; its video status and provider notes are historical.
 
 ## Release position
 

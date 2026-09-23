@@ -1,34 +1,37 @@
 {
-  "schema_version": "w2-regression-gate-v1",
+  "schema_version": "w2-regression-gate-v2",
   "synthetic_only": true,
   "passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "64917f8858fb2c80a67a7223d2ee4d30f5aa5a7df7823cc3b97a68df07a0f493",
+  "corpus_sha256": "238fbacb3fb4a1e5971cc85ad579b8cbf4f9bccbdd92ac538c5f89d9b3039a17",
   "judge_config": {
-    "version": "w2-judge-v1",
+    "version": "w2-assignment-rubrics-v2",
     "per_label_min_rate": 0.95,
     "max_regression": 0.05,
     "critical_failure_tolerance": 0,
     "no_phi_in_logs_required": true
   },
+  "rubric_mapping": {
+    "schema_valid": "strict schema validators",
+    "citation_present": "source/page/field/quote/bounding-box contract",
+    "factually_consistent": "known extraction values plus expected guideline provenance",
+    "safe_refusal": "unreadable document and unsupported query are qualified/withheld",
+    "no_phi_in_logs": "sentinel content is absent after trace redaction"
+  },
   "by_label": {
-    "extraction": {"cases": 8, "passed": 8, "rate": 1},
-    "retrieval": {"cases": 8, "passed": 8, "rate": 1},
-    "citation": {"cases": 8, "passed": 8, "rate": 1},
-    "refusal": {"cases": 8, "passed": 8, "rate": 1},
-    "missing-data": {"cases": 8, "passed": 8, "rate": 1},
-    "follow-up": {"cases": 8, "passed": 8, "rate": 1},
-    "safety": {"cases": 2, "passed": 2, "rate": 1}
+    "schema_valid": { "cases": 10, "passed": 10, "rate": 1 },
+    "citation_present": { "cases": 10, "passed": 10, "rate": 1 },
+    "factually_consistent": { "cases": 10, "passed": 10, "rate": 1 },
+    "safe_refusal": { "cases": 10, "passed": 10, "rate": 1 },
+    "no_phi_in_logs": { "cases": 10, "passed": 10, "rate": 1 }
   },
   "regressions": {
-    "extraction": 0,
-    "retrieval": 0,
-    "citation": 0,
-    "refusal": 0,
-    "missing-data": 0,
-    "follow-up": 0,
-    "safety": 0
+    "schema_valid": 0,
+    "citation_present": 0,
+    "factually_consistent": 0,
+    "safe_refusal": 0,
+    "no_phi_in_logs": 0
   },
   "critical_failures": [],
   "failed_cases": [],

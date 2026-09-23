@@ -42,11 +42,27 @@ docker exec agentforge-week1-openemr-1 /root/devtools dev-reset-install-demodata
 
 The local compose project exposes OpenEMR on ports 8300 (HTTP) and 9300 (HTTPS), phpMyAdmin on 8310, and MariaDB on 8320. These defaults are for local development only.
 
-### AgentForge service and reviewer path
+### AgentForge Week 1 baseline and Week 2 work
 
-AgentForge is the separate read-only Node service under `agentforge/`. For a
-fixture-backed local run, use Node 24 and start it with a server-only synthetic
-secret:
+Week 1 is the existing patient-scoped chart preparation service. Its OpenEMR
+chart adapter is read-only. Week 2 adds a separate, synthetic-only document
+workflow; it does not change the Week 1 chart adapter into a write path. The
+Week 2 upload store is in-memory and is **not** OpenEMR persistence.
+
+The current Week 2 parser accepts UTF-8 text fixtures with `LAB|` or `INTAKE|`
+records. `lab_pdf` is a schema name: binary PDF parsing, OCR/VLM extraction,
+confidence scoring, and scan handling are not implemented. Only the two scoped
+types, `lab_pdf` and `intake_form`, are planned; there is no third type.
+
+The Week 2 supervisor calls extraction and evidence-retrieval workers. RAG uses
+a deterministic local lexical fallback by default. Optional Cohere Embed and
+Rerank requires `AGENTFORGE_RAG_PROVIDER=cohere` and the server-only
+`AGENTFORGE_COHERE_API_KEY`. Before any Cohere call, user text is mapped locally
+to a small allowlist of fixed synthetic queries; unsupported text is withheld.
+No Cohere-backed run is claimed until verified.
+
+For a fixture-backed local run, use Node 24 and start with a server-only
+synthetic secret:
 
 ```powershell
 $env:AGENTFORGE_DEMO_SECRET = "local-synthetic-secret"
@@ -67,12 +83,12 @@ node --test scripts/test/*.test.mjs
 node evals/lib/runner.js
 ```
 
-The verified synthetic deployment is
-`https://dtstest.64.177.10.182.nip.io/agentforge/`. Qwen is active for
-ahead-of-visit synthesis and OpenRouter Gemini Flash-Lite is active for
-patient-scoped follow-ups. Deterministic output remains the fail-closed
-fallback. See [`docs/agentforge/SUBMISSION.md`](docs/agentforge/SUBMISSION.md)
-for the current candidate and evidence boundaries.
+Week 1 deployment/provider notes in older submission artifacts refer to older
+candidates and are not Week 2 release evidence. See
+[`docs/agentforge/W2_EARLY_CHECKPOINT.md`](docs/agentforge/W2_EARLY_CHECKPOINT.md)
+for current local evidence and unverified release requirements, and
+[`docs/agentforge/W2_ARCHITECTURE.md`](docs/agentforge/W2_ARCHITECTURE.md) for
+the Week 2 implementation boundary and Sunday gaps.
 See [`docs/agentforge/PROJECT_EXPLAINER.md`](docs/agentforge/PROJECT_EXPLAINER.md),
 [`ARCHITECTURE.md`](docs/agentforge/ARCHITECTURE.md), and
 [`REQUIREMENTS_MATRIX.md`](docs/agentforge/REQUIREMENTS_MATRIX.md) for the

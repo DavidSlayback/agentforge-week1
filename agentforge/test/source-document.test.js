@@ -24,14 +24,14 @@ const signedContext = (patient_uuid, clinician_uuid = 'fixture-physician-001') =
 
 const verifiedWriteContext = (patient_uuid, clinician_uuid = 'fixture-physician-001') => verifySignedContext(issueSignedContext({ patient_uuid, clinician_uuid, scope: 'write-source-document', acl: 'write', secret: 'synthetic-test-secret' }), 'synthetic-test-secret');
 
-test('synthetic OpenEMR source documents persist, read back, and deduplicate', async () => {
+test('simulated synthetic source documents persist, read back, and deduplicate', async () => {
   const adapter = new SimulatedOpenEMRAdapter({ fixturePath });
-  const content = Buffer.from('%PDF-1.7 synthetic lab fixture');
+  const content = Buffer.from('LAB|synthetic lab fixture text');
   const now = () => '2026-09-21T20:00:00.000Z';
   const request = {
     patientRef: 'fixture-patient-001',
     documentType: 'lab_pdf',
-    filename: 'lab-results.pdf',
+    filename: 'lab-results.txt',
     content,
     uploadedBy: 'fixture-physician-001',
     now,
@@ -42,7 +42,7 @@ test('synthetic OpenEMR source documents persist, read back, and deduplicate', a
   assert.equal(first.document.synthetic_only, true);
   assert.equal(first.document.patient_ref, 'fixture-patient-001');
   assert.equal(first.document.document_type, 'lab_pdf');
-  assert.equal(first.document.filename, 'lab-results.pdf');
+  assert.equal(first.document.filename, 'lab-results.txt');
   assert.equal(first.document.ingestion_revision, 1);
   assert.equal(first.document.source_system, 'synthetic-roundtrip');
   assert.equal(first.document.persistence_boundary, 'simulated-openemr-adapter');
@@ -61,7 +61,7 @@ test('synthetic OpenEMR source documents persist, read back, and deduplicate', a
   assert.equal((await adapter.listSourceDocuments('fixture-patient-001')).length, 1);
 });
 
-test('synthetic OpenEMR source documents fail closed across patient scope', async () => {
+test('simulated synthetic source documents fail closed across patient scope', async () => {
   const adapter = new SimulatedOpenEMRAdapter({ fixturePath });
   const { document } = await adapter.persistSourceDocument({
     patientRef: 'fixture-patient-001',
@@ -100,6 +100,12 @@ test('AgentForge UI exposes the two synthetic source-document types and upload r
   assert.match(page, /value="lab_pdf"/);
   assert.match(page, /value="intake_form"/);
   assert.match(page, /\/v1\/source-documents/);
+});
+
+test('AgentForge UI keeps the isolated W2 public path for links and API calls', () => {
+  const page = renderAgentForgePage({ publicBasePath: '/agentforge-w2' });
+  assert.match(page, /href="\/agentforge-w2\/observability"/);
+  assert.match(page, /location\.pathname\.startsWith\('\/agentforge-w2'\) \? '\/agentforge-w2' : location\.pathname\.startsWith\('\/agentforge'\) \? '\/agentforge' : ''/);
 });
 
 test('synthetic lab extraction preserves citations, qualifies gaps, and detects conflicts', () => {
@@ -198,7 +204,7 @@ test('synthetic lab evidence API links derived observations to the source and de
     const content = 'LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40';
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'synthetic-lab.pdf', content_base64: Buffer.from(content).toString('base64') }) }).then((response) => response.json());
     assert.ok(upload.source_document?.id);
-    const path = `/v1/source-documents/${upload.source_document.id}/lab-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`;
+    const path = `/v1/source-documents/${upload.source_document.id}/lab-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(writeContext.demo_token)}`;
     const firstResponse = await fetch(`http://127.0.0.1:${port}${path}`);
     assert.equal(firstResponse.status, 200);
     const first = await firstResponse.json();
@@ -221,7 +227,7 @@ test('synthetic intake evidence API links derived observations to the source', a
     const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
     const content = 'INTAKE|field=chief_concern|value=follow-up for fatigue|section=Chief concern|page=1|field_id=intake.concern|quote=Follow-up for fatigue|bounding_box=10,20,100,40';
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'intake_form', filename: 'synthetic-intake.json', content_base64: Buffer.from(content).toString('base64') }) }).then((response) => response.json());
-    const evidence = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/intake-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`);
+    const evidence = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/intake-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(writeContext.demo_token)}`);
     assert.equal(evidence.status, 200);
     const body = await evidence.json();
     assert.equal(body.extraction.facts[0].citation.section, 'Chief concern');

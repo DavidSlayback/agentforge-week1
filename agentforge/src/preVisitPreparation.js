@@ -3,9 +3,9 @@ import { verify, verifyGeneratedText } from './verifier.js';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 
-// Stable redacted trace label shared by fixture and live paths; it is not
-// evidence that live OpenEMR supplied the cached response.
-const TRACE_CACHE_SOURCE_REVISION = 'openemr-live';
+// A neutral trace label shared by fixture and live paths. The source origin is
+// intentionally not implied by this cache revision.
+const TRACE_CACHE_SOURCE_REVISION = 'chart-source-current';
 const CACHE_SCHEDULE_REVISION = 'agentforge-calendar-v1';
 
 /** Owns the authenticated preparation, briefing, cache, and follow-up lifecycle. */

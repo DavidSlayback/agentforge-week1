@@ -1,17 +1,19 @@
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import { isCoverageUnavailable, coverageGroupForField, validateRetrievalResult } from './contracts.js';
 import { extractLabEvidence } from './labEvidence.js';
 import { extractIntakeEvidence } from './intakeEvidence.js';
 import { retrieveGuidelineEvidence } from './guidelineEvidence.js';
-import { runDeterministicSupervisor } from './supervisor.js';
+import { executeSupervisorWorkflow } from './supervisor.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, provider, conversationProvider = null, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
     this.adapter = chartAdapter;
     this.chartAdapter = chartAdapter;
     this.writeback = writeback;
+    this.guidelineRetriever = guidelineRetriever || { name: 'local-lexical-proxy', retrieve: (query, options) => retrieveGuidelineEvidence(query, options) };
     this.provider = provider;
     this.traceSink = traceSink;
     this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs });
@@ -44,7 +46,9 @@ export class AgentForgeService {
   }
 
   readSourceDocument(id, request, { verifiedContext = null } = {}) {
-    const authorization = this.authorizeWriteback(request, verifiedContext);
+    const authorization = verifiedContext?.scope === 'write-source-document'
+      ? this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' })
+      : this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.getSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
     const result = this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid });
@@ -76,6 +80,8 @@ export class AgentForgeService {
   }
 
   extractLabEvidence(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     if (source.source_document.document_type !== 'lab_pdf') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
@@ -87,6 +93,8 @@ export class AgentForgeService {
   }
 
   extractIntakeEvidence(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     if (source.source_document.document_type !== 'intake_form') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
@@ -106,14 +114,73 @@ export class AgentForgeService {
     if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid' };
     const patientFacts = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage)).map((record) => ({ source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author }));
     const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
-    const guideline = retrieveGuidelineEvidence(request.message, { topK });
-    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_status: guideline.status, guideline_issues: guideline.issues, failed_patient_groups: failedGroups }, qualification: { required: Boolean(failedGroups.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...guideline.issues] } };
+    let guideline;
+    try {
+      guideline = await this.guidelineRetriever.retrieve(request.message, { topK });
+    } catch (error) {
+      guideline = { status: 'qualified', provider: this.guidelineRetriever.name || 'unknown', evidence: [], issues: [error.message || 'retrieval_failed'] };
+    }
+    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || this.guidelineRetriever.name || 'local-lexical-proxy', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups }, qualification: { required: Boolean(failedGroups.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...guideline.issues] } };
   }
 
-  async runSupervisorWorkflow(request, { verifiedContext = null, intakeResult = { status: 'not_requested', facts: [] }, unsafe = false } = {}) {
-    const evidence = await this.retrieveFollowUpEvidence(request, { verifiedContext });
-    if (evidence.status === 'blocked') return runDeterministicSupervisor({ intakeResult, evidenceResult: null, unsafe: unsafe || evidence.reason === 'retrieval_contract_invalid' });
-    return runDeterministicSupervisor({ intakeResult, evidenceResult: evidence, unsafe });
+  async runSupervisorWorkflow(request, { verifiedContext = null, sourceDocumentContext = null, unsafe = false } = {}) {
+    const sourceDocumentIds = request.source_document_ids || [];
+    const trace = this.traceSink?.start?.({ correlationId: `w2-${randomUUID()}`, operation: 'w2-supervisor', interactionType: 'follow_up', scope: { patientRef: request.patient_uuid } });
+    const workflow = await executeSupervisorWorkflow({
+      request,
+      sourceDocumentIds,
+      unsafe,
+      workers: {
+        intakeExtractor: async ({ request: workflowRequest, sourceDocumentIds: ids }) => {
+          trace?.startStage('extraction');
+          let result;
+          try {
+            if (!sourceDocumentContext) return { status: 'blocked', facts: [], documents: [], issues: ['synthetic_source_context_required'] };
+            const documents = [];
+            const facts = [];
+            const issues = [];
+            for (const id of ids) {
+              const source = this.readSourceDocument(id, workflowRequest, { verifiedContext: sourceDocumentContext });
+              if (source.status !== 'read') {
+                documents.push({ source_document_id: id, status: 'blocked', issue: 'source_read_blocked' });
+                issues.push('source_read_blocked');
+                continue;
+              }
+              const extracted = source.source_document.document_type === 'lab_pdf'
+                ? this.extractLabEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
+                : source.source_document.document_type === 'intake_form'
+                  ? this.extractIntakeEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
+                  : { status: 'blocked', reason: 'source_type_unsupported' };
+              const extraction = extracted.extraction;
+              documents.push({ source_document_id: id, document_type: source.source_document.document_type, status: extracted.status, fact_count: extraction?.facts?.length || 0, issue_count: extraction?.issues?.length || 0 });
+              if (extracted.status !== 'extracted') issues.push(extracted.reason || 'extraction_failed');
+              facts.push(...(extraction?.facts || []));
+            }
+            const status = issues.length ? (facts.length ? 'qualified' : 'blocked') : documents.some((item) => item.status === 'extracted' && item.issue_count > 0) ? 'qualified' : 'complete';
+            result = { status, facts, documents, issues: [...new Set(issues)] };
+            trace?.setExtraction({ status, confidence: null, document_count: documents.length, fact_count: facts.length, issue_count: issues.length });
+            return result;
+          } finally {
+            trace?.finishStage('extraction', { status: result?.status || 'blocked' });
+          }
+        },
+        evidenceRetriever: async (workflowRequest) => {
+          trace?.startStage('retrieval');
+          let evidence;
+          try {
+            evidence = await this.retrieveFollowUpEvidence(workflowRequest, { verifiedContext });
+            trace?.recordRetrievalAttempt({ tool: 'evidence-retriever', provider: evidence.retrieval?.guideline_provider, status: evidence.retrieval?.guideline_status, hit_count: evidence.guideline_evidence?.length || 0, usage: evidence.retrieval?.guideline_usage || null });
+            return evidence;
+          } finally {
+            trace?.finishStage('retrieval', { status: evidence?.status || 'blocked' });
+          }
+        },
+      },
+    });
+    for (const handoff of workflow.handoffs || []) trace?.recordHandoff(handoff);
+    trace?.setEvaluation({ status: 'not_run', reason: 'the golden-set gate runs in CI, not per encounter' });
+    trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
+    return workflow;
   }
 
   prepare(...args) { return this.preparation.prepare(...args); }

@@ -1,4 +1,7 @@
 dtstest.64.177.10.182.nip.io {
+    handle_path /agentforge-w2* {
+        reverse_proxy agentforge-w2:8788
+    }
     handle_path /agentforge* {
         reverse_proxy agentforge:8787
     }
@@ -8,6 +11,9 @@ dtstest.64.177.10.182.nip.io {
 }
 
 :80 {
+    handle_path /agentforge-w2* {
+        reverse_proxy agentforge-w2:8788
+    }
     handle_path /agentforge* {
         reverse_proxy agentforge:8787
     }
@@ -18,6 +24,9 @@ dtstest.64.177.10.182.nip.io {
 
 :443 {
     tls internal
+    handle_path /agentforge-w2* {
+        reverse_proxy agentforge-w2:8788
+    }
     handle_path /agentforge* {
         reverse_proxy agentforge:8787
     }

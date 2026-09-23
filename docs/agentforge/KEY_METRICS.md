@@ -1,5 +1,11 @@
 # AgentForge success metrics
 
+> These definitions were written for the Week 1 checkpoint. They are not W2
+> measurements. The current W2 text-fixture gate is implementation evidence;
+> W2 extraction accuracy, retrieval relevance/cost, latency, and deployment
+> metrics remain unmeasured. Reconcile these definitions with the W2 rubric and
+> report actual values before the Sunday final.
+
 These are measurement definitions, not claims about production performance.
 Checkpoint measurements use synthetic fixtures and deterministic provider runs.
 

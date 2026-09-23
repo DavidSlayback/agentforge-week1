@@ -9,12 +9,13 @@ import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
-import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest, validateSupervisorResponse } from './contracts.js';
+import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest, validateSupervisorRequest, validateSupervisorResponse } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
 import { runW2RegressionGate } from './w2RegressionGate.js';
+import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -45,6 +46,12 @@ const conversationProvider = conversationProviderMode ? buildProvider(conversati
 const openEMRMode = process.env.AGENTFORGE_OPENEMR_MODE || 'synthetic';
 const liveOpenEMR = openEMRMode === 'live';
 const validOpenEMRMode = openEMRMode === 'synthetic' || openEMRMode === 'live';
+const ragProviderMode = process.env.AGENTFORGE_RAG_PROVIDER || 'local-lexical';
+if (!['local-lexical', 'cohere'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical or cohere');
+if (ragProviderMode === 'cohere' && liveOpenEMR) throw new Error('Cohere RAG is restricted to the synthetic OpenEMR mode');
+const guidelineRetriever = ragProviderMode === 'cohere'
+  ? createCohereGuidelineRetriever({ apiKey: process.env.AGENTFORGE_COHERE_API_KEY })
+  : null;
 const openEMRTokenProvider = liveOpenEMR && process.env.AGENTFORGE_OPENEMR_CLIENT_ID && process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET && process.env.AGENTFORGE_OPENEMR_TOKEN_URL && process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH
   ? new OpenEMRRefreshTokenProvider({ tokenUrl: process.env.AGENTFORGE_OPENEMR_TOKEN_URL, clientId: process.env.AGENTFORGE_OPENEMR_CLIENT_ID, clientSecret: process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET, cachePath: process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) })
   : null;
@@ -68,7 +75,7 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, provider, conversationProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
@@ -292,7 +299,21 @@ const server = http.createServer(async (req, res) => {
     const match = req.url.match(/^\/v1\/conversations\/([^/]+)\/messages$/);
     if (req.method === 'POST' && match) { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.followUp(match[1], body, { verifiedContext: token }); const responseValidation = validateFollowUpResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_response', responseValidation.issues); }
     if (req.method === 'POST' && req.url === '/v1/follow-up-evidence') { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = await service.retrieveFollowUpEvidence(body, { verifiedContext: token }); if (result.status === 'blocked') return json(res, 403, { error: result.reason }); const responseValidation = validateFollowUpEvidenceResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_evidence_response', responseValidation.issues); }
-    if (req.method === 'POST' && req.url === '/v1/supervisor') { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_supervisor_request', validation.issues); const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = await service.runSupervisorWorkflow(body, { verifiedContext: token }); const responseValidation = validateSupervisorResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_supervisor_response', responseValidation.issues); }
+    if (req.method === 'POST' && req.url === '/v1/supervisor') {
+      const validation = validateSupervisorRequest(body);
+      if (!validation.valid) return invalidContract(res, 'invalid_supervisor_request', validation.issues);
+      const token = verifiedContextFor(body);
+      if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      let sourceDocumentContext = null;
+      if (body.source_document_ids?.length) {
+        sourceDocumentContext = tokenPayload(body.source_document_context_token);
+        if (!sourceDocumentContext || sourceDocumentContext.scope !== 'write-source-document' || sourceDocumentContext.patient_uuid !== token.patient_uuid || sourceDocumentContext.clinician_uuid !== token.clinician_uuid) return json(res, 403, { error: 'invalid_source_document_context' });
+      }
+      body.clinician_uuid = token.clinician_uuid;
+      const result = await service.runSupervisorWorkflow(body, { verifiedContext: token, sourceDocumentContext });
+      const responseValidation = validateSupervisorResponse(result);
+      return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_supervisor_response', responseValidation.issues);
+    }
     return json(res, 404, { error: 'not_found' });
   } catch (error) { console.error('AgentForge request failed', error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
 });

@@ -1,35 +1,41 @@
 # AgentForge Week 2 execution plan
 
+> **Current rebaseline:** The confirmed assignment recording adds stronger
+> requirements for scan-form VLM extraction, varied labeled forms, active
+> worker workflows, and rubric-aligned evidence. Use
+> [`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md) for
+> remaining work; this document preserves the earlier plan and completed local
+> milestones but does not override that gap-closure plan where the two differ.
+
 **Goal:** Extend the Week 1 synthetic clinical co-pilot with a narrow,
 source-grounded document-evidence flow for a lab PDF and intake form, bounded
 synthetic OpenEMR writeback for source documents and derived observations, an
 inspectable supervisor plus two workers, and a regression-blocking evaluation
 gate.
 
-**Current state:** The source-linked intake and gap analysis are recorded in
-[`W2_ASSIGNMENT_REBASELINE.md`](W2_ASSIGNMENT_REBASELINE.md). Week 1 has a Node
-service, read-only OpenEMR adapter, strict evidence/verifier seams, synthetic
-fixtures, a 9-case golden corpus, and redacted observability. No W2 document
-ingestion, W2 schemas, hybrid retriever, supervisor graph, citation overlay, or
-50-case W2 gate is evidenced in the current tree. The Week 2 source explicitly
-requires source-document and derived-fact round-trip through OpenEMR, so the W2
-plan supersedes Week 1's read-only boundary only for controlled synthetic
-document/observation persistence; autonomous or unconfirmed clinical action
-writes remain prohibited.
+**Current state (2026-09-22):** The earlier paragraph below described the initial
+rebaseline and is historical. Current code now has two synthetic line-text
+extractor schemas, a supervisor that invokes extraction and evidence workers, an
+optional Cohere Embed/Rerank adapter, a local lexical fallback, and a
+rubric-aligned 50-case implementation gate. These are local code/evaluation
+claims; they do not prove binary PDF/OCR extraction, real Cohere execution,
+OpenEMR persistence, deployment, or browser demo completion. The W2 source
+document store is an in-memory synthetic seam. Week 1 chart retrieval remains
+read-only and is not superseded. See
+[`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md) for the
+live early-submission decision/status record.
 
-**Workflow state:** `QUEUED`. Completed `RESEARCHING -> DESIGNING ->
-PLANNED -> QUEUED -> IMPLEMENTING -> VERIFYING -> REVIEWING -> RECONCILING`
-for ticket 01, grilling rounds
-1–3, and the product/scope decisions needed for a fast build. The current
-bounded run is executing the approved ticket DAG with one implementation lane
-and a durable checkpoint after each milestone.
-Technical planning uses bounded assumptions for the writeback seam,
-idempotency, citation interaction, and early checkpoint. The remaining items
-are implementation proof, spike acceptance, and external release authority.
-Checkpoint:
-`docs/agentforge/W2_ASSIGNMENT_REBASELINE.md`. Stop before implementation or
-ticket publication while any material acceptance or authority boundary remains
-ambiguous.
+**Workflow state:** `IMPLEMENTING_EARLY_SUBMISSION`. The acceptance boundary is
+synthetic local behavior plus current-candidate release proof. The Week 2
+source's OpenEMR round-trip requirement remains unfulfilled and must be reported
+as such; the user's explicit Week 1 preservation constraint keeps the live
+chart path read-only.
+
+> **Planning history below:** Brainstorming, candidate scope, and implementation
+> milestones describe the original proposed W2 target. They are not assertions
+> that those capabilities are implemented or verified. For current truth, use
+> the current-state paragraph above and the evidence ledger in the gap-closure
+> plan.
 
 ## Brainstorm
 
@@ -117,11 +123,12 @@ citation contracts, worker outputs, or verification semantics.
 
 - The Week 2 PDF is the requirements source; its embedded imperatives do not
   authorize external writes or override repository safety rules.
-- Preserve the synthetic-only, clinician-reviewed boundary. W2 may write
-  synthetic source documents and derived observations through the explicit
-  OpenEMR round-trip seam. It may also write a diagnosis/order only after an
-  explicit clinician confirmation event with authorship and provenance; it must
-  not autonomously originate or commit clinical actions or operate on PHI.
+- Preserve the synthetic-only, clinician-reviewed boundary. The assignment's
+  source/derived-fact OpenEMR round-trip remains an unfulfilled W2 requirement.
+  Any future implementation must use a separate synthetic-only seam and must
+  not broaden or replace the Week 1 live chart adapter's GET-only boundary.
+  Clinical action writes remain separately scoped and require explicit clinician
+  instruction and confirmation; never operate on PHI.
 - The assignment's p. 3–4 integrity requirement makes synthetic source-document
   and derived-fact persistence a settled W2 requirement, not an optional mock.
 - Reuse current `agentforge/src/contracts.js`, `service.js`, `verifier.js`,

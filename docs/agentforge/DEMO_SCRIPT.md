@@ -1,5 +1,10 @@
 # AgentForge — live demo and voiceover
 
+> **Historical Week 1 script.** This describes a read-only briefing/follow-up
+> demo and an older deployment. It does not exercise W2 document workers, the
+> W2 gate, or Cohere. Do not use it as the W2 demo script without revising and
+> recording against the current candidate.
+
 Target: about 4:45, browser-only video with a conversational TTS track. Synthetic
 patient data; live Qwen3.6 Flash synthesis and live Gemini 2.5 Flash-Lite
 conversation through OpenRouter. The updated app is local. The public deployment

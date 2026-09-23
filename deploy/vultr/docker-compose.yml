@@ -116,6 +116,36 @@ services:
       openemr:
         condition: service_healthy
 
+  # Isolated Week 2 synthetic-only surface. It has no OpenEMR dependency,
+  # token mount, or persistent volume and cannot inherit live provider secrets.
+  agentforge-w2:
+    restart: unless-stopped
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      PORT: 8788
+      AGENTFORGE_FIXTURES: /app/docs/agentforge/fixtures/clinical-cases.json
+      AGENTFORGE_DEMO_SECRET: ${AGENTFORGE_DEMO_SECRET:?AGENTFORGE_DEMO_SECRET is required}
+      AGENTFORGE_SYNTHETIC_CONTEXT: "true"
+      AGENTFORGE_OPENEMR_MODE: synthetic
+      AGENTFORGE_PUBLIC_BASE_PATH: /agentforge-w2
+      AGENTFORGE_PROVIDER_MODE: qwen
+      AGENTFORGE_RAG_PROVIDER: local-lexical
+      AGENTFORGE_TRACE_PATH: /tmp/agentforge-w2-traces.json
+    expose:
+      - "8788"
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:8788/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+
   proxy:
     restart: always
     image: caddy:2.9.1-alpine
@@ -130,6 +160,8 @@ services:
       openemr:
         condition: service_healthy
       agentforge:
+        condition: service_healthy
+      agentforge-w2:
         condition: service_healthy
 
 volumes:

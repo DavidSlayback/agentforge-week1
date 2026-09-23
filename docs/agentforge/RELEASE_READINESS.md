@@ -1,5 +1,10 @@
 # AgentForge release-readiness evidence map
 
+> **Historical Week 1 release record.** Candidate `d8b4ba8` and all runtime
+> measurements below describe the September 21 synthetic checkpoint. They do
+> not prove the current Week 2 working tree is deployed or ready. Use
+> [`W2_EARLY_CHECKPOINT.md`](W2_EARLY_CHECKPOINT.md) for current W2 evidence.
+
 **Checkpoint:** 2026-09-21, America/Chicago
 **Candidate commit:** `d8b4ba8` (`docs: normalize deployment evidence formatting`)
 **Decision:** Conditionally ready for the synthetic checkpoint; the exact
