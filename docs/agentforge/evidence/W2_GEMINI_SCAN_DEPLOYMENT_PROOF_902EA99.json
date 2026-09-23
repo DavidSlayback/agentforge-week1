@@ -1,0 +1,49 @@
+{
+  "schema_version": "agentforge-w2-gemini-scan-deployment-proof-v1",
+  "verified_at_utc": "2026-09-23T18:34:12Z",
+  "candidate": {
+    "git_remote": "staging",
+    "git_ref": "refs/heads/davidslayback/w2-synthetic-scan-release",
+    "git_sha": "902ea99",
+    "runtime_image_id": "sha256:88fabc00dbd328c7c9b8269d2586eb597b548dd04f66273c0bf257961d79cd3e",
+    "runtime_container_id": "b715c1eb983e72d666c3a1967956ebab23d840400db0dfe79dcc7a0a1476fa64",
+    "runtime_health": "healthy"
+  },
+  "deployment": {
+    "public_url": "https://dtstest.64.177.10.182.nip.io/agentforge-w2/",
+    "release_directory": "/opt/agentforge-week1/.releases/agentforge-w2-902ea99",
+    "service": "agentforge-w2",
+    "openemr_mode": "synthetic",
+    "scan_provider_mode": "gemini",
+    "scan_model": "gemini-3.8-flash",
+    "server_key_present": true,
+    "server_env_file_mode": "0600",
+    "week1_container_id": "a05e2832ad828c286dcedb473eb51ca2fe3ab001911272c9d65c18c8a799a4d4",
+    "week1_container_unchanged": true
+  },
+  "external_checks": {
+    "https_certificate_validation": "pass",
+    "health": { "http_status": 200, "body_status": "ok" },
+    "readiness": { "http_status": 200, "body_status": "ready" },
+    "landing_page": { "http_status": 200, "browser_page_loaded": true },
+    "synthetic_pdf_workflow": {
+      "sample": "lab-b",
+      "attempts": 2,
+      "upload_reached_extraction": true,
+      "provider_http_statuses": [503, 503],
+      "accepted_fields": 0,
+      "status": "INCONCLUSIVE_PROVIDER_UNAVAILABLE"
+    }
+  },
+  "local_checks": {
+    "javascript_syntax": "pass",
+    "git_diff_check": "pass",
+    "full_test_suite_on_this_candidate": "not_run"
+  },
+  "limitations": [
+    "Google returned HTTP 503 on both provider requests; no extraction-quality evidence was produced.",
+    "Previous candidate PDF benchmark and regression results do not establish this Gemini-enabled path.",
+    "The configured key value is intentionally excluded from this evidence file.",
+    "W2 remains synthetic-only and in-memory; no real OpenEMR or PHI readiness is established."
+  ]
+}
