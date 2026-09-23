@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "W2 eval gate requires Node.js 24 on PATH." >&2
+  exit 1
+fi
+
+echo "Running AgentForge W2 eval gate before commit..."
+node agentforge/scripts/run-w2-gate.mjs

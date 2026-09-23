@@ -12,11 +12,19 @@ These are repository-tracked source artifacts; there is no separate prompt bundl
 
 Requirements: Node.js 24. No API key, external service, or package installation is needed for the gate.
 
+Install the tracked pre-commit hook in each fresh clone:
+
+```sh
+git config --local core.hooksPath .githooks
+```
+
+Each `git commit` then runs the gate and is rejected if the command exits nonzero. To remove the hook locally, run `git config --local --unset core.hooksPath`.
+
+Run the same gate directly at any time:
+
 ```sh
 npm run eval:gate --prefix agentforge
 ```
-
-GitLab CI runs the `w2-regression-gate` job from [`.gitlab-ci.yml`](.gitlab-ci.yml) for merge-request pipelines. The existing GitHub Actions workflow is present at [`.github/workflows/agentforge-w2-gate.yml`](.github/workflows/agentforge-w2-gate.yml), but GitHub Actions is disabled in this repository, so the GitLab job is the merge-request gate.
 
 ## Rubric and failure conditions
 
@@ -44,6 +52,6 @@ This injects one schema failure and should exit nonzero.
 
 The gate requires no secrets or environment variables. It uses the local lexical retrieval implementation and synthetic fixtures; it does not call Cohere or another model provider.
 
-## Regression-blocked merge request
+## Regression-blocked commit evidence
 
-The draft regression proof is [GitLab MR !68](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/68). It intentionally adds `0.1` to extracted lab values. Its `w2-regression-gate` pipeline job is configured to reject the `factually_consistent` rubric regression. The MR pipeline is pending runner assignment, so hosted rejection is not yet verified. The MR is evidence only and must remain unmerged.
+The screenshot [`W2_PRECOMMIT_BLOCK.png`](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK.png) captures the tracked hook rejecting a commit while an isolated regression adds `0.1` to extracted lab values. The failing `factually_consistent` rubric is the reason the commit is blocked.
