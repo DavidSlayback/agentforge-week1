@@ -46,4 +46,4 @@ The gate requires no secrets or environment variables. It uses the local lexical
 
 ## Regression-blocked merge request
 
-The draft regression proof is pending its GitLab merge request and pipeline result. It intentionally adds `0.1` to extracted lab values; the `w2-regression-gate` job should fail the `factually_consistent` rubric. The MR is evidence only and must remain unmerged.
+The draft regression proof is [GitLab MR !68](https://labs.gauntletai.com/davidslayback/agentforge-week1-staging/-/merge_requests/68). It intentionally adds `0.1` to extracted lab values. Its `w2-regression-gate` pipeline job is configured to reject the `factually_consistent` rubric regression. The MR pipeline is pending runner assignment, so hosted rejection is not yet verified. The MR is evidence only and must remain unmerged.
