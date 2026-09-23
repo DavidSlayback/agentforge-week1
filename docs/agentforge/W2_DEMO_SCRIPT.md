@@ -113,19 +113,21 @@ presence, factual consistency, safe refusal, and `no_phi_in_logs`.
 **Action:** Use the browser Back button to return to the main page. Scroll to the
 bottom and click **Evaluator notes** to expand it. Click **Open operations
 dashboard** inside the expanded notes. Point to **Requests**, **Retrieval
-attempts**, **p95 latency**, and the two `scan_form` entries under **Recent
-redacted traces**. Expand nothing else.
+attempts**, **p95 latency**, and both **Scanned documents** rows under **Recent
+redacted traces**. Point to each row's stages and guideline-hit count.
 
 **Say:**
 
-> “Each upload now records OCR preparation, extraction, retrieval, worker
-> handoffs, retrieval hit count, and duration in a redacted trace. The dashboard
-> snapshot includes the page's initial visit preparation as well as these two
-> scan runs; use the two `scan_form` rows to see the document path. Those scan
-> rows have no model call because OCR and guideline retrieval run locally. The
-> 50-case evaluator is a separate saved regression result, not an encounter
-> score. W2 stays on its own route, and this early slice does not round-trip
-> documents or extracted facts through OpenEMR.”
+> “Each upload records OCR preparation, extraction, retrieval, worker handoffs,
+> guideline hits, and duration in a redacted trace. This dashboard snapshot
+> includes the initial visit preparation and both scans; the scan rows show the
+> document stages and each retrieved three guideline sources. The scan rows
+> show no model call because OCR and guideline retrieval run locally. In this
+> capture the p95 alert is triggered: local OCR took about seven seconds, above
+> the dashboard's generic two-second threshold. We have not set an OCR-specific
+> latency target yet. The 50-case result is a saved regression score, not an
+> encounter score. W2 stays on its own route, and this early slice does not
+> round-trip documents or extracted facts through OpenEMR.”
 
 ## After recording
 

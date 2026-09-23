@@ -1,80 +1,60 @@
 # Week 2 early checkpoint status
 
-## Demo and telemetry repair in the current release
+Status as of 2026-09-23: the W2 demo path is deployed on its isolated route and
+the current release has been exercised with browser uploads of both filled PDF
+types. The user still needs to record the 3–5 minute submission video.
 
-The W2 scan upload now displays the retrieved guideline title, section, quote,
-and source identifier in an expandable **Guideline evidence** panel. The active
-scan supervisor records extraction and retrieval stages, worker handoffs,
-retrieval hit counts, outcome, and duration through the existing redacted trace
-sink. The operations dashboard labels these interactions as scanned documents.
-The required root-level [`KEY_METRICS.md`](../../KEY_METRICS.md) defines the
-quality, citation, retrieval, qualification, trace, latency, and no-leakage
-measures without inventing runtime measurements.
+## What the Week 2 addition does
 
-Release acceptance for this repair: deploy the exact current W2 checkout to
-`/agentforge-w2`; upload both PDF types in the browser; confirm guideline
-evidence is visible; confirm extraction/retrieval stages and hit counts appear
-in fresh traces and the dashboard; record the deployed commit and public
-readback below. The W2 trace file is ephemeral and resets when that isolated
-container restarts, so perform the uploads before opening the operations page.
+Week 1 prepares a visit from patient-scoped chart evidence. Week 2 adds a
+document-review path alongside that workflow: local PDF OCR, typed lab and
+intake extraction, source-linked field citations, guideline retrieval, an
+inspectable supervisor handoff, and a qualified/ready outcome. The page now
+shows retrieved guideline title, section, quote, and source identifier after
+each scan upload.
 
-Current-candidate deployment and readback are pending until this release is
-published. Do not use the prior `6e5d691` deployment record as evidence for
-these changes.
+The scan workflow records source preparation, extraction, and retrieval stage
+durations, redacted worker handoffs, guideline hit counts, outcome, and total
+duration. The dashboard reads W2 metrics from the W2 route and shows both scan
+traces with their stage timings and guideline-hit counts. A fresh W2 container
+starts with empty in-memory traces; run both uploads before opening the
+dashboard. The captured run showed two successful scan traces, six guideline
+hits total, and no retrieval failures. Its p95 latency alert fired because local
+PDF OCR took about seven seconds against the dashboard's generic two-second
+threshold; this is not an OCR service-level target.
 
-Status as of 2026-09-23: **synthetic PDF workflow is deployed and externally
-verified; provider choice and demo recording remain open.**
+The root-level [`KEY_METRICS.md`](../../KEY_METRICS.md) defines extraction,
+citation, retrieval, qualification, trace coverage, latency, and no-leakage
+measures and separates targets from measurements.
 
-Use [`W2_REQUIREMENTS_BY_STAGE.md`](W2_REQUIREMENTS_BY_STAGE.md) for the compact
-early-versus-final assignment checklist and current gaps.
+## Current release evidence
 
-## Implemented and verified
+- Public W2 page, health, readiness, evaluator, and operations dashboard are
+  available at the isolated [W2 demo page](https://dtstest.64.177.10.182.nip.io/agentforge-w2/).
+- Browser upload of Lab B returned `READY`, 12 cited fields, both worker
+  handoffs, and three visible guideline sources.
+- Browser upload of Intake B returned `READY`, 7 cited fields, both worker
+  handoffs, and three visible guideline sources.
+- The W2 dashboard readback showed three requests total (initial visit
+  preparation plus the two scans), seven retrieval attempts, zero errors, and
+  two successful scan traces. The initial visit preparation accounts for the
+  displayed 120 tokens; the scan traces each show “No model call.”
+- The saved W2 regression panel reports 50/50 passing cases. Treat this as a
+  fixture-gate result, not a general accuracy or clinical outcome measure.
+- Deployment recreated only `agentforge-w2` with `--no-deps`; Week 1 remains on
+  `/agentforge` and retains its read-only chart behavior.
 
-- The assignment's two document types are supported: lab-result PDFs and
-  patient intake forms. The minimum mapped schemas include 12 lab facts across
-  two tests and 7 intake facts.
-- Four fixed generated synthetic PDFs cover two layouts per type. Local
-  container benchmarking recovered all 38/38 expected values with valid
-  contracts and source boxes. The examples include vector and rasterized PDF
-  pages; they do not represent physical scans or handwriting.
-- The deployed synthetic route is
-  <https://dtstest.64.177.10.182.nip.io/agentforge-w2/> at candidate
-  `41682f5`. Health/readiness and page returned 200. Public API workflows for
-  all four samples returned `READY`, matched all expected fields, and included
-  page-region citation boxes measured in 200 DPI raster pixels.
-- The current candidate passed the AgentForge serial test suite (130/130) and
-  the 50-case W2 regression gate. The matching deployment record is
-  [`W2_PDF_SAMPLE_DEPLOYMENT_PROOF_41682F5.json`](evidence/W2_PDF_SAMPLE_DEPLOYMENT_PROOF_41682F5.json).
-- Week 1 `/agentforge` remained healthy with the same container identity and
-  retains its read-only boundary.
-- The page offers four downloadable sample PDFs and “Run this sample” controls.
-  The deployed page was inspected in a narrow browser viewport. Public API
-  workflows passed; manual button-driven runs and phone recording remain open.
+## Remaining limits
 
-## Assignment source options
+- The demo uses fixed generated PDF layouts. It does not establish accuracy on
+  physical scans, handwriting, or arbitrary form layouts.
+- The active extraction and guideline retrieval paths are local. Hosted model
+  quality, scan-provider selection, and OCR-specific latency targets remain
+  open.
+- W2 source documents and extracted facts do not round-trip through OpenEMR.
+  The current isolated demo does not prove OpenEMR persistence, PHI readiness,
+  or clinical safety.
+- The user still needs to record and review the requested 3–5 minute video.
 
-FDA Form 3500 and CDC Form 50.34 are available as public blank-form links for
-layout reference. They are not the filled PDFs used for the synthetic
-benchmark. The downloadable filled samples are generated synthetic forms.
-The local OCR/VLM benchmark on sourced blank forms did not establish promoted
-typed extraction: PaddleOCR-VL scored 0/8 typed matches and Tesseract label
-localization varied by form. See
-[`W2_SCAN_FORM_EXTRACTION_REPORT.md`](W2_SCAN_FORM_EXTRACTION_REPORT.md).
-
-## Still open
-
-1. Select the extraction/VLM provider and data-processing path for final
-   submission. Decide whether the early submission can present provider
-   selection as an open item with the current local evidence.
-2. Record and review the requested 3–5 minute browser demo using the deployed
-   synthetic candidate.
-3. Resolve whether the rubric requires physical scans, arbitrary form layouts,
-   or an OpenEMR round trip beyond the synthetic workflow.
-4. Do not claim PHI readiness, real OpenEMR parity, provider suitability, or
-   clinical safety from the current evidence.
-
-## Week 1 preservation
-
-Keep W2 synthetic storage separate from OpenEMR persistence. Do not change the
-Week 1 live chart path to write. The current public W2 release is isolated at
-`/agentforge-w2`; it does not replace `/agentforge`.
+See [`W2_REQUIREMENTS_BY_STAGE.md`](W2_REQUIREMENTS_BY_STAGE.md) for the
+early-versus-final requirement checklist.
