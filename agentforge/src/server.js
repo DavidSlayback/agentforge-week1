@@ -17,6 +17,7 @@ import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../..
 import { runW2RegressionGate } from './w2RegressionGate.js';
 import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
+import { createGeminiScanAdapter } from './geminiScanAdapter.js';
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -47,6 +48,12 @@ const conversationProvider = conversationProviderMode ? buildProvider(conversati
 const openEMRMode = process.env.AGENTFORGE_OPENEMR_MODE || 'synthetic';
 const liveOpenEMR = openEMRMode === 'live';
 const validOpenEMRMode = openEMRMode === 'synthetic' || openEMRMode === 'live';
+const scanProviderMode = process.env.AGENTFORGE_SCAN_PROVIDER_MODE || 'local';
+if (!['local', 'gemini'].includes(scanProviderMode)) throw new Error('AGENTFORGE_SCAN_PROVIDER_MODE must be local or gemini');
+if (scanProviderMode === 'gemini' && liveOpenEMR) throw new Error('Gemini scan extraction is restricted to synthetic mode');
+const scanProvider = scanProviderMode === 'gemini'
+  ? createGeminiScanAdapter({ apiKey: process.env.GEMINI_API_KEY, model: process.env.AGENTFORGE_GEMINI_SCAN_MODEL || 'gemini-3.8-flash', timeoutMs: Number(process.env.AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS || 45000), dailyLimit: Number(process.env.AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT || 12) })
+  : null;
 const ragProviderMode = process.env.AGENTFORGE_RAG_PROVIDER || 'local-lexical';
 if (!['local-lexical', 'cohere'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical or cohere');
 if (ragProviderMode === 'cohere' && liveOpenEMR) throw new Error('Cohere RAG is restricted to the synthetic OpenEMR mode');
@@ -76,7 +83,7 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.

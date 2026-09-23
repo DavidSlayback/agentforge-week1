@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -119,7 +119,7 @@ export function fieldRows(lines, documentType, layoutId = '') {
 }
 
 /** Converts PDF pages to OCR word/line regions, then adapts supported assignment fields to w2-scan-v1. */
-export async function extractPdfScanFixture({ content, documentType, layoutId = `pdf-ocr-${documentType}` }) {
+export async function extractPdfScanFixture({ content, documentType, layoutId = `pdf-ocr-${documentType}`, scanProvider = null }) {
   if (!Buffer.isBuffer(content) || content.length < 8 || content.subarray(0, 5).toString() !== '%PDF-') throw new Error('SOURCE_DOCUMENT_PDF_INVALID');
   const directory = await mkdtemp(join(tmpdir(), 'agentforge-pdf-'));
   try {
@@ -131,13 +131,26 @@ export async function extractPdfScanFixture({ content, documentType, layoutId = 
     const prefix = join(directory, 'page');
     await run('pdftoppm', ['-f', '1', '-l', String(MAX_PAGES), '-r', '200', '-png', pdf, prefix]);
     const images = (await readdir(directory)).filter((name) => /^page-\d+\.png$/.test(name)).sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
-    const lines = [];
-    for (let i = 0; i < images.length; i++) lines.push(...parseTsv(await run('tesseract', [join(directory, images[i]), 'stdout', 'tsv']), i + 1));
-    const extracted = fieldRows(lines, documentType, layoutId);
-    const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}`];
-    for (const { field_id, label, value, unit, line } of extracted) {
-      fixture.push(`FIELD|field_id=${field_id}|label=${safe(label)}|value=${safe(value)}|unit=${safe(unit)}|page=${line.page}|box=${line.left},${line.top},${line.right},${line.bottom}|confidence=${line.confidence.toFixed(2)}`);
+    const renderedPages = [];
+    for (let i = 0; i < images.length; i++) {
+      renderedPages.push({
+        page: i + 1,
+        image_base64: (await readFile(join(directory, images[i]))).toString('base64'),
+        lines: parseTsv(await run('tesseract', [join(directory, images[i]), 'stdout', 'tsv']), i + 1),
+      });
     }
-    return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: 'tesseract-local-pdf' };
+    const modelResult = scanProvider ? await scanProvider.extract({ documentType, pages: renderedPages }) : null;
+    const extracted = modelResult
+      ? modelResult.fields
+      : fieldRows(renderedPages.flatMap((page) => page.lines), documentType, layoutId);
+    const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}`];
+    for (const field of extracted) {
+      const line = field.line;
+      const page = field.page || line?.page;
+      const box = field.box || [line?.left, line?.top, line?.right, line?.bottom];
+      const confidence = field.confidence ?? line?.confidence ?? 0;
+      fixture.push(`FIELD|field_id=${field.field_id}|label=${safe(field.label)}|value=${safe(field.value)}|unit=${safe(field.unit)}|quote=${safe(field.quote)}|page=${page}|box=${box.join(',')}|confidence=${confidence.toFixed(2)}`);
+    }
+    return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: modelResult ? modelResult.model : 'tesseract-local-pdf' };
   } finally { await rm(directory, { recursive: true, force: true }); }
 }

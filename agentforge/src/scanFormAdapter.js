@@ -32,7 +32,7 @@ function parseFixture(content) {
 }
 
 function citationFor(sourceDocumentId, layoutId, field) {
-  const quote = [field.label, field.value, field.unit, field.reference_range].filter(Boolean).join(': ');
+  const quote = field.quote || [field.label, field.value, field.unit, field.reference_range].filter(Boolean).join(': ');
   return { source_type: 'synthetic_scan_form', source_document_id: sourceDocumentId, page: field.page, field_id: field.field_id, quote, bounding_box: field.bounding_box, layout_id: layoutId, coordinate_space: layoutId.startsWith('pdf-ocr-') ? 'raster_pixels_200dpi' : 'fixture_coordinates' };
 }
 

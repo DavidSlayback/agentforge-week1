@@ -255,7 +255,7 @@ button:disabled{opacity:.6;cursor:wait}
         const readToken = state.demoToken;
         const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: readToken, source_document_id: result.source_document.id, message: 'Review synthetic lab evidence.' });
         const active = workflow.workflow;
-        workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Final state: ' + active.final_state + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
+        workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
         setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
       } else {
         const workflow = await request('/v1/supervisor', authorizedRequest({ patient_uuid: patient, message: 'Review the synthetic uploaded evidence and identify relevant documented facts.', source_document_ids: [result.source_document.id], source_document_context_token: writeContext.demo_token }));

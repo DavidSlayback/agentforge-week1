@@ -97,6 +97,29 @@ model, and redeploy the AgentForge service. Do not put the key in the
 repository, browser URL, traces, or prompt data. Run the full evaluation,
 failure, API-collection, and dashboard readback gates after switching.
 
+## Optional Gemini scan-extraction lane
+
+The isolated W2 service can send synthetic PDF page images to Gemini for
+structured field extraction. It is off by default; only the `agentforge-w2`
+service receives the key. The adapter grounds each returned value in an OCR
+quote and uses local OCR coordinates for its citation box. If the quote cannot
+be found in OCR output, that field is withheld. Do not enable this lane for
+live OpenEMR mode or real patient data.
+
+```dotenv
+AGENTFORGE_SCAN_PROVIDER_MODE=gemini
+AGENTFORGE_GEMINI_SCAN_MODEL=gemini-3.8-flash
+AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS=45000
+AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT=12
+GEMINI_API_KEY=<server-only-google-ai-key>
+```
+
+The model call is made only for synthetic W2 PDF extraction; the existing
+Tesseract-only path remains the default when the mode is `local`. Keep the key
+in `/opt/agentforge-week1/.env`; never commit it or expose it to the browser,
+traces, or request payloads. Google model output remains untrusted and must
+pass local schema, quote, page, and bounding-box validation.
+
 ## Prepared Jev shadow lane
 
 The Jev seam is prepared as an optional, server-only typed-evidence review

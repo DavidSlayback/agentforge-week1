@@ -11,12 +11,14 @@ import { PreVisitPreparation } from './preVisitPreparation.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, scanProvider = null, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
     this.adapter = chartAdapter;
     this.chartAdapter = chartAdapter;
     this.writeback = writeback;
     this.guidelineRetriever = guidelineRetriever || { name: 'local-lexical-proxy', retrieve: (query, options) => retrieveGuidelineEvidence(query, options) };
     this.provider = provider;
+    this.scanProvider = scanProvider;
+    this.scanPreparations = new Map();
     this.traceSink = traceSink;
     this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs });
     // Preserve the established facade access used by callers and tests while
@@ -110,8 +112,8 @@ export class AgentForgeService {
   async extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
-    const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
-    const prepared = pdf ? await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type }) : { content: source.content, pageCount: 1 };
+    const prepared = await this.prepareScanSource(source);
+    const pdf = Boolean(prepared.pdf);
     const content = prepared.content;
     const contentText = content.toString('utf8');
     const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
@@ -124,8 +126,8 @@ export class AgentForgeService {
   async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
     const source = this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
-    const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
-    const prepared = pdf ? await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type }) : { content: source.content, pageCount: 1 };
+    const prepared = await this.prepareScanSource(source);
+    const pdf = Boolean(prepared.pdf);
     const content = prepared.content;
     const contentText = content.toString('utf8');
     const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
@@ -133,6 +135,24 @@ export class AgentForgeService {
     const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query });
     if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
     return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
+  }
+
+  async prepareScanSource(source) {
+    const id = source.source_document.id;
+    const cached = this.scanPreparations.get(id);
+    if (cached) return cached;
+    const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
+    const prepared = Promise.resolve().then(async () => pdf
+      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider })), pdf: true }
+      : { content: source.content, pageCount: 1, pdf: false });
+    if (this.scanPreparations.size >= 50) this.scanPreparations.delete(this.scanPreparations.keys().next().value);
+    this.scanPreparations.set(id, prepared);
+    try {
+      return await prepared;
+    } catch (error) {
+      if (this.scanPreparations.get(id) === prepared) this.scanPreparations.delete(id);
+      throw error;
+    }
   }
 
   async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
