@@ -16,7 +16,7 @@ Requirements: Node.js 24. No API key, external service, or package installation 
 npm run eval:gate --prefix agentforge
 ```
 
-GitHub Actions runs the `w2-regression-gate` job in [`.github/workflows/agentforge-w2-gate.yml`](.github/workflows/agentforge-w2-gate.yml) on pushes and pull requests that change `agentforge/**`, the baseline report, this gate documentation, or the workflow itself. The job also runs `npm test --prefix agentforge` before the gate.
+GitLab CI runs the `w2-regression-gate` job from [`.gitlab-ci.yml`](.gitlab-ci.yml) for merge-request pipelines. The existing GitHub Actions workflow is present at [`.github/workflows/agentforge-w2-gate.yml`](.github/workflows/agentforge-w2-gate.yml), but GitHub Actions is disabled in this repository, so the GitLab job is the merge-request gate.
 
 ## Rubric and failure conditions
 
@@ -46,4 +46,4 @@ The gate requires no secrets or environment variables. It uses the local lexical
 
 ## Regression-blocked merge request
 
-The draft regression proof is [PR #82](https://github.com/DavidSlayback/agentforge-week1/pull/82). It intentionally adds `0.1` to extracted lab values; its GitHub Actions run should fail the `factually_consistent` rubric. The PR is evidence only and must remain unmerged.
+The draft regression proof is pending its GitLab merge request and pipeline result. It intentionally adds `0.1` to extracted lab values; the `w2-regression-gate` job should fail the `factually_consistent` rubric. The MR is evidence only and must remain unmerged.

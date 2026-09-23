@@ -1,0 +1,13 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - when: never
+
+stages:
+  - eval
+
+w2-regression-gate:
+  image: node:24
+  stage: eval
+  script:
+    - npm run eval:gate --prefix agentforge
