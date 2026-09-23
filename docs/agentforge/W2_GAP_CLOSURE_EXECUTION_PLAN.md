@@ -1,7 +1,7 @@
 # Week 2 assignment gap-closure execution plan
 
 Date: 2026-09-22
-Status: `NEEDS_HUMAN FOR EXTERNAL PROOF`
+Status: `NEEDS HUMAN FOR PROVIDER SELECTION AND DEMO RECORDING`
 Source basis: Week 2 PRD, `Intro to Project` recording/transcript, current repository state, and [assignment delta review](../../.scratch/agentforge-week2/ASSIGNMENT_DELTAS_REVIEW_2026-09-22.md).
 
 ## Goal
@@ -21,13 +21,13 @@ personal/clinical records out of the public synthetic demo. Begin with local
 OCR/VLM and synthetic overlays; no hosted provider is selected or implied.
 
 The owner confirmed the assignment's two types: lab-result PDFs and patient
-intake forms. Provider-neutral local OCR is now wired for uploaded PDFs. The
-first implementation recognizes two lab values and three intake fields, so it
-is a vertical slice, not the assignment's full minimum schema. It must still
-add the required lab metadata and intake demographics/family history, and be
-measured across multiple scanned layouts and missing/unreadable/conflict cases.
-The user has not selected a final or early-submission provider; no hosted model
-is called by this slice.
+intake forms. Provider-neutral Tesseract OCR is now wired for uploaded PDFs
+and deployed at `cded30d`. It recognizes two lab values and three intake fields,
+so it is a vertical slice, not the assignment's full minimum schema. It must
+still add the required lab metadata and intake demographics/family history, and
+be measured across multiple scanned layouts and missing/unreadable/conflict
+cases. The user has not selected a final or early-submission provider; no
+hosted model is called by this slice.
 
 ## Local filled-PDF slice — 2026-09-23
 
@@ -36,12 +36,14 @@ is called by this slice.
   rasterizes at 200 DPI, runs local Tesseract, and builds page-region
   citations from OCR coordinates. Temporary raster files are removed.
 - A Docker smoke test on the synthetic intake-layout-A PDF read its three
-  supported fields and returned page 1 boxes. This is a vector-rendered local
-  fixture, not a scanned-document accuracy benchmark or deployed proof.
-- Docker now includes Poppler utilities and English Tesseract data. Re-run the
-  W2 regression gate, benchmark real scanned synthetic pages, complete the
-  assignment field schema, and verify the public deployed route before using
-  this in the recording.
+  supported fields and returned page 1 boxes. The same PDF was uploaded to the
+  public synthetic route and the supervisor returned all three fields at
+  `READY`; see `evidence/W2_PDF_OCR_SMOKE_PROOF_CDED30D.json`. This is a
+  vector-rendered fixture, not a scanned-document accuracy benchmark.
+- Docker now includes Poppler utilities and English Tesseract data. Benchmark
+  real scanned synthetic pages and complete the assignment field schema
+  before using this in the recording; browser selection and phone capture also
+  remain open.
 
 ## Current state
 

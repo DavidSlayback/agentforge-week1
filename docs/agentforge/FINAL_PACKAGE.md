@@ -1,15 +1,16 @@
 # Week 2 reviewer package
 
-Updated 2026-09-23. The synthetic W2 candidate is deployed and externally
-verified. Provider selection and demo recording remain open.
+Updated 2026-09-23. The synthetic W2 candidate at `cded30d` is deployed.
+Provider selection and demo recording remain open.
 
 ## Candidate identity
 
 - Staging branch: `davidslayback/w2-synthetic-scan-release`
-- Deployed code commit: `6ab0edc60956825554fb6501c1ad7bd4897f5a7c`
+- Deployed code commit: `cded30d` (`feat(agentforge): add local filled PDF OCR slice`)
 - Public URL: <https://dtstest.64.177.10.182.nip.io/agentforge-w2/>
-- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-6ab0edc`
-- External checks and runtime identity: [W2 deployment proof](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF_6AB0EDC.json)
+- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-cded30d`
+- Existing deployment checks: [W2 deployment proof](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF_6AB0EDC.json)
+- Filled-PDF route check: [PDF OCR smoke proof](evidence/W2_PDF_OCR_SMOKE_PROOF_CDED30D.json)
 
 The deployed surface remains synthetic-only. Week 1 `/agentforge` is healthy
 and its container identity was unchanged during this W2 redeployment.
@@ -18,10 +19,10 @@ and its container identity was unchanged during this W2 redeployment.
 
 | Area | Evidence | Status |
 | --- | --- | --- |
-| Synthetic scan-form contracts, extraction worker, evidence worker, supervisor, source preview | Local tests plus current-candidate public API workflow | 125/125 tests; complete 2-field fixture externally exercised |
-| Browser scan demo | One-tap included synthetic fixture; visible scan/evidence handoffs; source preview | Page/controls inspected; public API workflow passes; browser button and phone recording remain to verify |
-| Real blank form examples | Official FDA 3500 and CDC 50.34 source links | Reference links only; current OCR has not been benchmarked on these layouts. CDC form is legacy and application retires October 30, 2026. |
-| Filled-form reading | Local synthetic PDF OCR slice added 2026-09-23 | **Partial, local only.** Tested on one vector-rendered intake PDF; two lab fields and three intake fields supported. Full assignment schemas, varied scanned layouts, and deployment proof remain open. |
+| Synthetic scan-form contracts, workers, supervisor, source preview | Serial local tests, synthetic gate, current-candidate public API workflows | 127/127 tests; 50/50 gate; text-fixture and filled-intake-PDF workflows externally exercised |
+| Browser scan demo | File chooser supports PDFs and text fixtures; results show worker handoffs | Public page and upload API verified; manual browser file selection and phone recording remain open |
+| Real blank form examples | Official FDA 3500 and CDC 50.34 source links | Reference links only; OCR has not been benchmarked on these layouts. CDC form is legacy and application retires October 30, 2026. |
+| Filled-form reading | Synthetic PDF local OCR deployed at `cded30d` | **Partial.** Deployed smoke read three intake fields with page boxes from one vector PDF. Two lab fields are mapped. Assignment minimum schemas and varied scanned layouts remain open. |
 | W2 regression gate | Current candidate | 50/50; injected-defect and baseline checks pass |
 | Landing page, health, readiness, evaluator | Current public HTTPS route | HTTP 200; readiness dependencies ready |
 | Tesseract localization | 50/53 labels recognized; 32/53 in expected regions | Local baseline; localization needs improvement |
@@ -42,9 +43,9 @@ bundled in the release archive.
 1. Open the exact HTTPS URL above. A verified external HTTPS client received
    valid TLS, health and readiness returned 200, and readiness dependencies
    reported ready. Repeat the workflow in the intended browser before recording.
-2. PDF upload and local OCR are implemented in this branch but have not yet
-   been deployed. Hold the recording until the deployed route is verified and
-   the assignment's required fields are supported.
+2. This candidate accepts synthetic PDFs and runs local Tesseract OCR. Hold
+   the recording until the assignment's required fields and scanned-layout
+   coverage are complete; this smoke test recognizes only a narrow subset.
 3. Use the “Try the synthetic lab scan sample” button only to show the currently
    deployed synthetic worker workflow. Inspect the visible scan
    and evidence worker handoffs, `READY` state, and source preview with page and
@@ -57,8 +58,9 @@ bundled in the release archive.
 6. Record 3–5 minutes from the browser tab, then verify playback and the key
    upload, citation, evaluation, and observability moments.
 
-The local Docker image now rasterizes PDFs with Poppler and runs Tesseract. It
-has not been tested on scanned pages or promoted as a VLM system.
+The Docker image rasterizes PDFs with Poppler and runs Tesseract. The deployed
+proof covers one vector-rendered synthetic intake PDF, not scanned-page
+accuracy or VLM extraction.
 
 ## Submission decisions and remaining work
 
