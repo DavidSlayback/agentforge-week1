@@ -26,8 +26,10 @@
 //
 // Mutating: writes new files under agentforge/test/fixtures/retrieval/.
 // Review the diff before committing.
-import { createLiveGeminiClient, createRecordingGeminiClient } from '../src/geminiClient.js';
-import { createGeminiHybridGuidelineRetriever, loadCorpusEmbeddings, loadGuidelineCorpus } from '../src/guidelineEvidence.js';
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { createLiveGeminiClient, createRecordingGeminiClient, defaultRetrievalFixturesDir, GEMINI_EMBED_MODEL, GEMINI_RERANK_MODEL } from '../src/geminiClient.js';
+import { corpusEmbeddingsFingerprint, createGeminiHybridGuidelineRetriever, loadCorpusEmbeddings, loadGuidelineCorpus } from '../src/guidelineEvidence.js';
 import { goldenScenarioQueries } from '../src/w2RegressionGate.js';
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -52,8 +54,12 @@ const liveClient = createLiveGeminiClient({ apiKey });
 const recordingClient = createRecordingGeminiClient({ liveClient });
 const retriever = createGeminiHybridGuidelineRetriever({ geminiClient: recordingClient, corpus: loadGuidelineCorpus(), embeddings });
 
+// Free-tier Gemini keys allow ~5 rerank requests/minute; set e.g.
+// AGENTFORGE_RECORD_DELAY_MS=13000 to stay under it.
+const delayMs = Number(process.env.AGENTFORGE_RECORD_DELAY_MS || 0);
 const degraded = [];
-for (const query of queries) {
+for (const [index, query] of queries.entries()) {
+  if (index && delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
   console.log(`Recording: ${query}`);
   const result = await retriever.retrieve(query, { topK: 3 });
   console.log(`  status=${result.status} degraded=${result.degraded} top=${result.evidence[0]?.citation.source_id || '(none)'}`);
@@ -66,5 +72,9 @@ if (degraded.length) {
   console.error('\nFixtures for the queries above were NOT written. Check GEMINI_API_KEY, network access, and rate limits, then rerun.');
   process.exit(1);
 }
+
+// Written only after a fully successful run: the gate uses the real corpus
+// vectors only when this fingerprint matches them (see w2RegressionGate.js).
+writeFileSync(path.join(defaultRetrievalFixturesDir(), 'COMPLETE.json'), `${JSON.stringify({ embeddings_fingerprint: corpusEmbeddingsFingerprint(embeddings), embed_model: GEMINI_EMBED_MODEL, rerank_model: GEMINI_RERANK_MODEL, queries: queries.length, recorded_at: new Date().toISOString() }, null, 2)}\n`);
 
 console.log(`\nDone. Recorded ${queries.length} quer${queries.length === 1 ? 'y' : 'ies'}. Fixtures written under agentforge/test/fixtures/retrieval/.`);

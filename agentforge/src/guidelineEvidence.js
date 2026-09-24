@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buildBm25Index, tokenize } from './bm25.js';
@@ -45,6 +46,16 @@ export function loadCorpusEmbeddings(path = EMBEDDINGS_PATH) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Stable fingerprint of a corpus embeddings object: a hash of the parsed
+ * vectors, so it is identical whatever line endings the file was checked out
+ * with. The fixture recorder stores it in its completion manifest, and the
+ * gate uses real embeddings only when the manifest matches.
+ */
+export function corpusEmbeddingsFingerprint(embeddings) {
+  return createHash('sha256').update(JSON.stringify(embeddings?.vectors || {})).digest('hex');
 }
 
 const chunkText = (chunk) => `${chunk.title}\n${chunk.section}\n${chunk.text}`;

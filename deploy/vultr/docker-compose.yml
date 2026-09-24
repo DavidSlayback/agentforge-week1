@@ -160,11 +160,13 @@ services:
       # answer-model env. See deploy/vultr/README.md for the variable list.
       AGENTFORGE_MODEL_ENDPOINT: ${AGENTFORGE_MODEL_ENDPOINT:-}
       AGENTFORGE_MODEL_PROTOCOL: ${AGENTFORGE_MODEL_PROTOCOL:-responses}
-      AGENTFORGE_MODEL: ${AGENTFORGE_MODEL:-configured-model}
+      # W2-only overrides (PLAN): qwen3.8-max with thinking off answered the composer task in ~12 s vs ~25 s with it on (2026-09-24).
+      AGENTFORGE_MODEL: ${AGENTFORGE_W2_MODEL:-${AGENTFORGE_MODEL:-configured-model}}
       AGENTFORGE_MODEL_API_KEY: ${AGENTFORGE_MODEL_API_KEY:-}
       AGENTFORGE_MODEL_SITE_URL: ${AGENTFORGE_MODEL_SITE_URL:-}
       AGENTFORGE_MODEL_SITE_NAME: ${AGENTFORGE_MODEL_SITE_NAME:-AgentForge}
-      AGENTFORGE_MODEL_TIMEOUT_MS: ${AGENTFORGE_MODEL_TIMEOUT_MS:-8000}
+      AGENTFORGE_MODEL_TIMEOUT_MS: ${AGENTFORGE_W2_MODEL_TIMEOUT_MS:-18000}
+      AGENTFORGE_MODEL_ENABLE_THINKING: ${AGENTFORGE_W2_MODEL_ENABLE_THINKING:-false}
       # F6 review fix: per-scan-request deadline (source OCR retry + answer
       # composer provider call share one AbortSignal against this budget).
       AGENTFORGE_SCAN_DEADLINE_MS: ${AGENTFORGE_SCAN_DEADLINE_MS:-25000}

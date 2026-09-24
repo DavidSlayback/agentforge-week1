@@ -85,7 +85,9 @@ export class DashScopeMultimodalProvider {
 
 /** OpenAI Responses-wire provider; readiness checks configuration only. */
 export class OpenAIResponsesProvider {
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch }) { this.name = 'openai-responses'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; }
+  // extraBody carries provider-specific request fields, e.g. { enable_thinking: false }
+  // for Qwen models whose reasoning roughly doubles latency on copy-only tasks.
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch, extraBody = {} }) { this.name = 'openai-responses'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; this.extraBody = extraBody; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async checkReachable() {
     return probeProviderEndpoint({
@@ -99,7 +101,7 @@ export class OpenAIResponsesProvider {
   }
   async generate({ prompt, correlationId = '', signal, maxTokens = 300 }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
-    const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, signal, fetchImpl: this.fetchImpl, body: { model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], temperature: 0, max_output_tokens: maxTokens } });
+    const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, signal, fetchImpl: this.fetchImpl, body: { ...this.extraBody, model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], temperature: 0, max_output_tokens: maxTokens } });
     const text = data.output_text || data.output?.flatMap((item) => item.content || []).filter((item) => item.type === 'output_text').map((item) => item.text || '').join('');
     if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
     return { text: text.trim(), inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
