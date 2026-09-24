@@ -7,6 +7,7 @@ import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter } from './openemrAdapte
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
+import { createOpenEMRModuleWritebackFromEnv } from './openemrModuleWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest, validateSupervisorRequest, validateSupervisorResponse } from './contracts.js';
@@ -86,7 +87,11 @@ function injectTestScanExtractionFault(extraction) {
   return { ...extraction, lab_results: [...(extraction.lab_results || []), { test_name: 'test-only-invalid-injection' }] };
 }
 const chartAdapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
-const writeback = liveOpenEMR ? null : new SyntheticWriteback({ ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}), ...(syntheticClinicalActionStore ? { clinicalActionStore: syntheticClinicalActionStore } : {}) });
+// Persistence is chosen independently of the chart mode: the W2 service keeps
+// the synthetic chart but stores uploads in OpenEMR through the module.
+const persistenceMode = process.env.AGENTFORGE_PERSISTENCE_MODE || 'in-memory-synthetic';
+if (!['in-memory-synthetic', 'openemr-module'].includes(persistenceMode)) throw new Error('AGENTFORGE_PERSISTENCE_MODE must be in-memory-synthetic or openemr-module');
+const writeback = persistenceMode === 'openemr-module' ? createOpenEMRModuleWritebackFromEnv(process.env) : liveOpenEMR ? null : new SyntheticWriteback({ ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}), ...(syntheticClinicalActionStore ? { clinicalActionStore: syntheticClinicalActionStore } : {}) });
 const hasExternalProvider = [provider, conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
 const liveExternalProviderAllowed = !liveOpenEMR || !hasExternalProvider || process.env.AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED === 'true';
 // FileTraceSink redacts before persistence and listing; these endpoints expose
@@ -146,7 +151,10 @@ const verifiedContextFor = (body) => tokenPayload(body.demo_token);
 const syntheticWritebackEnabled = () => Boolean(writeback && typeof writeback.persistSourceDocument === 'function');
 const syntheticClinicalActionWritebackEnabled = () => Boolean(writeback && typeof writeback.draftClinicalAction === 'function' && typeof writeback.confirmClinicalAction === 'function');
 const sourceDocumentErrorStatus = (error) => {
+  // OpenEMR module failures carry the status this API should answer with.
+  if (error.name === 'OpenEMRModuleError') return error.httpStatus;
   const code = error.code || error.message;
+  if (code === 'SOURCE_DOCUMENT_TYPE_UNSUPPORTED_FOR_OPENEMR') return 400;
   const contractCodes = new Set(['SOURCE_DOCUMENT_PATIENT_REQUIRED', 'SOURCE_DOCUMENT_TYPE_INVALID', 'SOURCE_DOCUMENT_FILENAME_REQUIRED', 'SOURCE_DOCUMENT_FILENAME_INVALID', 'SOURCE_DOCUMENT_CONTENT_INVALID', 'SOURCE_DOCUMENT_UPLOADER_REQUIRED']);
   return code === 'SOURCE_DOCUMENT_TOO_LARGE' ? 413 : code === 'DOCUMENT_NOT_FOUND' ? 404 : code === 'DOCUMENT_SCOPE_MISMATCH' ? 403 : ['SOURCE_DOCUMENT_TYPE_MISMATCH'].includes(code) || contractCodes.has(code) ? 400 : 500;
 };
@@ -235,7 +243,7 @@ const server = http.createServer(async (req, res) => {
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       try {
-        const result = service.extractLabEvidence(decodeURIComponent(labEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.extractLabEvidence(decodeURIComponent(labEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
         if (result.status === 'blocked') return json(res, result.reason === 'SOURCE_DOCUMENT_TYPE_MISMATCH' ? 400 : 403, { error: result.reason });
         if (result.status === 'failed') return json(res, 500, { error: result.reason });
         const response = { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations };
@@ -254,7 +262,7 @@ const server = http.createServer(async (req, res) => {
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       try {
-        const result = service.extractIntakeEvidence(decodeURIComponent(intakeEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.extractIntakeEvidence(decodeURIComponent(intakeEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
         if (result.status === 'blocked') return json(res, result.reason === 'SOURCE_DOCUMENT_TYPE_MISMATCH' ? 400 : 403, { error: result.reason });
         if (result.status === 'failed') return json(res, 500, { error: result.reason });
         const response = { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations };
@@ -284,6 +292,20 @@ const server = http.createServer(async (req, res) => {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
     }
+    const openemrObservationsMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/openemr-observations(?:\?(.*))?$/);
+    if (req.method === 'GET' && openemrObservationsMatch) {
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      try {
+        const result = await service.readOpenEMRLabObservations(decodeURIComponent(openemrObservationsMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status !== 'read') return json(res, 403, { error: result.reason });
+        return json(res, 200, result.bundle);
+      } catch (error) {
+        return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
+      }
+    }
     const scanSourcePreviewMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/source-preview(?:\?(.*))?$/);
     if (req.method === 'GET' && scanSourcePreviewMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -304,7 +326,7 @@ const server = http.createServer(async (req, res) => {
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       try {
-        const result = service.readSourceDocument(decodeURIComponent(sourceDocumentMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.readSourceDocument(decodeURIComponent(sourceDocumentMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
         if (result.status !== 'read') return json(res, 403, { error: result.reason });
         return json(res, 200, { synthetic_only: true, source_document: result.source_document, content_base64: result.content.toString('base64') });
       } catch (error) {
@@ -339,7 +361,7 @@ const server = http.createServer(async (req, res) => {
       if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       body.clinician_uuid = token.clinician_uuid;
       try {
-        const result = service.ingestSourceDocument({ ...body, content: Buffer.from(body.content_base64, 'base64') }, { verifiedContext: token });
+        const result = await service.ingestSourceDocument({ ...body, content: Buffer.from(body.content_base64, 'base64') }, { verifiedContext: token });
         if (result.status !== 'persisted') return json(res, 403, { error: result.reason });
         return json(res, 200, result);
       } catch (error) {
@@ -355,6 +377,12 @@ const server = http.createServer(async (req, res) => {
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       const extraction = injectTestScanExtractionFault(result.workflow.typed_outputs.extraction);
       const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction } } };
+      // Derived facts are persisted only from an extraction whose typed
+      // contract validates; an invalid one is answered with 500 below.
+      if (validateScanExtractionTypedOutput(extraction).valid) {
+        const openemr = await service.persistDerivedEvidence(result.source_document, extraction, { patient_uuid: body.patient_uuid }, { verifiedContext: token });
+        if (openemr) responseBody.openemr = openemr;
+      }
       return sendValidatedScanExtraction(res, 200, responseBody, extraction);
     }
     if (req.method === 'POST' && req.url === '/v1/clinical-actions/drafts') {
@@ -409,6 +437,9 @@ const server = http.createServer(async (req, res) => {
       return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_supervisor_response', responseValidation.issues);
     }
     return json(res, 404, { error: 'not_found' });
-  } catch (error) { console.error('AgentForge request failed', error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
+  } catch (error) {
+    // Module errors carry only a code and statuses (no bodies), so they are safe to surface.
+    if (error?.name === 'OpenEMRModuleError') { console.error('AgentForge OpenEMR module call failed', { code: error.code, status: error.status, correlation_id: error.correlationId }); return json(res, error.httpStatus, { error: error.code.toLowerCase() }); }
+    console.error('AgentForge request failed', error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
 });
 server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => console.log('AgentForge listening'));

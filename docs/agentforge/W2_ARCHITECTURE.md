@@ -6,7 +6,8 @@ Status: local synthetic evidence checkpoint with an agreed local-VLM lane, 2026-
 
 ```text
 source form (synthetic fixture or approved public blank form)
-  -> source-document synthetic roundtrip
+  -> source document stored: OpenEMR via oe-module-agentforge (W2 service),
+     or the in-memory synthetic store (default mode)
   -> scan-form extraction worker
      (Tesseract/deterministic baseline, then optional larger local VLM crop resolver)
      (inspect -> extract -> validate/qualify)
@@ -24,6 +25,29 @@ model runner is configured or measured. The eventual API/managed provider can
 replace this runner without changing the worker contract. The separate
 `write-clinical-action` lane still
 requires explicit clinician confirmation and remains synthetic-only.
+
+## OpenEMR persistence (S8)
+
+With `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (set for `agentforge-w2` in
+Compose) the service calls `oe-module-agentforge/public/api.php` on the internal
+network with HMAC-signed requests. On upload the source is stored as an OpenEMR
+document ("Lab Report" or "Medical Record"). After a validated extraction the
+service stores a derived-facts JSON document linked to the source and, for a lab
+PDF, one `procedure_order`/`_report` plus one `procedure_result` per LOINC-mapped
+result (`718-7` hemoglobin, `4548-4` A1c; others are reported as unmapped). It
+then reads the results back as FHIR Observations and requires every value to
+match. A write ledger keyed by patient and content hash makes re-uploads return
+the same ids with `duplicate: true` and zero new rows. Public demo writes are
+limited to the allowlisted synthetic patient and recorded with issuer
+`synthetic-demo`. Clinician-confirmed intake medications and allergies have a
+module route, but the service's clinical-action lane does not call it yet.
+
+Known gaps: the lab read-back uses OpenEMR's FHIR Observation service
+**in-process** (`read_path: openemr-fhir-service-in-process`), not the `/fhir`
+HTTP API, which is disabled on the deployment (`rest_fhir_api=0`) and would need
+an interactive OAuth grant with `api:fhir user/Observation.rs`. The live
+round-trip is unverified until `agentforge/scripts/w2-openemr-smoke.mjs` passes
+on the deployed SHA.
 
 ## Evidence and retrieval
 

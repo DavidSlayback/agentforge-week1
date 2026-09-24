@@ -1,4 +1,15 @@
+# The AgentForge module write endpoint (oe-module-agentforge public/api.php) is
+# for the internal Docker network only (agentforge-w2 -> http://openemr). It is
+# answered with 404 on every public site block; HMAC stays mandatory behind it.
+(agentforge_module_api_internal_only) {
+    @agentforgeModuleApi path */oe-module-agentforge/public/api.php*
+    handle @agentforgeModuleApi {
+        respond 404
+    }
+}
+
 dtstest.64.177.10.182.nip.io {
+    import agentforge_module_api_internal_only
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }
@@ -11,6 +22,7 @@ dtstest.64.177.10.182.nip.io {
 }
 
 :80 {
+    import agentforge_module_api_internal_only
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }
@@ -24,6 +36,7 @@ dtstest.64.177.10.182.nip.io {
 
 :443 {
     tls internal
+    import agentforge_module_api_internal_only
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }

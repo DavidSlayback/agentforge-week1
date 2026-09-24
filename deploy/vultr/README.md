@@ -3,8 +3,8 @@
 This Compose file is suitable for the public synthetic AgentForge checkpoint
 demonstration only. It is not approved for real patient data.
 
-The current owner-controlled VM is reached as `linuxuser@64.177.10.182` with
-the local private key `C:\Users\david\.ssh\agentforge-week1-vultr`. The remote
+The owner-controlled VM's host, SSH user and key are kept out of the
+repository (see `deploy.sh` for the environment variables it needs). The remote
 deployment root is `/opt/agentforge-week1`; its mode-600 `.env` is stored at
 that root and is not part of the repository. The Compose file is under
 `deploy/vultr/`; when running Compose from that directory, pass the root env
@@ -48,6 +48,43 @@ mode not ready. The fixture/demo context issuer is disabled in live mode.
 Set `AGENTFORGE_OPENEMR_MODE=live` explicitly for that path. The default Compose
 mode is `synthetic`; it requires `AGENTFORGE_SYNTHETIC_CONTEXT=true` and a
 non-empty `AGENTFORGE_DEMO_SECRET` before `/ready` can report ready.
+
+## Week 2 OpenEMR round-trip (oe-module-agentforge)
+
+The `agentforge-w2` service keeps the synthetic fixture chart but persists
+uploads in OpenEMR (`AGENTFORGE_PERSISTENCE_MODE=openemr-module`, set in
+Compose). It calls the module's internal endpoint
+`http://openemr/interface/modules/custom_modules/oe-module-agentforge/public/api.php`
+over the Docker network; Caddy answers 404 for that path publicly. Every call is
+HMAC-signed with a key derived from `AGENTFORGE_DEMO_SECRET` and carries a
+signed context token; the module takes the acting OpenEMR user from that token.
+The Week 1 `agentforge` service is unchanged and stays in synthetic mode.
+
+Add these to `/opt/agentforge-week1/.env` (Compose refuses to start without
+them):
+
+```dotenv
+# OpenEMR patient uuids the public synthetic demo may write to (openemr + agentforge-w2)
+AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS=<openemr-patient-uuid>[,<uuid>...]
+# OpenEMR username demo writes are attributed to (openemr)
+AGENTFORGE_DEMO_ACTOR_USERNAME=<openemr-username>
+# Fixture patient -> allowlisted OpenEMR patient uuid (agentforge-w2)
+AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP=fixture-patient-001=<openemr-patient-uuid>
+# Optional, default 15000 (agentforge-w2)
+AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS=15000
+```
+
+Install the module's tables once (idempotent) and recreate `openemr` so it sees
+the new env: `AGENTFORGE_DEPLOY_APPLY_MODULE_SQL=1
+AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1 deploy/vultr/deploy.sh`. Until the tables
+exist the endpoint answers 503 `ledger_not_installed`. `deploy.sh` recreates
+the proxy when the Caddyfile changed. After a deploy, run
+`agentforge/scripts/w2-openemr-smoke.mjs` (see its header) to prove the
+round-trip on the public URL.
+
+Lab read-back uses OpenEMR's FHIR Observation service in-process
+(`read_path: openemr-fhir-service-in-process`); the `/fhir` HTTP API remains
+disabled on this deployment (`rest_fhir_api=0`) and is not what this proves.
 
 ## Optional synthetic live-provider lane
 

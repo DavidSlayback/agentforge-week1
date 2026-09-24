@@ -31,6 +31,11 @@ services:
       OE_PASS: ${OE_PASSWORD:?OE_PASSWORD is required}
       AGENTFORGE_DEMO_SECRET: ${AGENTFORGE_DEMO_SECRET:-}
       AGENTFORGE_SERVICE_URL: ${AGENTFORGE_SERVICE_URL:?AGENTFORGE_SERVICE_URL is required}
+      # oe-module-agentforge write endpoint (public/api.php): the synthetic-demo
+      # issuer may write only for these OpenEMR patient uuids, attributed to
+      # this OpenEMR user. Both are required for the W2 OpenEMR round-trip.
+      AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: ${AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS:?AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS is required}
+      AGENTFORGE_DEMO_ACTOR_USERNAME: ${AGENTFORGE_DEMO_ACTOR_USERNAME:?AGENTFORGE_DEMO_ACTOR_USERNAME is required}
     depends_on:
       mysql:
         condition: service_healthy
@@ -123,8 +128,11 @@ services:
       openemr:
         condition: service_healthy
 
-  # Isolated Week 2 synthetic-only surface. It has no OpenEMR dependency,
-  # token mount, or persistent volume and cannot inherit live provider secrets.
+  # Week 2 surface. The chart stays the synthetic fixture (no OAuth token mount,
+  # no persistent volume, no live provider secrets), but uploads and derived
+  # facts are persisted in OpenEMR through oe-module-agentforge on the internal
+  # network (AGENTFORGE_PERSISTENCE_MODE=openemr-module), only for the
+  # allowlisted synthetic patients mapped below.
   agentforge-w2:
     restart: unless-stopped
     build:
@@ -145,6 +153,12 @@ services:
       AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT: ${AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT:-12}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       AGENTFORGE_TRACE_PATH: /tmp/agentforge-w2-traces.json
+      AGENTFORGE_PERSISTENCE_MODE: openemr-module
+      AGENTFORGE_OPENEMR_MODULE_URL: http://openemr/interface/modules/custom_modules/oe-module-agentforge/public/api.php
+      AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS: ${AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS:-15000}
+      AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: ${AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS:?AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS is required}
+      # fixture-patient-NNN=<OpenEMR patient uuid>; every target must be allowlisted.
+      AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: ${AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP:?AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP is required}
     expose:
       - "8788"
     healthcheck:

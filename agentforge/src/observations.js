@@ -29,7 +29,7 @@ export class SyntheticObservationStore {
       ingestion_revision: 1,
       persisted_at: now(),
       synthetic_only: true,
-      persistence_boundary: 'simulated-openemr-observation-adapter',
+      persistence_boundary: 'in-memory-synthetic',
     };
     this.records.set(id, observation);
     this.byDedupKey.set(dedupKey, id);

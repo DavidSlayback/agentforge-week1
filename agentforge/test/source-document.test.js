@@ -45,8 +45,8 @@ test('simulated synthetic source documents persist, read back, and deduplicate',
   assert.equal(first.document.document_type, 'lab_pdf');
   assert.equal(first.document.filename, 'lab-results.txt');
   assert.equal(first.document.ingestion_revision, 1);
-  assert.equal(first.document.source_system, 'synthetic-roundtrip');
-  assert.equal(first.document.persistence_boundary, 'simulated-openemr-adapter');
+  assert.equal(first.document.source_system, 'agentforge-in-memory');
+  assert.equal(first.document.persistence_boundary, 'in-memory-synthetic');
   assert.equal(first.document.uploaded_by, 'fixture-physician-001');
   assert.match(first.document.id, /^src-/);
   assert.match(first.document.content_sha256, /^[0-9a-f]{64}$/);
@@ -82,17 +82,17 @@ test('synthetic source upload still requires a verified signed context at the ad
   assert.equal(adapter.authorize({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001' }, signedContext('fixture-patient-001')).status, 'blocked');
 });
 
-test('synthetic source persistence reports failures and the service exposes the workflow result', () => {
+test('synthetic source persistence reports failures and the service exposes the workflow result', async () => {
   const failingAdapter = new SimulatedOpenEMRAdapter({ fixturePath, sourceDocumentStore: { persist() { throw Object.assign(new Error('SOURCE_DOCUMENT_PERSISTENCE_FAILED'), { code: 'SOURCE_DOCUMENT_PERSISTENCE_FAILED' }); } } });
   const service = new AgentForgeService({ adapter: failingAdapter });
-  assert.throws(() => service.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'lab_pdf', filename: 'lab.pdf', content: Buffer.from('synthetic') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') }), /SOURCE_DOCUMENT_PERSISTENCE_FAILED/);
+  await assert.rejects(() => service.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'lab_pdf', filename: 'lab.pdf', content: Buffer.from('synthetic') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') }), /SOURCE_DOCUMENT_PERSISTENCE_FAILED/);
 
   const adapter = new SimulatedOpenEMRAdapter({ fixturePath });
   const workflow = new AgentForgeService({ adapter });
-  const result = workflow.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'intake_form', filename: 'intake.json', content: Buffer.from('{"synthetic":true}') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') });
+  const result = await workflow.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'intake_form', filename: 'intake.json', content: Buffer.from('{"synthetic":true}') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') });
   assert.equal(result.status, 'persisted');
   assert.equal(result.synthetic_only, true);
-  assert.equal(result.source_document.persistence_boundary, 'simulated-openemr-adapter');
+  assert.equal(result.source_document.persistence_boundary, 'in-memory-synthetic');
 });
 
 test('AgentForge UI exposes the two synthetic source-document types and upload route', () => {

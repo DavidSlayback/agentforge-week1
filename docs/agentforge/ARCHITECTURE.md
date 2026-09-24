@@ -20,8 +20,10 @@ patient-scoped and read-only. Week 2 adds a separate synthetic local document
 workflow with two schemas (`lab_pdf`, `intake_form`), a supervisor that invokes
 the extractor and evidence-retriever workers, and a rubric gate. Its present
 extractors parse line-encoded UTF-8 text fixtures; they do not read binary PDFs
-or scans. Its source/derived-fact store is in-memory and is not an OpenEMR
-roundtrip. Local RAG defaults to lexical matching; the Cohere adapter requires
+or scans. By default its source/derived-fact store is in-memory
+(`in-memory-synthetic`) and is not an OpenEMR roundtrip; the W2 service is
+configured to persist through `oe-module-agentforge` instead (see
+[`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md), live proof pending). Local RAG defaults to lexical matching; the Cohere adapter requires
 explicit configuration and a server-only key. See
 [`W2_EARLY_CHECKPOINT.md`](W2_EARLY_CHECKPOINT.md) for current proof and gaps.
 

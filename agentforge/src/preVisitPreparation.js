@@ -99,7 +99,7 @@ export class PreVisitPreparation {
     qualificationReasons.push(...conflictFields.map((field) => `conflict:${field}`));
     const qualification = { required: Boolean(expected.qualification_required || failed.length || conflictFields.length), reasons: [...new Set(qualificationReasons)] };
     const disposition = conflictFields.length && expected.brief_disposition === 'complete' ? 'qualified' : expected.brief_disposition || (qualification.required ? 'qualified' : 'complete');
-    const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: authorization.clinician_uuid, authorized: true, authorization_source: authorization.source }, patient: item.patient, disposition, claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: 'retrieve_openemr_read' }] };
+    const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: authorization.clinician_uuid, authorized: true, authorization_source: authorization.source }, patient: item.patient, disposition, claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: this.adapter.name === 'openemr-rest' ? 'retrieve_openemr_read' : 'retrieve_synthetic_fixture_read' }] };
     response.comparison = buildComparison(claims);
     trace?.startStage('verification');
     const verification = verify({ patientRef: item.patient.patient_ref, claims, coverage: retrieved.coverage, qualification, operations: response.operations, disposition: response.disposition });
