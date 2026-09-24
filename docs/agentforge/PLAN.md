@@ -1,4 +1,4 @@
-# AgentForge plan: W2 final and trust-critical W1 debt
+# AgentForge plan: W2 final submission
 
 This is the only plan file (see `AGENTS.md`). It supersedes `W2_PLAN.md`,
 `W2_GAP_CLOSURE_EXECUTION_PLAN.md`, `W2_EARLY_SUBMISSION_EXECUTION_PLAN.md`,
@@ -6,8 +6,8 @@ This is the only plan file (see `AGENTS.md`). It supersedes `W2_PLAN.md`,
 deletes or archives them.
 
 **Goal:** By Sunday 2026-09-27 12:00 CT, one commit on GitLab `main` is deployed
-to both routes. It passes every W2 hard gate and core requirement, and the W1
-trust defects the review found are fixed, each with evidence tied to that SHA.
+to `/agentforge-w2`. It passes every W2 hard gate and core requirement, each
+with evidence tied to that SHA. Week 1 is out of scope (D8).
 
 **Deadline budget:** about 2.5 working days from Thursday 2026-09-24.
 Circuit breakers are listed per slice. The release freeze is Sunday 08:00 CT,
@@ -57,6 +57,7 @@ requirements, not commands.
 | D2 | Cohere embed + rerank for dense retrieval and reranking, with local BM25 for sparse retrieval. If Cohere is down, the response is labeled `degraded: sparse_only`, never silently relabeled. |
 | D3 | Keep the hand-rolled supervisor. Routing becomes real decisions, each traced with its reason. |
 | D4 | Fix only the trust-critical W1 debt. The physician/nurse/resident role model and LLM tool-calling are out of scope. |
+| D8 | **Scope (user, 2026-09-24): Week 2 and the final W2 submission only.** The W1 submission is not changed retroactively. The W1 `agentforge` service and `/agentforge` route are frozen at `84f232b` and not redeployed (`deploy.sh` defaults to `agentforge-w2`). W1 code shared with W2 is changed only where W2 depends on it (for example the S7 verifier). This supersedes the W1 parts of D1 (W1 stays synthetic) and D4, and the W1-* matrix rows. |
 | D2′ | **Supersedes D2 (user, 2026-09-24):** start with Gemini embeddings (dense) + an LLM listwise reranker, both using keys already on the VM. Cohere is to be revisited later; the Cohere adapter stays behind the same retriever interface. Degraded mode is still labeled `sparse_only`. |
 | D5 | No GitLab runner (user, 2026-09-24): the project has none, and shared runners are off. The enforced gate is `.githooks/pre-commit`, which runs the unit suites and the eval gate. `.gitlab-ci.yml` stays in sync for when a runner exists. W2-HG1/HG2 proof is a blocked commit transcript for each injected regression. |
 | D6 | Deploys: the agent deploys reviewed commits with `deploy/vultr/deploy.sh` and reports SHA and result (user, 2026-09-24). |
@@ -127,17 +128,17 @@ Status is as of `7ac46e9`.
 | W2-S2 | p6 | `./W2_ARCHITECTURE.md` covering ingestion, graph, RAG, gate, risks, tradeoffs | S | At root; every claim matches the code at the freeze SHA | FAIL (location) | S12 |
 | W2-S3 | p6 | Cost and latency report: dev spend, projection, p50/p95, bottlenecks | S | Numbers from real traces and a price table | FAIL | S9, S12 |
 | W2-S4 | p6 | Demo video, 3–5 min | S | Recorded from the freeze SHA | Open | S11 (H5) |
-| W1-SF1 | W1 p7 | Verification: every claim is source-attributed | SF | Verifier rejects any sentence with an unanchored clinical value; the fabricated-warfarin probe fails | FAIL | S7 |
-| W1-SF2 | W1 p7 | Domain constraint enforcement | SF | At least 3 rules (e.g. potassium critical range, A1C ≥ 6.5 flag, allergy↔med class conflict) with tests | FAIL | S7 |
-| W1-SF3 | W1 p8 | Evals must not be circular | SF | `grep -rn expected agentforge/src` returns nothing for eval-oracle reads; stale and missing-author detection comes from the data | FAIL | S7 |
-| W1-SF4 | W1 p2 | Authorization enforced | SF | Cross-patient question → explicit out-of-scope refusal; module ACL uses the username; `/v1/traces` needs auth | Partial | S7 |
-| W1-C1 | W1 p8 | `/ready` checks OpenEMR, LLM and observability | C | Each check is a live network probe; killing OpenEMR makes it 503 | FAIL | S9 |
-| W1-C2 | W1 p8 | Correlation ID on every log, tool call and LLM call | C | Test asserts the ID on getCase, token refresh, retriever, Cohere, OpenEMR writes and error log | Partial | S9 |
-| W1-C3 | W1 p8 | Dashboard + 3 alerts with sane thresholds | C | Per-route p95 thresholds from measured baselines; not permanently firing | Partial | S9 |
-| W1-S1 | W1 p6,9 | Root `./AUDIT.md`, `./ARCHITECTURE.md`, `./USERS.md`/`USER.md` | S | Real versions at root; `START_HERE.md` accurate or deleted | FAIL | S12 |
-| W1-S2 | W1 p9 | Postman/Bruno collection | S | Bruno collection with a deployed-URL env covering W1 and W2 endpoints; runs green with `bru run` | FAIL | S12 |
-| W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | FAIL | S11 |
-| W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | FAIL | S9, S12 |
+| W1-SF1 | W1 p7 | Verification: every claim is source-attributed | SF | Verifier rejects any sentence with an unanchored clinical value; the fabricated-warfarin probe fails | Verifier done (S7, per-claim; used by S6) | S7 |
+| W1-SF2 | W1 p7 | Domain constraint enforcement | SF | At least 3 rules (e.g. potassium critical range, A1C ≥ 6.5 flag, allergy↔med class conflict) with tests | Out of scope (D8) | — |
+| W1-SF3 | W1 p8 | Evals must not be circular | SF | `grep -rn expected agentforge/src` returns nothing for eval-oracle reads; stale and missing-author detection comes from the data | Out of scope (D8) | — |
+| W1-SF4 | W1 p2 | Authorization enforced | SF | Cross-patient question → explicit out-of-scope refusal; module ACL uses the username; `/v1/traces` needs auth | Out of scope (D8) | — |
+| W1-C1 | W1 p8 | `/ready` checks OpenEMR, LLM and observability | C | Each check is a live network probe; killing OpenEMR makes it 503 | Out of scope (D8) | — |
+| W1-C2 | W1 p8 | Correlation ID on every log, tool call and LLM call | C | Test asserts the ID on getCase, token refresh, retriever, Cohere, OpenEMR writes and error log | Out of scope (D8) | — |
+| W1-C3 | W1 p8 | Dashboard + 3 alerts with sane thresholds | C | Per-route p95 thresholds from measured baselines; not permanently firing | Out of scope (D8) | — |
+| W1-S1 | W1 p6,9 | Root `./AUDIT.md`, `./ARCHITECTURE.md`, `./USERS.md`/`USER.md` | S | Real versions at root; `START_HERE.md` accurate or deleted | Out of scope (D8) | — |
+| W1-S2 | W1 p9 | Postman/Bruno collection | S | Bruno collection with a deployed-URL env covering W1 and W2 endpoints; runs green with `bru run` | Out of scope (D8) | — |
+| W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | Out of scope (D8) | — |
+| W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | Out of scope (D8) | — |
 | X-1 | W2 p5 | Click-to-source UI | X | Delivered by S4 | — | S4 |
 
 Out of scope: third document type, lab trend chart, critic agent, role model,
@@ -483,8 +484,28 @@ on the freeze SHA.
 
 ## Completion record
 
-_Not started. Next action: S0 on branch `agentforge/w2-final`, after H3
-confirms the grading remote._
+**Status 2026-09-24 (evening CT).** `main` = `c0167e7`. `/agentforge-w2`
+serves `a4c281b` (differs from `main` only in `deploy.sh`), and `/agentforge`
+is frozen at `84f232b` (D8). Every slice below passed an independent
+adversarial review before merge.
+
+| Slice | State | Evidence |
+|---|---|---|
+| S0 | Done, live | `/health` `git_sha`; MR !70 |
+| S2 | Done, live | Zod contracts; live upload shows 5-key citations |
+| S1+S3 | Done, live | Gate alone catches R1–R16, N1–N10, I1, U1, L0 (`W2_REGRESSION_MATRIX.md`); hook blocks (`W2_PRECOMMIT_BLOCK_V3.txt`) |
+| S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
+| S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
+| R0–R5 refactor | Planned (owner-approved scope) | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
+| S4, S5, S6, S9, S12, S11 | Not started | After R0–R5 |
+
+Incidents, all fixed and recorded in commits:
+- `git archive` on Windows shipped CRLF; `deploy.sh` now disables autocrlf.
+- The OpenEMR restart made the bind-mounted module unreadable to Apache for
+  about 10 minutes (W1 launcher included); `deploy.sh` now fixes ownership and
+  fails the deploy if Apache cannot read the module.
+- The S7 merge commit was made with `--no-verify`; the next commit's hook run
+  covered the combined tree.
 
 - S1 + S3, branch `agentforge/s1-gate` (not merged, not deployed; "wired,
   untested" on the public URL until S11). The gate runs the scan path on 10
