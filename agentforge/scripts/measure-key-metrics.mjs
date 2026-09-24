@@ -220,7 +220,13 @@ export async function scoreDocumentCase(testCase) {
     }
   }
 
-  return { docId, labFields, intakeFields, reviewFields, recallItems, resolvability, hadAnswer: Boolean(answer), finalState: run.result?.workflow?.final_state || run.result?.status || null };
+  // A form the gate itself defines as another patient's (expected BLOCKED
+  // patient_mismatch) and that was in fact refused that way is a correct
+  // safety outcome, not a missed finding: surfacing its findings on this chart
+  // would be the failure. Recall excludes it and lists it separately.
+  const correctlyRefusedOtherPatient = testCase.expect?.refusal?.stop_reason === 'patient_mismatch'
+    && run.result?.workflow?.stop_reason === 'patient_mismatch';
+  return { docId, labFields, intakeFields, reviewFields, recallItems, resolvability, hadAnswer: Boolean(answer), correctlyRefusedOtherPatient, finalState: run.result?.workflow?.final_state || run.result?.status || null };
 }
 
 /**
@@ -287,8 +293,11 @@ export async function measureKeyMetrics({ caseIds } = {}) {
   const labFields = perDocument.flatMap((doc) => doc.labFields);
   const intakeFields = perDocument.flatMap((doc) => doc.intakeFields);
   const reviewFields = perDocument.flatMap((doc) => doc.reviewFields);
-  const recallItems = perDocument.flatMap((doc) => doc.recallItems);
-  const resolvability = perDocument.flatMap((doc) => doc.resolvability);
+  const recallItems = perDocument.filter((doc) => !doc.correctlyRefusedOtherPatient).flatMap((doc) => doc.recallItems);
+  const allResolvability = perDocument.flatMap((doc) => doc.resolvability);
+  // Chart-record citations "resolve" by construction offline (see
+  // resolveCitation), so they would only inflate the rate; count them apart.
+  const resolvability = allResolvability.filter((item) => item.source_type !== 'openemr_record');
 
   const refusalDocumentsCountedAsMisses = perDocument
     .filter((doc) => !doc.hadAnswer && (doc.labFields.length || doc.intakeFields.length))
@@ -312,16 +321,18 @@ export async function measureKeyMetrics({ caseIds } = {}) {
   };
 
   const abnormalFindingRecall = {
-    definition: 'Abnormal/flagged lab results (abnormal_flag != normal) plus key intake items (chief concern, each medication, each allergy) from the truth files. A hit is a verified patient_facts claim citing that exact fact, or a needs_review entry naming it. A document that never reached the answer stage at all (blocked before the answer was composed) counts every one of its items as a miss -- silently dropping one counts as a miss, per KEY_METRICS.md.',
+    definition: 'Abnormal/flagged lab results (abnormal_flag != normal) plus key intake items (chief concern, each medication, each allergy) from the truth files. A hit is a verified patient_facts claim citing that exact fact, or a needs_review entry naming it. A document of this chart\'s patient that never reached the answer stage (blocked before the answer was composed) counts every one of its items as a miss -- silently dropping one counts as a miss, per KEY_METRICS.md. A form the gate defines as another patient\'s and that was correctly BLOCKED patient_mismatch is excluded (see excluded_correct_patient_mismatch_refusals): showing its findings here would be the failure.',
     answer_composer: 'deterministic',
     ...sumRate(recallItems),
-    documents_never_composed_an_answer: perDocument.filter((doc) => !doc.hadAnswer && doc.recallItems.length).map((doc) => doc.docId),
+    excluded_correct_patient_mismatch_refusals: perDocument.filter((doc) => doc.correctlyRefusedOtherPatient && doc.recallItems.length).map((doc) => ({ document: doc.docId, items: doc.recallItems.length })),
+    documents_never_composed_an_answer: perDocument.filter((doc) => !doc.hadAnswer && !doc.correctlyRefusedOtherPatient && doc.recallItems.length).map((doc) => doc.docId),
     misses: recallItems.filter((item) => !item.hit).map((item) => ({ document: item.document, field: item.field })),
   };
 
   const citationResolvabilityOffline = {
     definition: 'Share of this run\'s (deterministic-composer) answer claims whose citation resolves to its exact source: a document/`.scan.txt` field\'s bounding box lies within its page and matches the real quoted OCR line (guideline: the corpus has that chunk, it carries a URL, and the quote is verbatim in it; openemr_record: the fact really exists in the chart this run read).',
     ...sumRate(resolvability.map((item) => ({ hit: item.resolved }))),
+    openemr_record_citations_not_scored: allResolvability.length - resolvability.length,
     unresolved: resolvability.filter((item) => !item.resolved).map(({ document, claim_kind, source_type, issues }) => ({ document, claim_kind, source_type, issues })),
   };
 

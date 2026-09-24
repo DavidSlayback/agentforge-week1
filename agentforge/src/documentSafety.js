@@ -42,7 +42,11 @@ export function normalizeDob(value) {
   return null;
 }
 
-const HEADER_NAME = /\b(?:patient(?:\s+name)?|name)\s*:\s*([^:]+?)\s*(?:[-–·•~|,]\s*)*(?=\bdob\b|\bdate of birth\b|$)/i;
+// The label must not follow a word on the same line: "Hemoglobin test name:
+// Hemoglobin" is a lab field, not a patient header. Without this, a lab with
+// no printed header read its first test name as the patient's name and was
+// BLOCKED patient_mismatch on the right chart.
+const HEADER_NAME = /(?<![A-Za-z0-9][ \t]*)\b(?:patient(?:\s+name)?|name)\s*:\s*([^:]+?)\s*(?:[-–·•~|,]\s*)*(?=\bdob\b|\bdate of birth\b|$)/i;
 const HEADER_DOB = /\b(?:dob|date of birth)\s*:\s*(\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4})/i;
 
 /**

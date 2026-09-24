@@ -140,6 +140,10 @@ test('lab reports are identity-checked on their printed patient header', async (
   assert.deepEqual(readHeaderIdentity('~ Patient: Test Patient One -DOB: 1980-04-12'), { name: 'Test Patient One', dob: '1980-04-12' });
   assert.deepEqual(readHeaderIdentity('Name: Test Patient One\nDOB: 1980-04-12'), { name: 'Test Patient One', dob: '1980-04-12' });
   assert.deepEqual(readHeaderIdentity('Fictional values. Not a real patient record.'), { name: null, dob: null });
+  // A lab field label is not a patient header; reading it as one blocked the
+  // right patient's headerless lab as patient_mismatch.
+  assert.deepEqual(readHeaderIdentity('Hemoglobin test name: Hemoglobin\nquote=A1C test name: A1C|page=1'), { name: null, dob: null });
+  assert.deepEqual(readHeaderIdentity('Patient Name: Test Patient One'), { name: 'Test Patient One', dob: null });
   assert.equal(compareIdentity(readHeaderIdentity('Patient: Test Patient One - DOB: 1980-04-12'), chart).status, 'match');
   assert.deepEqual(compareIdentity(readHeaderIdentity('Patient: Test Conflict - DOB: 1968-07-21'), chart).mismatched_fields, ['name', 'dob']);
   const lab = await runActiveSupervisor({ sourceDocumentId: 'doc-lab', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope('lab_pdf', [['lab.hgb.value', '13.2']]), query: 'glycemic follow-up', documentText: `Patient: Test Conflict DOB: 1968-07-21\n${LAB_OCR}`, targetPatient: chart });

@@ -5,8 +5,8 @@
   "thresholds_passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "6a69986b42330324dfb6061cde650f0b26331afd4553b710ef489ba569964d81",
-  "baseline_corpus_sha256": "6a69986b42330324dfb6061cde650f0b26331afd4553b710ef489ba569964d81",
+  "corpus_sha256": "63e8c8ebd61016dac2bad07ed357b0529a7c67eea97f189be132486379fc916a",
+  "baseline_corpus_sha256": "63e8c8ebd61016dac2bad07ed357b0529a7c67eea97f189be132486379fc916a",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -110,7 +110,7 @@
     {
       "id": "sv-11-scan-text-lab-typed",
       "label": "schema_valid",
-      "guards_against": "Zod LabResult parsing or the HTTP response validator rejects or drops the typed results extracted from a `.scan.txt` text-envelope lab upload — the only non-PDF path left once the legacy LAB| format and /lab-evidence route are retired.",
+      "guards_against": "Zod LabResult parsing or the HTTP response validator rejects or drops the typed results extracted from a `.scan.txt` text-envelope lab upload — the only non-PDF path left once the legacy LAB| format and /lab-evidence route are retired. The envelope has no printed patient header, so it must stay QUALIFIED patient_identity_unverified — never BLOCKED patient_mismatch by reading a \"test name:\" field label as the patient name.",
       "passed": true
     },
     {
