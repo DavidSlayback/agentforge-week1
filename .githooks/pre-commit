@@ -1,13 +1,26 @@
 #!/bin/sh
+# Enforced AgentForge gate. The GitLab project has no CI runner, so this hook
+# is what blocks regressions; .gitlab-ci.yml mirrors it for when one exists.
+# Install once per clone: git config --local core.hooksPath .githooks
 set -eu
 
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "W2 eval gate requires Node.js 24 on PATH." >&2
+  echo "AgentForge gate requires Node.js 24 on PATH." >&2
   exit 1
 fi
 
-echo "Running AgentForge W2 eval gate before commit..."
+if [ ! -d agentforge/node_modules ] || [ agentforge/package-lock.json -nt agentforge/node_modules ]; then
+  echo "AgentForge gate: installing locked dependencies..."
+  npm ci --silent --prefix agentforge
+fi
+
+echo "AgentForge gate: unit suites..."
+npm test --silent --prefix agentforge
+npm test --silent --prefix evals
+node --test observability/test/*.test.js >/dev/null
+
+echo "AgentForge gate: W2 50-case eval gate..."
 node agentforge/scripts/run-w2-gate.mjs

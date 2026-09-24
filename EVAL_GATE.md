@@ -12,9 +12,9 @@ These are repository-tracked source artifacts; there is no separate prompt bundl
 
 Requirements: Node.js 24. No API key, external service, or package installation is needed for the gate.
 
-GitLab CI ([`.gitlab-ci.yml`](.gitlab-ci.yml)) runs the unit suites and this gate on every merge request and branch push, in the same `node:24-alpine` + Tesseract image as the deployed service. A failing gate fails the pipeline, which blocks the merge request.
+The enforced gate is the tracked pre-commit hook. It runs the three unit suites and then this 50-case gate, and it rejects the commit if either fails. The GitLab project has no CI runner, so [`.gitlab-ci.yml`](.gitlab-ci.yml) mirrors the hook in the deployed `node:24-alpine` + Tesseract image but does not execute; pipelines stay pending until a runner is attached.
 
-Optionally, also install the tracked pre-commit hook in each fresh clone so regressions are caught before they are pushed:
+Install the hook in each fresh clone:
 
 ```sh
 git config --local core.hooksPath .githooks

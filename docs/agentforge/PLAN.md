@@ -57,6 +57,10 @@ requirements, not commands.
 | D2 | Cohere embed + rerank for dense retrieval and reranking, with local BM25 for sparse retrieval. If Cohere is down, the response is labeled `degraded: sparse_only`, never silently relabeled. |
 | D3 | Keep the hand-rolled supervisor. Routing becomes real decisions, each traced with its reason. |
 | D4 | Fix only the trust-critical W1 debt. The physician/nurse/resident role model and LLM tool-calling are out of scope. |
+| D2′ | **Supersedes D2 (user, 2026-09-24):** start with Gemini embeddings (dense) + an LLM listwise reranker, both using keys already on the VM. Cohere is to be revisited later; the Cohere adapter stays behind the same retriever interface. Degraded mode is still labeled `sparse_only`. |
+| D5 | No GitLab runner (user, 2026-09-24): the project has none, and shared runners are off. The enforced gate is `.githooks/pre-commit`, which runs the unit suites and the eval gate. `.gitlab-ci.yml` stays in sync for when a runner exists. W2-HG1/HG2 proof is a blocked commit transcript for each injected regression. |
+| D6 | Deploys: the agent deploys reviewed commits with `deploy/vultr/deploy.sh` and reports SHA and result (user, 2026-09-24). |
+| D7 | OpenEMR writes go through `oe-module-agentforge` inside OpenEMR, authenticated by an HMAC over the request using the existing `AGENTFORGE_DEMO_SECRET`. The saved OAuth token has read scopes only, and a write-scoped token would need an interactive OpenEMR login. This replaces H1 and the write-scope part of A2. |
 
 ## Assumptions (changeable without reopening the plan)
 
@@ -76,6 +80,13 @@ requirements, not commands.
 - **A4 CI OCR parity.** The GitLab job uses `node:24-alpine` with the same
   `apk` packages as the `Dockerfile`, so the gate runs real Tesseract on the
   sample PDFs.
+- **A6 Module runtime.** The VM runs stock OpenEMR 8.0.0; only
+  `oe-module-agentforge` comes from this fork (a bind mount). Module PHP targets
+  the 8.0.0 APIs: `declare(strict_types=1)`, typed, `php -l` clean, and
+  tested with a dependency-free PHP script plus HMAC test vectors shared with
+  Node. The fork's PHPStan rules assume 8.2 APIs that the runtime lacks, so they
+  are not the gate for this code. The design is in
+  `.scratch/agentforge-week2/S8_DESIGN.md`.
 - **A5 Answer model.** The existing Qwen/OpenRouter provider path composes the
   W2 answer. There is no new provider.
 
@@ -83,10 +94,10 @@ requirements, not commands.
 
 | ID | Action | Blocks |
 |---|---|---|
-| H1 | In deployed OpenEMR: enable the REST and FHIR APIs, register an OAuth client with scopes `user/document.read/.write`, `user/allergy.write`, `user/medication.write`, `user/Patient.read`, `user/Observation.read` and `offline_access`, then put the client id/secret and initial refresh token in the server `.env`. The agent can script the rest, but not credential entry. | S8 |
-| H2 | Put `COHERE_API_KEY` in the server `.env`. | S5 |
-| H3 | Confirm the grading repo: the `staging` remote (`davidslayback/agentforge-week1-staging`) or the `gitlab` remote (`gauntletai/gauntlet/agentforge-week1`, which returned no fetch access today). | S0, S11 |
-| H4 | Approve each production deploy. Deploys are outward-facing. | S11 |
+| ~~H1~~ | Not needed (D7). Codex had already registered OpenEMR OAuth clients and seeded patients on 2026-09-18 (`/opt/agentforge-week1/secrets/`). | — |
+| ~~H2~~ | Deferred (D2′): Gemini first, Cohere later. | — |
+| ~~H3~~ | Resolved: `staging` is the grading repo. The submission link points at a branch; re-point it to `main` at S11. | S11 |
+| ~~H4~~ | Resolved (D6). | — |
 | H5 | Record the 3–5 min video from the frozen SHA. | S11 |
 | H6 | Post the social post (final only). | S11 |
 
@@ -196,6 +207,17 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
     or qualified.
   - **no_phi_in_logs**: the *real* trace, stdout and stderr of that case
     contain none of the synthetic identifiers (name, DOB, phone, values).
+- OCR determinism: record Tesseract output (lines, boxes and confidences) for
+  every golden PDF once, from the pinned `node:24-alpine` image, into
+  `agentforge/test/fixtures/golden/ocr/`. The 50 cases run the real code after
+  OCR (field mapping → typed results → supervisor → citations) on those
+  recordings, so the gate is deterministic on machines without Tesseract
+  (Windows, graders). A separate parity test re-runs live OCR when
+  `pdftoppm` and `tesseract` are on PATH and fails if the output drifts from the
+  recordings. The recorder script is committed.
+- `schema_valid` parses the typed `lab_results[]` and `intake_form` with the S2
+  Zod schemas (S2 review finding 2). Include the abnormal-flag and
+  server-validation regressions that slipped past S2's tests.
 - Keep the 0.95 threshold and the >5% regression rule against the committed
   baseline. Rebaseline only through an explicit `--update-baseline` flag that
   the MR diff shows.
@@ -301,6 +323,9 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   are rendered in separate sections, as W2 p2 requires. Fallback is a
   deterministic, template-based answer built from the same claims and labeled
   as such.
+- Patient-record facts (`service.js:183` `patient_facts`, `jevSpike.js:6`)
+  carry the 5-key citation with `source_type: 'openemr_record'` (S2 review
+  finding 8).
 - Tests: at least 3 routing variants, uncited-claim rejection, and the fallback
   path.
 
@@ -373,6 +398,11 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   deleted.
 - Archive the superseded plan and status docs listed at the top of this file.
   Remove the SSH user, IP and key path from `deploy/vultr/README.md`.
+- Stale after S2 (review): `EVAL_GATE.md` lines 6, 9, 13 and 38;
+  `W2_ARCHITECTURE.md:30-31`; `W2_STAGE0_CONTRACT_PACKET.md:46-47`;
+  `LOCAL_VLM_RUNNER.md:43`; and the `rubric_mapping` string in
+  `w2RegressionGate.js`. Add a `.dockerignore` so the build context isn't the
+  whole OpenEMR tree.
 - Check: every relative link resolves, and `grep -n "not implemented\|has not
   run" README.md START_HERE.md` returns nothing stale.
 

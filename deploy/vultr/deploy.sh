@@ -16,7 +16,13 @@ key=${AGENTFORGE_DEPLOY_KEY:?set AGENTFORGE_DEPLOY_KEY}
 public_url=${AGENTFORGE_PUBLIC_URL:?set AGENTFORGE_PUBLIC_URL}
 services=${AGENTFORGE_DEPLOY_SERVICES:-agentforge agentforge-w2}
 root=/opt/agentforge-week1
-paths="Dockerfile agentforge observability evals docs/agentforge deploy/vultr interface/modules/custom_modules/oe-module-agentforge"
+# Build inputs are replaced wholesale so deleted files cannot linger in images.
+replaced="Dockerfile agentforge observability evals docs/agentforge"
+# These are bind-mounted into running containers (module dir, Caddyfile).
+# Moving them would leave containers attached to the backup copy, so they are
+# overwritten in place instead.
+in_place="deploy/vultr interface/modules/custom_modules/oe-module-agentforge"
+paths="$replaced $in_place"
 
 cd "$(git rev-parse --show-toplevel)"
 if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -37,7 +43,7 @@ ssh_run() { ssh -i "$key" -o BatchMode=yes "$host" "$@"; }
 
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 echo "Backing up current sources on the VM ($stamp)..."
-ssh_run "set -e; b=~/agentforge-week1-backups/$stamp; mkdir -p \$b; cd $root; for p in $paths; do [ -e \$p ] && sudo mv \$p \$b/ || true; done"
+ssh_run "set -e; b=~/agentforge-week1-backups/$stamp; mkdir -p \$b; cd $root; for p in $replaced; do [ -e \$p ] && sudo mv \$p \$b/ || true; done; for p in $in_place; do [ -e \$p ] && sudo cp -a --parents \$p \$b/ || true; done"
 
 echo "Shipping $sha..."
 # shellcheck disable=SC2086 # paths is a deliberate word list

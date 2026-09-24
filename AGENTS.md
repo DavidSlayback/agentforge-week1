@@ -20,8 +20,11 @@ features as done. They override convenience.
   only from `main`. Do not keep "proof" or "release" branches that never merge.
 - The deployed service must report its git SHA. Evidence is valid only for the
   SHA it names.
-- CI is `.gitlab-ci.yml`. GitHub workflows under `.github/` do not run on
-  GitLab. Never delete a CI gate to replace it with a local hook.
+- The GitLab project has no CI runner (owner decision, 2026-09-24), so the
+  enforced gate is `.githooks/pre-commit` (`git config --local core.hooksPath
+  .githooks`). `.gitlab-ci.yml` mirrors it and must stay in sync. GitHub
+  workflows under `.github/` do not run on GitLab. Never delete or weaken
+  either gate to get a change through.
 
 ## What "done" means
 
