@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
+import { SimulatedOpenEMRAdapter } from './helpers/simulatedOpenemrAdapter.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
