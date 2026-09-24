@@ -17,7 +17,8 @@ demo, and deployed synthetic application into one reproducible release story.
 
 - [ ] Architecture, schemas, tests, and implementation boundaries are documented and consistent with the delivered behavior.
 - [ ] The 50-case results, regression evidence, safety evidence, and Jev comparison are included with clear claim boundaries.
-- [ ] Cost and latency are measured from the intended runtime path and distinguish estimates from observed values.
-- [ ] The 3–5 minute demo path is reproducible from a clean browser and uses synthetic data only.
-- [ ] The deployed application is publicly accessible only if authorized, and its identity and readback are verified.
+- [ ] Cost and latency include actual development spend, W2 p50/p95 measurements by stage and end-to-end path, projected production cost, assumptions, and bottleneck analysis.
+- [ ] The 3–5 minute demo recording is reproducible from a clean browser, uses synthetic data only, and visibly covers upload, extraction, retrieval, citations, eval results, and observability.
+- [ ] The submitted GitLab revision, deployed revision, public URL, setup/env documentation, and evidence artifacts are read back as one candidate; public access occurs only if authorized.
+- [ ] The early technical interview, final social post, and final AI interview follow-up are tracked as explicit owner actions with their conditional timing.
 - [ ] Third document type, trend chart, and advanced contextual retrieval remain optional stretch unless promoted after the hard gates.

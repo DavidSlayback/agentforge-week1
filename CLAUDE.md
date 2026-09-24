@@ -1,3 +1,9 @@
+@AGENTS.md
+
+The AgentForge rules above take precedence for work in `agentforge/`, `evals/`,
+`observability/`, `deploy/vultr/` and `docs/agentforge/`. The OpenEMR guide below
+applies to PHP changes.
+
 # OpenEMR Development Guide
 
 ## Project Structure
