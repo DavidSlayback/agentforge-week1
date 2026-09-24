@@ -38,6 +38,18 @@ export const Citation = z.object({
   coordinate_space: z.string().min(1).optional(),
 }).strict();
 
+/** Rendered page dimensions for raster-pixel citation boxes. */
+export const PageSize = z.object({
+  page: z.number().int().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+}).strict();
+
+/** Optional scan metadata keeps older `.scan.txt` envelopes valid. */
+export const ScanExtractionMetadata = z.object({
+  page_sizes: z.array(PageSize).optional(),
+}).strict();
+
 /**
  * Abnormal-flag values a lab result can carry.
  *

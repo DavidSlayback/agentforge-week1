@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 const MAX_PAGES = 6;
 const COMMAND_TIMEOUT_MS = 30_000;
 const MAX_COMMAND_OUTPUT_BYTES = 16 * 1024 * 1024;
+const MAX_RENDERED_PAGE_PIXELS = 20_000_000;
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -175,6 +176,62 @@ export async function pdfToOcrLines(content, { includeImages = false } = {}) {
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
+/** Render one source page in the same 200 DPI pixel space used by Tesseract. */
+export function renderedPageFilename(names, page) {
+  return names.find((name) => new RegExp(`^page-0*${page}\\.png$`).test(name)) || null;
+}
+
+function pagePixelCount(pdfInfo, page) {
+  const size = pdfInfo.match(new RegExp(`^(?:Page(?:\\s+${page})?\\s+size|size):\\s*([\\d.]+) x ([\\d.]+) pts`, 'mi'));
+  if (!size) throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+  const pixels = Math.ceil(Number(size[1]) * 200 / 72) * Math.ceil(Number(size[2]) * 200 / 72);
+  if (!Number.isSafeInteger(pixels) || pixels <= 0 || pixels > MAX_RENDERED_PAGE_PIXELS) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+  return pixels;
+}
+
+export async function renderPdfPagePng(content, page) {
+  assertPdf(content);
+  if (!Number.isInteger(page) || page < 1) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
+  const directory = await mkdtemp(join(tmpdir(), 'agentforge-page-'));
+  try {
+    const pdf = join(directory, 'source.pdf');
+    await writeFile(pdf, content);
+    let documentInfo;
+    try { documentInfo = await run('pdfinfo', [pdf]); }
+    catch (error) {
+      if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+      throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+    }
+    const pageCount = Number(documentInfo.match(/^Pages:\s+(\d+)/m)?.[1] || 0);
+    if (!pageCount) throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+    if (pageCount > MAX_PAGES) throw Object.assign(new Error('PDF_PAGE_LIMIT_EXCEEDED'), { code: 'PDF_PAGE_LIMIT_EXCEEDED' });
+    if (page > pageCount) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
+    let pageInfo = documentInfo;
+    if (page > 1) {
+      try { pageInfo = await run('pdfinfo', ['-f', String(page), '-l', String(page), pdf]); }
+      catch (error) {
+        if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+        throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+      }
+    }
+    pagePixelCount(pageInfo, page);
+    const prefix = join(directory, 'page');
+    try { await run('pdftoppm', ['-r', '200', '-f', String(page), '-l', String(page), '-png', pdf, prefix]); }
+    catch (error) {
+      if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+      throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    }
+    const imageName = renderedPageFilename(await readdir(directory), page);
+    if (!imageName) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    const imagePath = join(directory, imageName);
+    const imageStats = await stat(imagePath);
+    if (imageStats.size < 8 || imageStats.size > MAX_COMMAND_OUTPUT_BYTES) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    const image = await readFile(imagePath);
+    if (image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    return image;
+  } finally { await rm(directory, { recursive: true, force: true }); }
+}
+
 /** Production OCR engine: the real poppler + Tesseract binaries. */
 export const tesseractOcrEngine = Object.freeze({ name: 'tesseract-local-pdf', recognize: pdfToOcrLines });
 
@@ -209,7 +266,10 @@ export async function extractPdfScanFixture({ content, documentType, layoutId = 
   const extracted = modelResult
     ? modelResult.fields
     : fieldRows(ocrLines, documentType, layoutId);
-  const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}`];
+  const pageSizes = renderedPages
+    .filter((page) => Number.isInteger(page.page) && Number.isInteger(page.width) && Number.isInteger(page.height) && page.width > 0 && page.height > 0)
+    .map((page) => `${page.page}:${page.width}x${page.height}`);
+  const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}${pageSizes.length ? `|page_sizes=${pageSizes.join(',')}` : ''}`];
   for (const field of extracted) {
     const line = field.line;
     const page = field.page || line?.page;

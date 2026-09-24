@@ -84,6 +84,13 @@ facts. The local retrieval choice is the existing deterministic sparse plus
 dense-proxy index because the fixed synthetic benchmark is replayable, cited,
 and zero-cost; `dense_score` is not a true embedding score.
 
+For PDF citations, `page_sizes` records each page's raster width and height at
+200 DPI, matching the pixel coordinate space produced by Tesseract. The preview
+loads each page through the patient-scoped `/v1/source-documents/:id/pages/:n.png`
+route and positions each citation box as percentages of those dimensions; a
+citation link targets the matching box in the page overlay. Text-only `.scan.txt`
+fixtures have no rendered page image and keep their coordinate values as text.
+
 ## Evaluation and observability
 
 The 50-case gate runs the deployed scan path on 10 golden PDFs, replaying OCR

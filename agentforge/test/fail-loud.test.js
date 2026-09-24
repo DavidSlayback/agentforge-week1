@@ -122,11 +122,16 @@ test('source preview never lists a low-confidence field as verified', () => {
     ],
     missing_fields: [], uncertain_fields: [{ field_id: 'lab.hgb.value', reason: 'low_confidence_requires_human_review' }], conflicts: [], metrics: { pages: 1 },
   };
+  // Confidence alone must keep this value in review, even if a regression
+  // drops the adapter's uncertainty marker.
+  extraction.facts[1].uncertainty = null;
   const html = renderScanSourcePreview({ sourceDocument: { id: 'doc-1', filename: 'lab.pdf' }, extraction });
   assert.match(html, /<strong>1<\/strong><span>verified fields<\/span>/);
-  const verifiedSection = html.slice(html.indexOf('Verified field evidence'), html.indexOf('Low-confidence values'));
+  const verifiedSection = html.match(/<section[^>]*data-section="verified"[^>]*>[\s\S]*?<\/section>/)?.[0] || '';
+  const needsReviewSection = html.match(/<section[^>]*data-section="needs-review"[^>]*>[\s\S]*?<\/section>/)?.[0] || '';
   assert.ok(!verifiedSection.includes('data-field-id="lab.hgb.value"'), 'low-confidence field rendered under verified evidence');
-  assert.match(html.slice(html.indexOf('Low-confidence values')), /data-field-id="lab\.hgb\.value"/);
+  assert.match(needsReviewSection, /data-field-id="lab\.hgb\.value"/);
+  assert.equal((html.match(/data-field-id="lab\.hgb\.value"/g) || []).length, 1, 'low-confidence field should appear once in needs-review evidence');
 });
 
 test('lab reports are identity-checked on their printed patient header', async () => {
