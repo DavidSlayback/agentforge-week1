@@ -1,5 +1,18 @@
 import { clinicalLabel } from './clinicalLanguage.js';
 
+/**
+ * The click-to-source DOM id for one document citation's evidence row (S4
+ * owns the source-preview overlay; S6's grounded-answer panel links to it).
+ * Chars outside `[A-Za-z0-9_-]` become `-`, so any `field_or_chunk_id`
+ * (e.g. `lab.hgb.value`) is a safe, deterministic anchor id. This is a local
+ * copy of the rule S4's own `citationBoxId` export is expected to implement;
+ * if that export lands first, this one is dropped at merge rather than the
+ * two silently drifting apart.
+ */
+export function citationBoxId(fieldOrChunkId) {
+  return `box-${String(fieldOrChunkId ?? '').replace(/[^A-Za-z0-9_-]/g, '-')}`;
+}
+
 const escapeHtml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -109,6 +122,7 @@ button:disabled{opacity:.6;cursor:wait}
   const humanize = (value) => String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
+  const citationBoxId = ${citationBoxId.toString()};
   const displayLabel = (field) => { const label = clinicalLabel(field); return label.charAt(0).toUpperCase() + label.slice(1); };
   const renderBriefing = (response, container) => {
     const claims = response.claims || [];
@@ -290,6 +304,71 @@ button:disabled{opacity:.6;cursor:wait}
         evidencePanel.append(empty);
       }
       sourceStatus.append(document.createTextNode(' '), evidencePanel);
+      // S6 grounded answer: "patient record" facts and "guideline evidence"
+      // claims are rendered as separate sections (W2 scenario: "separate
+      // patient-record facts from guideline evidence"), each claim already
+      // verified against its own citations before the server ever sent it.
+      const answer = workflow.workflow.answer;
+      if (answer) {
+        const answerPanel = document.createElement('details');
+        answerPanel.open = true;
+        const answerHeading = document.createElement('summary');
+        answerHeading.textContent = 'Grounded answer (' + answer.composer + ')';
+        answerPanel.append(answerHeading);
+        const claimSection = (heading, claims) => {
+          const section = document.createElement('section');
+          const title = document.createElement('h4');
+          title.textContent = heading + ' (' + claims.length + ')';
+          section.append(title);
+          if (!claims.length) {
+            const empty = document.createElement('p');
+            empty.textContent = 'None verified for this question.';
+            section.append(empty);
+            return section;
+          }
+          const list = document.createElement('ul');
+          for (const claim of claims) {
+            const row = document.createElement('li');
+            const text = document.createElement('span');
+            text.textContent = claim.text + ' ';
+            row.append(text);
+            for (const citation of claim.citations) {
+              const link = document.createElement('a');
+              if (citation.source_type === 'guideline') {
+                // No public URL exists for the synthetic guideline corpus;
+                // the citation is still shown in full, just not as a live link.
+                link.textContent = '[' + citation.page_or_section + ']';
+                link.href = '#';
+                link.addEventListener('click', (event) => event.preventDefault());
+              } else {
+                link.href = basePath + '/v1/source-documents/' + encodeURIComponent(citation.source_id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken) + '#' + citationBoxId(citation.field_or_chunk_id);
+                link.target = '_blank';
+                link.textContent = '[' + citation.page_or_section + ']';
+              }
+              row.append(document.createTextNode(' '), link);
+            }
+            list.append(row);
+          }
+          section.append(list);
+          return section;
+        };
+        answerPanel.append(claimSection('Patient record', answer.patient_facts), claimSection('Guideline evidence', answer.guideline_evidence));
+        if (answer.needs_review.length) {
+          const reviewSection = document.createElement('section');
+          const reviewTitle = document.createElement('h4');
+          reviewTitle.textContent = 'Needs review (' + answer.needs_review.length + ')';
+          reviewSection.append(reviewTitle);
+          const reviewList = document.createElement('ul');
+          for (const item of answer.needs_review) {
+            const row = document.createElement('li');
+            row.textContent = item.field + ' -- ' + item.reason;
+            reviewList.append(row);
+          }
+          reviewSection.append(reviewList);
+          answerPanel.append(reviewSection);
+        }
+        sourceStatus.append(document.createTextNode(' '), answerPanel);
+      }
       sourceDocumentForm.reset();
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
     finally { setBusy(false); }

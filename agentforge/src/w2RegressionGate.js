@@ -7,12 +7,13 @@ import { InMemoryTraceSink } from '../../observability/index.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { validateScanExtractionTypedOutput } from './contracts.js';
 import { FixtureAdapter } from './fixtureAdapter.js';
-import { DeterministicProvider } from './modelProvider.js';
+import { DeterministicProvider, ResilientProvider } from './modelProvider.js';
 import { createRecordedOcrReplay } from './pdfScanAdapter.js';
 import { validateScanExtraction } from './scanFormContracts.js';
-import { Citation, IntakeForm, LabResult, parseOrIssues } from './schemas.js';
+import { Citation, GroundedAnswerResult, IntakeForm, LabResult, parseOrIssues } from './schemas.js';
 import { AgentForgeService } from './service.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
+import { DeterministicAnswerComposer } from './answerComposer.js';
 
 export const W2_GATE_LABELS = Object.freeze(['schema_valid', 'citation_present', 'factually_consistent', 'safe_refusal', 'no_phi_in_logs']);
 export const W2_GATE_CASE_COUNT = 50;
@@ -41,6 +42,30 @@ const Q = Object.freeze({
 const scan = (doc, declaredType, extra = {}) => ({ kind: 'scan', doc, declared_type: declaredType, upload_patient: P1, query: declaredType === 'lab_pdf' ? Q.glycemic : Q.medrec, ...extra });
 const kase = (id, category, guardsAgainst, scenario, expect) => ({ id, category, guards_against: guardsAgainst, synthetic_only: true, scenario, expect });
 
+// S6: an honestly-named fake model, used only by the `fake_provider_drops_invented_claim`
+// gate assertion (never in production). It builds one real, verifiable claim
+// from whatever facts the scenario actually supplies (via the same
+// deterministic templates production falls back to), then appends one
+// invented claim -- a fabricated value dressed in a real citation -- so the
+// case proves `verifyClaims` catches and drops fabricated model content
+// regardless of which golden document supplies the real facts.
+const INVENTED_CLAIM_MARKER = 'gate-test invented claim: potassium was recorded at 9.9 mmol/L on 2000-01-01.';
+function fakeInventingModelPrimary() {
+  const real = new DeterministicAnswerComposer();
+  return {
+    name: 'fake-inventing-model', model: 'gate-test-only',
+    async checkReady() { return true; },
+    async generate(args) {
+      const legit = JSON.parse((await real.generate(args)).text).claims.slice(0, 1);
+      const anyCitation = args.verifiedLabResults?.[0]?.citation || args.verifiedIntakeCitations?.[0] || args.patientFactCitations?.[0] || args.guidelineEvidence?.[0]?.citation;
+      const invented = anyCitation ? [{ kind: 'patient_fact', text: INVENTED_CLAIM_MARKER, citations: [anyCitation] }] : [];
+      return { text: JSON.stringify({ claims: [...legit, ...invented] }), inputTokens: 12, outputTokens: 12, estimatedCostUsd: 0.001 };
+    },
+  };
+}
+/** Scenario-level `answer_provider` factory (see `checkAnswer`'s `fake_provider_drops_invented_claim`). */
+const fakeInventingModelProvider = () => new ResilientProvider({ primary: fakeInventingModelPrimary(), fallback: new DeterministicAnswerComposer() });
+
 /**
  * The 50 golden cases. Each runs the real post-OCR path end to end through
  * `AgentForgeService` (upload → OCR replay → field mapping → typed
@@ -63,21 +88,21 @@ export function buildW2GoldenSet() {
     kase('cp-01-lab-a-citations', 'citation_present', 'A vector-PDF lab fact or typed result loses a citation key, cites the wrong document or the wrong line (e.g. the test-name line instead of the value line), quotes text not in the OCR, or points outside the page.', scan('lab-a', 'lab_pdf'), { citations: true }),
     kase('cp-03-intake-a-citations', 'citation_present', 'An observed intake field (demographics, meds, allergies, history) is emitted without a complete, verbatim citation.', scan('intake-a', 'intake_form'), { citations: true }),
     kase('cp-04-intake-b-citations', 'citation_present', 'Rasterized intake fields lose their page region or verbatim quote.', scan('intake-b', 'intake_form'), { citations: true }),
-    kase('cp-05-lab-d-citations', 'citation_present', 'Facts read from low-confidence OCR lines lose their human-review flag (so the preview would call them verified), or are cited with a reconstructed label instead of the verbatim OCR text.', scan('gen-lab-d-flags', 'lab_pdf'), { citations: true }),
+    kase('cp-05-lab-d-citations', 'citation_present', 'Facts read from low-confidence OCR lines lose their human-review flag (so the preview would call them verified), or are cited with a reconstructed label instead of the verbatim OCR text. S6: the same low-confidence values must also never surface as a grounded-answer patient_fact claim.', scan('gen-lab-d-flags', 'lab_pdf'), { citations: true, answer: { excludes_low_confidence: true } }),
     kase('cp-06-lab-e-scan-citations', 'citation_present', 'Facts from a partially read noisy scan are emitted uncited or with a box outside the page.', scan('gen-lab-e-scanned', 'lab_pdf'), { citations: true }),
     kase('cp-07-lab-as-intake-citations', 'citation_present', 'Facts from a document whose declared type is contradicted are shown without source provenance.', scan('gen-lab-c-table', 'intake_form'), { citations: true }),
     kase('cp-08-guideline-citations', 'citation_present', 'Guideline evidence reaches the workflow without the five-key guideline citation.', scan('lab-b', 'lab_pdf'), { guideline_citations: true }),
     kase('cp-11-scan-text-lab-citations', 'citation_present', 'A `.scan.txt` lab fact or typed result loses a citation key, quotes text not in the envelope, or points outside the page — the citation defect the retired LAB| path could hide.', scan('scan-text-lab-a', 'lab_pdf'), { citations: true }),
     kase('cp-12-scan-text-intake-citations', 'citation_present', 'An observed `.scan.txt` intake field loses its quote or page — the citation defect the retired INTAKE| path could hide.', scan('scan-text-intake-a', 'intake_form'), { citations: true }),
 
-    kase('fc-01-lab-a-values', 'factually_consistent', 'Value, unit, reference range, collection date, abnormal flag or confidence (min of its source lines) of a clean lab PDF no longer matches the document.', scan('lab-a', 'lab_pdf'), { lab_facts: {} }),
+    kase('fc-01-lab-a-values', 'factually_consistent', 'Value, unit, reference range, collection date, abnormal flag or confidence (min of its source lines) of a clean lab PDF no longer matches the document. S6: the grounded answer built from these same facts must have every claim cited with the 5-key contract, and patient-record claims must never appear in the guideline section or vice versa.', scan('lab-a', 'lab_pdf'), { lab_facts: {}, answer: { verified: true, separated: true } }),
     kase('fc-02-lab-b-values', 'factually_consistent', 'Values read from a rasterized lab PDF drift from the document (e.g. "Hgb" labels or a Yes flag mis-mapped).', scan('lab-b', 'lab_pdf'), { lab_facts: {} }),
     kase('fc-03-lab-d-high-low', 'factually_consistent', 'H and L flags collapse to normal/abnormal or are swapped.', scan('gen-lab-d-flags', 'lab_pdf'), { lab_facts: {} }),
     kase('fc-04-lab-e-scan-values', 'factually_consistent', 'A noisy scan produces a wrong value, or an A1C result is invented from the fields OCR could not read.', scan('gen-lab-e-scanned', 'lab_pdf'), { lab_facts: { optional_tests: ['A1C'] }, workflow: { final_state: 'QUALIFIED', reasons_include: ['extraction_incomplete'] } }),
     kase('fc-05-intake-a-values', 'factually_consistent', 'Intake demographics, chief concern, medications, allergies or family history no longer match the form.', scan('intake-a', 'intake_form'), { intake_facts: true }),
     kase('fc-06-intake-b-values', 'factually_consistent', 'Alternate intake labels map values into the wrong typed fields.', scan('intake-b', 'intake_form'), { intake_facts: true }),
     kase('fc-07-intake-own-patient', 'factually_consistent', 'The patient-identity check rejects a form whose demographics do match the chart, or its values drift.', scan('gen-intake-c-conflict', 'intake_form', { upload_patient: P2 }), { intake_facts: true, workflow: { final_state: 'READY', identity: 'match' } }),
-    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence.', scan('lab-b', 'lab_pdf', { query: Q.glycemic }), { retrieval_top: 'guideline-diabetes-follow-up-1' }),
+    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one real claim plus one invented, uncited-in-substance claim must have the invented claim dropped and counted, never shipped.', scan('lab-b', 'lab_pdf', { query: Q.glycemic, answer_provider: fakeInventingModelProvider }), { retrieval_top: 'guideline-diabetes-follow-up-1', answer: { fake_provider_drops_invented_claim: true } }),
     kase('fc-09-retrieval-fatigue', 'factually_consistent', 'Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.', scan('intake-a', 'intake_form', { query: Q.fatigue }), { retrieval_top: 'guideline-fatigue-review-1' }),
     kase('fc-10-retrieval-medrec', 'factually_consistent', 'Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.', scan('intake-b', 'intake_form', { query: Q.medrec }), { retrieval_top: 'guideline-medication-reconciliation-1' }),
 
@@ -87,7 +112,7 @@ export function buildW2GoldenSet() {
     kase('sr-04-lab-uploaded-as-intake', 'safe_refusal', 'A lab report uploaded as an intake form (header name/DOB readable) is reported READY instead of QUALIFIED doc_type_mismatch.', scan('gen-lab-c-table', 'intake_form'), { refusal: { final_state: 'QUALIFIED', reasons_include: ['doc_type_mismatch'], detected_type: 'lab_pdf' } }),
     kase('sr-05-patient-mismatch', 'safe_refusal', 'An intake form for another patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('gen-intake-c-conflict', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', retrieval_ran: false } }),
     kase('sr-06-cross-patient-read', 'safe_refusal', "A clinician scoped to one patient runs the scan workflow on another patient's document (the handler must answer 403).", scan('lab-a', 'lab_pdf', { request_patient: P2 }), { refusal: { service_status: 'blocked', reason: 'document_scope_mismatch' } }),
-    kase('sr-07-unsupported-query-scan', 'safe_refusal', 'An off-topic question gets guideline evidence or a READY state on the scan path.', scan('lab-a', 'lab_pdf', { query: Q.offTopic }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
+    kase('sr-07-unsupported-query-scan', 'safe_refusal', 'An off-topic question gets guideline evidence or a READY state on the scan path. S6: an off-topic question must also never produce a guideline claim in the grounded answer.', scan('lab-a', 'lab_pdf', { query: Q.offTopic }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true }, answer: { no_guideline_claims: true } }),
     kase('sr-09-corrupt-pdf', 'safe_refusal', 'A corrupt PDF crashes the request (HTTP 500) or produces a result instead of a structured BLOCKED document_unreadable refusal (HTTP 422).', scan('gen-corrupt', 'lab_pdf'), { refusal: { service_status: 'unreadable', reason: 'document_unreadable', traced_as: 'blocked' } }),
     kase('sr-11-intake-dob-mismatch', 'safe_refusal', "An intake form with this patient's name but a different date of birth is attached to the chart because only the name is compared.", scan('gen-intake-d-dob', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['dob'], retrieval_ran: false } }),
     kase('sr-12-no-chart-record', 'safe_refusal', 'A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.', scan('intake-a', 'intake_form', { upload_patient: P_UNKNOWN }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['patient_identity_unverified'], identity: 'unverified' } }),
@@ -160,11 +185,11 @@ function readGolden() {
 let goldenCache = null;
 const golden = () => (goldenCache ||= readGolden());
 
-function harness() {
+function harness({ answerProvider = null } = {}) {
   const secret = randomBytes(16).toString('hex');
   const traceSink = new FixedClockTraceSink();
   const writeback = new SyntheticWriteback();
-  const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, provider: new DeterministicProvider(), traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings) });
+  const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, provider: new DeterministicProvider(), answerProvider, traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings) });
   const context = (patient, scope = 'read-briefing') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: CLINICIAN, scope, acl: scope === 'read-briefing' ? 'read' : 'write', secret }), secret);
   const upload = async (doc, patient, documentType) => {
     const result = await service.ingestSourceDocument({ patient_uuid: patient, clinician_uuid: CLINICIAN, document_type: documentType, filename: `${doc.id}.${doc.kind === 'pdf' ? 'pdf' : 'scan.txt'}`, content: doc.content }, { verifiedContext: context(patient, 'write-source-document') });
@@ -175,7 +200,7 @@ function harness() {
 }
 
 async function runScenario(scenario) {
-  const h = harness();
+  const h = harness({ answerProvider: scenario.answer_provider ? scenario.answer_provider() : null });
   const docs = (scenario.docs || [scenario.doc]).map((id) => golden().docs.get(id));
   const run = { h, docs, sourceIds: [], result: null, error: null };
   try {
@@ -512,6 +537,70 @@ function checkNoPhi(run, output, expect) {
   return issues;
 }
 
+/**
+ * S6: assertions on `workflow.answer` (the grounded W2 answer). Attached via
+ * `expect.answer` to existing scan cases rather than new case ids, so the
+ * gate stays at exactly 50 cases (S4/S5 own other slices of this same file
+ * concurrently; reconciled at merge).
+ *
+ * `expect.answer` sub-flags:
+ *   verified: every claim in both sections has a citation with the 5 keys
+ *     (schema-level -- `verifyClaims` already dropped anything that failed
+ *     content-level binding before this ever sees it).
+ *   separated: `patient_facts` holds only `kind:'patient_fact'` claims and
+ *     `guideline_evidence` only `kind:'guideline'` -- the W2 scenario's
+ *     "separate patient-record facts from guideline evidence".
+ *   excludes_low_confidence: no fact this document's extraction flagged
+ *     low-confidence (`fact.uncertainty`) appears as a patient_fact claim,
+ *     and it is listed in `needs_review` instead.
+ *   no_guideline_claims: an off-topic/unsupported query never produces a
+ *     guideline claim (there is no evidence to cite one from).
+ *   fake_provider_drops_invented_claim: with `scenario.answer_provider` set
+ *     to `fakeInventingModelProvider`, the fabricated claim it returns is
+ *     dropped and counted in `unverified_dropped`, while the real claim
+ *     built from the same call survives.
+ */
+function checkAnswer(run, expect) {
+  if (run.error) return ['workflow_threw'];
+  const answer = run.result?.workflow?.answer;
+  if (!answer) return ['answer_missing'];
+  const issues = [];
+  const schemaValidation = parseOrIssues(GroundedAnswerResult, answer);
+  if (!schemaValidation.ok) return [...issues, ...schemaValidation.issues.map((issue) => `answer_schema_invalid:${issue}`)];
+  const allClaims = [...answer.patient_facts, ...answer.guideline_evidence];
+  if (expect.verified) {
+    if (!allClaims.length && !answer.needs_review.length) issues.push('answer_has_no_claims_and_nothing_needs_review');
+    for (const [index, claim] of allClaims.entries()) {
+      if (!claim.citations.length) issues.push(`answer_claim[${index}]:uncited`);
+      for (const citation of claim.citations) for (const key of CITATION_KEYS) if (typeof citation[key] !== 'string' || !citation[key].trim()) issues.push(`answer_claim[${index}]:citation_${key}_empty`);
+    }
+  }
+  if (expect.separated) {
+    if (answer.patient_facts.some((claim) => claim.kind !== 'patient_fact')) issues.push('answer_patient_facts_section_has_non_patient_fact_claim');
+    if (answer.guideline_evidence.some((claim) => claim.kind !== 'guideline')) issues.push('answer_guideline_section_has_non_guideline_claim');
+  }
+  if (expect.excludes_low_confidence) {
+    const extraction = extractionOf(run);
+    // Checked against the composer's own confidence gate (`LOW_CONFIDENCE_THRESHOLD`
+    // in answerComposer.js), i.e. the *typed* `LabResult.confidence` (min of
+    // its source fields) -- not a raw per-field `fact.uncertainty` flag,
+    // which can coincidentally share a value (e.g. the same collection date)
+    // with an unrelated, separately-confident fact and would false-positive here.
+    const lowConfidenceLabValues = (extraction?.lab_results || []).filter((result) => result.confidence < 0.85).map((result) => result.value).filter(Boolean);
+    if (!lowConfidenceLabValues.length) issues.push('no_low_confidence_fact_to_check');
+    const claimText = JSON.stringify(answer.patient_facts);
+    for (const value of lowConfidenceLabValues) if (claimText.includes(`recorded at ${value} `)) issues.push('answer_low_confidence_value_present_as_patient_fact');
+    if (lowConfidenceLabValues.length && !answer.needs_review.length) issues.push('answer_low_confidence_fact_not_listed_as_needs_review');
+  }
+  if (expect.no_guideline_claims && answer.guideline_evidence.length) issues.push('answer_has_guideline_claims_for_unsupported_query');
+  if (expect.fake_provider_drops_invented_claim) {
+    if (answer.composer !== 'model') issues.push('answer_fake_provider_not_used');
+    if (answer.unverified_dropped < 1) issues.push('answer_invented_claim_not_dropped_and_counted');
+    if (JSON.stringify(allClaims).includes(INVENTED_CLAIM_MARKER)) issues.push('answer_invented_claim_survived_verification');
+  }
+  return issues;
+}
+
 async function evaluateCase(testCase) {
   const issues = [];
   if (testCase.synthetic_only !== true || !W2_GATE_LABELS.includes(testCase.category) || !testCase.guards_against) issues.push('case_contract_invalid');
@@ -529,6 +618,7 @@ async function evaluateCase(testCase) {
     if (expect.retrieval_top) issues.push(...checkRetrievalTop(run, expect.retrieval_top));
     if (expect.refusal) issues.push(...checkRefusal(run, expect.refusal));
     if (expect.no_phi) issues.push(...checkNoPhi(run, output, expect.no_phi));
+    if (expect.answer) issues.push(...checkAnswer(run, expect.answer));
   }
   return { id: testCase.id, label: testCase.category, guards_against: testCase.guards_against, critical: testCase.category === 'no_phi_in_logs', passed: issues.length === 0, issues: [...new Set(issues)] };
 }

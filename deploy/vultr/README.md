@@ -118,6 +118,18 @@ AGENTFORGE_MODEL_SITE_NAME=AgentForge
 AGENTFORGE_MODEL_TIMEOUT_MS=8000
 ```
 
+As of S6 (the W2 grounded-answer composer), `agentforge-w2`'s compose block
+also sets these same `AGENTFORGE_MODEL_*` variables (previously only the W1
+`agentforge` block had them, so `AGENTFORGE_PROVIDER_MODE=qwen` on
+`agentforge-w2` had no endpoint/key behind it and silently ran deterministic
+only). There is no separate answer-model variable set: `answerComposer.js`'s
+`ResilientProvider` reuses the exact same configured client `server.js`
+builds from these values, wrapped with the deterministic *composer* as its
+fallback instead of the briefing `DeterministicProvider`. Setting these in the
+shared `.env` therefore makes both `agentforge` and `agentforge-w2` use the
+same model account for their respective jobs (briefing prose vs. the W2
+answer's `{claims:[...]}` JSON contract).
+
 For Model Studio, use the region-specific compatible endpoint documented by
 Alibaba and confirm the key belongs to that same region. The service retries
 the provider twice and rejects output that is empty, overlong, ungrounded in

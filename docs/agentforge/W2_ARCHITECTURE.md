@@ -109,8 +109,103 @@ and does not run the gate per request.
 Facts read from OCR lines below 0.85 confidence carry
 `low_confidence_requires_human_review`. They do not by themselves stop a
 document from being READY. The source preview lists them in a separate "not
-verified" section, and the W2 answer must exclude them or explicitly qualify
-them. The S6 answer composer will enforce that; nothing enforces it yet.
+verified" section, and the W2 answer excludes them (`answerComposer.js`,
+below) or lists them under `needs_review` -- never as a fact.
+
+## Supervisor decisions and the grounded answer (S6)
+
+`supervisor.js#decideNext(state) -> {next, reason}` is a pure function called
+in a loop by `runActiveSupervisor`; every decision is pushed to
+`workflow.decisions[]` and, when a trace is attached, recorded via
+`observer.recordDecision({next, reason})` (fixed state names and reason
+codes only -- no PHI, so no redaction is needed, but it is still passed
+through the trace's key-based redactor for defense in depth).
+
+| State (before) | Decision (`next`) | `reason` | When |
+|---|---|---|---|
+| No extraction yet, nothing cached | `EXTRACT` | `extraction_needed` | Ordinary first step |
+| No extraction yet, a handoff is cached for this `sourceDocumentId:ocrMode` | `RETRIEVE` | `extraction_cached` | Same document re-processed at the same OCR mode within one service instance's `extractionCache` |
+| Extraction just ran, fail-loud safety check found a blocking reason (`documentSafety.js`) | `DONE` | the blocking reason (`patient_mismatch`, `no_fields_extracted`, or `extraction_contract_invalid` for an invalid handoff) | Existing fail-loud behavior, now routed through the same decision loop |
+| Extraction valid, not blocking, mean confidence < 0.7, no retry used yet | `EXTRACT` | `low_confidence_retry` | Re-extracts once with the alternate Tesseract `--psm 4` mode (`ALTERNATE_OCR_MODE` in `pdfScanAdapter.js`); with no retry seam or no usable alternate content, the original extraction is kept and the loop moves on -- never a crash or a second retry |
+| Facts ready, no evidence yet, the question is a pure record lookup (`isRecordLookupQuestion`, e.g. "What was the hemoglobin value?") | `ANSWER` | `record_lookup_only` | RETRIEVE is skipped entirely; `typed_outputs.evidence` is `null` and the handoff list has only the extraction worker |
+| Facts ready, no evidence yet, an ordinary question | `RETRIEVE` | `evidence_needed` | Unchanged evidence-retrieval path |
+| Facts and (if not skipped) evidence both ready | `ANSWER` | `facts_and_evidence_ready` | Normal completion |
+| The loop safety cap is hit | `DONE` | `max_steps_reached` | QUALIFIED with that reason added to `qualification.reasons`, never BLOCKED -- whatever facts/evidence were gathered are still returned |
+
+`isRecordLookupQuestion` (duplicated, deliberately, in `supervisor.js` and
+`answerComposer.js` so both agree without a cross-import) matches only a
+direct "what is/was/are/were the X value/result/level/reading" question; an
+interpretive or open-ended question always still retrieves evidence.
+
+### Answer composer (`answerComposer.js`)
+
+Inputs are exactly three things: this document's typed extraction (lab
+results / intake form leaves), the top guideline evidence the
+evidence-retrieval worker already found, and chart facts from
+`AgentForgeService.retrievePatientChartFacts` (used by both the scan-supervisor
+answer and `/v1/follow-up-evidence`; each now carries a full 5-key `Citation`
+with `source_type: 'openemr_record'`, not just the flat fields it had before).
+Facts with `confidence < 0.85` are excluded before composition and listed
+under `needs_review` with a reason code -- never as a claim.
+
+A provider (the real model, or `DeterministicAnswerComposer`) returns
+`{claims:[{kind, text, citations}]}` -- the `GroundedAnswer` Zod contract.
+Every claim is then run through `verifyClaims` (`claimBinding.js`) with
+`allowedValues` set to exactly the facts/evidence given; a claim that fails
+binding is dropped, and the count survives as `unverified_dropped`. If the
+model's entire output has zero claims survive verification, the composer
+falls back to the deterministic composer rather than return a hollow answer.
+The result (`GroundedAnswerResult`, schemas.js) separates `patient_facts`
+(`kind: 'patient_fact'`) from `guideline_evidence` (`kind: 'guideline'`) --
+the W2 scenario's "separate patient-record facts from guideline evidence" --
+and labels `composer: 'model' | 'deterministic-fallback'`, honestly, never
+relabeled.
+
+The deterministic composer builds claims directly from the typed facts using
+only a closed, pre-approved vocabulary plus the cited value/label/field text,
+so they are guaranteed to verify (`labResultClaim`/`fieldValueClaim`/
+`guidelineClaim`). One caveat, documented in code: `claimBinding.js`'s
+tokenizer has no guard against a letter immediately following a digit
+(unlike the sentence-level checker), so a lab code such as "A1C" tokenizes
+into a stray, uncitable number ("hba", "1", "c"). Rather than change that
+shared tokenizer, the deterministic templates describe a test generically
+("A lab result was recorded at...") whenever its name contains a digit.
+
+`ResilientProvider` (`modelProvider.js`) wraps whichever real model is
+configured (`AGENTFORGE_PROVIDER_MODE`/`AGENTFORGE_MODEL_*` -- the same env
+`agentforge`'s briefing synthesis already reads) with
+`DeterministicAnswerComposer` as its fallback, not the briefing-shaped
+`DeterministicProvider` (which expects `patient`/`qualification`/`comparison`
+args the composer never has and would throw on). No model is configured for
+either the gate or the current deployment secrets in this checkpoint, so
+every observed `workflow.answer.composer` today is `deterministic-fallback`;
+the model path is exercised only by a fake provider in tests and the gate
+(below), not against a live model.
+
+`/v1/scan-supervisor` validates `workflow.answer` against
+`GroundedAnswerResult` before ever sending it; an invalid shape is a 500
+`response_contract_invalid`, matching the existing typed-extraction
+boundary check, never an unvalidated answer. The UI (`ui.js`) renders
+"Patient record" and "Guideline evidence" as separate sections with
+citation links (document citations to `#box-<field_or_chunk_id-slug>` on the
+source preview page; guideline citations have no public URL in the current
+synthetic corpus and are shown in full without a live link -- see Boundaries)
+plus a "Needs review" list.
+
+### Gate coverage
+
+Five of the 50 golden cases carry `expect.answer` assertions on top of their
+existing checks (no new case ids -- S4/S5 own other numeric ranges in the
+same 50-case file, so this stays additive to existing cases rather than
+risking an id collision at merge): `fc-01` (every claim verifies, cited, and
+correctly separated), `cp-05` (a low-confidence lab value never becomes a
+patient_fact claim), `sr-07` (an off-topic question yields zero guideline
+claims), and `fc-08` (a fake, honestly-named model provider that returns one
+real claim plus one invented one has the invented claim dropped and counted,
+never shipped). The baseline was rebaselined for these (old corpus hash
+`2025724409c74f2fd6934274d736c3e2f79eb671c098e9ed810bf1802813338f`, new
+`2a08f384982c8595e8c5152b820b963593428270002e8ab3318c9e70aa0f5428`); no case
+was removed, so the category counts are unchanged (9/9/10/13/9 = 50).
 
 ## Boundaries and residuals
 
@@ -125,3 +220,11 @@ reader. A managed model remains an explicit future decision. Vector retrieval,
 live OpenEMR read/writeback, current deployment identity, external reviewer
 access, owner-recorded video, social post, and interviews remain
 `INCONCLUSIVE` or `NEEDS_HUMAN` until separately evidenced.
+
+Guideline citations carry the same 5-key `Citation` as document citations,
+but the synthetic guideline corpus (`guidelineEvidence.js`) has no field for
+a real, public URL -- only `title`/`section`/`version`/`snippet`. The S6
+grounded-answer UI therefore shows the full guideline quote and its
+title/section/version but does not render it as a clickable link, rather
+than fabricate one from `source_id`. A real guideline corpus with citable
+URLs would close this gap without changing the citation contract.
