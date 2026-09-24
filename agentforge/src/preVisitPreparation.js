@@ -1,5 +1,6 @@
 import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse, validateRetrievalResult } from './contracts.js';
 import { verify, verifyGeneratedText } from './verifier.js';
+import { recordBelongsToPatient } from './recordScope.js';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 
@@ -405,9 +406,4 @@ function findConflictingFields(records, coverage, patientRef) {
     const latestValues = new Set(entries.filter((record) => record.recorded_at === latestRecordedAt).map((record) => String(record.value)));
     return latestValues.size > 1 ? [field] : [];
   });
-}
-
-/** Never relabel a source record whose explicit patient identity disagrees. */
-function recordBelongsToPatient(record, patientRef) {
-  return !record?.patient_ref || String(record.patient_ref) === String(patientRef);
 }

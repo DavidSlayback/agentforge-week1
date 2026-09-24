@@ -1,3 +1,5 @@
+import { parseBoundingBox, parseSourceFields } from './sourceEvidenceParsing.js';
+
 const REQUIRED_FIELDS = ['test', 'value', 'unit', 'reference_range', 'collection_date', 'abnormal', 'page', 'field_id', 'quote', 'bounding_box'];
 
 function issue(code, detail = '') { return detail ? `${code}:${detail}` : code; }
@@ -8,16 +10,8 @@ function parseBoolean(value) {
   return null;
 }
 
-function parseBoundingBox(value) {
-  const parts = String(value || '').split(',').map(Number);
-  return parts.length === 4 && parts.every((part) => Number.isFinite(part) && part >= 0) ? parts : null;
-}
-
 function parseRecord(line, sourceDocumentId, lineNumber) {
-  const values = Object.fromEntries(line.slice(4).split('|').map((part) => {
-    const separator = part.indexOf('=');
-    return separator < 0 ? [part, ''] : [part.slice(0, separator), part.slice(separator + 1)];
-  }));
+  const values = parseSourceFields(line, 'LAB|');
   const missing = REQUIRED_FIELDS.filter((field) => !String(values[field] || '').trim());
   if (missing.length) return { fact: null, issues: [issue('missing_fields', missing.join(','))] };
   const abnormal = parseBoolean(values.abnormal);
