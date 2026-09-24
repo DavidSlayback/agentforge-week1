@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { correlationId, validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest } from '../src/contracts.js';
+import { correlationId, validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateSourceDocumentRequest } from '../src/contracts.js';
 
 test('canonical request contracts reject body authorization and malformed input', () => {
   const legacy = validatePrepareRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', authorization: { status: 'authorized', scope: 'read-briefing' } });
@@ -60,14 +60,3 @@ test('source document contract requires a supported type, filename, and base64 c
   assert.ok(invalid.issues.includes('content_base64_invalid'));
 });
 
-test('lab evidence contract requires source-linked citation boxes', () => {
-  const valid = validateLabEvidenceResponse({ synthetic_only: true, source_document: { id: 'src-1' }, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field_id: 'lab.hgb', test: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12-16', collection_date: '2026-09-20', abnormal: false, citation: { source_type: 'document', source_id: 'src-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb', quote_or_value: 'Hemoglobin 13.2 g/dL', bounding_box: [10, 20, 100, 40] } }] }, observations: [] });
-  assert.equal(valid.valid, true);
-  assert.equal(validateLabEvidenceResponse({ synthetic_only: true, source_document: {}, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field_id: 'lab.hgb', test: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12-16', collection_date: '2026-09-20', abnormal: false, citation: { source_type: 'document', source_id: 'src-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb', quote_or_value: 'x', bounding_box: [10, 20] } }] }, observations: [] }).valid, false);
-  assert.equal(validateLabEvidenceResponse({ synthetic_only: true, source_document: { id: 'src-1' }, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field_id: 'lab.hgb', test: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12-16', collection_date: '2026-09-20', abnormal: false, citation: { source_type: 'lab_pdf', source_document_id: 'src-1', page: 1, field_id: 'lab.hgb', quote: 'Hemoglobin 13.2 g/dL', bounding_box: [10, 20, 100, 40] } }] }, observations: [] }).valid, false);
-});
-
-test('intake evidence contract requires source-linked section citations', () => {
-  const valid = validateIntakeEvidenceResponse({ synthetic_only: true, source_document: { id: 'src-1' }, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field: 'medication.metformin', field_id: 'intake.medications.1', value: '500 mg daily', section: 'Medications', citation: { source_type: 'document', source_id: 'src-1', page_or_section: 'page 1 · Medications', field_or_chunk_id: 'intake.medications.1', quote_or_value: 'Metformin 500 mg daily', bounding_box: [10, 20, 100, 40] } }] }, observations: [] });
-  assert.equal(valid.valid, true);
-});

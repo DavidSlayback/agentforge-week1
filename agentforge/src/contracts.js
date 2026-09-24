@@ -207,21 +207,6 @@ export function validateFollowUpRequest(value) {
   return { valid: issues.length === 0, issues };
 }
 
-export function validateSupervisorRequest(value) {
-  const issues = [];
-  const allowed = ['patient_uuid', 'message', 'clinician_uuid', 'demo_token', 'source_document_ids', 'source_document_context_token'];
-  if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
-  unknownFields(issues, value, allowed);
-  requiredFields(issues, value, ['patient_uuid', 'message', 'clinician_uuid']);
-  for (const field of ['patient_uuid', 'message', 'clinician_uuid']) if (field in value) nonEmptyString(issues, value, field);
-  if ('demo_token' in value && typeof value.demo_token !== 'string') issues.push('demo_token_must_be_string');
-  if ('source_document_ids' in value) {
-    if (!Array.isArray(value.source_document_ids) || value.source_document_ids.length > 10 || value.source_document_ids.some((id) => typeof id !== 'string' || !id.trim()) || new Set(value.source_document_ids).size !== value.source_document_ids.length) issues.push('source_document_ids_invalid');
-    if (typeof value.source_document_context_token !== 'string' || !value.source_document_context_token.trim()) issues.push('source_document_context_token_required');
-  } else if ('source_document_context_token' in value) issues.push('source_document_ids_required_for_source_context');
-  return { valid: issues.length === 0, issues };
-}
-
 export function validateSourceDocumentRequest(value) {
   const issues = [];
   const allowed = ['patient_uuid', 'clinician_uuid', 'demo_token', 'document_type', 'filename', 'content_base64'];
@@ -291,60 +276,6 @@ export function validateClinicalActionResponse(value) {
   return { valid: issues.length === 0, issues };
 }
 
-export function validateLabEvidenceResponse(value) {
-  const issues = [];
-  if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
-  unknownFields(issues, value, ['synthetic_only', 'source_document', 'extraction', 'observations']);
-  if (value.synthetic_only !== true) issues.push('synthetic_only_is_required');
-  if (!isRecord(value.source_document)) issues.push('source_document_must_be_object');
-  if (!isRecord(value.extraction)) issues.push('extraction_must_be_object');
-  else {
-    if (!['complete', 'qualified'].includes(value.extraction.status)) issues.push('extraction_status_invalid');
-    if (!Array.isArray(value.extraction.facts)) issues.push('extraction_facts_must_be_array');
-    if (!Array.isArray(value.extraction.issues)) issues.push('extraction_issues_must_be_array');
-    for (const [index, fact] of (value.extraction.facts || []).entries()) {
-      if (!isRecord(fact)) { issues.push(`facts[${index}]_must_be_object`); continue; }
-      for (const field of ['source_document_id', 'field_id', 'test', 'value', 'unit', 'reference_range', 'collection_date']) nonEmptyString(issues, fact, field);
-      if (typeof fact.abnormal !== 'boolean') issues.push(`facts[${index}].abnormal_must_be_boolean`);
-      // The W2 citation contract itself is delegated to the strict Zod
-      // `Citation` schema (schemas.js) — the source of truth for the exact
-      // five required keys — rather than hand-checked field by field here.
-      const citation = parseOrIssues(Citation, fact.citation);
-      issues.push(...citation.issues.map((issue) => `facts[${index}].citation_${issue}`));
-    }
-    // `lab_results` is the strict typed view (schemas.js `LabResult`); it
-    // must be validated here too, not just the legacy untyped `facts`.
-    if ('lab_results' in value.extraction) {
-      if (!Array.isArray(value.extraction.lab_results)) issues.push('extraction_lab_results_must_be_array');
-      else value.extraction.lab_results.forEach((result, index) => issues.push(...parseOrIssues(LabResult, result).issues.map((issue) => `lab_results[${index}].${issue}`)));
-    }
-  }
-  if (!Array.isArray(value.observations)) issues.push('observations_must_be_array');
-  return { valid: issues.length === 0, issues };
-}
-
-export function validateIntakeEvidenceResponse(value) {
-  const issues = [];
-  if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
-  unknownFields(issues, value, ['synthetic_only', 'source_document', 'extraction', 'observations']);
-  if (value.synthetic_only !== true) issues.push('synthetic_only_is_required');
-  if (!isRecord(value.source_document)) issues.push('source_document_must_be_object');
-  if (!isRecord(value.extraction)) issues.push('extraction_must_be_object');
-  else {
-    if (!['complete', 'qualified'].includes(value.extraction.status)) issues.push('extraction_status_invalid');
-    if (!Array.isArray(value.extraction.facts)) issues.push('extraction_facts_must_be_array');
-    if (!Array.isArray(value.extraction.issues)) issues.push('extraction_issues_must_be_array');
-    for (const [index, fact] of (value.extraction.facts || []).entries()) {
-      if (!isRecord(fact)) { issues.push(`facts[${index}]_must_be_object`); continue; }
-      for (const field of ['source_document_id', 'field', 'field_id', 'value', 'section']) nonEmptyString(issues, fact, field);
-      const citation = parseOrIssues(Citation, fact.citation);
-      issues.push(...citation.issues.map((issue) => `facts[${index}].citation_${issue}`));
-    }
-  }
-  if (!Array.isArray(value.observations)) issues.push('observations_must_be_array');
-  return { valid: issues.length === 0, issues };
-}
-
 /**
  * Validate the typed contract of a scan-form extraction (`extractScanForm`
  * output) before it is returned by the `/scan-form-evidence` and
@@ -390,18 +321,6 @@ export function validateFollowUpEvidenceResponse(value) {
   }
   if (!isRecord(value.retrieval)) issues.push('retrieval_must_be_object');
   if (!isRecord(value.qualification)) issues.push('qualification_must_be_object');
-  return { valid: issues.length === 0, issues };
-}
-
-export function validateSupervisorResponse(value) {
-  const issues = [];
-  if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
-  unknownFields(issues, value, ['workflow_version', 'final_state', 'readiness', 'stop_reason', 'transitions', 'handoffs', 'typed_outputs']);
-  for (const field of ['workflow_version', 'final_state', 'readiness']) nonEmptyString(issues, value, field);
-  if (!Array.isArray(value.transitions) || !value.transitions.length) issues.push('transitions_must_be_non_empty_array');
-  if (!Array.isArray(value.handoffs)) issues.push('handoffs_must_be_array');
-  else value.handoffs.forEach((handoff, index) => { if (!isRecord(handoff)) issues.push(`handoffs[${index}]_must_be_object`); else for (const field of ['worker', 'input_type', 'output_status']) nonEmptyString(issues, handoff, field); });
-  if (!isRecord(value.typed_outputs)) issues.push('typed_outputs_must_be_object');
   return { valid: issues.length === 0, issues };
 }
 

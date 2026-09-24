@@ -236,44 +236,33 @@ test('synthetic source document API uploads, deduplicates, reads back, and scope
   }
 });
 
-test('synthetic lab evidence API links derived observations to the source and deduplicates readback', async () => {
+test('the retired legacy lab-evidence, intake-evidence and supervisor routes now return 404', async () => {
   const port = 18805;
   const child = await startServer(port);
   try {
     const patient = 'fixture-patient-001';
-    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
     const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
     const content = 'LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40';
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'synthetic-lab.pdf', content_base64: Buffer.from(content).toString('base64') }) }).then((response) => response.json());
     assert.ok(upload.source_document?.id);
-    const path = `/v1/source-documents/${upload.source_document.id}/lab-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(writeContext.demo_token)}`;
-    const firstResponse = await fetch(`http://127.0.0.1:${port}${path}`);
-    assert.equal(firstResponse.status, 200);
-    const first = await firstResponse.json();
-    assert.equal(first.extraction.status, 'complete');
-    assert.equal(first.extraction.facts[0].citation.source_id, upload.source_document.id);
-    assert.equal(first.observations[0].observation.source_document_id, upload.source_document.id);
-    const retry = await fetch(`http://127.0.0.1:${port}${path}`).then((response) => response.json());
-    assert.equal(retry.observations[0].duplicate, true);
-  } finally {
-    child.kill();
-  }
-});
 
-test('synthetic intake evidence API links derived observations to the source', async () => {
-  const port = 18806;
-  const child = await startServer(port);
-  try {
-    const patient = 'fixture-patient-001';
-    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
-    const content = 'INTAKE|field=chief_concern|value=follow-up for fatigue|section=Chief concern|page=1|field_id=intake.concern|quote=Follow-up for fatigue|bounding_box=10,20,100,40';
-    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'intake_form', filename: 'synthetic-intake.json', content_base64: Buffer.from(content).toString('base64') }) }).then((response) => response.json());
-    const evidence = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/intake-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(writeContext.demo_token)}`);
-    assert.equal(evidence.status, 200);
-    const body = await evidence.json();
-    assert.equal(body.extraction.facts[0].citation.page_or_section, 'page 1 · Chief concern');
-    assert.equal(body.observations[0].observation.source_document_id, upload.source_document.id);
+    // These two URLs now fall through to the generic
+    // `/v1/source-documents/:id` reader (there is no `/lab-evidence` or
+    // `/intake-evidence` route left to match first), which reports a 404
+    // because "id/lab-evidence" is not a stored document id — still a 404,
+    // just with that reader's own not-found body rather than the server's
+    // generic `not_found` fallback.
+    const labEvidence = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/lab-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(writeContext.demo_token)}`);
+    assert.equal(labEvidence.status, 404);
+    assert.equal((await labEvidence.json()).error, 'DOCUMENT_NOT_FOUND');
+
+    const intakeEvidence = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/intake-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(writeContext.demo_token)}`);
+    assert.equal(intakeEvidence.status, 404);
+    assert.equal((await intakeEvidence.json()).error, 'DOCUMENT_NOT_FOUND');
+
+    const supervisor = await fetch(`http://127.0.0.1:${port}/v1/supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', message: 'anything', demo_token: writeContext.demo_token }) });
+    assert.equal(supervisor.status, 404);
+    assert.equal((await supervisor.json()).error, 'not_found');
   } finally {
     child.kill();
   }
