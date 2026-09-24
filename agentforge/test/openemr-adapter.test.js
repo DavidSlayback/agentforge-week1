@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
+import { SimulatedOpenEMRAdapter } from './helpers/simulatedOpenemrAdapter.js';
 import { AgentForgeService } from '../src/service.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';

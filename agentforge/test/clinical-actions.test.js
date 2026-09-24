@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { SyntheticClinicalActionStore } from '../src/clinicalActions.js';
-import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
+import { SimulatedOpenEMRAdapter } from './helpers/simulatedOpenemrAdapter.js';
 import { AgentForgeService } from '../src/service.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 import { startTestServer } from './helpers/testServer.js';
