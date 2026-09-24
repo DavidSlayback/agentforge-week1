@@ -63,10 +63,18 @@ export function splitSentences(text) {
 /**
  * Tokens for structural binding: numbers (normalized), words, unit tokens
  * such as "g/dl", and "%". Dates are returned separately.
+ *
+ * The alnum-word alternative (`[a-z]+[a-z0-9]*\d[a-z0-9]*`) is tried before
+ * the bare-number alternative so a lab code such as "A1C" or "HbA1c" -- a
+ * letter run containing a digit -- tokenizes as one word, not word+NUMBER+word
+ * ("hba", "1", "c"). That split used to leave a stray digit with no citation
+ * to match it (UNSUPPORTED_NUMBER) even though it was part of a name, not a
+ * value; this mirrors the boundary guard `quantitiesIn` already applies to
+ * real quantities (a digit run adjacent to a letter is never a bare number).
  */
 export function bindingTokens(text) {
   const { dates, rest } = extractDates(canonicalText(text));
-  const tokens = [...rest.matchAll(/\d+(?:\.\d+)?|[a-z]+(?:\/[a-z]+)?|%/g)].map((match) => (/^\d/.test(match[0]) ? String(Number(match[0])) : match[0]));
+  const tokens = [...rest.matchAll(/[a-z]+[a-z0-9]*\d[a-z0-9]*|\d+(?:\.\d+)?|[a-z]+(?:\/[a-z]+)?|%/g)].map((match) => (/^\d/.test(match[0]) ? String(Number(match[0])) : match[0]));
   return { dates, tokens };
 }
 

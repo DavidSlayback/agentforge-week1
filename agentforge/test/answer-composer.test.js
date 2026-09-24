@@ -37,12 +37,78 @@ test('deterministic composer: lab, intake, chart, and guideline facts all produc
   assert.ok(result.guideline_evidence.every((claim) => claim.kind === 'guideline'));
 });
 
-test('deterministic composer: a test name with an embedded digit (A1C) is described generically but still verifies', async () => {
+test('deterministic composer: a test name with an embedded digit (A1C) is named exactly, not genericized, and still verifies', async () => {
+  const a1c = labResult({ test_name: 'A1C', value: '6.1', unit: '%', reference_range: 'under 5.7', collection_date: '2026-09-20', abnormal_flag: 'abnormal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.a1c.value', quote_or_value: 'A1C value: 6.1' } });
+  const result = await composeGroundedAnswer({ labResults: [a1c] }, {});
+  assert.equal(result.unverified_dropped, 0);
+  assert.equal(result.patient_facts.length, 1);
+  assert.match(result.patient_facts[0].text, /^A1C 6\.1 % on 2026-09-20 \(reference under 5\.7\), flagged abnormal\.$/);
+});
+
+test('deterministic composer: a Hemoglobin A1c test name is also named exactly (the combined-name golden fixture spelling)', async () => {
   const a1c = labResult({ test_name: 'Hemoglobin A1c', value: '8.2', unit: '%', reference_range: '4.0-5.6', abnormal_flag: 'high', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.a1c.value', quote_or_value: '8.2' } });
   const result = await composeGroundedAnswer({ labResults: [a1c] }, {});
   assert.equal(result.unverified_dropped, 0);
   assert.equal(result.patient_facts.length, 1);
-  assert.match(result.patient_facts[0].text, /8\.2 %/);
+  assert.match(result.patient_facts[0].text, /^Hemoglobin A1c 8\.2 %/);
+});
+
+test('deterministic composer: intake claims are the form\'s own labeled line, not wrapped in a duplicate label', async () => {
+  const chiefConcern = intakeLeaf({ citation: { source_type: 'document', source_id: 'doc-2', page_or_section: 'page 1', field_or_chunk_id: 'chief_concern', quote_or_value: 'Chief concern: Fatigue for two weeks' } });
+  const medication = intakeLeaf({ value: 'Metformin 500 mg daily', citation: { source_type: 'document', source_id: 'doc-2', page_or_section: 'page 1', field_or_chunk_id: 'medications', quote_or_value: 'Current medications: Metformin 500 mg daily' } });
+  const result = await composeGroundedAnswer({ intakeForm: intakeForm({ chief_concern: chiefConcern, current_medications: [medication] }) }, {});
+  assert.equal(result.unverified_dropped, 0);
+  assert.equal(result.patient_facts.length, 2);
+  assert.ok(result.patient_facts.some((claim) => claim.text === 'Chief concern: Fatigue for two weeks.'));
+  assert.ok(result.patient_facts.some((claim) => claim.text === 'Current medications: Metformin 500 mg daily.'));
+  // Never a doubled label like "records chief concern as Chief concern: ...".
+  assert.ok(!result.patient_facts.some((claim) => /records .* as /.test(claim.text)));
+});
+
+test('demographics (name, DOB, phone) never appear as a patient_fact claim, even though the intake form has them observed', async () => {
+  const demographics = {
+    name: { status: 'observed', value: 'Test Patient One', confidence: 0.99, citation: { source_type: 'document', source_id: 'doc-2', page_or_section: 'page 1', field_or_chunk_id: 'patient.name', quote_or_value: 'Patient name: Test Patient One' } },
+    dob: { status: 'observed', value: '1980-04-12', confidence: 0.99, citation: { source_type: 'document', source_id: 'doc-2', page_or_section: 'page 1', field_or_chunk_id: 'patient.date_of_birth', quote_or_value: 'Date of birth: 1980-04-12' } },
+    phone: { status: 'observed', value: '555-0100', confidence: 0.99, citation: { source_type: 'document', source_id: 'doc-2', page_or_section: 'page 1', field_or_chunk_id: 'patient.phone', quote_or_value: 'Phone: 555-0100' } },
+  };
+  const result = await composeGroundedAnswer({ intakeForm: intakeForm({ demographics }) }, {});
+  assert.equal(result.patient_facts.length, 1); // only the default chief_concern leaf
+  assert.ok(!JSON.stringify(result.patient_facts).match(/Test Patient One|1980-04-12|555-0100/), 'demographics must never reach a patient_fact claim');
+  assert.equal(result.needs_review.length, 0, 'excluded demographics are not low-confidence -- they are simply never sent, not flagged for review');
+});
+
+test('model path: claims that name each lab test exactly as its own test_name verify with zero drops', async () => {
+  const a1c = labResult({ test_name: 'Hemoglobin A1C', value: '6.1', unit: '%', reference_range: 'under 5.7', collection_date: '2026-09-20', abnormal_flag: 'abnormal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.a1c.value', quote_or_value: '6.1' } });
+  const fakePrimary = {
+    name: 'naming-model', model: 'naming-v1', async checkReady() { return true; },
+    async generate() {
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin A1C 6.1 % on 2026-09-20 (reference under 5.7), flagged abnormal.', citations: [a1c.citation] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [a1c] }, { provider });
+  assert.equal(result.composer, 'model');
+  assert.equal(result.unverified_dropped, 0);
+  assert.equal(result.patient_facts.length, 1);
+  assert.match(result.patient_facts[0].text, /Hemoglobin A1C/);
+});
+
+test('model path: a claim naming a different test than the one it cites is dropped, not shipped', async () => {
+  const hemoglobinResult = labResult({ test_name: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12.0-16.0', abnormal_flag: 'normal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: '13.2' } });
+  const fakePrimary = {
+    name: 'wrong-name-model', model: 'wrong-v1', async checkReady() { return true; },
+    async generate() {
+      // Cites the Hemoglobin result but names it "A1C" -- must fail structural
+      // binding (LAB_NAME_ALIASES is scoped per-fact, not a blanket allowlist).
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'A1C 13.2 g/dL on 2026-01-05, reference 12.0-16.0, flagged normal.', citations: [hemoglobinResult.citation] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [hemoglobinResult] }, { provider });
+  assert.equal(result.unverified_dropped, 1);
+  assert.ok(!JSON.stringify(result.patient_facts).includes('A1C'), 'the wrongly-named claim must never survive');
+  // The deterministic top-up/fallback still answers the fact under its real name.
+  assert.ok(JSON.stringify(result.patient_facts).includes('Hemoglobin'));
 });
 
 test('low-confidence facts are excluded from patient_facts and listed as needs_review, never as a claim', async () => {
