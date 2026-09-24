@@ -14,6 +14,9 @@ const intakeLeaf = (value, field, page = 'page 2') => ({ status: 'observed', val
 const hemoglobin = labResult('Hemoglobin', '13.2', 'g/dL', '12.0-15.5 g/dL', 'normal', 'lab.hemoglobin');
 const potassium = labResult('Potassium', '4.1', 'mmol/L', '3.5-5.1 mmol/L', 'normal', 'lab.k');
 const hba1c = labResult('HbA1c', '7.2', '%', '4.0-5.6 %', 'high', 'lab.hba1c');
+// Golden-truth test-name spelling (test/fixtures/golden/truth/lab-a.json):
+// raw test_name "A1C", exercised through `LAB_NAME_ALIASES`.
+const a1c = labResult('A1C', '6.1', '%', 'under 5.7', 'abnormal', 'lab.a1c');
 const metformin = intakeLeaf('Metformin 500 mg daily', 'current_medications.0');
 const metformin1000 = intakeLeaf('Metformin 1000 mg daily', 'current_medications.1');
 const chiefConcern = intakeLeaf('Fatigue for two weeks', 'chief_concern');
@@ -36,7 +39,7 @@ const cdc = {
   sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: [], degraded: null,
   citation: citation('guideline', 'cdc-a1c-test-definition', 'cdc-a1c-test-definition', cdcSnippet, 'What Is the A1C Test?'),
 };
-const allowedValues = [hemoglobin, potassium, hba1c, metformin, metformin1000, chiefConcern, allergy, age, metforminStarted, ada, cdc];
+const allowedValues = [hemoglobin, potassium, hba1c, a1c, metformin, metformin1000, chiefConcern, allergy, age, metforminStarted, ada, cdc];
 
 const fact = (text, ...citations) => ({ kind: 'patient_fact', text, citations });
 const guideline = (text, ...citations) => ({ kind: 'guideline', text, citations });
@@ -71,6 +74,12 @@ const FAILING_PROBES = [
   ['42 ER visits citing age 42', fact('42 ER visits.', age), ['UNSUPPORTED_TOKEN']],
   ['chest pain citing the fatigue field', fact('Chest pain for two weeks.', chiefConcern.citation), ['CITED_VALUE_MISSING', 'UNSUPPORTED_TOKEN']],
   ['hemoglobin claim citing lab.k', fact('Hemoglobin 4.1 mmol/L.', potassium.citation), ['UNSUPPORTED_TOKEN']],
+  // The A1C alias may only be used when the claim actually cites the A1C
+  // result -- naming it while citing a different lab (here, plain
+  // "Hemoglobin") must still fail (LAB_NAME_ALIASES is scoped per fact).
+  ['A1C named while citing the plain hemoglobin result', fact('A1C 13.2 g/dL.', hemoglobin.citation), ['UNSUPPORTED_TOKEN']],
+  ['HbA1c named while citing the plain hemoglobin result', fact('HbA1c 13.2 g/dL.', hemoglobin.citation), ['UNSUPPORTED_TOKEN']],
+  ['Hemoglobin named while citing the A1C result', fact('Hemoglobin 6.1 %.', a1c.citation), ['UNSUPPORTED_TOKEN']],
   ['fake source_id', fact('Hemoglobin 13.2 g/dL.', { ...hemoglobin.citation, source_id: 'doc-fake' }), ['CITATION_NOT_ALLOWED']],
   ['field-less citation', fact('Hemoglobin 13.2 g/dL.', { ...hemoglobin.citation, field_or_chunk_id: undefined }), ['CITATION_INVALID']],
   ['quote-only match with wrong ids', fact('Hemoglobin 13.2 g/dL.', { ...hemoglobin.citation, source_id: 'doc-other', field_or_chunk_id: 'lab.other' }), ['CITATION_NOT_ALLOWED']],
@@ -114,6 +123,12 @@ const PASSING_PROBES = [
   ['typed collection date', fact('Hemoglobin 13.2 g/dL, collected on 2026-09-20.', hemoglobin.citation)],
   ['normal flag supports within the normal range', fact('Hemoglobin 13.2 g/dL is within the normal range of 12.0-15.5 g/dL.', hemoglobin.citation)],
   ['high flag supports high', fact('HbA1c 7.2 % is high.', hba1c.citation)],
+  // LAB_NAME_ALIASES: the raw golden-truth test name is "A1C"; a claim may
+  // spell it any of the aliased ways as long as it cites that same result.
+  ['A1C named exactly as its raw test_name, citing its own result', fact('A1C 6.1 % is abnormal.', a1c.citation)],
+  ['A1C named as the combined Hemoglobin A1C alias, citing its own result', fact('Hemoglobin A1C 6.1 % on 2026-09-20, reference under 5.7, is abnormal.', a1c.citation)],
+  ['A1C named as glycated hemoglobin, citing its own result', fact('Glycated hemoglobin 6.1 % is abnormal.', a1c.citation)],
+  ['Hb alias for the plain hemoglobin result', fact('Hb 13.2 g/dL.', hemoglobin.citation)],
   ['typed intake medication leaf', fact('The intake form lists Metformin 500 mg daily.', metformin.citation)],
   ['typed intake chief concern leaf', fact('The chief concern is fatigue for two weeks.', chiefConcern.citation)],
   ['typed intake allergy leaf', fact('Allergy on file: Penicillin (hives).', allergy.citation)],

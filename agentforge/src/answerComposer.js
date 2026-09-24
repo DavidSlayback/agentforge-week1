@@ -63,41 +63,44 @@ function fieldWords(fieldOrChunkId) {
 const ABNORMAL_FLAG_WORDS = new Set(['high', 'low', 'normal', 'abnormal']);
 
 /**
- * `claimBinding.js`'s tokenizer (`groundingText.js#bindingTokens`) matches a
- * bare `\d+` for numbers with no guard against a letter immediately
- * following (unlike the sentence-level `quantitiesIn`, which excludes that
- * case). A lab code such as "A1C" or "HbA1c" therefore tokenizes as
- * word+NUMBER+word ("hba", "1", "c"), and that stray "1" has no citation to
- * match -- `UNSUPPORTED_NUMBER` -- even though it is part of a name, not a
- * value. Rather than change that shared tokenizer, the deterministic
- * templates below simply never spell out a label containing a digit; a
- * label without one (e.g. "Hemoglobin") is safe to name directly.
- */
-const hasEmbeddedDigit = (text) => /\d/.test(String(text || ''));
-
-/**
- * Deterministic patient-fact claim for one typed `LabResult`. Every word
- * outside the cited value/range is drawn from a closed, pre-approved
- * vocabulary (`clinicalVocabulary.js` `BINDING_VOCABULARY`) or the result's
- * own test name, so this always verifies against `claimBinding.js`.
+ * Deterministic patient-fact claim for one typed `LabResult`. Names the test
+ * exactly as its own `test_name` (verbatim, never genericized): the shared
+ * tokenizer (`groundingText.js#bindingTokens`) now keeps a lab code such as
+ * "A1C" or "HbA1c" as one word token instead of splitting it into
+ * word+NUMBER+word, and `LAB_NAME_ALIASES` (`clinicalVocabulary.js`)
+ * additionally lets the claim use one of that same test's known alternate
+ * spellings. Every other word outside the cited value/range is drawn from a
+ * closed, pre-approved vocabulary (`BINDING_VOCABULARY`), so this always
+ * verifies against `claimBinding.js`.
  */
 function labResultClaim(result) {
   const flagWord = ABNORMAL_FLAG_WORDS.has(result.abnormal_flag) ? result.abnormal_flag : null;
-  const subject = hasEmbeddedDigit(result.test_name) ? 'A lab result' : result.test_name;
-  const text = `${subject} was recorded at ${result.value} ${result.unit} on ${result.collection_date}, reference range ${result.reference_range}${flagWord ? `, and is ${flagWord}` : ''}.`;
+  const text = `${result.test_name} ${result.value} ${result.unit} on ${result.collection_date} (reference ${result.reference_range})${flagWord ? `, flagged ${flagWord}` : ''}.`;
   return { kind: 'patient_fact', text, citations: [result.citation] };
 }
 
-/** Deterministic patient-fact claim for one observed intake-form leaf or one
- * OpenEMR chart-record citation. Both shapes carry a `citation` with a
- * `field_or_chunk_id` but no separate label, so the field name in the claim
+/** Deterministic patient-fact claim for one OpenEMR chart-record citation.
+ * Chart-record citations carry a `field_or_chunk_id` but no separate label
+ * and a bare (unlabeled) `quote_or_value`, so the field name in the claim
  * text is derived from that id the same way `claimBinding.js` will re-derive
  * it, and the value is echoed verbatim. */
 function fieldValueClaim(citation) {
-  const subject = citation.source_type === 'openemr_record' ? 'The chart records' : 'The intake form records';
   const raw = fieldWords(citation.field_or_chunk_id);
-  const descriptor = hasEmbeddedDigit(raw) ? '' : raw;
-  const text = (descriptor ? `${subject} ${descriptor} as ${citation.quote_or_value}.` : `${subject} ${citation.quote_or_value}.`).replace(/\s+/g, ' ');
+  const text = (raw ? `The chart records ${raw} as ${citation.quote_or_value}.` : `The chart records ${citation.quote_or_value}.`).replace(/\s+/g, ' ');
+  return { kind: 'patient_fact', text, citations: [citation] };
+}
+
+/** Deterministic patient-fact claim for one observed intake-form leaf
+ * (chief concern, a medication, an allergy, or a family-history entry --
+ * never demographics, which `composeGroundedAnswer` excludes before this is
+ * ever called). Unlike a chart-record citation, an intake leaf's
+ * `quote_or_value` is the verbatim "<label>: <value>" line the source form
+ * (or its OCR) actually prints -- e.g. "Chief concern: Fatigue for two
+ * weeks" -- so the claim echoes it as-is rather than wrapping it in another
+ * subject/label, which would just repeat the same label twice. */
+function intakeFieldClaim(citation) {
+  const quote = String(citation.quote_or_value || '').trim();
+  const text = /[.!?]$/.test(quote) ? quote : `${quote}.`;
   return { kind: 'patient_fact', text, citations: [citation] };
 }
 
@@ -121,7 +124,7 @@ export class DeterministicAnswerComposer {
   async generate({ verifiedLabResults = [], verifiedIntakeCitations = [], guidelineEvidence = [], patientFactCitations = [] } = {}) {
     const claims = [
       ...verifiedLabResults.map(labResultClaim),
-      ...verifiedIntakeCitations.map(fieldValueClaim),
+      ...verifiedIntakeCitations.map(intakeFieldClaim),
       ...patientFactCitations.map(fieldValueClaim),
       ...guidelineEvidence.map(guidelineClaim),
     ];
@@ -129,6 +132,12 @@ export class DeterministicAnswerComposer {
   }
 }
 
+// F8 review fix: demographics (name/DOB/phone/sex) are identity data --
+// already checked by documentSafety.js -- not clinical findings for "what
+// changed / what to pay attention to". `composeGroundedAnswer` never passes
+// them into `facts` (see `collectIntakeLeaves`), so they never reach the
+// prompt or the model's own claims either; only clinical intake fields
+// (chief concern, medications, allergies, family history) do.
 function buildPrompt({ question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations }) {
   const facts = [
     ...verifiedLabResults.map((result) => ({ kind: 'lab_result', test_name: result.test_name, value: result.value, unit: result.unit, reference_range: result.reference_range, collection_date: result.collection_date, abnormal_flag: result.abnormal_flag, citation: result.citation })),
@@ -137,7 +146,8 @@ function buildPrompt({ question, verifiedLabResults, verifiedIntakeCitations, gu
   ];
   return [
     'You are a clinical documentation assistant preparing a return-visit answer.',
-    'Answer strictly from the facts and guideline evidence listed below. Copy every cited value, date, and guideline quote verbatim from its source. Never invent a value. Never recommend a treatment, diagnosis, medication change, or other clinical action -- describe only what is documented.',
+    'Answer strictly from the facts and guideline evidence listed below. Never invent a value. Never recommend a treatment, diagnosis, medication change, or other clinical action -- describe only what is documented.',
+    'Rules: one claim per fact, do not combine facts. Name each lab test exactly as its own test_name (verbatim, digits and all -- e.g. "A1C", never a generic substitute). Copy every cited value, unit, date, and range verbatim. Guideline claims must quote their snippet verbatim (at least 8 words).',
     'Return ONLY a JSON object of this exact shape, no prose outside it:',
     '{"claims":[{"kind":"patient_fact"|"guideline","text":"...","citations":[{"source_type":"document"|"guideline"|"openemr_record","source_id":"...","page_or_section":"...","field_or_chunk_id":"...","quote_or_value":"..."}]}]}',
     `Clinician question: ${question || '(none provided)'}`,
@@ -306,7 +316,7 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
     const covered = new Set(outcome.verified.flatMap((claim) => claim.citations.map((citation) => citationKey(citation))));
     const topup = [
       ...verifiedLabResults.filter((result) => !covered.has(citationKey(result.citation))).map(labResultClaim),
-      ...verifiedIntakeCitations.filter((citation) => !covered.has(citationKey(citation))).map(fieldValueClaim),
+      ...verifiedIntakeCitations.filter((citation) => !covered.has(citationKey(citation))).map(intakeFieldClaim),
       ...patientFactCitations.filter((citation) => !covered.has(citationKey(citation))).map(fieldValueClaim),
       ...guidelineEvidence.filter((evidence) => !covered.has(citationKey(evidence.citation))).map(guidelineClaim),
     ];
@@ -338,8 +348,21 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
   };
 }
 
+/**
+ * Observed intake-form leaves that are clinical findings for the W2 answer
+ * ("what changed, what to pay attention to") -- chief concern, current
+ * medications, allergies, and family history. Demographics (`name`, `dob`,
+ * `phone`, `sex`) are deliberately excluded (F8 review fix): they are
+ * identity data already checked by `documentSafety.js`, not clinical
+ * findings, and echoing them here just bloats the prompt and the answer
+ * with a claim whose text duplicates the form's own label (e.g. "The intake
+ * form records patient name as Patient name: Test Patient One."). They
+ * remain fully present in `intakeForm` itself (the typed extraction output)
+ * and in every identity check -- only the model prompt and the answer's own
+ * claims exclude them.
+ */
 function collectIntakeLeaves(intakeForm) {
   if (!intakeForm) return [];
-  const leaves = [intakeForm.demographics?.name, intakeForm.demographics?.dob, intakeForm.demographics?.phone, intakeForm.chief_concern, ...(intakeForm.current_medications || []), ...(intakeForm.allergies || []), ...(intakeForm.family_history || [])];
+  const leaves = [intakeForm.chief_concern, ...(intakeForm.current_medications || []), ...(intakeForm.allergies || []), ...(intakeForm.family_history || [])];
   return leaves.filter((leaf) => leaf && leaf.status === 'observed');
 }

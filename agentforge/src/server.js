@@ -21,6 +21,7 @@ import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, l
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
 import { createLiveGeminiClient } from './geminiClient.js';
+import { createRerankerFromEnv } from './reranker.js';
 import { readBuildSha } from './buildInfo.js';
 import { renderPdfPagePng } from './pdfScanAdapter.js';
 
@@ -132,10 +133,19 @@ const ragProviderMode = process.env.AGENTFORGE_RAG_PROVIDER || 'local-lexical';
 if (!['local-lexical', 'cohere', 'gemini-hybrid'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical, cohere, or gemini-hybrid');
 if (ragProviderMode === 'cohere' && liveOpenEMR) throw new Error('Cohere RAG is restricted to the synthetic OpenEMR mode');
 if (ragProviderMode === 'gemini-hybrid' && liveOpenEMR) throw new Error('Gemini hybrid RAG is restricted to the synthetic OpenEMR mode');
+// Dense retrieval (embeddings) and reranking are independently configured
+// (owner decision 2026-09-24): the Gemini free-tier key exhausts itself on
+// the listwise rerank alone (20 requests/day, 5/min), so W2 keeps Gemini
+// embeddings for dense retrieval but reranks with Qwen by default
+// (AGENTFORGE_RERANK_PROVIDER=qwen); `AGENTFORGE_RERANK_PROVIDER=gemini`
+// keeps the original all-Gemini pipeline, and a later dedicated reranker
+// (Cohere or equivalent) drops in the same way — see reranker.js.
+const guidelineEmbedClient = process.env.GEMINI_API_KEY ? createLiveGeminiClient({ apiKey: process.env.GEMINI_API_KEY }) : null;
+const guidelineReranker = createRerankerFromEnv(process.env);
 const guidelineRetriever = ragProviderMode === 'cohere'
   ? createCohereGuidelineRetriever({ apiKey: process.env.AGENTFORGE_COHERE_API_KEY })
   : ragProviderMode === 'gemini-hybrid'
-    ? createGeminiHybridGuidelineRetriever({ geminiClient: process.env.GEMINI_API_KEY ? createLiveGeminiClient({ apiKey: process.env.GEMINI_API_KEY }) : null })
+    ? createGeminiHybridGuidelineRetriever({ embedClient: guidelineEmbedClient, reranker: guidelineReranker })
     : null;
 const openEMRTokenProvider = liveOpenEMR && process.env.AGENTFORGE_OPENEMR_CLIENT_ID && process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET && process.env.AGENTFORGE_OPENEMR_TOKEN_URL && process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH
   ? new OpenEMRRefreshTokenProvider({ tokenUrl: process.env.AGENTFORGE_OPENEMR_TOKEN_URL, clientId: process.env.AGENTFORGE_OPENEMR_CLIENT_ID, clientSecret: process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET, cachePath: process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) })

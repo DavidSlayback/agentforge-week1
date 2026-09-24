@@ -25,6 +25,26 @@ export const TERM_SYNONYMS = Object.freeze([
   [/\bcoronary artery disease\b/g, 'cad'],
 ]);
 
+/**
+ * Alternate names a `patient_fact` claim may use for a cited `LabResult`'s
+ * own test, keyed by that result's raw `test_name` (lowercased, exactly as
+ * the source document/OCR prints it). Limited to the lab tests present in
+ * the W2 golden-truth fixtures (`test/fixtures/golden/truth/*.json`):
+ * "Hemoglobin" and "A1C" (recorded as either "A1C" alone or the combined
+ * "Hemoglobin A1C" on different fixtures).
+ *
+ * `claimBinding.js#bindingFact` looks up a `LabResult` fact's own raw label
+ * here and adds only that entry's tokens to that one fact's allowed words --
+ * never to any other fact. A claim that names "A1C" while citing the plain
+ * "Hemoglobin" result still fails: "a1c"/"hba1c" is not in the "hemoglobin"
+ * entry's alias list, so it is an unsupported token there.
+ */
+export const LAB_NAME_ALIASES = Object.freeze({
+  a1c: ['a1c', 'hba1c', 'hemoglobin a1c', 'glycated hemoglobin', 'glycosylated hemoglobin'],
+  'hemoglobin a1c': ['a1c', 'hba1c', 'hemoglobin a1c', 'glycated hemoglobin', 'glycosylated hemoglobin'],
+  hemoglobin: ['hemoglobin', 'hgb', 'hb'],
+});
+
 const DRUGS = [
   'lisinopril', 'metformin', 'warfarin', 'amoxicillin', 'ampicillin', 'penicillin', 'piperacillin',
   'nafcillin', 'sulfamethoxazole', 'trimethoprim', 'sulfadiazine', 'insulin', 'atorvastatin',
@@ -109,7 +129,7 @@ export const BINDING_VOCABULARY = new Set([
   'reported', 'states', 'stated', 'form', 'intake', 'lab', 'labs', 'result', 'results', 'value',
   'values', 'level', 'levels', 'dose', 'dosage', 'takes', 'taking', 'current', 'currently', 'most',
   'recent', 'latest', 'last', 'collected', 'dated', 'date', 'measured', 'reading', 'test', 'tested',
-  'file', 'source', 'visit', 'range', 'reference', 'reason',
+  'file', 'source', 'visit', 'range', 'reference', 'reason', 'flag', 'flagged',
 ]);
 /** Extra words allowed outside the verbatim span of a guideline claim. */
 export const GUIDELINE_VOCABULARY = new Set([

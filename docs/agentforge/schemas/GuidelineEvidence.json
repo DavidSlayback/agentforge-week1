@@ -47,7 +47,8 @@
           "type": "string",
           "enum": [
             "sparse_only",
-            "stub"
+            "stub",
+            "no_rerank"
           ]
         },
         {

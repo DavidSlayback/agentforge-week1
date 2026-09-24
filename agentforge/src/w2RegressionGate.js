@@ -10,6 +10,7 @@ import { validateScanExtractionTypedOutput } from './contracts.js';
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { createRecordedOrStubGeminiClient, readRetrievalFixtureManifest, stubEmbedding } from './geminiClient.js';
 import { corpusEmbeddingsFingerprint, createGeminiHybridGuidelineRetriever, loadCorpusEmbeddings, loadGuidelineCorpus } from './guidelineEvidence.js';
+import { configuredRerankProviderAndModel, createGeminiReranker, createRecordedOrStubReranker } from './reranker.js';
 import { DeterministicProvider, ResilientProvider } from './modelProvider.js';
 import { createRecordedOcrReplay } from './pdfScanAdapter.js';
 import { validateScanExtraction } from './scanFormContracts.js';
@@ -220,13 +221,20 @@ const golden = () => (goldenCache ||= readGolden());
  *
  * Corpus embeddings: the real `corpus/embeddings.json` ONLY when the
  * recorder's completion manifest (`test/fixtures/retrieval/COMPLETE.json`)
- * matches it, meaning every gate query has a recorded real Gemini response
- * against exactly these vectors. Otherwise a locally computed stand-in built
- * with the same `stubEmbedding` function the recorded-or-stub client uses, so
- * query and corpus vectors always come from the same source. Mixing real
- * corpus vectors with stub query vectors would silently degrade to
- * sparse-only and change results (found 2026-09-24 when the real embeddings
- * landed before the fixtures).
+ * matches it — meaning every gate query has a recorded real embed response
+ * against exactly these vectors, *and* the manifest's `rerank_provider`/
+ * `rerank_model` match the reranker this gate is configured to test
+ * (`AGENTFORGE_RERANK_PROVIDER`/`AGENTFORGE_RERANK_MODEL`, same env the
+ * deployed server reads — no secret required here since the gate never
+ * makes a live call, only looks up recorded fixtures by provider+model).
+ * Otherwise a locally computed stand-in built with the same `stubEmbedding`
+ * function the recorded-or-stub client uses, so query and corpus vectors
+ * always come from the same source. Mixing real corpus vectors with stub
+ * query vectors would silently degrade to sparse-only and change results
+ * (found 2026-09-24 when the real embeddings landed before the fixtures);
+ * mixing real corpus vectors with a reranker's fixtures recorded for a
+ * *different* reranker would silently test the wrong lane (S9 review
+ * finding this task fixes).
  */
 let gateGuidelineRetriever = null;
 function guidelineRetrieverForGate() {
@@ -234,9 +242,17 @@ function guidelineRetrieverForGate() {
   const corpus = loadGuidelineCorpus();
   const real = loadCorpusEmbeddings();
   const manifest = readRetrievalFixtureManifest();
-  const useReal = Boolean(real && manifest?.embeddings_fingerprint && manifest.embeddings_fingerprint === corpusEmbeddingsFingerprint(real));
+  const { providerLabel, model: rerankModel } = configuredRerankProviderAndModel();
+  const manifestMatchesGateReranker = Boolean(manifest?.rerank_provider === providerLabel && manifest?.rerank_model === rerankModel);
+  const useReal = Boolean(real && manifest?.embeddings_fingerprint && manifest.embeddings_fingerprint === corpusEmbeddingsFingerprint(real) && manifestMatchesGateReranker);
   const embeddings = useReal ? real : { vectors: Object.fromEntries(corpus.map((chunk) => [chunk.source_id, stubEmbedding(`${chunk.title}\n${chunk.section}\n${chunk.text}`)])) };
-  gateGuidelineRetriever = createGeminiHybridGuidelineRetriever({ geminiClient: createRecordedOrStubGeminiClient(), corpus, embeddings });
+  const embedClient = createRecordedOrStubGeminiClient();
+  // Gemini's recorded-or-stub rerank lane already lives on the embed client
+  // above (geminiClient.js); every other provider gets the generic
+  // recorded-or-stub reranker (reranker.js), keyed by provider+model so it
+  // never finds and reuses a fixture recorded for a different reranker.
+  const reranker = providerLabel === 'google' ? createGeminiReranker(embedClient) : createRecordedOrStubReranker({ provider: providerLabel, model: rerankModel });
+  gateGuidelineRetriever = createGeminiHybridGuidelineRetriever({ embedClient, reranker, corpus, embeddings });
   return gateGuidelineRetriever;
 }
 
@@ -596,10 +612,14 @@ function checkNoPhi(run, output, expect) {
  * `answerComposer.js#collectIntakeLeaves` (not exported -- this is the
  * gate's own independent read, deliberately not sharing the composer's
  * internals, so a bug in the composer's own collection cannot also hide it
- * from the check that is supposed to catch that bug). */
+ * from the check that is supposed to catch that bug). Demographics
+ * (name/dob/phone) are excluded here too, matching the composer's own F8
+ * exclusion (identity data, not a clinical finding for the W2 answer) --
+ * otherwise this independent check would demand they be represented in
+ * `patient_facts` when the composer now deliberately never puts them there. */
 function intakeLeavesOf(intakeForm) {
   if (!intakeForm) return [];
-  const leaves = [intakeForm.demographics?.name, intakeForm.demographics?.dob, intakeForm.demographics?.phone, intakeForm.chief_concern, ...(intakeForm.current_medications || []), ...(intakeForm.allergies || []), ...(intakeForm.family_history || [])];
+  const leaves = [intakeForm.chief_concern, ...(intakeForm.current_medications || []), ...(intakeForm.allergies || []), ...(intakeForm.family_history || [])];
   return leaves.filter((leaf) => leaf && leaf.status === 'observed');
 }
 
