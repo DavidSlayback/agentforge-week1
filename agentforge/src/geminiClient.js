@@ -188,6 +188,12 @@ export function createLiveGeminiClient({ apiKey, fetchImpl = globalThis.fetch, e
     if (!Array.isArray(values) || !values.length || !values.every(Number.isFinite)) throw new Error('GEMINI_EMBED_RESPONSE_INVALID');
     return { values, usage: usageRecord({ stage: 'embed', model: embedModel, tokenUsage: extractTokenUsage(body, { fallbackInputText: text }) }) };
   }
+  // `model` names the bare embedding model (distinct from `.name`, kept
+  // for backward compatibility): `guidelineEvidence.js` uses it to label the
+  // hybrid provider string (`hybrid:<embed model>+<reranker name>`) without
+  // depending on `.name`'s exact format, which historically also carried the
+  // rerank model this client happens to also expose (kept for the
+  // `createGeminiReranker` adapter in `reranker.js`, not for embedding use).
 
   async function rerank(query, candidates) {
     const prompt = buildRerankPrompt(query, candidates);
@@ -210,7 +216,7 @@ export function createLiveGeminiClient({ apiKey, fetchImpl = globalThis.fetch, e
     return { results, usage: usageRecord({ stage: 'rerank', model: rerankModel, tokenUsage: extractTokenUsage(body, { fallbackInputText: prompt, fallbackOutputText: text }) }) };
   }
 
-  return Object.freeze({ name: `google-${embedModel}+${rerankModel}`, mode: 'live', embed, rerank });
+  return Object.freeze({ name: `google-${embedModel}+${rerankModel}`, model: embedModel, mode: 'live', embed, rerank });
 }
 
 function buildRerankPrompt(query, candidates) {
@@ -279,7 +285,10 @@ export const embedFixtureHash = ({ model, taskType, text, title }) => geminiRequ
 // incidental ordering (e.g. a Map iteration order that depends on which of
 // sparse/dense contributed a given id first) — only the query and the exact
 // set of candidate {id, text} pairs define the request.
-export const rerankFixtureHash = ({ model, query, candidates }) => geminiRequestHash({ op: 'rerank', model, query, candidates: [...candidates].map((candidate) => ({ id: candidate.id, text: candidate.text })).sort((left, right) => left.id.localeCompare(right.id)) });
+// `provider` defaults to 'google' (this file is Gemini-only): reranker.js's
+// own `rerankFixtureHash` generalizes this same shape across providers so a
+// fixture recorded for one reranker is never reused for another.
+export const rerankFixtureHash = ({ provider = 'google', model, query, candidates }) => geminiRequestHash({ op: 'rerank', provider, model, query, candidates: [...candidates].map((candidate) => ({ id: candidate.id, text: candidate.text })).sort((left, right) => left.id.localeCompare(right.id)) });
 
 function readFixture(fixturesDir, hash) {
   const file = path.join(fixturesDir, `${hash}.json`);
@@ -360,16 +369,25 @@ export function createRecordedOrStubGeminiClient({ fixturesDir = defaultRetrieva
     return { results, usage: { stage: 'rerank', provider: 'stub', model: 'bm25-rerank-stub', inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, tokens_estimated: false, source: 'stub' } };
   }
 
-  return Object.freeze({ name: 'recorded-or-stub', mode: 'recorded-or-stub', embed, rerank });
+  return Object.freeze({ name: 'recorded-or-stub', model: embedModel, mode: 'recorded-or-stub', embed, rerank });
 }
 
 /**
- * Wrap a live Gemini client so every embed/rerank call is also written to
+ * Wrap a live Gemini client so every embed call is also written to
  * `fixturesDir`, keyed by the same hash `createRecordedOrStubGeminiClient`
  * looks up. Used only by `scripts/record-retrieval-fixtures.mjs` — never by
  * the deployed server.
+ *
+ * Embed-only: dense retrieval always uses Gemini embeddings regardless of
+ * which `Reranker` is configured (owner decision 2026-09-24), so recording
+ * embed and rerank fixtures are two independent concerns now. Rerank
+ * fixtures — for whichever reranker is actually configured, Gemini included
+ * — are recorded by `reranker.js`'s `createRecordingReranker`, keyed by
+ * provider+model so a fixture recorded for one reranker is never reused for
+ * another. This function keeps the live client's own `.rerank` method
+ * (still used by `createGeminiReranker`) unwrapped/untouched.
  */
-export function createRecordingGeminiClient({ liveClient, fixturesDir = defaultRetrievalFixturesDir(), embedModel = GEMINI_EMBED_MODEL, rerankModel = GEMINI_RERANK_MODEL }) {
+export function createRecordingGeminiClient({ liveClient, fixturesDir = defaultRetrievalFixturesDir(), embedModel = GEMINI_EMBED_MODEL }) {
   async function embed(text, taskType, options = {}) {
     const result = await liveClient.embed(text, taskType, options);
     const hash = embedFixtureHash({ model: embedModel, taskType, text, title: options.title });
@@ -377,12 +395,5 @@ export function createRecordingGeminiClient({ liveClient, fixturesDir = defaultR
     return result;
   }
 
-  async function rerank(query, candidates) {
-    const result = await liveClient.rerank(query, candidates);
-    const hash = rerankFixtureHash({ model: rerankModel, query, candidates });
-    writeFixture(fixturesDir, hash, { results: result.results, tokenUsage: { inputTokens: result.usage?.inputTokens || 0, outputTokens: result.usage?.outputTokens || 0, estimated: Boolean(result.usage?.tokens_estimated) } });
-    return result;
-  }
-
-  return Object.freeze({ name: liveClient.name, mode: 'recording', embed, rerank });
+  return Object.freeze({ name: liveClient.name, model: embedModel, mode: 'recording', embed });
 }
