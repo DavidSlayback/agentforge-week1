@@ -6,6 +6,7 @@
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "start": "node src/server.js",
     "eval:gate": "node scripts/run-w2-gate.mjs",
+    "eval:trust-probes": "node scripts/trust-probes.mjs",
     "eval:pdf-samples": "node scripts/benchmark-pdf-samples.mjs",
     "export:schemas": "node scripts/export-schemas.mjs"
   },
