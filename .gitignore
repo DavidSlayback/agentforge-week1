@@ -54,6 +54,7 @@ tmp/
 
 # AgentForge local load-run scratch; final signed reports are checked in explicitly.
 .scratch/agentforge-load-*.json
+/agentforge/tmp/dashboard-preview.html
 
 # Assignment source PDFs (course material; kept local, not redistributed)
 .scratch/assignments/

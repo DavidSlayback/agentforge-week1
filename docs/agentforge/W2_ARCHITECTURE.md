@@ -86,6 +86,16 @@ and zero-cost; `dense_score` is not a true embedding score.
 
 ## Evaluation and observability
 
+The server-rendered observability dashboard summarizes retained requests,
+operational error rate, p50/p95/p99 latency, measured token and cost totals,
+verification pass rate, and the configured alert rules with their thresholds
+and states. Its encounter table reads redacted `stages`, `handoffs`,
+`retrieval.attempts`, `extraction.confidence`, `modelUsage`/`modelTotals`,
+`verification`, `display`, `evaluation`, and optional `decisions` fields;
+missing measurements are shown as em dashes. The local preview script embeds
+explicitly fake traces and labels the page “FAKE DATA — preview only”; the
+production route does not load that fixture.
+
 The 50-case gate runs the deployed scan path on 10 golden PDFs, replaying OCR
 recorded from the real Tesseract image, and asserts `schema_valid`,
 `citation_present`, `factually_consistent`, `safe_refusal`, and
