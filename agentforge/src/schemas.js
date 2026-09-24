@@ -186,14 +186,44 @@ export const AnswerClaim = z.object({
 }).strict();
 
 /**
+ * One claim in the answer-composer MODEL's own raw output (2026-09-24
+ * refs-based rewrite). The model never emits full citation objects: a
+ * guideline chunk's `quote_or_value` can be an entire ~100-word snippet, and
+ * asking the model to echo one per claim made every real-model call blow the
+ * per-request scan deadline (a single call ran >14s of output alone). Instead
+ * every fact/chunk available to this answer is given a short label -- `F1`,
+ * `F2`, ... for patient-record facts, `G1`, `G2`, ... for guideline chunks
+ * (`answerComposer.js#buildFactLabels`) -- and the model cites by label only
+ * in `refs`, the same "reference by short number, not a full id" fix already
+ * used for the listwise reranker (`reranker.js#parseListwiseRerankResponse`).
+ * `answerComposer.js#materializeClaims` maps each ref back to the exact
+ * citation object it names; an unknown or malformed ref is dropped, never
+ * trusted, exactly like an out-of-range candidate number there.
+ */
+export const ModelAnswerClaim = z.object({
+  kind: z.enum(['patient_fact', 'guideline']),
+  text: z.string().min(1),
+  refs: z.array(z.string().min(1)),
+}).strict();
+
+/**
  * The exact JSON contract the answer-composer model (or its deterministic
- * fallback) must return. This is intentionally narrow — just claims — so the
- * model/fallback boundary is a single well-defined shape; `answerComposer.js`
- * separates and annotates these claims into the richer `GroundedAnswerResult`
- * below after verification.
+ * fallback) must return. A claim is either the real model's own ref-based
+ * shape (`ModelAnswerClaim`) or the deterministic fallback's shape
+ * (`AnswerClaim`, already fully cited) -- `DeterministicAnswerComposer`
+ * builds claims directly from typed facts/citations without ever using
+ * labels, so its own JSON is validated by this same schema without having to
+ * fabricate refs for facts it already holds in full. This is intentionally
+ * narrow — just claims — so the model/fallback boundary is a single
+ * well-defined shape; `answerComposer.js` materializes any ref-based claims,
+ * then separates and annotates all of them into the richer
+ * `GroundedAnswerResult` below after verification. `GroundedAnswerResult`
+ * itself is unaffected: every claim it carries is always the full,
+ * fully-cited `AnswerClaim` shape -- this narrower, ref-based option is the
+ * model's OUTPUT contract only, never the RESPONSE contract.
  */
 export const GroundedAnswer = z.object({
-  claims: z.array(AnswerClaim),
+  claims: z.array(z.union([ModelAnswerClaim, AnswerClaim])),
 }).strict();
 
 /**

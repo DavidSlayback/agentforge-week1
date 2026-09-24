@@ -12,12 +12,23 @@
  * attention to, and what evidence supports the recommendation") from exactly
  * three inputs: this document's typed extraction (lab results / intake
  * form), the top guideline evidence the evidence-retrieval worker already
- * found, and patient-record facts read from the chart. A model composes
- * `{claims:[{kind, text, citations}]}` (the `GroundedAnswer` Zod contract);
- * every claim is then run through `verifyClaims` (claimBinding.js) against
- * exactly those inputs. A claim that does not verify is dropped, not
- * repaired or trusted — the composer never returns a claim the verifier did
- * not independently confirm.
+ * found, and patient-record facts read from the chart. Every fact/chunk
+ * available to this answer is given a short label (`F1`, `F2`, ... for
+ * patient-record facts, `G1`, `G2`, ... for guideline chunks --
+ * `buildFactLabels` below), and a model composes `{claims:[{kind, text,
+ * refs}]}` (the `GroundedAnswer` Zod contract) citing those labels only,
+ * never a full citation object -- the same "reference by short number, not a
+ * full id" fix already applied to the listwise reranker (`reranker.js`);
+ * asking the model to echo a full citation per claim (a guideline
+ * `quote_or_value` can be an entire ~100-word chunk) made a single real-model
+ * call run >14s of output alone and blew the per-request scan deadline every
+ * time (2026-09-24). `materializeClaims` maps each ref back to the exact
+ * citation object it names; every claim is then run through `verifyClaims`
+ * (claimBinding.js) against exactly those inputs, completely unchanged. A
+ * claim that does not verify -- or whose refs never resolve to a known label,
+ * leaving it with no citations at all -- is dropped, not repaired or trusted
+ * — the composer never returns a claim the verifier did not independently
+ * confirm.
  *
  * Two composers, one contract: `runComposer` calls whichever provider it is
  * given (the real model, or `DeterministicAnswerComposer`) and always
@@ -132,27 +143,79 @@ export class DeterministicAnswerComposer {
   }
 }
 
+/** Compact prompt line for one lab-result fact, e.g. "[lab] A1C 6.1 % on
+ * 2026-09-20 (reference under 5.7), flagged abnormal" -- deliberately the
+ * short summary form, never the guideline-chunk-sized JSON the old prompt
+ * embedded per fact. */
+function labFactLine(result) {
+  const flagWord = ABNORMAL_FLAG_WORDS.has(result.abnormal_flag) ? result.abnormal_flag : null;
+  return `[lab] ${result.test_name} ${result.value} ${result.unit} on ${result.collection_date} (reference ${result.reference_range})${flagWord ? `, flagged ${flagWord}` : ''}`;
+}
+
+/** Compact prompt line for one intake-form leaf: the form's own verbatim
+ * "<label>: <value>" quote, same text `intakeFieldClaim` echoes. */
+function intakeFactLine(citation) {
+  return `[intake_field] ${citation.quote_or_value}`;
+}
+
+/** Compact prompt line for one OpenEMR chart-record fact: its verbatim value. */
+function openemrFactLine(citation) {
+  return `[openemr_record] ${citation.quote_or_value}`;
+}
+
+/** Compact prompt line for one guideline chunk: title/section/version plus
+ * the full snippet -- the snippet itself cannot be shortened (the model must
+ * quote >= 8 verbatim words of it back), but it is listed once per chunk,
+ * never repeated inside every claim's own citation the way the old per-claim
+ * citation-object contract required. */
+function guidelineFactLine(evidence) {
+  return `[${evidence.title}, ${evidence.section}, ${evidence.version}]: ${evidence.snippet}`;
+}
+
+/**
+ * Assign short `F1..Fn` / `G1..Gm` labels to every patient-record fact and
+ * guideline chunk available to this answer, in the same fixed order the
+ * prompt lists them (labs, then intake leaves, then chart facts; guideline
+ * chunks separately as `G`) so a model's `refs` can name them by label only.
+ * Returns `{ facts, guidelines }`, each an array of `{ label, citation, line
+ * }` -- `citation` is the exact object `materializeClaims` will substitute
+ * back in for a claim that cites this label, and `line` is what the prompt
+ * shows for it (F1 review fix, 2026-09-24: see the module doc for why full
+ * citation objects were never safe to ask the model to echo).
+ */
+function buildFactLabels({ verifiedLabResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence }) {
+  let n = 0;
+  const facts = [
+    ...verifiedLabResults.map((result) => ({ label: `F${++n}`, citation: result.citation, line: labFactLine(result) })),
+    ...verifiedIntakeCitations.map((citation) => ({ label: `F${++n}`, citation, line: intakeFactLine(citation) })),
+    ...patientFactCitations.map((citation) => ({ label: `F${++n}`, citation, line: openemrFactLine(citation) })),
+  ];
+  let g = 0;
+  const guidelines = guidelineEvidence.map((evidence) => ({ label: `G${++g}`, citation: evidence.citation, line: guidelineFactLine(evidence) }));
+  return { facts, guidelines };
+}
+
 // F8 review fix: demographics (name/DOB/phone/sex) are identity data --
 // already checked by documentSafety.js -- not clinical findings for "what
 // changed / what to pay attention to". `composeGroundedAnswer` never passes
 // them into `facts` (see `collectIntakeLeaves`), so they never reach the
 // prompt or the model's own claims either; only clinical intake fields
 // (chief concern, medications, allergies, family history) do.
-function buildPrompt({ question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations }) {
-  const facts = [
-    ...verifiedLabResults.map((result) => ({ kind: 'lab_result', test_name: result.test_name, value: result.value, unit: result.unit, reference_range: result.reference_range, collection_date: result.collection_date, abnormal_flag: result.abnormal_flag, citation: result.citation })),
-    ...verifiedIntakeCitations.map((citation) => ({ kind: 'intake_field', citation })),
-    ...patientFactCitations.map((citation) => ({ kind: 'openemr_record', citation })),
-  ];
+function buildPrompt({ question, facts, guidelines }) {
+  const factLines = facts.map((fact) => `${fact.label} ${fact.line}`).join('\n') || '(none)';
+  const guidelineLines = guidelines.map((chunk) => `${chunk.label} ${chunk.line}`).join('\n') || '(none)';
   return [
     'You are a clinical documentation assistant preparing a return-visit answer.',
     'Answer strictly from the facts and guideline evidence listed below. Never invent a value. Never recommend a treatment, diagnosis, medication change, or other clinical action -- describe only what is documented.',
     'Rules: one claim per fact, do not combine facts. Name each lab test exactly as its own test_name (verbatim, digits and all -- e.g. "A1C", never a generic substitute). Copy every cited value, unit, date, and range verbatim. Guideline claims must quote their snippet verbatim (at least 8 words).',
+    'Every patient-record fact and guideline chunk below has a short label. Cite each claim by label only, in "refs" -- never restate a fact\'s value or a guideline\'s citation fields as JSON, and never invent a label that is not listed below.',
     'Return ONLY a JSON object of this exact shape, no prose outside it:',
-    '{"claims":[{"kind":"patient_fact"|"guideline","text":"...","citations":[{"source_type":"document"|"guideline"|"openemr_record","source_id":"...","page_or_section":"...","field_or_chunk_id":"...","quote_or_value":"..."}]}]}',
+    '{"claims":[{"kind":"patient_fact"|"guideline","text":"...","refs":["F1"]}]}',
     `Clinician question: ${question || '(none provided)'}`,
-    `Patient-record facts (JSON): ${JSON.stringify(facts)}`,
-    `Guideline evidence (JSON): ${JSON.stringify(guidelineEvidence.map((item) => ({ title: item.title, section: item.section, version: item.version, snippet: item.snippet, citation: item.citation })))}`,
+    'Patient-record facts:',
+    factLines,
+    'Guideline evidence:',
+    guidelineLines,
   ].join('\n');
 }
 
@@ -180,12 +243,59 @@ function parseClaims(text) {
   }
 }
 
-/** Run one composer attempt end to end: generate, then verify every claim
- * against exactly the given allowed values. Returns the raw claims, the
- * verdicts, and which ones verified. */
+/** Find the label list entry naming exactly this citation -- by object
+ * identity (the common case: the same citation object `buildFactLabels` was
+ * given) or, failing that, by `source_id`+`field_or_chunk_id` (so a
+ * reconstructed/copied citation with the same identity still resolves, the
+ * way an adversarial probe's forged citation does). Exported for tests/gate
+ * fixtures that need to build a realistic `refs` array without duplicating
+ * this matching rule. */
+export function labelForCitation(labels, citation) {
+  if (!citation) return undefined;
+  const match = labels.find((entry) => entry.citation === citation
+    || (entry.citation.source_id === citation.source_id && entry.citation.field_or_chunk_id === citation.field_or_chunk_id));
+  return match?.label;
+}
+
+function citationForRef(ref, factLabels, guidelineLabels) {
+  const match = [...factLabels, ...guidelineLabels].find((entry) => entry.label === ref);
+  return match ? match.citation : null;
+}
+
+/**
+ * Materialize the model's own ref-based claims into the same fully-cited
+ * `{kind, text, citations}` shape `verifyClaims` has always taken. A ref that
+ * does not name a known label is dropped, never trusted -- the model's JSON
+ * is untrusted input, the same rule `reranker.js#parseListwiseRerankResponse`
+ * already applies to an out-of-range candidate number. A claim citing a
+ * label from the *other* namespace (e.g. a `patient_fact` claim with
+ * `refs:["G1"]`) still resolves to that label's real citation object here;
+ * `claimBinding.js#verifyClaims` is what then rejects the resulting
+ * kind/source_type mismatch (`GUIDELINE_CITED_FOR_PATIENT_FACT` /
+ * `NON_GUIDELINE_CITATION`), exactly as it always has for any wrongly-typed
+ * citation -- this function only resolves labels, it never validates them.
+ * A claim that already carries full `citations` (the deterministic
+ * composer's own output, which never uses labels at all) passes through
+ * unchanged.
+ */
+function materializeClaims(rawClaims, factLabels, guidelineLabels) {
+  return rawClaims.map((claim) => {
+    if (!claim || !Array.isArray(claim.refs)) return claim;
+    const citations = claim.refs
+      .filter((ref) => typeof ref === 'string')
+      .map((ref) => citationForRef(ref, factLabels, guidelineLabels))
+      .filter(Boolean);
+    return { kind: claim.kind, text: claim.text, citations };
+  });
+}
+
+/** Run one composer attempt end to end: generate, materialize any ref-based
+ * claims back into fully-cited ones, then verify every claim against exactly
+ * the given allowed values. Returns the raw claims, the verdicts, and which
+ * ones verified. */
 async function attempt(provider, args, allowedValues, { trace, correlationId, signal } = {}) {
   const result = await provider.generate(args, { trace, validate: validateModelJson, signal });
-  const claims = parseClaims(result.text);
+  const claims = materializeClaims(parseClaims(result.text), args.factLabels || [], args.guidelineLabels || []);
   const verification = verifyClaims({ claims, allowedValues });
   const verified = claims.filter((_, index) => verification.verdicts[index]?.status === 'anchored');
   return { result, claims, verification, verified };
@@ -255,7 +365,14 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
   }
 
   const allowedValues = [...verifiedLabResults, ...verifiedIntakeCitations, ...guidelineEvidence, ...patientFactCitations];
-  const args = { question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations, prompt: buildPrompt({ question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations }), correlationId, signal, maxTokens: ANSWER_MODEL_MAX_TOKENS };
+  // F1 review fix 2026-09-24: label every fact/chunk once so the prompt and
+  // the model's own `refs` never carry a full citation object (see the
+  // module doc). `factLabels`/`guidelineLabels` ride along on `args` so
+  // `attempt` can materialize a model's refs back into citations, and so any
+  // fake provider (tests, the gate, trust-probes) can build a realistic
+  // `refs` array via `labelForCitation` instead of guessing label numbers.
+  const { facts: factLabels, guidelines: guidelineLabels } = buildFactLabels({ verifiedLabResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence });
+  const args = { question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations, factLabels, guidelineLabels, prompt: buildPrompt({ question, facts: factLabels, guidelines: guidelineLabels }), correlationId, signal, maxTokens: ANSWER_MODEL_MAX_TOKENS };
 
   const fallback = new DeterministicAnswerComposer();
   const runFallback = () => attempt(fallback, args, allowedValues, { trace, correlationId, signal });
