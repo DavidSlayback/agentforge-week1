@@ -201,9 +201,9 @@ responses are not retried.
 ## Guideline hybrid RAG lane (S5, `agentforge-w2` only)
 
 `agentforge-w2` retrieves guideline evidence with real BM25 sparse search
-unioned with Gemini dense embeddings and reranked by a Gemini flash model
-(`AGENTFORGE_RAG_PROVIDER=gemini-hybrid`), reusing the same `GEMINI_API_KEY`
-as the scan-extraction lane above. This is the `agentforge-w2` compose
+unioned with Gemini dense embeddings, reranked by a separately-configured
+`Reranker` (`AGENTFORGE_RAG_PROVIDER=gemini-hybrid`; the reranker seam itself
+is `agentforge/src/reranker.js`). This is the `agentforge-w2` compose
 default; the frozen Week 1 `agentforge` service is untouched and keeps its
 own default (`local-lexical`, real BM25 only — see D8).
 
@@ -212,8 +212,38 @@ AGENTFORGE_RAG_PROVIDER=gemini-hybrid
 GEMINI_API_KEY=<server-only-google-ai-key>
 ```
 
-The retriever needs two things beyond the key to run as hybrid rather than
-degrade to sparse-only:
+### Reranker: Qwen by default, pluggable (owner decision 2026-09-24)
+
+The Gemini key above is a **free-tier key** (gemini-3.8-flash: 20
+requests/day, 5/min) — enough for dense embeddings, but a listwise rerank
+call on every request exhausts it immediately. Dense retrieval therefore
+stays on Gemini embeddings; **reranking is a separate, pluggable
+collaborator** selected by `AGENTFORGE_RERANK_PROVIDER`:
+
+| `AGENTFORGE_RERANK_PROVIDER` | Reranker | Credentials | Notes |
+|---|---|---|---|
+| `qwen` (default for W2) | `createQwenReranker` | `AGENTFORGE_MODEL_ENDPOINT` + `AGENTFORGE_MODEL_API_KEY` (same env as the Qwen synthesis lane above — no separate secret) | `AGENTFORGE_RERANK_MODEL` default `qwen3.8-flash`; `AGENTFORGE_RERANK_TIMEOUT_MS` default `6000` |
+| `gemini` | `createGeminiReranker` (adapts the existing Gemini listwise reranker) | `GEMINI_API_KEY` (same key as embeddings) | The original all-Gemini pipeline; hits the free-tier limit above under real load |
+| `cohere` (not deployed; implemented as a proof the seam is pluggable) | `createCohereReranker` | `AGENTFORGE_COHERE_API_KEY` | Calls Cohere's dedicated `/v2/rerank` endpoint directly, no prompt/JSON-parsing surface |
+
+```dotenv
+AGENTFORGE_RERANK_PROVIDER=qwen
+AGENTFORGE_RERANK_MODEL=qwen3.8-flash
+AGENTFORGE_RERANK_TIMEOUT_MS=6000
+```
+
+A `Reranker` is `{name, rerank(query, candidates: [{id, text}], {signal}) =>
+{results: [{id, score}], usage}}` (full contract documented in
+`reranker.js`). Adding a future dedicated reranker (a different Cohere
+model, or another vendor) means writing one small file implementing this
+interface — never touching the BM25/embedding/candidate-union code in
+`guidelineEvidence.js`.
+
+The response's `provider` field names both collaborators that actually ran,
+e.g. `hybrid:gemini-embedding-2+alibaba-qwen:qwen3.8-flash` — never a
+static label independent of what the request actually did.
+
+The retriever needs the following to run as full hybrid rather than degrade:
 
 - `agentforge/corpus/guidelines/corpus.json` — the real guideline corpus
   (committed; see `corpus/guidelines/README.md` for sources and licensing).
@@ -223,24 +253,36 @@ degrade to sparse-only:
   ```bash
   GEMINI_API_KEY=... node agentforge/scripts/build-corpus-embeddings.mjs
   ```
+- A configured, reachable reranker for whichever `AGENTFORGE_RERANK_PROVIDER`
+  is selected.
 
-If `GEMINI_API_KEY` is unset, `embeddings.json` is missing, or any Gemini
-call fails, the retriever degrades itself to BM25-only and marks every
-response `degraded: "sparse_only"` — it never reports a degraded response as
-hybrid. A dimension mismatch between the query embedding and the precomputed
-corpus vectors (e.g. `embeddings.json` was built with a different model or
-`outputDimensionality`) is treated the same way, not as "no similarity".
+Degraded modes (never silently reported as a full hybrid result — AGENTS.md):
+
+- `degraded: "sparse_only"` — no embed client/reranker configured,
+  `embeddings.json` missing, or the embed/dense-scoring step itself failed
+  (including a dimension mismatch between the query embedding and the
+  precomputed corpus vectors, e.g. built with a different model or
+  `outputDimensionality` — treated as a failure, not "no similarity").
+- `degraded: "no_rerank"` — the embed step succeeded (dense candidates are
+  real) but the reranker itself failed or timed out; the response fuses the
+  sparse+dense candidates by reciprocal rank instead of discarding the
+  already-paid-for dense work, but is never presented as a real rerank
+  judgment.
+- `degraded: "stub"` — the full pipeline shape ran, but one or more steps
+  were answered by a deterministic test/gate stand-in (`recorded-or-stub`,
+  no matching recorded fixture) rather than a real or recorded response.
 
 The evidence-retrieval query is formulated server-side from the uploaded
 document's own typed abnormal lab results and the intake chief concern
 (`agentforge/src/activeWorkers.js`); a client-supplied `message` is only ever
 appended as an optional clinician question, never sent verbatim as the
-query. Before anything reaches Gemini's embed/rerank calls, it is further
+query. Before anything reaches an embed or rerank call, it is further
 reduced to only the words this corpus's own vocabulary recognizes
-(`sanitizeForGemini`, `agentforge/src/guidelineEvidence.js`) — a name, date
+(`sanitizeForExternalModel`, `agentforge/src/guidelineEvidence.js` — applies
+to every external model this pipeline calls, not only Gemini) — a name, date
 of birth, phone number, or any other free text a clinician or patient typed
-is dropped rather than sent to Google. The local BM25 search (which never
-leaves this process) still runs on the original, unsanitized query.
+is dropped rather than sent to any of them. The local BM25 search (which
+never leaves this process) still runs on the original, unsanitized query.
 
 Re-verify the corpus is still an exact, contiguous excerpt of its live
 sources (network access required, not part of the pre-commit hook) with:
@@ -249,16 +291,32 @@ sources (network access required, not part of the pre-commit hook) with:
 node agentforge/scripts/verify-corpus.mjs
 ```
 
-To record deterministic Gemini fixtures for the test suite and the eval gate
-(so they need no key), after building the corpus embeddings above:
+To record deterministic fixtures for the test suite and the eval gate (so
+they need no live keys), after building the corpus embeddings above, run
+from inside the `agentforge-w2` container (where the real keys already live
+in env) — this records embeddings from Gemini and reranks from whichever
+`AGENTFORGE_RERANK_PROVIDER` is currently configured (default `qwen`):
 
 ```bash
-GEMINI_API_KEY=... node agentforge/scripts/record-retrieval-fixtures.mjs
+openemr-cmd worktree exec <branch> e 'GEMINI_API_KEY=$GEMINI_API_KEY AGENTFORGE_MODEL_ENDPOINT=$AGENTFORGE_MODEL_ENDPOINT AGENTFORGE_MODEL_API_KEY=$AGENTFORGE_MODEL_API_KEY node agentforge/scripts/record-retrieval-fixtures.mjs'
+# or, against the primary clone's stack (non-worktree mode):
+openemr-cmd e 'GEMINI_API_KEY=$GEMINI_API_KEY AGENTFORGE_MODEL_ENDPOINT=$AGENTFORGE_MODEL_ENDPOINT AGENTFORGE_MODEL_API_KEY=$AGENTFORGE_MODEL_API_KEY node agentforge/scripts/record-retrieval-fixtures.mjs'
 ```
 
+Fixtures are keyed by provider+model (both embed and rerank), and the
+completion manifest (`test/fixtures/retrieval/COMPLETE.json`) records which
+reranker produced them (`rerank_provider`/`rerank_model`). The gate
+(`w2RegressionGate.js`) uses the real corpus vectors and recorded rerank
+fixtures only when that manifest matches its own configured
+`AGENTFORGE_RERANK_PROVIDER`/`AGENTFORGE_RERANK_MODEL` — switching the
+deployed reranker without re-recording fixtures makes the gate fall back to
+its deterministic stand-in rather than silently testing the wrong lane.
+
 Until fixtures are recorded, tests and the gate use a deterministic,
-honestly-labeled stand-in (`recorded-or-stub`, see `agentforge/src/
-geminiClient.js`) — never the live client, and never presented as one.
+honestly-labeled stand-in (`recorded-or-stub` — `agentforge/src/
+geminiClient.js` for embeddings/Gemini rerank,
+`createRecordedOrStubReranker` in `agentforge/src/reranker.js` for every
+other reranker) — never a live client, and never presented as one.
 
 ## Active split provider lanes
 

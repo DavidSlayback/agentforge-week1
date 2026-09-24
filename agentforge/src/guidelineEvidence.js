@@ -142,30 +142,36 @@ export const localLexicalGuidelineRetriever = Object.freeze({ name: SPARSE_ONLY_
 const QUERY_SCAFFOLD_VOCABULARY = ['abnormal', 'findings', 'chief', 'concern', 'test', 'result', 'results', 'high', 'low', 'normal', 'unknown'];
 
 /**
- * Build the allowlist of words safe to send to an external Gemini call: the
- * corpus's own vocabulary (every word appearing in a real guideline chunk)
- * plus a short list of query-scaffolding words. Anything else — a patient
- * or clinician's own free text, which may contain a name, a date of birth,
- * a phone number, or any other identifier — is not on this list by
+ * Build the allowlist of words safe to send to an external model call
+ * (Gemini's embed/rerank endpoints, or a reranker such as Qwen or Cohere):
+ * the corpus's own vocabulary (every word appearing in a real guideline
+ * chunk) plus a short list of query-scaffolding words. Anything else — a
+ * patient or clinician's own free text, which may contain a name, a date of
+ * birth, a phone number, or any other identifier — is not on this list by
  * construction, since a corpus of U.S. government guideline text does not
  * contain patient identifiers.
  */
-function buildGeminiVocabulary(corpus) {
+function buildExternalModelVocabulary(corpus) {
   const vocabulary = new Set(QUERY_SCAFFOLD_VOCABULARY);
   for (const chunk of corpus) for (const token of tokenize(chunkText(chunk))) vocabulary.add(token);
   return vocabulary;
 }
 
 /**
- * Sanitize text before it leaves this process for a Gemini call: keep only
- * whole words present in `vocabulary`, dropping everything else — digits,
- * dates, names, addresses, phone numbers, or any other free text the
+ * Sanitize text before it leaves this process for any external model call —
+ * Gemini's embed call or a reranker's rerank call (Qwen, Gemini, Cohere):
+ * keep only whole words present in `vocabulary`, dropping everything else —
+ * digits, dates, names, addresses, phone numbers, or any other free text the
  * vocabulary doesn't recognize as clinical/guideline vocabulary. This runs
- * only on the query sent to Gemini's embed/rerank calls; the local BM25
- * search (which never leaves this process) still searches the original,
+ * only on the query sent to those external calls; the local BM25 search
+ * (which never leaves this process) still searches the original,
  * unsanitized query for the best local retrieval quality.
+ *
+ * Named generically (not `sanitizeForGemini`) because the same allowlist now
+ * gates every external call this pipeline makes, regardless of which vendor
+ * a `Reranker` implementation happens to call (reranker.js).
  */
-export function sanitizeForGemini(text, vocabulary) {
+export function sanitizeForExternalModel(text, vocabulary) {
   // Must start with a letter (so a bare number, a date like "1980-04-12", or
   // a phone number never matches at all) but may contain digits after (so a
   // real test name like "A1C" or "HbA1c" survives as one token rather than
@@ -174,22 +180,70 @@ export function sanitizeForGemini(text, vocabulary) {
   return words.filter((word) => vocabulary.has(word.toLowerCase())).join(' ');
 }
 
+// Backward-compatible alias: existing callers/tests importing the original
+// Gemini-specific name keep working unchanged.
+export const sanitizeForGemini = sanitizeForExternalModel;
+
+/**
+ * Reciprocal-rank fusion of the sparse and dense candidate rankings — used
+ * only for the `degraded: 'no_rerank'` path below, when the reranker itself
+ * fails but the (more expensive) dense embedding work already succeeded.
+ * Rank-based (not score-based) so it never has to reconcile BM25's unbounded
+ * scores with cosine similarity's [-1, 1] scale; `k = 60` is the standard RRF
+ * constant. This never claims to be a relevance judgment the way a rerank
+ * score does — it exists only to give a better-than-BM25-alone ordering
+ * while a real reranker is unavailable, honestly labeled as such.
+ */
+function reciprocalRankFusion(candidates, k = 60) {
+  const bySparse = [...candidates].sort((left, right) => right.sparseScore - left.sparseScore);
+  const byDense = [...candidates].sort((left, right) => right.denseScore - left.denseScore);
+  const sparseRank = new Map(bySparse.map((candidate, index) => [candidate.document.source_id, index]));
+  const denseRank = new Map(byDense.map((candidate, index) => [candidate.document.source_id, index]));
+  return candidates.map((candidate) => ({
+    ...candidate,
+    fusedScore: 1 / (k + 1 + sparseRank.get(candidate.document.source_id)) + 1 / (k + 1 + denseRank.get(candidate.document.source_id)),
+  }));
+}
+
 /**
  * Build the real hybrid retriever: BM25 top-K ∪ Gemini dense cosine top-K →
- * Gemini listwise rerank → top-`topK` at or above `rerankThreshold`.
+ * listwise rerank (any `Reranker`, reranker.js) → top-`topK` at or above
+ * `rerankThreshold`.
+ *
+ * Dense retrieval and reranking are two independent collaborators
+ * (`embedClient`/`reranker`), not one combined client — the owner decision
+ * behind this split (2026-09-24): the Gemini free-tier key used for
+ * retrieval exhausts itself on the rerank step alone (20 requests/day, 5/
+ * min), so W2 keeps Gemini embeddings for dense retrieval but reranks with
+ * Qwen; a later dedicated reranker (Cohere or equivalent) swaps in by
+ * passing a different `reranker`, with no change here. `provider` on every
+ * response names both collaborators, e.g.
+ * `hybrid:gemini-embedding-2+alibaba-qwen:qwen3.8-flash`.
  *
  * Degrades to BM25-only (`degraded: 'sparse_only'` on every returned item
  * and on the response) whenever corpus embeddings are unavailable, no
- * `geminiClient` was supplied, or any Gemini call throws — never silently
- * relabeled as hybrid (AGENTS.md). The response's `provider` and each
- * evidence item's `degraded` field always reflect the mode that actually
- * produced that response, not the retriever's static configuration.
+ * `embedClient`/`reranker` was supplied, or the embed/dense-scoring step
+ * throws — never silently relabeled as hybrid (AGENTS.md). When the embed
+ * step succeeds but *only* the reranker throws, the response instead fuses
+ * the sparse+dense candidates by reciprocal rank and labels the result
+ * `degraded: 'no_rerank'` — a deliberate design choice over falling all the
+ * way back to sparse-only: the dense embedding call already ran (and is
+ * already billed), so discarding it would waste real, already-paid-for
+ * signal on a failure mode (the reranker specifically) that is expected to
+ * be more common than an embed failure, exactly the free-tier-exhaustion
+ * scenario this task exists to handle. Both degraded modes are covered by
+ * `guideline-evidence.test.js`. The response's `provider` and each evidence
+ * item's `degraded` field always reflect the mode that actually produced
+ * that response, not the retriever's static configuration.
  *
  * Args:
- *   geminiClient: `{name, embed(text, taskType), rerank(query, candidates)}`
- *     — either `createLiveGeminiClient` (production) or
- *     `createRecordedOrStubGeminiClient` (tests/gate). `null`/`undefined`
- *     forces sparse-only.
+ *   embedClient: `{name, model, embed(text, taskType)}` — either
+ *     `createLiveGeminiClient` (production) or
+ *     `createRecordedOrStubGeminiClient` (tests/gate), from geminiClient.js.
+ *     `null`/`undefined` forces sparse-only.
+ *   reranker: A `Reranker` (reranker.js) — `createQwenReranker`,
+ *     `createGeminiReranker(geminiClient)`, `createCohereReranker`, or a
+ *     recorded-or-stub variant. `null`/`undefined` forces sparse-only.
  *   corpus: Guideline chunks (defaults to the real corpus file).
  *   embeddings: `{vectors: {[source_id]: number[]}}` (defaults to the real
  *     precomputed file, or `null` if absent).
@@ -198,7 +252,8 @@ export function sanitizeForGemini(text, vocabulary) {
  *   rerankThreshold: Minimum rerank relevance score to keep a chunk.
  */
 export function createGeminiHybridGuidelineRetriever({
-  geminiClient = null,
+  embedClient = null,
+  reranker = null,
   corpus,
   embeddings,
   candidateCount = 20,
@@ -219,10 +274,10 @@ export function createGeminiHybridGuidelineRetriever({
   const resolvedEmbeddings = embeddings !== undefined ? embeddings : (corpusError ? null : loadCorpusEmbeddings());
   const bm25 = buildBm25Index(resolvedCorpus, { getText: chunkText });
   const embeddingsUsable = Boolean(resolvedEmbeddings?.vectors && Object.keys(resolvedEmbeddings.vectors).length);
-  const hybridProvider = `gemini-hybrid:${geminiClient?.name || 'unconfigured'}`;
+  const hybridProvider = `hybrid:${embedClient?.model || embedClient?.name || 'unconfigured'}+${reranker?.name || 'unconfigured'}`;
   // Built once, from the corpus that is actually loaded — so the allowlist
   // never depends on the query itself and can't be widened by patient text.
-  const geminiVocabulary = buildGeminiVocabulary(resolvedCorpus);
+  const externalModelVocabulary = buildExternalModelVocabulary(resolvedCorpus);
 
   function sparseOnly(query, topK, issue, extraUsage = []) {
     const ranked = bm25.search(query, { topK: Math.max(topK, 1) });
@@ -235,9 +290,8 @@ export function createGeminiHybridGuidelineRetriever({
       issues: evidence.length ? [] : [corpusError ? 'guideline_corpus_unavailable' : 'insufficient_guideline_evidence'],
       degraded: 'sparse_only',
       degraded_reason: issue,
-      // A Gemini call already made (and billed) before the failure — e.g. the
-      // embed succeeded but the rerank call then failed — is still real
-      // usage and must still reach the trace, even though the response
+      // An embed call already made (and billed) before the failure is still
+      // real usage and must still reach the trace, even though the response
       // itself degraded to sparse-only.
       usage: extraUsage.filter(Boolean),
     };
@@ -246,37 +300,37 @@ export function createGeminiHybridGuidelineRetriever({
   async function retrieve(query, { topK = 3 } = {}) {
     const trimmed = String(query || '').trim();
     // No retrieval work of any kind ran (not even a BM25 search), so this is
-    // never labeled hybrid, even when a geminiClient is configured.
+    // never labeled hybrid, even when embedClient/reranker are configured.
     if (!trimmed) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: '', evidence: [], issues: ['empty_query'], degraded: 'sparse_only', usage: [] };
-    if (!geminiClient) return sparseOnly(trimmed, topK, 'gemini_client_not_configured');
+    if (!embedClient) return sparseOnly(trimmed, topK, 'embed_client_not_configured');
+    if (!reranker) return sparseOnly(trimmed, topK, 'reranker_not_configured');
     if (!embeddingsUsable) return sparseOnly(trimmed, topK, 'corpus_embeddings_missing');
-    // Never send the client's own text to Gemini: only the words this
-    // corpus's own vocabulary recognizes leave this process (MEDIUM review
-    // item 7). The unsanitized `trimmed` query is still used for the local
-    // BM25 search below, which never leaves this process.
-    const sanitizedQuery = sanitizeForGemini(trimmed, geminiVocabulary);
+    // Never send the client's own text to an external model: only the words
+    // this corpus's own vocabulary recognizes leave this process (MEDIUM
+    // review item 7). The unsanitized `trimmed` query is still used for the
+    // local BM25 search below, which never leaves this process.
+    const sanitizedQuery = sanitizeForExternalModel(trimmed, externalModelVocabulary);
     if (!sanitizedQuery) return sparseOnly(trimmed, topK, 'no_sanitizable_query_terms');
 
-    // Captured outside the try block so a failure after a successful embed
-    // call (e.g. the rerank request fails) still reports the embed cost that
-    // was actually incurred, instead of silently dropping it when falling
-    // back to sparse-only.
+    // Captured outside the try block so a later reranker failure can still
+    // report the embed cost that was actually incurred.
     let embedUsage = null;
+    let candidates;
     try {
       const sparseCandidates = bm25.search(trimmed, { topK: candidateCount });
-      const embedResult = await geminiClient.embed(sanitizedQuery, 'RETRIEVAL_QUERY');
+      const embedResult = await embedClient.embed(sanitizedQuery, 'RETRIEVAL_QUERY');
       const queryVector = embedResult.values;
       embedUsage = embedResult.usage;
-      if (!Array.isArray(queryVector) || !queryVector.length) throw new Error('GEMINI_EMBED_RESPONSE_INVALID');
+      if (!Array.isArray(queryVector) || !queryVector.length) throw new Error('EMBED_RESPONSE_INVALID');
       const denseScored = resolvedCorpus
         .map((document) => {
           const vector = resolvedEmbeddings.vectors[document.source_id];
           // A dimension mismatch is a real configuration error (query and
           // corpus embeddings came from different models/output sizes), not
-          // "no similarity" — treat it as a hybrid failure so the whole
-          // request degrades to sparse-only rather than silently scoring
-          // every chunk 0 and calling that a successful hybrid rank.
-          if (Array.isArray(vector) && vector.length && vector.length !== queryVector.length) throw new Error('GEMINI_EMBED_DIMENSION_MISMATCH');
+          // "no similarity" — treat it as a failure so the whole request
+          // degrades to sparse-only rather than silently scoring every chunk
+          // 0 and calling that a successful hybrid rank.
+          if (Array.isArray(vector) && vector.length && vector.length !== queryVector.length) throw new Error('EMBED_DIMENSION_MISMATCH');
           return { document, score: cosineSimilarity(queryVector, vector) };
         })
         .filter((candidate) => candidate.score > 0)
@@ -290,44 +344,70 @@ export function createGeminiHybridGuidelineRetriever({
         if (existing) existing.denseScore = candidate.score;
         else byId.set(candidate.document.source_id, { document: candidate.document, sparseScore: 0, denseScore: candidate.score, matchedTerms: [] });
       }
-      const candidates = [...byId.values()];
-      if (!candidates.length) return { status: 'qualified', provider: hybridProvider, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: embedUsage?.source === 'stub' ? 'stub' : null, usage: [embedUsage] };
+      candidates = [...byId.values()];
+    } catch {
+      // A fixed code only, never the caught error's message: it may carry
+      // upstream HTTP/network detail that must not reach a trace or an API
+      // response (matches service.js's retrieveFollowUpEvidence).
+      return sparseOnly(trimmed, topK, 'embed_failed', [embedUsage]);
+    }
 
-      const { results, usage: rerankUsage } = await geminiClient.rerank(sanitizedQuery, candidates.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
-      const scoreById = new Map(results.map((result) => [result.chunk_id, result.relevance_score]));
-      const ranked = candidates
-        .filter((candidate) => scoreById.has(candidate.document.source_id))
-        .map((candidate) => ({ ...candidate, rerankScore: scoreById.get(candidate.document.source_id) }))
-        .sort((left, right) => right.rerankScore - left.rerankScore)
-        .filter((candidate) => candidate.rerankScore >= rerankThreshold)
-        .slice(0, topK);
+    if (!candidates.length) return { status: 'qualified', provider: hybridProvider, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: embedUsage?.source === 'stub' ? 'stub' : null, usage: [embedUsage] };
 
-      // The pipeline ran its full hybrid shape, but if either call fell back
-      // to the deterministic stand-in (no recorded fixture for this exact
-      // request), the result is not a genuine hybrid rank and must say so —
-      // `degraded: 'stub'`, never `null` under a `gemini-hybrid:` name
-      // (AGENTS.md: never present a simulation as the real thing).
-      const usedStub = embedUsage?.source === 'stub' || rerankUsage?.source === 'stub';
-      const itemDegraded = usedStub ? 'stub' : null;
-      const evidence = ranked.map((candidate) => guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: candidate.rerankScore, matchedTerms: candidate.matchedTerms, degraded: itemDegraded }));
+    let rerankResults;
+    let rerankUsage = null;
+    try {
+      const rerankOutcome = await reranker.rerank(sanitizedQuery, candidates.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
+      rerankResults = rerankOutcome.results;
+      rerankUsage = rerankOutcome.usage;
+    } catch {
+      // The reranker failed but embeddings succeeded: fuse sparse+dense by
+      // reciprocal rank instead of discarding that already-paid-for dense
+      // work (see `reciprocalRankFusion`'s doc comment for the rationale).
+      // Still honestly labeled `degraded: 'no_rerank'` — never presented as
+      // a full hybrid rerank.
+      const fused = reciprocalRankFusion(candidates).sort((left, right) => right.fusedScore - left.fusedScore).slice(0, topK);
+      const evidence = fused.map((candidate) => guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: candidate.fusedScore, matchedTerms: candidate.matchedTerms, degraded: 'no_rerank' }));
       return {
         status: evidence.length ? 'complete' : 'qualified',
         provider: hybridProvider,
         query: trimmed,
         evidence,
         issues: evidence.length ? [] : ['insufficient_guideline_evidence'],
-        degraded: itemDegraded,
-        usage: [embedUsage, rerankUsage],
+        degraded: 'no_rerank',
+        degraded_reason: 'reranker_failed',
+        usage: [embedUsage].filter(Boolean),
       };
-    } catch {
-      // A fixed code only, never the caught error's message: it may carry
-      // upstream HTTP/network detail that must not reach a trace or an API
-      // response (matches service.js's retrieveFollowUpEvidence).
-      return sparseOnly(trimmed, topK, 'gemini_hybrid_failed', [embedUsage]);
     }
+
+    const scoreById = new Map(rerankResults.map((result) => [result.id, result.score]));
+    const ranked = candidates
+      .filter((candidate) => scoreById.has(candidate.document.source_id))
+      .map((candidate) => ({ ...candidate, rerankScore: scoreById.get(candidate.document.source_id) }))
+      .sort((left, right) => right.rerankScore - left.rerankScore)
+      .filter((candidate) => candidate.rerankScore >= rerankThreshold)
+      .slice(0, topK);
+
+    // The pipeline ran its full hybrid shape, but if either call fell back
+    // to the deterministic stand-in (no recorded fixture for this exact
+    // request), the result is not a genuine hybrid rank and must say so —
+    // `degraded: 'stub'`, never `null` under a `hybrid:` name (AGENTS.md:
+    // never present a simulation as the real thing).
+    const usedStub = embedUsage?.source === 'stub' || rerankUsage?.source === 'stub';
+    const itemDegraded = usedStub ? 'stub' : null;
+    const evidence = ranked.map((candidate) => guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: candidate.rerankScore, matchedTerms: candidate.matchedTerms, degraded: itemDegraded }));
+    return {
+      status: evidence.length ? 'complete' : 'qualified',
+      provider: hybridProvider,
+      query: trimmed,
+      evidence,
+      issues: evidence.length ? [] : ['insufficient_guideline_evidence'],
+      degraded: itemDegraded,
+      usage: [embedUsage, rerankUsage],
+    };
   }
 
-  return Object.freeze({ name: geminiClient ? hybridProvider : SPARSE_ONLY_PROVIDER, retrieve });
+  return Object.freeze({ name: (embedClient && reranker) ? hybridProvider : SPARSE_ONLY_PROVIDER, retrieve });
 }
 
 function documentText(document) {

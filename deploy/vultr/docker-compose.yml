@@ -171,6 +171,15 @@ services:
       # composer provider call share one AbortSignal against this budget).
       AGENTFORGE_SCAN_DEADLINE_MS: ${AGENTFORGE_SCAN_DEADLINE_MS:-25000}
       AGENTFORGE_RAG_PROVIDER: gemini-hybrid
+      # Reranker seam (owner decision 2026-09-24): the Gemini free-tier key
+      # above exhausts itself on the listwise rerank alone (20 requests/day,
+      # 5/min), so W2 keeps Gemini embeddings for dense retrieval but reranks
+      # with Qwen -- reusing the same AGENTFORGE_MODEL_ENDPOINT/
+      # AGENTFORGE_MODEL_API_KEY already set for the synthesis lane above, no
+      # separate secret. See reranker.js and deploy/vultr/README.md.
+      AGENTFORGE_RERANK_PROVIDER: ${AGENTFORGE_RERANK_PROVIDER:-qwen}
+      AGENTFORGE_RERANK_MODEL: ${AGENTFORGE_RERANK_MODEL:-qwen3.8-flash}
+      AGENTFORGE_RERANK_TIMEOUT_MS: ${AGENTFORGE_RERANK_TIMEOUT_MS:-6000}
       AGENTFORGE_SCAN_PROVIDER_MODE: ${AGENTFORGE_SCAN_PROVIDER_MODE:-local}
       AGENTFORGE_GEMINI_SCAN_MODEL: ${AGENTFORGE_GEMINI_SCAN_MODEL:-gemini-3.8-flash}
       AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS: ${AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS:-45000}

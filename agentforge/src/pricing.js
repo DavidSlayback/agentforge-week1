@@ -46,6 +46,14 @@ export const PRICE_TABLE = Object.freeze({
     retrieved_at: '2026-09-24',
     estimate: true,
   },
+  // Deliberately absent: 'alibaba-qwen/qwen3.8-flash' (the W2 default
+  // reranker model, reranker.js's createQwenReranker). No official Alibaba
+  // Model Studio per-token price for this model could be confirmed from this
+  // environment (checked 2026-09-24). Per AGENTS.md ("fail loudly" / never
+  // present a guess as measured), rerank usage cost is left as `null`
+  // (`estimateCostUsd` below returns `null` for any key not in this table) —
+  // recorded as unknown, never as a silent `$0`. Add a real entry here, with
+  // a cited official pricing-page URL, once one is confirmed.
 });
 
 /**
