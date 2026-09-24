@@ -150,7 +150,14 @@ const assertPdf = (content) => {
  *   `{pageCount, pages: [{page, width, height, lines, image_base64?}]}` where
  *   `lines` are Tesseract lines with pixel boxes and min-word confidence.
  */
-export async function pdfToOcrLines(content, { includeImages = false } = {}) {
+/**
+ * `psm` is Tesseract's `--psm` (page-segmentation mode) flag: `6` (default)
+ * assumes a uniform block of text; `4` assumes a single column of
+ * variable-sized text. The supervisor's `low_confidence_retry` decision
+ * (supervisor.js) re-OCRs once at the alternate mode when mean confidence is
+ * below 0.7 -- some scanned layouts read better one way than the other.
+ */
+export async function pdfToOcrLines(content, { includeImages = false, psm = 6 } = {}) {
   assertPdf(content);
   const directory = await mkdtemp(join(tmpdir(), 'agentforge-pdf-'));
   try {
@@ -164,7 +171,7 @@ export async function pdfToOcrLines(content, { includeImages = false } = {}) {
     const images = (await readdir(directory)).filter((name) => /^page-\d+\.png$/.test(name)).sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
     const pages = [];
     for (let i = 0; i < images.length; i++) {
-      const tsv = await run('tesseract', [join(directory, images[i]), 'stdout', 'tsv']);
+      const tsv = await run('tesseract', [join(directory, images[i]), 'stdout', '--psm', String(psm), 'tsv']);
       pages.push({
         page: i + 1,
         ...parseTsvPageSize(tsv),
@@ -235,20 +242,31 @@ export async function renderPdfPagePng(content, page) {
 /** Production OCR engine: the real poppler + Tesseract binaries. */
 export const tesseractOcrEngine = Object.freeze({ name: 'tesseract-local-pdf', recognize: pdfToOcrLines });
 
+/** Default page-segmentation mode label, matching Tesseract's own default. */
+export const DEFAULT_OCR_MODE = 'psm6';
+/** The one alternate mode the low-confidence retry decision tries. */
+export const ALTERNATE_OCR_MODE = 'psm4';
+const OCR_MODE_PSM = Object.freeze({ [DEFAULT_OCR_MODE]: 6, [ALTERNATE_OCR_MODE]: 4 });
+
 /**
  * OCR engine that replays OCR output previously recorded from the real
- * binaries (`scripts/record-golden-ocr.mjs`), keyed by the PDF's SHA-256.
- * It exists so the eval gate runs the post-OCR path deterministically on
- * machines without Tesseract; it never OCRs anything itself and throws for a
- * PDF it has no recording of.
+ * binaries (`scripts/record-golden-ocr.mjs`), keyed by the PDF's SHA-256 and
+ * (optionally) the OCR mode it was recorded at. A recording with no
+ * `ocr_mode` is treated as the default mode, so every recording made before
+ * S6 (the low-confidence-retry feature) still matches unchanged. A caller
+ * that asks for a mode with no matching recording gets `RECORDED_OCR_NOT_FOUND`
+ * rather than a silent, misleading fallback to a different mode's output --
+ * it exists so the eval gate runs the post-OCR path deterministically on
+ * machines without Tesseract, and it never OCRs anything itself.
  */
 export function createRecordedOcrReplay(recordings) {
-  const bySha = new Map(recordings.map((recording) => [recording.pdf_sha256, recording]));
+  const byKey = new Map(recordings.map((recording) => [`${recording.pdf_sha256}:${recording.ocr_mode || DEFAULT_OCR_MODE}`, recording]));
   return Object.freeze({
     name: 'tesseract-recorded-replay',
-    async recognize(content) {
+    async recognize(content, { psm } = {}) {
       assertPdf(content);
-      const recording = bySha.get(createHash('sha256').update(content).digest('hex'));
+      const mode = Object.entries(OCR_MODE_PSM).find(([, value]) => value === psm)?.[0] || DEFAULT_OCR_MODE;
+      const recording = byKey.get(`${createHash('sha256').update(content).digest('hex')}:${mode}`);
       if (!recording) throw new Error('RECORDED_OCR_NOT_FOUND');
       if (recording.error) throw new Error(recording.error);
       return { pageCount: recording.page_count, pages: structuredClone(recording.pages) };
@@ -257,9 +275,10 @@ export function createRecordedOcrReplay(recordings) {
 }
 
 /** Converts PDF pages to OCR word/line regions, then adapts supported assignment fields to w2-scan-v1. */
-export async function extractPdfScanFixture({ content, documentType, layoutId = `pdf-ocr-${documentType}`, scanProvider = null, ocrEngine = tesseractOcrEngine }) {
+export async function extractPdfScanFixture({ content, documentType, layoutId = `pdf-ocr-${documentType}`, scanProvider = null, ocrMode = DEFAULT_OCR_MODE, ocrEngine = tesseractOcrEngine }) {
   assertPdf(content);
-  const { pageCount: pages, pages: renderedPages } = await ocrEngine.recognize(content, { includeImages: Boolean(scanProvider) });
+  const psm = OCR_MODE_PSM[ocrMode] ?? 6;
+  const { pageCount: pages, pages: renderedPages } = await ocrEngine.recognize(content, { includeImages: Boolean(scanProvider), psm });
   if (scanProvider && renderedPages.some((page) => !page.image_base64)) throw new Error('SCAN_PROVIDER_REQUIRES_PAGE_IMAGES');
   const ocrLines = renderedPages.flatMap((page) => page.lines);
   const modelResult = scanProvider ? await scanProvider.extract({ documentType, pages: renderedPages }) : null;
@@ -278,5 +297,5 @@ export async function extractPdfScanFixture({ content, documentType, layoutId = 
     fixture.push(`FIELD|field_id=${field.field_id}|label=${safe(field.label)}|value=${safe(field.value)}|unit=${safe(field.unit)}|quote=${safe(field.quote)}|page=${page}|box=${box.join(',')}|confidence=${confidence.toFixed(2)}`);
   }
   // `ocrText` stays in memory for document-type detection; it is never logged or traced.
-  return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: modelResult ? modelResult.model : ocrEngine.name, ocrText: ocrLines.map((line) => line.text).join('\n') };
+  return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: modelResult ? modelResult.model : ocrEngine.name, ocrText: ocrLines.map((line) => line.text).join('\n'), ocrMode };
 }

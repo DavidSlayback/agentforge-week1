@@ -11,6 +11,8 @@ import { createOpenEMRModuleWritebackFromEnv } from './openemrModuleWriteback.js
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest } from './contracts.js';
+import { DeterministicAnswerComposer } from './answerComposer.js';
+import { GroundedAnswerResult, parseOrIssues } from './schemas.js';
 import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
@@ -94,6 +96,15 @@ const buildProvider = (mode, role = 'synthesis') => {
 };
 const publicBasePath = process.env.AGENTFORGE_PUBLIC_BASE_PATH || '';
 const provider = buildProvider(providerMode);
+// The W2 answer composer (answerComposer.js) reuses the same configured
+// model client and env (AGENTFORGE_PROVIDER_MODE / AGENTFORGE_MODEL_*) as
+// `provider` above -- no separate model configuration -- but wraps it in its
+// own ResilientProvider whose fallback is the deterministic *composer*, not
+// the briefing-shaped `DeterministicProvider` (which expects `patient`/
+// `qualification`/`comparison` args the composer never has and would throw
+// on). When `provider` is itself already deterministic (no model
+// configured), the answer composer is deterministic too.
+const answerProvider = new ResilientProvider({ primary: provider instanceof ResilientProvider ? provider.primary : provider, fallback: new DeterministicAnswerComposer() });
 // Optional cheap interactive lane. It is deliberately opt-in so the existing
 // Qwen-only deployment remains unchanged until a model and budget are approved.
 const conversationProvider = conversationProviderMode ? buildProvider(conversationProviderMode, 'conversation') : null;
@@ -145,6 +156,15 @@ function injectTestScanExtractionFault(extraction) {
   if (!testInvalidScanExtraction) return extraction;
   return { ...extraction, lab_results: [...(extraction.lab_results || []), { test_name: 'test-only-invalid-injection' }] };
 }
+// Test-only fault injection: corrupts a composed grounded answer, so a test
+// can prove F10 -- the server validates `workflow.answer` and refuses to
+// persist derived facts *before* ever attempting the write, not after. No
+// production code path sets this env var.
+const testInvalidAnswer = process.env.AGENTFORGE_TEST_INVALID_ANSWER === 'true';
+function injectTestAnswerFault(answer) {
+  if (!testInvalidAnswer || !answer) return answer;
+  return { ...answer, composer: 'test-only-invalid-injection' };
+}
 const chartAdapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
 // Persistence is chosen independently of the chart mode: the W2 service keeps
 // the synthetic chart but stores uploads in OpenEMR through the module.
@@ -159,7 +179,7 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000) });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
@@ -433,7 +453,20 @@ const server = http.createServer(async (req, res) => {
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       if (result.status === 'unreadable') return json(res, 422, { error: result.reason, final_state: result.final_state, synthetic_only: true });
       const extraction = injectTestScanExtractionFault(result.workflow.typed_outputs.extraction);
-      const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction } } };
+      const answer = injectTestAnswerFault(result.workflow.answer);
+      const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction }, ...(result.workflow.answer ? { answer } : {}) } };
+      // F10 review fix: the S6 grounded answer (when the workflow reached far
+      // enough to compose one) is validated against its own strict contract
+      // *before* any write below -- a contract failure must write nothing,
+      // not persist derived facts and then answer 500. Never leak
+      // claim/citation content in the failure log.
+      if (responseBody.workflow?.answer) {
+        const answerValidation = parseOrIssues(GroundedAnswerResult, responseBody.workflow.answer);
+        if (!answerValidation.ok) {
+          console.error('AgentForge grounded answer failed contract validation', { issues: answerValidation.issues });
+          return json(res, 500, { error: 'response_contract_invalid' });
+        }
+      }
       // Derived facts are persisted only from an extraction whose typed
       // contract validates; an invalid one is answered with 500 below.
       if (validateScanExtractionTypedOutput(extraction).valid) {

@@ -27,7 +27,16 @@ const ada = {
   sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: [], degraded: null,
   citation: citation('guideline', 'ada-2026', 'ada-2026-chunk-9', adaSnippet, 'Pharmacologic therapy'),
 };
-const allowedValues = [hemoglobin, potassium, hba1c, metformin, metformin1000, chiefConcern, allergy, age, metforminStarted, ada];
+// A real-corpus-shaped chunk whose version is a date (S5 corpus), so the
+// deterministic composer's "Per <title> guideline, section <section>
+// (<version>)" attribution must still verify.
+const cdcSnippet = 'The A1C test is a simple blood test that measures your average blood sugar levels over the past 3 months.';
+const cdc = {
+  title: 'A1C Test for Diabetes and Prediabetes', section: 'What Is the A1C Test?', version: 'May 15, 2024', url: 'https://www.cdc.gov/diabetes/diabetes-testing/prediabetes-a1c-test.html', publisher: 'CDC', snippet: cdcSnippet,
+  sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: [], degraded: null,
+  citation: citation('guideline', 'cdc-a1c-test-definition', 'cdc-a1c-test-definition', cdcSnippet, 'What Is the A1C Test?'),
+};
+const allowedValues = [hemoglobin, potassium, hba1c, metformin, metformin1000, chiefConcern, allergy, age, metforminStarted, ada, cdc];
 
 const fact = (text, ...citations) => ({ kind: 'patient_fact', text, citations });
 const guideline = (text, ...citations) => ({ kind: 'guideline', text, citations });
@@ -67,6 +76,7 @@ const FAILING_PROBES = [
   ['quote-only match with wrong ids', fact('Hemoglobin 13.2 g/dL.', { ...hemoglobin.citation, source_id: 'doc-other', field_or_chunk_id: 'lab.other' }), ['CITATION_NOT_ALLOWED']],
   ['right ids, altered quote', fact('Hemoglobin 13.2 g/dL.', { ...hemoglobin.citation, quote_or_value: 'Hemoglobin 9.1 g/dL' }), ['CITATION_QUOTE_MISMATCH']],
   ['wrong collection date', fact('Hemoglobin 13.2 g/dL, collected on 2026-09-21.', hemoglobin.citation), ['UNANCHORED_DATE']],
+  ['guideline quote with a date that is not its version', guideline(`Per A1C Test for Diabetes and Prediabetes guideline, section What Is the A1C Test? (June 1, 2020): "${cdcSnippet}"`, cdc.citation), ['UNANCHORED_DATE']],
   ['guideline paraphrase not in the chunk', guideline('Per ADA metformin is first-line for every patient.', ada.citation), ['GUIDELINE_QUOTE_MISSING']],
   ['patient fact citing a guideline', fact('The patient takes metformin.', ada.citation), ['GUIDELINE_CITED_FOR_PATIENT_FACT']],
   ['guideline claim citing a patient value', guideline('Metformin 500 mg daily.', metformin.citation), ['NON_GUIDELINE_CITATION']],
@@ -110,6 +120,7 @@ const PASSING_PROBES = [
   ['citation-shaped record value', fact('The patient age is 42.', age)],
   ['descriptive past tense is not a directive', fact('Metformin was started.', metforminStartedCitation)],
   ['two cited values in one claim', fact('Metformin 500 mg daily and HbA1c 7.2 % are documented.', metformin.citation, hba1c.citation)],
+  ['verbatim guideline quote with a date-format version', guideline(`Per A1C Test for Diabetes and Prediabetes guideline, section What Is the A1C Test? (May 15, 2024): "${cdcSnippet}"`, cdc.citation)],
   ['verbatim guideline quote with attribution', guideline('ADA recommends: metformin is the preferred initial pharmacologic agent for the treatment of type 2 diabetes.', ada.citation)],
   ['withheld drug with qualification phrasing only', framing('The metformin dose is withheld because records conflict.')],
 ];

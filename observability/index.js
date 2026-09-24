@@ -41,6 +41,7 @@ class TraceRecorder {
     this.retries = [];
     this.retrieval = { attempts: [] };
     this.handoffs = [];
+    this.decisions = [];
     this.latency = { acknowledgementMs: null };
     this.modelUsage = [];
     this.modelTotals = { input_tokens: 0, output_tokens: 0, cost_usd: 0, calls: 0 };
@@ -64,6 +65,12 @@ class TraceRecorder {
   recordRetrievalAttempt(attempt) { this.retrieval.attempts.push(redactPayload(attempt)); }
   recordHandoff(handoff) { this.handoffs.push(redactPayload(handoff)); }
   recordRetry(retry) { this.retries.push(redactPayload(retry)); }
+  /** Supervisor routing decisions (`supervisor.js#decideNext`), W2-C6:
+   * "routing decisions inspectable". `decision` is always `{next, reason}` --
+   * fixed state names and reason codes, never a value -- so no redaction is
+   * needed, but it still goes through `redactPayload` for defense in depth
+   * against an unexpected extra key. */
+  recordDecision(decision) { this.decisions.push(redactPayload(decision)); }
   recordModelUsage(model) {
     const redactedModel = redactPayload(model);
     const inputTokens = model.inputTokens || 0;
@@ -122,6 +129,7 @@ class TraceRecorder {
       stages: this.stages,
       retrieval: this.retrieval,
       handoffs: this.handoffs,
+      decisions: this.decisions,
       retries: { total: this.retries.length, events: this.retries, exhausted: false },
       model: this.model || {},
       modelUsage: this.modelUsage,
@@ -529,6 +537,7 @@ function operationalTrace(trace = {}) {
     stages: Array.isArray(trace.stages) ? trace.stages.map((stage) => pick(stage, ['name', 'sequence', 'durationMs', 'status', 'provider_status'])) : [],
     retrieval: { attempts: Array.isArray(trace.retrieval?.attempts) ? trace.retrieval.attempts.map((attempt) => pick(attempt, ['adapter', 'group', 'status', 'attempts', 'errorCode'])) : [] },
     handoffs: Array.isArray(trace.handoffs) ? trace.handoffs.map((handoff) => pick(handoff, ['worker', 'status', 'input_type', 'output_status'])) : [],
+    decisions: Array.isArray(trace.decisions) ? trace.decisions.map((decision) => pick(decision, ['next', 'reason'])) : [],
     retries: { total: trace.retries?.total || 0, exhausted: Boolean(trace.retries?.exhausted) },
     model: pick(trace.model, ['provider', 'provider_name', 'model', 'model_name', 'totalTokens', 'inputTokens', 'outputTokens', 'estimatedCostUsd', 'provider_fallback', 'provider_status', 'provider_error_code']),
     modelUsage: Array.isArray(trace.modelUsage) ? trace.modelUsage.map((usage) => pick(usage, ['stage', 'provider', 'provider_name', 'model', 'model_name', 'inputTokens', 'outputTokens', 'estimatedCostUsd'])) : [],

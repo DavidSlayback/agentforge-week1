@@ -1,5 +1,66 @@
 # W2 regression matrix: review regressions against the rebuilt gate
 
+## S4–S6 integration re-run (branch `integrate/s4-s6`)
+
+Run with `node agentforge/scripts/run-regression-matrix.mjs` on the merged
+S4 + S5 + S6 working tree (Windows 11, Node 24.19.0), after the integration
+rebaseline. **R0 passes every check; all 29 other rows fail the gate alone.**
+
+Changes to the matrix for this run:
+
+- The scratch copy now includes the root `Dockerfile`: S5's
+  `dockerfile-runtime-dirs.test.js` reads it, so without it R0 failed `tests`.
+- Re-anchored rows (same defect, equivalent code after S5/S6):
+  - R5, R6, R7 now edit the Gemini hybrid retriever (`guidelineEvidence.js`),
+    which the gate and `agentforge-w2` run: the rerank sort is reversed, the
+    top-k slice becomes `.slice(-1)`, and the returned `evidence` becomes `[]`
+    while `status` stays `complete`.
+  - R8 deletes the `score > 0` filter in `bm25.js`. That filter serves the
+    sparse-only default, the hybrid's sparse half, and the sparse fallback an
+    off-topic query takes. The old find text still matched a different line
+    (the dense cosine filter) as a substring, so the row was re-anchored
+    explicitly.
+  - N5 replaces the supervisor's `clinicianQuestion: query` with the
+    constant. The query is now formulated from the document, so the constant
+    is appended to it rather than replacing it.
+  - X1 deletes the S6 decision loop's `extraction_contract_invalid` stop.
+
+| # | tests | unit-only | evals | obs | GATE | Failing gate categories (cases) |
+|---|---|---|---|---|---|---|
+| R0 | pass | pass | pass | pass | **pass** | — |
+| R2 | FAIL | FAIL | pass | pass | **FAIL** | schema_valid, citation_present, factually_consistent, safe_refusal (35 cases) |
+| R3 | FAIL | FAIL | pass | pass | **FAIL** | factually_consistent (fc-01, fc-02, fc-03, fc-11) |
+| R4 | FAIL | FAIL | pass | pass | **FAIL** | factually_consistent (fc-01, fc-02, fc-03, fc-04) |
+| R5 | FAIL | FAIL | pass | pass | **FAIL** | factually_consistent (fc-08, fc-09, fc-10, fc-11) |
+| R6 | FAIL | FAIL | pass | pass | **FAIL** | factually_consistent (fc-08, fc-09, fc-10, fc-11) |
+| R7 | FAIL | FAIL | pass | pass | **FAIL** | citation_present, factually_consistent (cp-08, fc-07, fc-08, fc-09, fc-10, fc-11) |
+| R8 | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-07) |
+| R9 | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-07) |
+| R10 | FAIL | FAIL | pass | pass | **FAIL** | no_phi_in_logs (np-01, np-03, np-04, np-05, np-06, np-07, np-10, np-11) |
+| R11 | FAIL | pass | pass | FAIL | **FAIL** | no_phi_in_logs (np-10) |
+| R12 | FAIL | FAIL | pass | pass | **FAIL** | schema_valid (sv-07) |
+| R13 | FAIL | FAIL | pass | pass | **FAIL** | schema_valid, citation_present, factually_consistent (12 cases) |
+| R14 | FAIL | FAIL | pass | pass | **FAIL** | schema_valid (sv-09) |
+| R15 | FAIL | FAIL | pass | pass | **FAIL** | schema_valid, factually_consistent (sv-03, sv-04, fc-05, fc-06, fc-07) |
+| R16 | FAIL | FAIL | pass | pass | **FAIL** | schema_valid, factually_consistent (sv-01, sv-05, sv-06, fc-01, fc-03, fc-04) |
+| N1 | FAIL | FAIL | pass | pass | **FAIL** | citation_present (cp-01, cp-03, cp-04, cp-05, cp-06, cp-07) |
+| N2 | FAIL | pass | pass | pass | **FAIL** | factually_consistent (fc-01, fc-02, fc-03, fc-04) |
+| N3 | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-11, sr-13) |
+| N4 | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-03, sr-04) |
+| N5 | FAIL | pass | pass | pass | **FAIL** | factually_consistent, safe_refusal (fc-08, fc-10, sr-07) |
+| N6 | FAIL | FAIL | pass | pass | **FAIL** | factually_consistent (fc-01, fc-02, fc-03, fc-04) |
+| N7 | FAIL | FAIL | pass | pass | **FAIL** | citation_present, factually_consistent (cp-01, cp-05, cp-06, cp-11, fc-01, fc-02, fc-03, fc-04) |
+| N8 | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-12) |
+| N9 | FAIL | FAIL | pass | pass | **FAIL** | citation_present (cp-01, cp-04, cp-05, cp-06) |
+| N10 | FAIL | FAIL | pass | pass | **FAIL** | factually_consistent (fc-04) |
+| I1 | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-13) |
+| U1 | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal, no_phi_in_logs (sr-09, np-09) |
+| L0 | FAIL | FAIL | pass | pass | **FAIL** | no_phi_in_logs (np-01, np-06, np-07, np-11) |
+| X1 | FAIL | pass | pass | pass | **FAIL** | safe_refusal (sr-16) |
+
+The tables below record the earlier `refactor/r2` run and are kept for
+history.
+
 ## Run conditions
 
 - **Command:** `node agentforge/scripts/run-regression-matrix.mjs`.

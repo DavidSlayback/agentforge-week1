@@ -5,13 +5,14 @@ import { localLexicalGuidelineRetriever } from './guidelineEvidence.js';
 import { runActiveSupervisor } from './supervisor.js';
 import { traceSafeHandoff } from './activeWorkers.js';
 import { extractScanForm } from './scanFormAdapter.js';
-import { extractPdfScanFixture } from './pdfScanAdapter.js';
+import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './pdfScanAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 import { recordBelongsToPatient } from './recordScope.js';
+import { composeGroundedAnswer, DeterministicAnswerComposer } from './answerComposer.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000 }) {
     this.adapter = chartAdapter;
     // null keeps the pdfScanAdapter default (real pdftoppm + Tesseract).
     this.ocrEngine = ocrEngine;
@@ -21,8 +22,33 @@ export class AgentForgeService {
     this.writeback = writeback;
     this.guidelineRetriever = guidelineRetriever || localLexicalGuidelineRetriever;
     this.provider = provider;
+    // The W2 grounded-answer composer's model provider (answerComposer.js).
+    // Distinct from `provider` (briefing synthesis): its fallback must be a
+    // `DeterministicAnswerComposer`, not the briefing-shaped `DeterministicProvider`.
+    // `null` means every scan-supervisor answer uses the deterministic composer.
+    this.answerProvider = answerProvider;
+    // F8 review fix: honored the same way PreVisitPreparation honors it for
+    // briefings -- a live OpenEMR chart adapter with no explicit external-
+    // provider approval forces the deterministic composer, never a real model.
+    this.allowExternalLiveProvider = allowExternalLiveProvider;
+    // F6 review fix: a per-scan-request deadline. Its AbortSignal is passed to
+    // the low-confidence OCR retry and to the answer composer's provider call;
+    // once it fires, the answer is composed deterministically
+    // (`model_rejected_reason: 'deadline'`) rather than hanging the request.
+    this.scanDeadlineMs = scanDeadlineMs;
     this.scanProvider = scanProvider;
     this.scanPreparations = new Map();
+    // Backs the supervisor's `extraction_cached` decision: one extraction
+    // handoff cached per content-hash + OCR mode, shared across calls to this
+    // service instance (supervisor.js keeps its own default when a caller
+    // does not pass one, so this is additive/opt-in).
+    this.extractionCache = new Map();
+    // F6 review fix: which OCR mode's preparation actually produced the
+    // typed facts a document's workflow shipped (the low-confidence retry
+    // can upgrade this mid-request) -- `prepareScanSource` and the source
+    // preview/scan-form-evidence routes must render *that* preparation's
+    // boxes, not silently default back to the initial mode.
+    this.resolvedOcrMode = new Map();
     this.traceSink = traceSink;
     this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs });
     // Preserve the established facade access used by callers and tests while
@@ -132,6 +158,12 @@ export class AgentForgeService {
     }
     if (source.status !== 'read') return source;
     const trace = this.traceSink?.start?.({ correlationId: `w2-scan-${randomUUID()}`, operation: 'w2-scan-supervisor', interactionType: 'scan_form', scope: { patientRef: request.patient_uuid } });
+    // F6 review fix: a per-request deadline whose AbortSignal is passed to the
+    // low-confidence OCR retry and to the answer composer's provider call, so
+    // a slow retry or a slow model cannot hang the request indefinitely --
+    // once it fires, both fall back to their safe, synchronous defaults.
+    const deadline = new AbortController();
+    const deadlineTimer = setTimeout(() => deadline.abort(new Error('SCAN_DEADLINE_EXCEEDED')), this.scanDeadlineMs);
     try {
       trace?.startStage('source_preparation');
       let prepared;
@@ -153,25 +185,71 @@ export class AgentForgeService {
       const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
       const pageCountMatch = contentText.match(/page_count=(\d+)/);
       const targetPatient = await this.patientDemographics?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
-      const workflow = await runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace, documentText: pdf ? prepared.ocrText : contentText, targetPatient, retrievalAdapter: this.guidelineRetriever });
+      const workflow = await runActiveSupervisor({
+        sourceDocumentId: source.source_document.id,
+        documentType: source.source_document.document_type,
+        layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'),
+        pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1),
+        content,
+        query,
+        observer: trace,
+        documentText: pdf ? prepared.ocrText : contentText,
+        targetPatient,
+        retrievalAdapter: this.guidelineRetriever,
+        extractionCache: this.extractionCache,
+        ocrMode: pdf ? (prepared.ocrMode || DEFAULT_OCR_MODE) : DEFAULT_OCR_MODE,
+        signal: deadline.signal,
+        reextractWithAlternateOcr: pdf ? async () => {
+          const alternate = await this.prepareScanSource(source, { ocrMode: ALTERNATE_OCR_MODE });
+          return { content: alternate.content, ocrMode: ALTERNATE_OCR_MODE };
+        } : null,
+      });
       if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
+      // F6 review fix: remember which OCR mode this document's workflow
+      // actually used, so a later preview/evidence read renders that
+      // extraction's boxes, not always the initial default.
+      if (workflow.ocr_mode) this.resolvedOcrMode.set(source.source_document.id, workflow.ocr_mode);
       for (const handoff of workflow.handoffs || []) trace?.recordHandoff(traceSafeHandoff(handoff));
+      if (workflow.readiness !== 'stopped') {
+        trace?.startStage('answer');
+        try {
+          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref).catch(() => ({ patient_facts: [] }));
+          // F8 review fix: honor allowExternalLiveProvider the same way
+          // briefings do -- a live OpenEMR chart with no explicit external-
+          // provider approval never reaches a real model for the answer either.
+          const liveProviderBlocked = this.chartAdapter?.name === 'openemr-rest' && !this.allowExternalLiveProvider && this.answerProvider && this.answerProvider.name !== 'deterministic' && this.answerProvider.name !== 'deterministic-answer-composer';
+          workflow.answer = await composeGroundedAnswer(
+            { labResults: workflow.typed_outputs.extraction?.lab_results || [], intakeForm: workflow.typed_outputs.extraction?.intake_form || null, guidelineEvidence: workflow.typed_outputs.evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [], question: query },
+            { provider: liveProviderBlocked ? new DeterministicAnswerComposer() : this.answerProvider, trace, correlationId: trace?.correlationId || '', signal: deadline.signal },
+          );
+        } finally {
+          trace?.finishStage('answer', { status: workflow.answer ? workflow.answer.composer : 'failed' });
+        }
+      }
       trace?.setEvaluation({ status: 'not_run', reason: 'the golden-set gate runs separately from an individual document workflow' });
       trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
       return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
     } catch (error) {
       trace?.complete({ status: 'failure' });
       throw error;
+    } finally {
+      clearTimeout(deadlineTimer);
     }
   }
 
-  async prepareScanSource(source) {
-    const id = source.source_document.id;
+  async prepareScanSource(source, { ocrMode } = {}) {
+    // F6 review fix: default to whichever OCR mode this document's workflow
+    // actually settled on (set by `runActiveSupervisorForDocument` below),
+    // not always the initial default -- so a later `/source-preview` or
+    // `/scan-form-evidence` read renders the boxes of the extraction that
+    // was actually used, even after a low-confidence retry upgraded it.
+    const resolvedOcrMode = ocrMode || this.resolvedOcrMode.get(source.source_document.id) || DEFAULT_OCR_MODE;
+    const id = `${source.source_document.id}:${resolvedOcrMode}`;
     const cached = this.scanPreparations.get(id);
     if (cached) return cached;
     const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
     const prepared = Promise.resolve().then(async () => pdf
-      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
+      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider, ocrMode: resolvedOcrMode, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
       : { content: source.content, pageCount: 1, pdf: false });
     if (this.scanPreparations.size >= 50) this.scanPreparations.delete(this.scanPreparations.keys().next().value);
     this.scanPreparations.set(id, prepared);
@@ -183,15 +261,43 @@ export class AgentForgeService {
     }
   }
 
+  /**
+   * Chart-record facts for the W2 answer's "patient record" section and for
+   * `/v1/follow-up-evidence`'s `patient_facts`, each carrying the standard
+   * 5-key `Citation` (`source_type: 'openemr_record'`) alongside the
+   * existing flat fields (S2 review finding 8). Does not authorize on its
+   * own -- every caller has already authorized patient-scoped read access
+   * (the scan-supervisor path via `readSourceDocument`; `retrieveFollowUpEvidence`
+   * via its own `chartAdapter.authorize` call) before calling this. Does not
+   * catch `chartAdapter.getCase`'s `PATIENT_NOT_FOUND` -- callers that must
+   * tolerate an unknown chart patient (the scan-supervisor path, where a
+   * document can be uploaded for a patient the fixture chart never seeded)
+   * catch it themselves; `retrieveFollowUpEvidence` deliberately still lets
+   * it propagate to the server's existing 404 handling.
+   */
+  async retrievePatientChartFacts(patientRef, caseId = null) {
+    const item = await this.chartAdapter.getCase(patientRef, caseId);
+    const retrieved = await this.chartAdapter.retrieve(item);
+    const validation = validateRetrievalResult(retrieved);
+    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid', patient_facts: [], failed_patient_groups: [] };
+    const patientFacts = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage)).map((record) => {
+      const quote = record.value === null || record.value === undefined ? '' : String(record.value).trim();
+      const citation = record.source_ref && record.field && quote
+        ? { source_type: 'openemr_record', source_id: record.source_ref, page_or_section: 'OpenEMR chart record', field_or_chunk_id: record.field, quote_or_value: quote }
+        : null;
+      return { source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author, citation };
+    });
+    const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
+    return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups };
+  }
+
   async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
     const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
-    const item = await this.chartAdapter.getCase(authorization.patient_uuid, request.case_id);
-    const retrieved = await this.chartAdapter.retrieve(item);
-    const validation = validateRetrievalResult(retrieved);
-    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid' };
-    const patientFacts = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage)).map((record) => ({ source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author }));
-    const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
+    const chart = await this.retrievePatientChartFacts(authorization.patient_uuid, request.case_id);
+    if (chart.status !== 'ready') return { status: 'blocked', reason: chart.reason };
+    const patientFacts = chart.patient_facts;
+    const failedGroups = chart.failed_patient_groups;
     let guideline;
     try {
       guideline = await this.guidelineRetriever.retrieve(request.message, { topK });
