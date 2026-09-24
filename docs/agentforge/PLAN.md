@@ -1,9 +1,6 @@
 # AgentForge plan: W2 final submission
 
-This is the only plan file (see `AGENTS.md`). It supersedes `W2_PLAN.md`,
-`W2_GAP_CLOSURE_EXECUTION_PLAN.md`, `W2_EARLY_SUBMISSION_EXECUTION_PLAN.md`,
-`IMPLEMENTATION_SLICES_DRAFT.md` and `.scratch/agentforge-week2/issues/`; S12
-deletes or archives them.
+This is the only plan file (see `AGENTS.md`). It supersedes earlier plans and status docs now archived in `archive/`; see that directory for what was moved and what supersedes it.
 
 **Goal:** By Sunday 2026-09-27 12:00 CT, one commit on GitLab `main` is deployed
 to `/agentforge-w2`. It passes every W2 hard gate and core requirement, each
@@ -475,8 +472,8 @@ observed live** — the post-deploy smoke below has not run.
 - Archive the superseded plan and status docs listed at the top of this file.
   Remove the SSH user, IP and key path from `deploy/vultr/README.md`.
 - Stale after S2 (review): `EVAL_GATE.md` lines 6, 9, 13 and 38;
-  `W2_ARCHITECTURE.md:30-31`; `W2_STAGE0_CONTRACT_PACKET.md:46-47`;
-  `LOCAL_VLM_RUNNER.md:43`; and the `rubric_mapping` string in
+  `W2_ARCHITECTURE.md:30-31`; `archive/W2_STAGE0_CONTRACT_PACKET.md:46-47`;
+  `archive/LOCAL_VLM_RUNNER.md:43`; and the `rubric_mapping` string in
   `w2RegressionGate.js`. Add a `.dockerignore` so the build context isn't the
   whole OpenEMR tree.
 - Check: every relative link resolves, and `grep -n "not implemented\|has not

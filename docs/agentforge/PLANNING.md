@@ -41,7 +41,7 @@ Recommendations remain proposals until discussed. Dependencies may change as aud
 
 ## Pre-visit preparation deepening (2026-09-22)
 
-The approved extraction plan is recorded in `PRE_VISIT_PREPARATION_PLAN.md` and
+The approved extraction plan is recorded in `archive/PRE_VISIT_PREPARATION_PLAN.md` and
 the architectural decision in `docs/adr/0001-pre-visit-preparation-module.md`.
 `AgentForgeService` remains the stable facade while `PreVisitPreparation` owns
 the briefing lifecycle: preparation, prewarm, cache opening, and follow-up.
@@ -54,7 +54,7 @@ and supervisor workflow remain outside the deep module.
 
 The follow-on architecture decision is recorded in
 `docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md` and
-planned in `READ_WRITE_SEAM_PLAN.md`. `AgentForgeService` remains the stable
+planned in `archive/READ_WRITE_SEAM_PLAN.md`. `AgentForgeService` remains the stable
 facade, while preparation and follow-up evidence use an explicit read-only
 `chartAdapter`. Synthetic source documents, derived observations, and
 clinician-confirmed action drafts use a separate `writeback` collaborator.
