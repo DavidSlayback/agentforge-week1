@@ -15,6 +15,7 @@ function actionId({ patientRef, clinicianRef, actionType, instruction }) {
   return `draft-${crypto.createHash('sha256').update(`${patientRef}|${clinicianRef}|${actionType}|${instruction}`).digest('hex').slice(0, 24)}`;
 }
 
+/** Build an idempotent, synthetic-only draft from an explicit clinician instruction. */
 export function buildClinicalActionDraft({ patientRef, clinicianRef, actionType, instruction, instructionSource = 'clinician', now = () => new Date().toISOString() }) {
   patientRef = requireString(patientRef, 'CLINICAL_ACTION_PATIENT_REQUIRED');
   clinicianRef = requireString(clinicianRef, 'CLINICAL_ACTION_CLINICIAN_REQUIRED');
@@ -37,7 +38,7 @@ export function buildClinicalActionDraft({ patientRef, clinicianRef, actionType,
   };
 }
 
-/** Synthetic-only action ledger. No live OpenEMR write path uses this store. */
+/** Synthetic-only ledger for clinician-confirmed actions; it has no live OpenEMR write path. */
 export class SyntheticClinicalActionStore {
   constructor({ now = () => new Date().toISOString(), persist = null } = {}) {
     this.now = now;

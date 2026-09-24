@@ -1,0 +1,23 @@
+{
+  "schema_version": "w2-jev-spike-v1",
+  "synthetic_only": true,
+  "case_count": 20,
+  "standard": {
+    "accuracy": 1,
+    "clarification_or_abstention_cases": 8,
+    "unsafe_handoffs": 4,
+    "traceable": true,
+    "reproducible": true,
+    "cost_usd": 0
+  },
+  "jev": {
+    "status": "unavailable",
+    "reason": "jev_unavailable",
+    "accuracy": null,
+    "traceable": null,
+    "cost_usd": null
+  },
+  "recommendation": "keep_standard",
+  "promotion_rule": "No Jev promotion without equal-or-better quality, no safety or traceability regression, and a measured lower cost basis.",
+  "raw_case_outputs": "omitted; content-free report boundary"
+}

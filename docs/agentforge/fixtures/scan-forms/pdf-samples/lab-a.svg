@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1294" viewBox="0 0 1000 1294">
+  <rect width="1000" height="1294" fill="#edf2f4"/><rect x="64" y="54" width="872" height="1186" rx="12" fill="#fff" stroke="#bdcbd0" stroke-width="2"/>
+  <text x="104" y="124" font-family="Arial,sans-serif" font-size="21" font-weight="700" fill="#087e78">SYNTHETIC LABORATORY REPORT · LAYOUT A</text>
+  <text x="104" y="190" font-family="Arial,sans-serif" font-size="32" font-weight="700" fill="#18313e">Lab results</text>
+  <text x="104" y="238" font-family="Arial,sans-serif" font-size="23" fill="#344e5b">Patient: Test Patient One · DOB: 1980-04-12</text>
+  <line x1="104" y1="274" x2="896" y2="274" stroke="#d6e0e3" stroke-width="2"/>
+  <g font-family="Arial,sans-serif" font-size="25" fill="#18313e">
+    <text x="110" y="350">Hemoglobin test name: Hemoglobin</text><text x="110" y="412">Hemoglobin value: 13.2</text><text x="110" y="474">Hemoglobin unit: g/dL</text><text x="110" y="536">Hemoglobin reference range: 12.0-16.0</text><text x="110" y="598">Hemoglobin collection date: 2026-09-20</text><text x="110" y="660">Hemoglobin abnormal: No</text>
+    <text x="110" y="770">A1C test name: A1C</text><text x="110" y="832">A1C value: 6.1</text><text x="110" y="894">A1C unit: %</text><text x="110" y="956">A1C reference range: under 5.7</text><text x="110" y="1018">A1C collection date: 2026-09-20</text><text x="110" y="1080">A1C abnormal: Yes</text>
+  </g>
+  <text x="104" y="1174" font-family="Arial,sans-serif" font-size="18" fill="#56707b">Fictional values for software demonstration. Not a real patient record.</text>
+</svg>

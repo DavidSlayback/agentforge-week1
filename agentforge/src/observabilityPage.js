@@ -42,12 +42,12 @@ export function renderObservabilityPage() {
   <script>
   (() => {
     // Endpoint contract: basePath+'/v1/metrics', basePath+'/v1/alerts', basePath+'/v1/traces'.
-    const basePath = location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
+    const basePath = location.pathname.startsWith('/agentforge-w2') ? '/agentforge-w2' : location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
     const byId = (id) => document.getElementById(id);
     const number = (value, suffix = '') => Number.isFinite(Number(value)) ? \`\${Number(value).toLocaleString()}\${suffix}\` : '—';
     const pct = (value) => \`\${(Number(value || 0) * 100).toFixed(1)}%\`;
     const safe = (value) => String(value ?? 'unknown').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-    const interactionLabels = { background_preparation: 'Preparation', scheduled_preparation: 'Scheduled prep', prepared_open: 'Prepared open', cache_followup: 'Follow-up', fresh_followup: 'Fresh follow-up' };
+    const interactionLabels = { background_preparation: 'Preparation', scheduled_preparation: 'Scheduled prep', prepared_open: 'Prepared open', cache_followup: 'Follow-up', fresh_followup: 'Fresh follow-up', scan_form: 'Scanned documents' };
     const barRows = (values, formatter = number) => {
       const entries = Object.entries(values || {}); const max = Math.max(1, ...entries.map(([, value]) => Number(value) || 0));
       return entries.length ? entries.map(([key, value]) => \`<div class="bar-row"><span>\${safe(key)}</span><div class="bar-track"><div class="bar-fill" style="width:\${Math.min(100, ((Number(value) || 0) / max) * 100)}%"></div></div><strong>\${formatter(value)}</strong></div>\`).join('') : '<div class="empty">No observations in window.</div>';
@@ -76,7 +76,13 @@ export function renderObservabilityPage() {
         byId('window-label').textContent = \`(\${number((alerts.windowMs || metrics.windowMs || 0) / 60000)} minute window)\`;
         byId('alerts').innerHTML = (alerts.rules || []).map((alert) => \`<div class="alert \${alert.triggered ? 'triggered' : ''}"><div><div class="alert-name">\${safe(alert.id)}</div><div class="alert-meta">Observed \${safe(alert.observed)} \${safe(alert.operator)} \${safe(alert.threshold)}</div></div><span class="status \${alert.triggered ? 'bad' : 'ok'}">\${alert.triggered ? 'Triggered' : 'Clear'}</span></div>\`).join('') || '<div class="empty">No alert rules returned.</div>';
         const recent = [...(Array.isArray(traces) ? traces : [])].reverse().slice(0, 8);
-        byId('traces').innerHTML = recent.length ? recent.map((trace) => \`<div class="trace"><code>\${safe(trace.correlationId || '—')}</code><span>\${safe(trace.interactionType || trace.operation || 'request')}<small style="display:block;color:#52606d">\${safe(trace.model?.model || 'No model call')}\${trace.model?.model ? (trace.model.provider_fallback ? ' · fallback' : ' · primary') : ''}</small></span><strong>\${number(trace.durationMs, ' ms')}</strong><span class="status \${trace.status === 'failure' ? 'bad' : 'ok'}">\${safe(trace.status || 'unknown')}</span></div>\`).join('') : '<div class="empty">No redacted traces retained.</div>';
+        byId('traces').innerHTML = recent.length ? recent.map((trace) => {
+          const stages = (trace.stages || []).map((stage) => \`\${stage.name} \${number(stage.durationMs, ' ms')}\`).join(' · ');
+          const guidelineHits = (trace.retrieval?.attempts || []).reduce((total, attempt) => total + Number(attempt.hit_count || 0), 0);
+          const hitSummary = trace.operation === 'w2-scan-supervisor' ? \`<small style="display:block;color:#52606d">\${safe(stages)} · \${number(guidelineHits)} guideline hits</small>\` : '';
+          const interaction = interactionLabels[trace.interactionType] || trace.interactionType || trace.operation || 'request';
+          return \`<div class="trace"><code>\${safe(trace.correlationId || '—')}</code><span>\${safe(interaction)}<small style="display:block;color:#52606d">\${safe(trace.model?.model || 'No model call')}\${trace.model?.model ? (trace.model.provider_fallback ? ' · fallback' : ' · primary') : ''}</small>\${hitSummary}</span><strong>\${number(trace.durationMs, ' ms')}</strong><span class="status \${trace.status === 'failure' ? 'bad' : 'ok'}">\${safe(trace.status || 'unknown')}</span></div>\`;
+        }).join('') : '<div class="empty">No redacted traces retained.</div>';
       })
       .catch((error) => { byId('health-badge').textContent = 'Unavailable'; byId('health-badge').className = 'badge warn'; byId('metric-cards').innerHTML = \`<div class="card bad">Dashboard data unavailable: \${safe(error.message)}</div>\`; });
   })();

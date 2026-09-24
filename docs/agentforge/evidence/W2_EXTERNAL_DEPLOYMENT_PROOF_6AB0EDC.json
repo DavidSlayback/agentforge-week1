@@ -1,0 +1,75 @@
+{
+  "schema_version": "agentforge-w2-external-deployment-proof-v2",
+  "verified_at_utc": "2026-09-23T14:13:39Z",
+  "candidate": {
+    "git_remote": "staging",
+    "git_ref": "refs/heads/davidslayback/w2-synthetic-scan-release",
+    "git_sha": "6ab0edc60956825554fb6501c1ad7bd4897f5a7c",
+    "build_context_archive_sha256": "1a572423539e3a9e59bafd3eaaf1fa64cb5de7a3841ef2649a65473c053ce19d",
+    "runtime_image_id": "sha256:0c9d4678f1652018cb90cd66f0d6677599745d9e463db495bef354b3a226f7a1",
+    "runtime_container_id": "aca17d65920a418c6765c098c58e9b1486c2deade57e7b61c6cc9c02c2cd0ec6",
+    "runtime_health": "healthy"
+  },
+  "deployment": {
+    "public_url": "https://dtstest.64.177.10.182.nip.io/agentforge-w2/",
+    "compose_project": "vultr",
+    "release_directory": "/opt/agentforge-week1/.releases/agentforge-w2-6ab0edc",
+    "service": "agentforge-w2",
+    "openemr_mode": "synthetic",
+    "openemr_dependency": false,
+    "openemr_token_mount": false,
+    "persistent_volume_mounts": [],
+    "published_host_ports": [],
+    "synthesis_provider": "qwen",
+    "rag_provider": "local-lexical-proxy",
+    "cohere_credential_configured": false,
+    "live_cohere": false,
+    "jev_mode": "off",
+    "scan_form_vlm_provider": null
+  },
+  "local_checks": {
+    "npm_test": { "passed": 125, "failed": 0 },
+    "w2_regression_gate": { "passed": true, "cases": 50, "failed_cases": 0 },
+    "git_diff_check": "pass"
+  },
+  "external_checks": {
+    "https_client_certificate_validation": "pass",
+    "health": { "http_status": 200, "body_status": "ok" },
+    "readiness": {
+      "http_status": 200,
+      "body_status": "ready",
+      "dependencies": ["configuration", "retrieval", "model", "trace"]
+    },
+    "landing_page": {
+      "http_status": 200,
+      "synthetic_sample_button_visible_in_browser_accessibility_snapshot": true,
+      "fda_and_cdc_pdf_links_present": true,
+      "pdf_processing_limitation_visible": true
+    },
+    "evaluator_page_http_status": 200,
+    "observability_page_http_status": 200,
+    "public_synthetic_scan_workflow": {
+      "method": "public API client using the deployed fixed synthetic fixture route",
+      "fixture_route_synthetic_only": true,
+      "upload_status": "persisted",
+      "scan_supervisor_http_status": 200,
+      "final_state": "READY",
+      "handoffs": ["scan-form-extraction-worker", "evidence-retrieval-worker"],
+      "accepted_fields": 2,
+      "source_preview_http_status": 200,
+      "page_region_citations_present": true
+    },
+    "week1_route": {
+      "container_id": "a05e2832ad828c286dcedb473eb51ca2fe3ab001911272c9d65c18c8a799a4d4",
+      "status": "healthy",
+      "started_at": "2026-09-22T19:44:38.550808502Z"
+    }
+  },
+  "known_gaps": [
+    "The browser page and controls were inspected, but the one-tap button was not clicked in a browser session.",
+    "A phone-browser recording has not been captured or inspected.",
+    "The official FDA and CDC PDFs are linked from their source sites; the app does not upload or parse them.",
+    "Binary PDF parsing, OCR, and general VLM extraction are not promoted.",
+    "No scan-form provider or model has been selected."
+  ]
+}

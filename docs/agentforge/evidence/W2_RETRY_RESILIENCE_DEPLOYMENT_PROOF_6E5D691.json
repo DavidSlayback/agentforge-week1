@@ -1,0 +1,56 @@
+{
+  "schema_version": "agentforge-w2-retry-resilience-deployment-proof-v1",
+  "verified_at_utc": "2026-09-23T19:07:55Z",
+  "candidate": {
+    "git_remote": "staging",
+    "git_ref": "refs/heads/davidslayback/w2-synthetic-scan-release",
+    "deployed_code_sha": "6e5d691",
+    "runtime_image_id": "sha256:0e5d800d60fbcdf00e2f7dc8315ce84199e1dad2d3fe9711b8191e665b2343d8",
+    "runtime_container_id": "ea1d129cc584a70bc231edb88fdc3585e49d3fe14b2df6629d6a3b4fde1fcc7e",
+    "runtime_health": "healthy"
+  },
+  "deployment": {
+    "public_url": "https://dtstest.64.177.10.182.nip.io/agentforge-w2/",
+    "release_directory": "/opt/agentforge-week1/.releases/agentforge-w2-6e5d691",
+    "openemr_mode": "synthetic",
+    "scan_provider_mode": "local",
+    "gemini_model_configured": "gemini-3.8-flash",
+    "server_key_present_but_not_echoed": true,
+    "server_env_file_mode": "0600",
+    "week1_container_id": "a05e2832ad828c286dcedb473eb51ca2fe3ab001911272c9d65c18c8a799a4d4",
+    "week1_container_unchanged": true
+  },
+  "external_checks": {
+    "https_certificate_validation": "pass",
+    "health_http_status": 200,
+    "readiness_http_status": 200,
+    "landing_page_http_status": 200,
+    "evaluator_page_http_status": 200,
+    "evaluator_visible_results": { "w2_cases": 50, "passed": 50, "failed": 0 },
+    "browser_workflow": {
+      "sample": "lab-b",
+      "extractor": "tesseract-local-pdf",
+      "final_state": "READY",
+      "cited_fields": 12,
+      "source_preview": "12 verified fields with quotes, page numbers, and raster regions"
+    },
+    "observability_page_http_status": 200,
+    "observability_window": "empty after container restart; requires a fresh observable interaction"
+  },
+  "retry_path": {
+    "implementation": "up to three outbound attempts for HTTP 429, 500, 502, 503, and 504; bounded exponential backoff; respects Retry-After up to five seconds",
+    "daily_limit_counts_each_attempt": true,
+    "runtime_retry_exercised": false,
+    "reason": "Google returned HTTP 503 twice before retries were added; active W2 mode remains local to keep the demo usable."
+  },
+  "local_checks": {
+    "javascript_syntax": "pass",
+    "git_diff_check": "pass",
+    "full_test_suite_on_this_candidate": "not_run"
+  },
+  "limitations": [
+    "The successful browser run used a clean synthetic rasterized PDF, not a physical scan or arbitrary form.",
+    "Gemini extraction quality and retry behavior are unverified until Google returns a successful request.",
+    "This does not establish PHI readiness, real OpenEMR parity, or clinical safety."
+  ]
+}

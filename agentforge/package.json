@@ -2,5 +2,14 @@
   "name": "agentforge-service",
   "private": true,
   "type": "module",
-  "scripts": {"test": "node --test --test-concurrency=1 test/*.test.js", "start": "node src/server.js", "eval:gate": "node scripts/run-w2-gate.mjs"}
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "start": "node src/server.js",
+    "eval:gate": "node scripts/run-w2-gate.mjs",
+    "eval:pdf-samples": "node scripts/benchmark-pdf-samples.mjs",
+    "export:schemas": "node scripts/export-schemas.mjs"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  }
 }

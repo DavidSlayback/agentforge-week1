@@ -1,7 +1,10 @@
+import { runEvidenceWorker, runExtractionWorker } from './activeWorkers.js';
+
 const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACTOR', EVIDENCE_RETRIEVER: 'EVIDENCE_RETRIEVER', VERIFY: 'VERIFY', READY: 'READY', QUALIFIED: 'QUALIFIED', CLARIFY: 'CLARIFY', BLOCKED: 'BLOCKED' });
 
 function hasUsableCitation(item) {
-  return item && typeof item.source_id === 'string' && item.source_id && typeof item.location === 'string' && item.location && typeof item.quote === 'string' && item.quote;
+  const citation = item?.citation;
+  return Boolean(citation && typeof citation.source_id === 'string' && citation.source_id && typeof citation.page_or_section === 'string' && citation.page_or_section && typeof citation.quote_or_value === 'string' && citation.quote_or_value);
 }
 
 /** Inspectable deterministic state graph for the synthetic evidence workflow. */
@@ -65,6 +68,37 @@ export async function executeSupervisorWorkflow({ request, sourceDocumentIds = [
     evidenceResult = { status: 'blocked', patient_facts: [], guideline_evidence: [], issues: ['evidence_worker_failed'] };
   }
   return runDeterministicSupervisor({ intakeResult, evidenceResult, unsafe });
+}
+
+/** Run the inspectable multi-worker scan-form path against synthetic input. */
+export function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null } = {}) {
+  const transitions = [STATES.START];
+  observer?.startStage('extraction');
+  let extractionWorker;
+  try {
+    extractionWorker = runExtractionWorker({ sourceDocumentId, documentType, layoutId, pageCount, content, sourceClass, syntheticOnly, processingMode, ...(extractionAdapter ? { adapter: extractionAdapter } : {}) });
+  } finally {
+    observer?.finishStage('extraction', { status: extractionWorker?.output_status || 'failed' });
+  }
+  observer?.setExtraction({ status: extractionWorker.output_status, confidence: null, document_count: 1, fact_count: extractionWorker.extraction?.facts?.length || 0, issue_count: extractionWorker.extraction?.issues?.length || 0 });
+  transitions.push(STATES.INTAKE_EXTRACTOR);
+  if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null);
+  observer?.startStage('retrieval');
+  let evidenceWorker;
+  try {
+    evidenceWorker = runEvidenceWorker({ query, patientFacts, documentFacts: extractionWorker.extraction.facts, ...(retrievalAdapter ? { retrieve: retrievalAdapter } : {}) });
+  } finally {
+    observer?.finishStage('retrieval', { status: evidenceWorker?.output_status || 'failed' });
+  }
+  observer?.recordRetrievalAttempt({ tool: 'evidence-retriever', provider: 'local-lexical-proxy', status: evidenceWorker.output_status === 'ready' ? 'complete' : 'qualified', hit_count: evidenceWorker.guideline_evidence?.length || 0 });
+  transitions.push(STATES.EVIDENCE_RETRIEVER);
+  if (evidenceWorker.output_status === 'ready') transitions.push(STATES.VERIFY, STATES.READY);
+  else transitions.push(STATES.CLARIFY);
+  return { workflow_version: 'w2-active-supervisor-v1', final_state: evidenceWorker.output_status === 'ready' ? STATES.READY : STATES.QUALIFIED, readiness: evidenceWorker.output_status === 'ready' ? 'ready' : 'qualified', stop_reason: null, transitions, handoffs: [extractionWorker, evidenceWorker], typed_outputs: { extraction: extractionWorker.extraction, evidence: evidenceWorker } };
+}
+
+function activeStop(state, reason, transitions, extraction, evidence) {
+  return { workflow_version: 'w2-active-supervisor-v1', final_state: state, readiness: 'stopped', stop_reason: reason, transitions, handoffs: [extraction, ...(evidence ? [evidence] : [])], typed_outputs: { extraction: extraction.extraction, evidence } };
 }
 
 export { STATES as SUPERVISOR_STATES };

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1294" viewBox="0 0 1000 1294">
+  <rect width="1000" height="1294" fill="#edf2f4"/><rect x="64" y="54" width="872" height="1186" rx="12" fill="#fff" stroke="#bdcbd0" stroke-width="2"/>
+  <text x="104" y="124" font-family="Arial,sans-serif" font-size="21" font-weight="700" fill="#087e78">SYNTHETIC PATIENT INTAKE · LAYOUT A</text><text x="104" y="190" font-family="Arial,sans-serif" font-size="32" font-weight="700" fill="#18313e">New patient visit</text>
+  <g font-family="Arial,sans-serif" font-size="25" fill="#18313e">
+    <text x="110" y="292">Patient name: Test Patient One</text><text x="110" y="360">Date of birth: 1980-04-12</text><text x="110" y="428">Phone: 555-0100</text><text x="110" y="526">Reason for visit: Fatigue for two weeks</text><text x="110" y="624">Current medications: Metformin 500 mg daily</text><text x="110" y="722">Allergies: Penicillin</text><text x="110" y="820">Family history: Mother has type 2 diabetes</text>
+  </g>
+  <text x="104" y="1174" font-family="Arial,sans-serif" font-size="18" fill="#56707b">All information is fictional and for software demonstration only.</text>
+</svg>

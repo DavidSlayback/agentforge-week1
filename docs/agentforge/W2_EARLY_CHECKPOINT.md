@@ -1,114 +1,60 @@
 # Week 2 early checkpoint status
 
-Status: **the W2 candidate is published and externally verified; recording and
-submission remain open.** This document records current proof and gaps as of
-2026-09-23.
-Everything in the W2 workflow is synthetic. The owner has authorized publishing
-this candidate and a separate synthetic `/agentforge-w2` route. That scope does
-not authorize PHI, live clinical records, changes to `/agentforge`, or final
-assignment submission.
+Status as of 2026-09-23: the W2 demo path is deployed on its isolated route and
+the current release has been exercised with browser uploads of both filled PDF
+types. The user still needs to record the 3–5 minute submission video.
 
-## Implemented locally
+## What the Week 2 addition does
 
-- Week 1 patient/chart retrieval remains read-only.
-- W2 has two synthetic document schemas: `lab_pdf` and `intake_form`.
-- The current extractors parse UTF-8 text fixtures containing `LAB|` or
-  `INTAKE|` records. `lab_pdf` is currently a schema/type label; binary PDF
-  parsing, OCR/VLM, and scan reading are not implemented.
-- The supervisor invokes the extraction worker for provided document IDs and
-  the evidence-retrieval worker, then performs deterministic final verification.
-- The assignment-named `intake-extractor` handles both supported schemas. Its
-  redacted handoff records `input_type=source_documents` and actual
-  `document_types`; a local browser run verified `lab_pdf` is labeled correctly.
-- The default retriever is a local lexical proxy. A Cohere Embed/Rerank adapter
-  is available behind `AGENTFORGE_RAG_PROVIDER=cohere` and the server-only
-  `AGENTFORGE_COHERE_API_KEY`. Cohere credentials are not configured here, so
-  live Cohere execution is **NOT RUN**.
-- The W2 gate runs 50 generated synthetic cases against current parsers,
-  retrieval, and trace-redaction code using the five named rubric categories.
-  Its corpus is generated in code; it is not a labeled scanned-form dataset.
-- W2 source and derived-fact storage is an in-memory synthetic seam, not an
-  OpenEMR round trip. The isolated public W2 service was built from GitLab
-  `staging/main` SHA `67f376ca4bca97f7a5e8fe58d4d33cca53d60d2e`; external
-  health/readiness, page, evaluation, alert, trace, and synthetic upload checks
-  passed. It is separate from the existing Week 1 `/agentforge` route.
-- Reviewer pages now label the saved 7-case results as the Week 1 baseline;
-  model traces say `primary` rather than implying every non-fallback model is
-  live, and chart-cache metadata no longer says `openemr-live` for the fixture
-  path.
+Week 1 prepares a visit from patient-scoped chart evidence. Week 2 adds a
+document-review path alongside that workflow: local PDF OCR, typed lab and
+intake extraction, source-linked field citations, guideline retrieval, an
+inspectable supervisor handoff, and a qualified/ready outcome. The page now
+shows retrieved guideline title, section, quote, and source identifier after
+each scan upload.
 
-## Local verification
+The scan workflow records source preparation, extraction, and retrieval stage
+durations, redacted worker handoffs, guideline hit counts, outcome, and total
+duration. The dashboard reads W2 metrics from the W2 route and shows both scan
+traces with their stage timings and guideline-hit counts. A fresh W2 container
+starts with empty in-memory traces; run both uploads before opening the
+dashboard. The captured run showed two successful scan traces, six guideline
+hits total, and no retrieval failures. Its p95 latency alert fired because local
+PDF OCR took about seven seconds against the dashboard's generic two-second
+threshold; this is not an OCR service-level target.
 
-Verified 2026-09-23 on release candidate `67f376c`: AgentForge suite
-**109/109 passed**; normal W2 gate **50/50 passed**
-(10/10 in each rubric); injected schema defect was blocked and the gate exited
-nonzero. These code checks do not prove deployment, PDF/OCR, live Cohere
-execution, OpenEMR round-trip, or recording. The separate local browser proof
-below is not deployment or public-release proof.
+The root-level [`KEY_METRICS.md`](../../KEY_METRICS.md) defines extraction,
+citation, retrieval, qualification, trace coverage, latency, and no-leakage
+measures and separates targets from measurements.
 
-Local browser proof on 2026-09-22 used a generated synthetic UTF-8 `LAB|`
-fixture. The app confirmed one source document stored, one extracted fact, and
-three guideline sources; the supervisor reported completion of the document
-and evidence workers. A fresh trace store showed successful extraction and
-retrieval stages, redacted handoffs for `intake-extractor` with
-`document_types=["lab_pdf"]`, `evidence-retriever`, and
-`deterministic-verifier`, and all three alert states clear. This is local
-synthetic text-fixture evidence: it does not prove binary PDF/OCR, clickable
-source citations, public deployment, or OpenEMR persistence. The dashboard also
-contained one synthetic Week 1 fixture-preparation trace caused by opening the
-app; the W2 follow-up trace is separately labeled.
-The redacted evidence record is
-[`W2_LOCAL_BROWSER_PROOF.json`](evidence/W2_LOCAL_BROWSER_PROOF.json).
+## Current release evidence
 
-## Public release verification
+- Public W2 page, health, readiness, evaluator, and operations dashboard are
+  available at the isolated [W2 demo page](https://dtstest.64.177.10.182.nip.io/agentforge-w2/).
+- Browser upload of Lab B returned `READY`, 12 cited fields, both worker
+  handoffs, and three visible guideline sources.
+- Browser upload of Intake B returned `READY`, 7 cited fields, both worker
+  handoffs, and three visible guideline sources.
+- The W2 dashboard readback showed three requests total (initial visit
+  preparation plus the two scans), seven retrieval attempts, zero errors, and
+  two successful scan traces. The initial visit preparation accounts for the
+  displayed 120 tokens; the scan traces each show “No model call.”
+- The saved W2 regression panel reports 50/50 passing cases. Treat this as a
+  fixture-gate result, not a general accuracy or clinical outcome measure.
+- Deployment recreated only `agentforge-w2` with `--no-deps`; Week 1 remains on
+  `/agentforge` and retains its read-only chart behavior.
 
-The public page was loaded in CUA over HTTPS at
-`https://dtstest.64.177.10.182.nip.io/agentforge-w2/`. Health and readiness
-returned 200; the UI showed the line-text fixture label and used the W2 API
-prefix. A generated synthetic `LAB|` record was uploaded through the public API
-and the supervisor returned one extraction result, one fact, three guideline
-sources, and handoffs for `intake-extractor`, `evidence-retriever`, and
-`deterministic-verifier`. The public 50-case report passed, observability and
-evaluator pages returned 200, and alerts were clear. This upload used an API
-client; a manual browser file-selection session and video recording remain
-open. The Week 1 `/agentforge` health/readiness stayed healthy and its service
-container ID did not change. Full evidence is in
-[`W2_EXTERNAL_DEPLOYMENT_PROOF.json`](evidence/W2_EXTERNAL_DEPLOYMENT_PROOF.json).
+## Remaining limits
 
-Run these from the repository root:
+- The demo uses fixed generated PDF layouts. It does not establish accuracy on
+  physical scans, handwriting, or arbitrary form layouts.
+- The active extraction and guideline retrieval paths are local. Hosted model
+  quality, scan-provider selection, and OCR-specific latency targets remain
+  open.
+- W2 source documents and extracted facts do not round-trip through OpenEMR.
+  The current isolated demo does not prove OpenEMR persistence, PHI readiness,
+  or clinical safety.
+- The user still needs to record and review the requested 3–5 minute video.
 
-```powershell
-npm.cmd test --prefix agentforge -- --test-concurrency=1
-npm.cmd run eval:gate --prefix agentforge
-npm.cmd run eval:gate --prefix agentforge -- --inject-defect
-```
-
-Verified: the serialized test suite passed 109/109, the ordinary 50-case gate
-passed, and the injected defect made the gate exit nonzero. Rerun against the
-exact release revision before submission.
-
-## Early checkpoint blockers
-
-1. Local suite, gate, and mutation proof are recorded above; rerun against the
-   exact release revision before submission.
-2. Public API upload and worker-handoff proof is recorded above. Manual browser
-   file selection and a citation-visible walkthrough remain open.
-3. The isolated current-candidate deployment and public checks are complete.
-4. Record the requested 3–5 minute W2 demo against the same revision.
-5. Reconcile any rubric requirement that specifically requires actual scans,
-   binary PDFs, or OpenEMR persistence; these are not implemented by the local
-   text-fixture seam.
-
-## Week 1 preservation
-
-Do not describe the W2 synthetic local store as OpenEMR persistence or change
-the Week 1 live chart path to write. Keep the W1 baseline clearly identified in
-the README and preserve its read-only runtime boundary.
-
-## User-owned release actions
-
-The W2 candidate is deployed at `/agentforge-w2`. Recording and external
-submission remain open. The existing `/agentforge` service is not being
-represented as this W2 candidate. See the deployment decision frontier in
-[`W2_GAP_CLOSURE_EXECUTION_PLAN.md`](W2_GAP_CLOSURE_EXECUTION_PLAN.md) for the
-record of the completed side-by-side rollout.
+See [`W2_REQUIREMENTS_BY_STAGE.md`](W2_REQUIREMENTS_BY_STAGE.md) for the
+early-versus-final requirement checklist.

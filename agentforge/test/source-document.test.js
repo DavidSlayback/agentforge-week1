@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
@@ -100,6 +101,44 @@ test('AgentForge UI exposes the two synthetic source-document types and upload r
   assert.match(page, /value="lab_pdf"/);
   assert.match(page, /value="intake_form"/);
   assert.match(page, /\/v1\/source-documents/);
+  assert.match(page, /Completed synthetic PDF samples/);
+  assert.match(page, /data-run-pdf-sample="lab-a"/);
+  for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b']) assert.match(page, new RegExp(`/v1/demo-scan-pdf\\?sample=${sample}`));
+  assert.match(page, /https:\/\/www\.fda\.gov\/media\/76299\/download/);
+  assert.match(page, /Upload a synthetic filled lab PDF or intake form/);
+  assert.match(page, /Local OCR returns cited page regions/);
+});
+
+test('synthetic scan demo fixture route serves only the tracked sample with an explicit synthetic marker', async () => {
+  const port = 18808;
+  const child = await startServer(port);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/v1/demo-scan-fixture`);
+    assert.equal(response.status, 200);
+    const sample = await response.json();
+    assert.equal(sample.synthetic_only, true);
+    assert.equal(sample.document_type, 'lab_pdf');
+    assert.match(Buffer.from(sample.content_base64, 'base64').toString('utf8'), /^SYNTHETIC_SCAN_FORM\|layout=lab-a/);
+  } finally {
+    child.kill();
+  }
+});
+
+test('synthetic PDF sample route serves only the four fixed completed form samples', async () => {
+  const port = 18809;
+  const child = await startServer(port);
+  try {
+    for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b']) {
+      const response = await fetch(`http://127.0.0.1:${port}/v1/demo-scan-pdf?sample=${sample}`);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('content-type'), 'application/pdf');
+      assert.equal(response.headers.get('x-agentforge-synthetic'), 'true');
+      assert.ok(Buffer.from(await response.arrayBuffer()).subarray(0, 5).equals(Buffer.from('%PDF-')));
+    }
+    assert.equal((await fetch(`http://127.0.0.1:${port}/v1/demo-scan-pdf?sample=../../.env`)).status, 400);
+  } finally {
+    child.kill();
+  }
 });
 
 test('AgentForge UI keeps the isolated W2 public path for links and API calls', () => {
@@ -113,7 +152,9 @@ test('synthetic lab extraction preserves citations, qualifies gaps, and detects 
   const valid = extractLabEvidence({ sourceDocumentId: 'src-lab-1', content });
   assert.equal(valid.status, 'complete');
   assert.deepEqual(valid.facts[0].citation.bounding_box, [10, 20, 100, 40]);
-  assert.equal(valid.facts[0].citation.source_document_id, 'src-lab-1');
+  assert.equal(valid.facts[0].citation.source_id, 'src-lab-1');
+  assert.equal(valid.lab_results[0].test_name, 'Hemoglobin');
+  assert.equal(valid.lab_results[0].abnormal_flag, 'normal');
 
   const missing = extractLabEvidence({ sourceDocumentId: 'src-lab-2', content: Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL') });
   assert.equal(missing.status, 'qualified');
@@ -128,7 +169,7 @@ test('synthetic intake extraction preserves sections and qualifies contradiction
   const content = Buffer.from('INTAKE|field=demographics.age|value=42|section=Demographics|page=1|field_id=intake.demographics.age|quote=Age 42|bounding_box=10,20,100,40\nINTAKE|field=medication.metformin|value=500 mg daily|section=Medications|page=2|field_id=intake.medications.1|quote=Metformin 500 mg daily|bounding_box=10,50,100,70');
   const valid = extractIntakeEvidence({ sourceDocumentId: 'src-intake-1', content });
   assert.equal(valid.status, 'complete');
-  assert.equal(valid.facts[1].citation.section, 'Medications');
+  assert.equal(valid.facts[1].citation.page_or_section, 'page 2 · Medications');
   const contradiction = extractIntakeEvidence({ sourceDocumentId: 'src-intake-2', content: Buffer.from(`${content.toString()}\nINTAKE|field=medication.metformin|value=1000 mg daily|section=Medications|page=2|field_id=intake.medications.2|quote=Metformin 1000 mg daily|bounding_box=10,80,100,100`) });
   assert.equal(contradiction.status, 'qualified');
   assert.ok(contradiction.issues.some((value) => value.includes('conflicting_values')));
@@ -209,7 +250,7 @@ test('synthetic lab evidence API links derived observations to the source and de
     assert.equal(firstResponse.status, 200);
     const first = await firstResponse.json();
     assert.equal(first.extraction.status, 'complete');
-    assert.equal(first.extraction.facts[0].citation.source_document_id, upload.source_document.id);
+    assert.equal(first.extraction.facts[0].citation.source_id, upload.source_document.id);
     assert.equal(first.observations[0].observation.source_document_id, upload.source_document.id);
     const retry = await fetch(`http://127.0.0.1:${port}${path}`).then((response) => response.json());
     assert.equal(retry.observations[0].duplicate, true);
@@ -230,8 +271,66 @@ test('synthetic intake evidence API links derived observations to the source', a
     const evidence = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/intake-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(writeContext.demo_token)}`);
     assert.equal(evidence.status, 200);
     const body = await evidence.json();
-    assert.equal(body.extraction.facts[0].citation.section, 'Chief concern');
+    assert.equal(body.extraction.facts[0].citation.page_or_section, 'page 1 · Chief concern');
     assert.equal(body.observations[0].observation.source_document_id, upload.source_document.id);
+  } finally {
+    child.kill();
+  }
+});
+
+test('synthetic scan-form evidence API and source preview preserve page-region citations', async () => {
+  const port = 18807;
+  const child = await startServer(port);
+  try {
+    const patient = 'fixture-patient-001';
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
+    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-layout-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
+    const evidencePath = `/v1/source-documents/${upload.source_document.id}/scan-form-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`;
+    const evidenceResponse = await fetch(`http://127.0.0.1:${port}${evidencePath}`);
+    assert.equal(evidenceResponse.status, 200);
+    const evidence = await evidenceResponse.json();
+    // This fixture's flat `lab.hgb`/`lab.a1c` ids (no PDF-OCR field
+    // suffixes) cannot be typed into a LabResult (no collection_date or
+    // abnormal_flag data exists in this layout), so the general "no fact is
+    // silently dropped from the typed view" rule records a typed_issue per
+    // field and downgrades status from `complete` to `qualified`.
+    assert.equal(evidence.extraction.status, 'qualified');
+    assert.equal(evidence.extraction.lab_results.length, 0);
+    assert.ok(evidence.extraction.typed_issues.includes('fact_not_mapped_to_typed_output:lab.hgb'));
+    assert.equal(evidence.source_preview[0].source_id, upload.source_document.id);
+    assert.deepEqual(evidence.source_preview[0].bounding_box, [72, 126, 246, 150]);
+    const preview = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${upload.source_document.id}/source-preview?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`).then((response) => response.text());
+    assert.match(preview, /Synthetic source preview/);
+    assert.match(preview, /data-bounding-box="72,126,246,150"/);
+    const workflow = await fetch(`http://127.0.0.1:${port}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: readContext.demo_token, source_document_id: upload.source_document.id, message: 'documented glycemic values medication adherence' }) });
+    assert.equal(workflow.status, 200);
+    const workflowBody = await workflow.json();
+    assert.equal(workflowBody.workflow.handoffs[0].worker, 'scan-form-extraction-worker');
+    assert.equal(workflowBody.workflow.handoffs[1].worker, 'evidence-retrieval-worker');
+    assert.equal(workflowBody.workflow.final_state, 'READY');
+  } finally {
+    child.kill();
+  }
+});
+
+test('scan extraction responses are re-validated at the HTTP boundary and never sent unvalidated', async () => {
+  const port = 18809;
+  const child = await startServer(port, { AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION: 'true' });
+  try {
+    const patient = 'fixture-patient-001';
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
+    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-layout-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
+    const evidencePath = `/v1/source-documents/${upload.source_document.id}/scan-form-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`;
+    const evidenceResponse = await fetch(`http://127.0.0.1:${port}${evidencePath}`);
+    assert.equal(evidenceResponse.status, 500);
+    assert.deepEqual(await evidenceResponse.json(), { error: 'response_contract_invalid' });
+    const workflowResponse = await fetch(`http://127.0.0.1:${port}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: readContext.demo_token, source_document_id: upload.source_document.id, message: 'documented glycemic values medication adherence' }) });
+    assert.equal(workflowResponse.status, 500);
+    assert.deepEqual(await workflowResponse.json(), { error: 'response_contract_invalid' });
   } finally {
     child.kill();
   }

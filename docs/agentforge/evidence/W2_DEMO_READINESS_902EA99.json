@@ -1,0 +1,46 @@
+{
+  "schema_version": "agentforge-w2-demo-readiness-proof-v1",
+  "verified_at_utc": "2026-09-23T18:40:36Z",
+  "candidate": {
+    "git_remote": "staging",
+    "git_ref": "refs/heads/davidslayback/w2-synthetic-scan-release",
+    "deployed_code_sha": "902ea99",
+    "runtime_image_id": "sha256:88fabc00dbd328c7c9b8269d2586eb597b548dd04f66273c0bf257961d79cd3e",
+    "runtime_container_id": "19f7df50e5a301f38ddd542f5687cef4136cc60e1975ba317270947b7e8a9ba4",
+    "runtime_health": "healthy"
+  },
+  "deployment": {
+    "public_url": "https://dtstest.64.177.10.182.nip.io/agentforge-w2/",
+    "release_directory": "/opt/agentforge-week1/.releases/agentforge-w2-902ea99",
+    "openemr_mode": "synthetic",
+    "scan_provider_mode": "local",
+    "gemini_model_configured": "gemini-3.8-flash",
+    "server_key_present_but_not_echoed": true,
+    "server_env_file_mode": "0600",
+    "week1_container_id": "a05e2832ad828c286dcedb473eb51ca2fe3ab001911272c9d65c18c8a799a4d4",
+    "week1_container_unchanged": true
+  },
+  "external_checks": {
+    "https_certificate_validation": "pass",
+    "health": { "http_status": 200, "body_status": "ok" },
+    "readiness": { "http_status": 200, "body_status": "ready" },
+    "landing_page": { "http_status": 200, "browser_page_loaded": true },
+    "public_browser_workflow": {
+      "sample": "lab-b",
+      "extractor": "tesseract-local-pdf",
+      "final_state": "READY",
+      "cited_fields": 12
+    },
+    "gemini_attempts_before_local_mode": {
+      "sample": "lab-b",
+      "attempts": 2,
+      "provider_http_statuses": [503, 503],
+      "accepted_fields": 0
+    }
+  },
+  "limitations": [
+    "Gemini integration is present and the credential is stored server-side, but the active deployment is in local mode until the Google service is available.",
+    "The 12-field browser run used a clean generated synthetic PDF, not a physical or arbitrary form scan.",
+    "This evidence does not establish provider quality, PHI readiness, real OpenEMR parity, or clinical safety."
+  ]
+}

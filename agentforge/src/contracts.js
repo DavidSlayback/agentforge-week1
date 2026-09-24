@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { SOURCE_DOCUMENT_TYPES } from './sourceDocuments.js';
+import { Citation, GuidelineEvidence, IntakeForm, LabResult, parseOrIssues } from './schemas.js';
 
 /** Versioned request/response wire-shape authority; not an access grant. */
 export const CONTRACT_VERSION = '0.1';
@@ -304,12 +305,17 @@ export function validateLabEvidenceResponse(value) {
       if (!isRecord(fact)) { issues.push(`facts[${index}]_must_be_object`); continue; }
       for (const field of ['source_document_id', 'field_id', 'test', 'value', 'unit', 'reference_range', 'collection_date']) nonEmptyString(issues, fact, field);
       if (typeof fact.abnormal !== 'boolean') issues.push(`facts[${index}].abnormal_must_be_boolean`);
-      if (!isRecord(fact.citation)) issues.push(`facts[${index}].citation_must_be_object`);
-      else {
-        for (const field of ['source_type', 'source_document_id', 'field_id', 'quote']) nonEmptyString(issues, fact.citation, field);
-        if (!Number.isInteger(fact.citation.page) || fact.citation.page < 1) issues.push(`facts[${index}].citation_page_invalid`);
-        if (!Array.isArray(fact.citation.bounding_box) || fact.citation.bounding_box.length !== 4) issues.push(`facts[${index}].citation_bounding_box_invalid`);
-      }
+      // The W2 citation contract itself is delegated to the strict Zod
+      // `Citation` schema (schemas.js) — the source of truth for the exact
+      // five required keys — rather than hand-checked field by field here.
+      const citation = parseOrIssues(Citation, fact.citation);
+      issues.push(...citation.issues.map((issue) => `facts[${index}].citation_${issue}`));
+    }
+    // `lab_results` is the strict typed view (schemas.js `LabResult`); it
+    // must be validated here too, not just the legacy untyped `facts`.
+    if ('lab_results' in value.extraction) {
+      if (!Array.isArray(value.extraction.lab_results)) issues.push('extraction_lab_results_must_be_array');
+      else value.extraction.lab_results.forEach((result, index) => issues.push(...parseOrIssues(LabResult, result).issues.map((issue) => `lab_results[${index}].${issue}`)));
     }
   }
   if (!Array.isArray(value.observations)) issues.push('observations_must_be_array');
@@ -330,15 +336,41 @@ export function validateIntakeEvidenceResponse(value) {
     for (const [index, fact] of (value.extraction.facts || []).entries()) {
       if (!isRecord(fact)) { issues.push(`facts[${index}]_must_be_object`); continue; }
       for (const field of ['source_document_id', 'field', 'field_id', 'value', 'section']) nonEmptyString(issues, fact, field);
-      if (!isRecord(fact.citation)) issues.push(`facts[${index}].citation_must_be_object`);
-      else {
-        for (const field of ['source_type', 'source_document_id', 'section', 'field_id', 'quote']) nonEmptyString(issues, fact.citation, field);
-        if (!Number.isInteger(fact.citation.page) || fact.citation.page < 1) issues.push(`facts[${index}].citation_page_invalid`);
-        if (!Array.isArray(fact.citation.bounding_box) || fact.citation.bounding_box.length !== 4) issues.push(`facts[${index}].citation_bounding_box_invalid`);
-      }
+      const citation = parseOrIssues(Citation, fact.citation);
+      issues.push(...citation.issues.map((issue) => `facts[${index}].citation_${issue}`));
     }
   }
   if (!Array.isArray(value.observations)) issues.push('observations_must_be_array');
+  return { valid: issues.length === 0, issues };
+}
+
+/**
+ * Validate the typed contract of a scan-form extraction (`extractScanForm`
+ * output) before it is returned by the `/scan-form-evidence` and
+ * `/v1/scan-supervisor` endpoints: every fact's citation, every typed
+ * `LabResult`, and the typed `IntakeForm` (when present) against the strict
+ * Zod schemas. This is deliberately independent of `validateScanExtraction`
+ * (`scanFormContracts.js`), which also checks the layout-specific allowed
+ * field list the server does not track — this validator checks only the
+ * part of the contract every layout must satisfy: citations and typed
+ * output. Called at the HTTP boundary so a bad extraction returned from
+ * any seam (adapter, cache, or test double) is never sent to a client as
+ * if it were valid.
+ */
+export function validateScanExtractionTypedOutput(extraction) {
+  const issues = [];
+  if (!isRecord(extraction)) return { valid: false, issues: ['extraction_must_be_object'] };
+  for (const [index, fact] of (extraction.facts || []).entries()) {
+    if (!isRecord(fact)) { issues.push(`facts[${index}]_must_be_object`); continue; }
+    const citation = parseOrIssues(Citation, fact.citation);
+    issues.push(...citation.issues.map((issue) => `facts[${index}].citation_${issue}`));
+  }
+  if (Array.isArray(extraction.lab_results)) {
+    extraction.lab_results.forEach((result, index) => issues.push(...parseOrIssues(LabResult, result).issues.map((issue) => `lab_results[${index}].${issue}`)));
+  }
+  if (extraction.intake_form !== null && extraction.intake_form !== undefined) {
+    issues.push(...parseOrIssues(IntakeForm, extraction.intake_form).issues.map((issue) => `intake_form.${issue}`));
+  }
   return { valid: issues.length === 0, issues };
 }
 
@@ -351,10 +383,9 @@ export function validateFollowUpEvidenceResponse(value) {
   if (!Array.isArray(value.patient_facts)) issues.push('patient_facts_must_be_array');
   if (!Array.isArray(value.guideline_evidence)) issues.push('guideline_evidence_must_be_array');
   else for (const [index, evidence] of value.guideline_evidence.entries()) {
-    if (!isRecord(evidence)) { issues.push(`guideline_evidence[${index}]_must_be_object`); continue; }
-    for (const field of ['source_type', 'source_id', 'title', 'version', 'section', 'location', 'quote']) nonEmptyString(issues, evidence, field);
-    if (evidence.source_type !== 'guideline') issues.push(`guideline_evidence[${index}].source_type_invalid`);
-    if (!Array.isArray(evidence.matched_terms)) issues.push(`guideline_evidence[${index}].matched_terms_must_be_array`);
+    const parsed = parseOrIssues(GuidelineEvidence, evidence);
+    issues.push(...parsed.issues.map((issue) => `guideline_evidence[${index}].${issue}`));
+    if (parsed.ok && parsed.data.citation.source_type !== 'guideline') issues.push(`guideline_evidence[${index}].source_type_invalid`);
   }
   if (!isRecord(value.retrieval)) issues.push('retrieval_must_be_object');
   if (!isRecord(value.qualification)) issues.push('qualification_must_be_object');

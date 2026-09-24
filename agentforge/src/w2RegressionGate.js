@@ -71,14 +71,14 @@ function evaluateCase(testCase) {
     if (testCase.label === 'schema_valid' && (!validation.valid || extraction.status !== 'complete' || !extraction.facts.length)) issues.push('strict_schema_rejected_valid_document');
     if (testCase.label === 'citation_present') {
       const citation = extraction.facts[0]?.citation;
-      if (!validation.valid || !citation?.source_document_id || !citation?.page || !citation?.field_id || !citation?.quote || !Array.isArray(citation?.bounding_box)) issues.push('source_citation_missing');
+      if (!validation.valid || !citation?.source_id || !citation?.page_or_section || !citation?.field_or_chunk_id || !citation?.quote_or_value || !Array.isArray(citation?.bounding_box)) issues.push('source_citation_missing');
     }
   } else if (testCase.operation === 'fact-and-retrieval') {
     const { extraction } = parseDocument({ ...testCase, document_type: 'lab_pdf', source_id: testCase.id });
     const evidence = retrieveGuidelineEvidence(testCase.query);
     if (extraction.facts[0]?.value !== testCase.expected_value) issues.push('extracted_value_mismatch');
-    if (!evidence.evidence.some((item) => item.source_id === testCase.expected_guideline_id)) issues.push('relevant_guideline_not_retrieved');
-    if (evidence.evidence.some((item) => !item.source_id || !item.location || !item.quote)) issues.push('guideline_provenance_missing');
+    if (!evidence.evidence.some((item) => item.citation?.source_id === testCase.expected_guideline_id)) issues.push('relevant_guideline_not_retrieved');
+    if (evidence.evidence.some((item) => !item.citation?.source_id || !item.citation?.page_or_section || !item.citation?.quote_or_value)) issues.push('guideline_provenance_missing');
   } else if (testCase.operation === 'malformed-document') {
     const extraction = extractLabEvidence({ sourceDocumentId: testCase.id, content: Buffer.from(testCase.content, 'utf8') });
     if (extraction.status !== 'qualified' || extraction.facts.length !== 0) issues.push('unreadable_document_not_qualified');

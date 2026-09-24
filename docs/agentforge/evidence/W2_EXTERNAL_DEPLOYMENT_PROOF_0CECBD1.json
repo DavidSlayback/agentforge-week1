@@ -1,0 +1,93 @@
+{
+  "schema_version": "agentforge-w2-external-deployment-proof-v2",
+  "verified_at_utc": "2026-09-23T13:34:37Z",
+  "candidate": {
+    "git_remote": "staging",
+    "git_ref": "refs/heads/davidslayback/w2-synthetic-scan-release",
+    "git_sha": "0cecbd11879fd3f69cbaedea5e0e2e170ee629fa",
+    "build_context_archive_sha256": "5f4ce6a1138bc19d5a2dec508c70d6278e842828e1f84af9c404f4c388ea88b4",
+    "runtime_image_id": "sha256:286d8bf7bdbdd9fb15c8f7a87f855efb3384668664d6e82d2d6543828abca5e9",
+    "runtime_container_id": "1f34658d5c623f0519f1c2c4f77c704c00e7c064003fed117820502b31009080",
+    "runtime_health": "healthy"
+  },
+  "deployment": {
+    "public_url": "https://dtstest.64.177.10.182.nip.io/agentforge-w2/",
+    "compose_project": "vultr",
+    "release_directory": "/opt/agentforge-week1/.releases/agentforge-w2-0cecbd1",
+    "service": "agentforge-w2",
+    "cpu_limit": 0.5,
+    "memory_limit_mib": 512,
+    "openemr_mode": "synthetic",
+    "openemr_dependency": false,
+    "openemr_token_mount": false,
+    "persistent_volume_mounts": [],
+    "published_host_ports": [],
+    "synthesis_provider": "qwen",
+    "rag_provider": "local-lexical-proxy",
+    "cohere_credential_configured": false,
+    "live_cohere": false,
+    "jev_mode": "off",
+    "scan_form_vlm_provider": null
+  },
+  "external_checks": {
+    "client": "PowerShell Invoke-WebRequest with default TLS certificate validation",
+    "https_client_certificate_validation": "pass",
+    "health": {
+      "http_status": 200,
+      "body_status": "ok"
+    },
+    "readiness": {
+      "http_status": 200,
+      "body_status": "ready",
+      "dependencies_ready": [
+        "configuration",
+        "retrieval",
+        "model",
+        "trace"
+      ]
+    },
+    "landing_page": {
+      "http_status": 200,
+      "visual_theme_css_present": true
+    },
+    "evaluator_page": {
+      "http_status": 200,
+      "pass_label_visible": true,
+      "50_case_result_visible": true
+    },
+    "observability_page_http_status": 200,
+    "public_synthetic_scan_workflow": {
+      "method": "public API client using committed synthetic scan-form fixture",
+      "upload_status": "persisted",
+      "synthetic_only": true,
+      "scan_form_evidence_http_status": 200,
+      "extraction_status": "complete",
+      "accepted_fields": 2,
+      "first_field_bounding_box": [
+        72,
+        126,
+        246,
+        150
+      ],
+      "source_preview_http_status": 200,
+      "scan_supervisor_http_status": 200,
+      "final_state": "READY",
+      "handoffs": [
+        "scan-form-extraction-worker",
+        "evidence-retrieval-worker"
+      ]
+    },
+    "week1_route": {
+      "container_id": "a05e2832ad828c286dcedb473eb51ca2fe3ab001911272c9d65c18c8a799a4d4",
+      "status_after_w2_deploy": "healthy",
+      "uptime_after_w2_deploy": "18 hours"
+    }
+  },
+  "known_gaps": [
+    "The new scan-worker handoffs were exercised through the public API; the upload UI does not yet display those handoffs.",
+    "Manual browser file selection and a clean-browser workflow were not performed.",
+    "Extraction accepts controlled synthetic text fixtures; binary PDF parsing, OCR, and general VLM extraction are not promoted.",
+    "No scan-form provider or model has been selected.",
+    "The demo recording remains open."
+  ]
+}

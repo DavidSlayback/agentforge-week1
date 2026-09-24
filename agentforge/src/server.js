@@ -9,13 +9,18 @@ import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
-import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest, validateSupervisorRequest, validateSupervisorResponse } from './contracts.js';
-import { renderAgentForgePage, renderEvaluatorPage } from './ui.js';
+import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest, validateSupervisorRequest, validateSupervisorResponse } from './contracts.js';
+import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
 import { runW2RegressionGate } from './w2RegressionGate.js';
 import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
+import { validateActiveSupervisorRequest } from './scanFormContracts.js';
+import { createGeminiScanAdapter } from './geminiScanAdapter.js';
+import { readBuildSha } from './buildInfo.js';
+
+const gitSha = readBuildSha();
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -46,6 +51,12 @@ const conversationProvider = conversationProviderMode ? buildProvider(conversati
 const openEMRMode = process.env.AGENTFORGE_OPENEMR_MODE || 'synthetic';
 const liveOpenEMR = openEMRMode === 'live';
 const validOpenEMRMode = openEMRMode === 'synthetic' || openEMRMode === 'live';
+const scanProviderMode = process.env.AGENTFORGE_SCAN_PROVIDER_MODE || 'local';
+if (!['local', 'gemini'].includes(scanProviderMode)) throw new Error('AGENTFORGE_SCAN_PROVIDER_MODE must be local or gemini');
+if (scanProviderMode === 'gemini' && liveOpenEMR) throw new Error('Gemini scan extraction is restricted to synthetic mode');
+const scanProvider = scanProviderMode === 'gemini'
+  ? createGeminiScanAdapter({ apiKey: process.env.GEMINI_API_KEY, model: process.env.AGENTFORGE_GEMINI_SCAN_MODEL || 'gemini-3.8-flash', timeoutMs: Number(process.env.AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS || 45000), dailyLimit: Number(process.env.AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT || 12) })
+  : null;
 const ragProviderMode = process.env.AGENTFORGE_RAG_PROVIDER || 'local-lexical';
 if (!['local-lexical', 'cohere'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical or cohere');
 if (ragProviderMode === 'cohere' && liveOpenEMR) throw new Error('Cohere RAG is restricted to the synthetic OpenEMR mode');
@@ -65,6 +76,15 @@ const syntheticSourceDocumentStore = process.env.AGENTFORGE_TEST_SOURCE_DOCUMENT
 const syntheticClinicalActionStore = process.env.AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE === 'true'
   ? new SyntheticClinicalActionStore({ persist() { throw Object.assign(new Error('CLINICAL_ACTION_PERSISTENCE_FAILED'), { code: 'CLINICAL_ACTION_PERSISTENCE_FAILED' }); } })
   : undefined;
+// Test-only fault injection: corrupts a scan extraction after the adapter
+// built it, so a test can prove the HTTP boundary re-validates the typed
+// contract (Citation/LabResult/IntakeForm) rather than trusting whatever the
+// service layer returns. No production code path sets this env var.
+const testInvalidScanExtraction = process.env.AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION === 'true';
+function injectTestScanExtractionFault(extraction) {
+  if (!testInvalidScanExtraction) return extraction;
+  return { ...extraction, lab_results: [...(extraction.lab_results || []), { test_name: 'test-only-invalid-injection' }] };
+}
 const chartAdapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
 const writeback = liveOpenEMR ? null : new SyntheticWriteback({ ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}), ...(syntheticClinicalActionStore ? { clinicalActionStore: syntheticClinicalActionStore } : {}) });
 const hasExternalProvider = [provider, conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
@@ -75,7 +95,7 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
@@ -107,6 +127,20 @@ const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'a
 const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
 const invalidContract = (res, error, issues) => json(res, 400, { error, issues });
 const invalidResponse = (res, error, issues) => json(res, 500, { error, issues });
+// Scan-extraction responses carry the typed W2 contract (citations,
+// LabResult[], IntakeForm) that a client relies on for grounded claims.
+// Re-validate it here, at the HTTP boundary, before it goes out: never
+// forward an extraction whose typed contract failed, and never leak
+// document content in the failure — only the (PHI-free) issue paths are
+// logged server-side, and the client gets a generic error.
+const sendValidatedScanExtraction = (res, status, body, extraction) => {
+  const validation = validateScanExtractionTypedOutput(extraction);
+  if (!validation.valid) {
+    console.error('AgentForge scan extraction response failed contract validation', { issues: validation.issues });
+    return json(res, 500, { error: 'response_contract_invalid' });
+  }
+  return json(res, status, body);
+};
 const tokenPayload = (token) => verifySignedContext(token, process.env.AGENTFORGE_DEMO_SECRET);
 const verifiedContextFor = (body) => tokenPayload(body.demo_token);
 const syntheticWritebackEnabled = () => Boolean(writeback && typeof writeback.persistSourceDocument === 'function');
@@ -139,7 +173,7 @@ async function readJsonBody(req) {
 }
 const server = http.createServer(async (req, res) => {
   try {
-    if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok' });
+    if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok', git_sha: gitSha });
     if (req.method === 'GET' && req.url === '/ready') { const result = await readiness.ready(); return json(res, result.status === 'ready' ? 200 : 503, result); }
     // These endpoints have no separate request authorization. Redaction is
     // their current safety boundary, not a production access policy.
@@ -161,6 +195,24 @@ const server = http.createServer(async (req, res) => {
       if (!patient || (!/^fixture-patient-\d{3}$/.test(patient) && patient !== 'fixture-patient-dup')) return json(res, 400, { error: 'invalid_synthetic_patient' });
       const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', secret: process.env.AGENTFORGE_DEMO_SECRET });
       return json(res, 200, { demo_token: token, patient_uuid: patient, clinician_uuid: 'fixture-physician-001', expires_in_seconds: 300, synthetic_only: true, scope: 'write-source-document' });
+    }
+    if (req.method === 'GET' && req.url === '/v1/demo-scan-fixture') {
+      if (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 403, { error: 'synthetic_fixture_unavailable' });
+      const fixturePath = path.join(projectRoot, 'docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt');
+      return json(res, 200, { synthetic_only: true, filename: 'lab-layout-a-complete.scan.txt', document_type: 'lab_pdf', content_base64: fs.readFileSync(fixturePath).toString('base64') });
+    }
+    if (req.method === 'GET' && req.url.startsWith('/v1/demo-scan-pdf')) {
+      if (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 403, { error: 'synthetic_fixture_unavailable' });
+      const sample = new URL(req.url, 'http://localhost').searchParams.get('sample');
+      const pdfSamples = {
+        'lab-a': 'filled-lab-a.pdf', 'lab-b': 'filled-lab-b.pdf',
+        'intake-a': 'filled-intake-a.pdf', 'intake-b': 'filled-intake-b.pdf',
+      };
+      const filename = pdfSamples[sample];
+      if (!filename) return json(res, 400, { error: 'invalid_synthetic_pdf_sample' });
+      const content = fs.readFileSync(path.join(projectRoot, 'docs/agentforge/fixtures/scan-forms/pdf-samples', filename));
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="agentforge-${sample}-synthetic.pdf"`, 'cache-control': 'no-store', 'x-agentforge-synthetic': 'true' });
+      return res.end(content);
     }
     if (req.method === 'GET' && req.url.startsWith('/v1/clinical-action-context')) {
       if (liveOpenEMR) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -213,6 +265,37 @@ const server = http.createServer(async (req, res) => {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
     }
+    const scanFormEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/scan-form-evidence(?:\?(.*))?$/);
+    if (req.method === 'GET' && scanFormEvidenceMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      try {
+        const result = await service.extractScanFormEvidence(decodeURIComponent(scanFormEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+        if (result.status === 'failed') return json(res, 500, { error: result.reason });
+        const extraction = injectTestScanExtractionFault(result.extraction);
+        const sourcePreview = extraction.facts.map((fact) => ({ field_id: fact.field_id, page_or_section: fact.citation.page_or_section, bounding_box: fact.citation.bounding_box, quote_or_value: fact.citation.quote_or_value, source_id: fact.citation.source_id }));
+        return sendValidatedScanExtraction(res, 200, { synthetic_only: true, source_document: result.source_document, extraction, observations: result.observations, source_preview: sourcePreview }, extraction);
+      } catch (error) {
+        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
+        return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
+      }
+    }
+    const scanSourcePreviewMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/source-preview(?:\?(.*))?$/);
+    if (req.method === 'GET' && scanSourcePreviewMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      const result = await service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+      if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+      if (result.status === 'failed') return json(res, 500, { error: result.reason });
+      return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath }));
+    }
     const sourceDocumentMatch = req.url.match(/^\/v1\/source-documents\/([^?]+)(?:\?(.*))?$/);
     if (req.method === 'GET' && sourceDocumentMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -262,6 +345,17 @@ const server = http.createServer(async (req, res) => {
       } catch (error) {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
+    }
+    if (req.method === 'POST' && req.url === '/v1/scan-supervisor') {
+      const validation = validateActiveSupervisorRequest(body);
+      if (!validation.valid) return invalidContract(res, 'invalid_scan_supervisor_request', validation.issues);
+      const token = verifiedContextFor(body);
+      if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      const result = await service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message });
+      if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+      const extraction = injectTestScanExtractionFault(result.workflow.typed_outputs.extraction);
+      const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction } } };
+      return sendValidatedScanExtraction(res, 200, responseBody, extraction);
     }
     if (req.method === 'POST' && req.url === '/v1/clinical-actions/drafts') {
       if (!syntheticClinicalActionWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });

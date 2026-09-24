@@ -1,58 +1,68 @@
-# Final package checklist
+# Week 2 reviewer package
 
-> Current submission package for the synthetic checkpoint. The video remains
-> the only intentionally unfinished artifact; Qwen remains the synthesis lane and
-> the funded OpenRouter conversation lane is active.
+Updated 2026-09-23. The retry-resilience release is deployed in local Tesseract
+mode. Public Lab Layout B reached READY with 12 cited fields; the source
+preview shows the field quotes and page regions. Gemini is configured
+server-side but disabled after two Google HTTP 503 responses; its new bounded
+retry path has not been exercised. The observability page loaded but had no
+recent traces after the container restart.
+
+For the stage-by-stage requirement table, see
+[`W2_REQUIREMENTS_BY_STAGE.md`](W2_REQUIREMENTS_BY_STAGE.md).
 
 ## Candidate identity
 
-- Local branch: `davidslayback/agentforge-stack-03-deploy-evidence`
-- Source of record: GitLab program issue #17 and child issues #18–#26
-- Verified deployment URL: `https://dtstest.64.177.10.182.nip.io/agentforge/`
-- Deployed service commit: `88420c1`; current API and browser readback are tied
-  to this candidate.
-- Active provider lanes: Qwen for ahead-of-time synthesis; Google Gemini 2.5
-  Flash-Lite through OpenRouter for short follow-ups. The OpenRouter key is
-  server-only and the lane preserves a deterministic evidence anchor.
-- A future synthetic deployment must set `AGENTFORGE_SYNTHETIC_CONTEXT=true`, a
-  server-only `AGENTFORGE_DEMO_SECRET`, and a durable `AGENTFORGE_TRACE_PATH`.
+- Staging branch: `davidslayback/w2-synthetic-scan-release`
+- Deployed code commit: `6e5d691` (`fix(agentforge): retry transient Gemini scan errors`)
+- Public URL: <https://dtstest.64.177.10.182.nip.io/agentforge-w2/>
+- Release directory: `/opt/agentforge-week1/.releases/agentforge-w2-6e5d691`
+- Candidate proof: [W2 retry resilience deployment proof](evidence/W2_RETRY_RESILIENCE_DEPLOYMENT_PROOF_6E5D691.json)
+- Week 1 `/agentforge` stayed healthy with its existing container identity.
 
-## Gate matrix
+The W2 route is synthetic-only. It has no OpenEMR dependency or persistence.
+The existing Week 1 read-only workflow remains separate.
 
-| Gate | Current state | Final proof required |
+## Evidence status
+
+| Area | Current evidence | Status |
 | --- | --- | --- |
-| Requirements/provenance | PASS with repository-provenance note | State that `REQUIREMENTS.md` is the transcribed brief inventory and the original PDF is not stored here. |
-| Public URL/TLS | PASS | Current HTTPS URL, redirect, health, readiness, and browser surface read back on the packaged revision. |
-| Multi-turn browser agent | PASS synthetic | Current clean-browser briefing/follow-up surface verified; partial and blocked probes are in the API collection and UI. |
-| Auth/scope seam | PASS synthetic | Signed-context expiry/mismatch/scope tests pass locally; current synthetic deployed readback passes. |
-| Provider lane | PASS split synthetic | Qwen synthesis and OpenRouter conversation traces both read back as primary; deterministic fallback remains fail-closed. |
-| Operations | PASS synthetic | Dashboard, alerts, traces, and route matrix read back on the packaged revision. |
-| Load/cost | Load PARTIAL; billing readback PASS; projections REVIEW | Latest bounded load sample is candidate-scoped; Vultr shows $1.36 account charges this month and $28.64 remaining credit; deployment-specific attribution and scale projections require owner review. |
-| Contract closure | READY | Review `USER.md`, 90–180-second framing, and provenance wording. |
-| Deployed scale | PARTIAL | The latest split-lane load sample, measured on candidate `56d1a35`, is 10/10 at concurrency 10 and 46/50 at concurrency 50. It is retained as load evidence but is not relabeled as a fresh `88420c1` load run. |
-| Cost analysis | READY FOR OWNER REVIEW | Review account-level Vultr billing, resource readback, and 100/1K/10K/100K projections; do not attribute account charges solely to AgentForge. |
-| Final readback | PASS synthetic | Candidate `88420c1` is deployed, healthy, and passed the public API collection plus live split-lane readback. |
-| Submission package | READY | Link-current artifact review and owner sign-off. |
-| Interview | READY FOR OWNER REVIEW | Timed rehearsal against final evidence. |
-| External communication | LOCAL DRAFT ONLY | Owner explicitly chooses publish or no-publish. |
+| Assignment schemas | Lab: two tests with name, value, unit, reference range, collection date, abnormal flag. Intake: name, DOB, phone, chief concern, medications, allergies, family history. | Implemented |
+| PDF fixture matrix | Four generated synthetic PDFs; two layouts per type, with vector and rasterized pages. | 38/38 expected values exact, valid, and cited locally |
+| Public PDF workflow | Lab Layout B through current local Tesseract mode. | READY; 12 cited fields. Two earlier Gemini attempts returned HTTP 503. |
+| Public page | HTTPS landing page, health, readiness, and sample controls. | HTTP 200; latest page and health/readiness inspected |
+| Regression | Previous candidate passed the AgentForge serial suite and 50-case W2 gate. Current code received syntax and diff checks; full suite not rerun. | Previous candidate: 130/130 and 50/50; current provider path: unverified |
+| VLM/provider | Gemini 3.8 Flash adapter and server key are configured; `.env` permissions are 600. The active scan mode is local after two Google requests returned 503. The adapter has bounded retries for retryable HTTP statuses. | Integrated but inactive; retry path and quality remain unverified |
+| Observability | Public dashboard loads and shows redacted operational panels and alert thresholds. | No traces or observations were present after container restart; show the alert view and label the trace window as empty unless a new trace is generated. |
+| Real scan accuracy | Fixtures are clean computer-generated pages. Physical scans, handwriting, and arbitrary layouts are not benchmarked. | Open |
+| Recording | No W2 recording artifact is available. | Open |
 
-## Final release stop conditions
+FDA Form 3500 and CDC Form 50.34 are linked as layout references. They are
+blank source documents and were not used in the 38-field filled-form benchmark.
+The downloadable PDF samples are generated synthetic fixtures, not sourced
+patient forms.
 
-Stop the release if the final URL is inaccessible, TLS requires a bypass, the
-browser surface is single-shot, signed context is not enforced in the target
-configuration, traces contain raw fixture content, any golden case fails, or a
-document makes a live OpenEMR/PHI/provider/compliance claim.
+## Reviewer path
 
-## Owner sign-off wording
+1. Open the HTTPS URL above and confirm the synthetic-only badge.
+2. Run one lab and one intake PDF. Show worker handoffs, READY status, and the
+   source preview with citations.
+3. Show the evaluator's 50-case gate and the redacted alert view. The evaluator
+   page currently reports 50/50; the trace window is empty after restart, so
+   describe it accurately if no new trace is available.
+4. Keep the recording synthetic. The generated pages do not demonstrate
+   physical scan or handwriting accuracy.
 
-> I reviewed the final candidate, live URL readback, browser flow, evidence
-> index, limitations, and non-claims. I approve this as a synthetic,
-> read-only, evidence-bounded submission. I do not approve PHI, live OpenEMR,
-> hosted-provider, clinical write-back, or external publication beyond the
-> separately named decision below.
+## Remaining decisions and work
 
-## Publication decision
+- Retry Gemini after Google’s 503 issue clears, then measure exact fields and
+  grounded citations on hard synthetic scans before selecting a final
+  provider. Early submission can describe the integrated experiment and its
+  current availability limit.
+- Record and review the requested 3–5 minute demo against this deployed
+  candidate. Verify playback, citations, evaluation, and observability.
+- Reconcile whether the assignment requires physical scanned forms or an
+  OpenEMR round trip beyond the current synthetic implementation.
+- Approve external sharing or final submission separately.
 
-Default state: **do not publish or contact external parties**. Keep the draft
-local unless the owner separately approves recipients, timing, links, and exact
-copy.
+All fixture and patient data are synthetic. These results do not establish
+PHI readiness, real OpenEMR parity, provider suitability, or clinical safety.
