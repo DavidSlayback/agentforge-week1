@@ -496,7 +496,8 @@ adversarial review before merge.
 | S1+S3 | Done, live | Gate alone catches R1–R16, N1–N10, I1, U1, L0 (`W2_REGRESSION_MATRIX.md`); hook blocks (`W2_PRECOMMIT_BLOCK_V3.txt`) |
 | S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
 | S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
-| S4, S5, S6, S9, S12, S11 | Not started | Waiting for the refactor plan and owner decisions |
+| R0–R5 refactor | Planned (owner-approved scope) | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
+| S4, S5, S6, S9, S12, S11 | Not started | After R0–R5 |
 
 Incidents, all fixed and recorded in commits:
 - `git archive` on Windows shipped CRLF; `deploy.sh` now disables autocrlf.
