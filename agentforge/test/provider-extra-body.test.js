@@ -26,3 +26,11 @@ test('responses provider sends no extra fields by default', async () => {
   await provider.generate({ prompt: 'hi' });
   assert.equal('enable_thinking' in bodies[0], false);
 });
+
+test('server env wiring: AGENTFORGE_MODEL_ENABLE_THINKING=false reaches the synthesis provider', async () => {
+  const { modelExtraBodyFromEnv } = await import('../src/modelProvider.js');
+  assert.deepEqual(modelExtraBodyFromEnv({ AGENTFORGE_MODEL_ENABLE_THINKING: 'false' }), { enable_thinking: false });
+  assert.deepEqual(modelExtraBodyFromEnv({ MODEL_ENABLE_THINKING: 'false' }), {});
+  assert.deepEqual(modelExtraBodyFromEnv({ AGENTFORGE_CONVERSATION_MODEL_ENABLE_THINKING: 'false' }, 'AGENTFORGE_CONVERSATION_'), { enable_thinking: false });
+  assert.deepEqual(modelExtraBodyFromEnv({}), {});
+});

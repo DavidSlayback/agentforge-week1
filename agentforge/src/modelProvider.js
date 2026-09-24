@@ -153,3 +153,14 @@ async function probeProviderEndpoint({ endpoint, apiKey, model, timeoutMs, body,
     return false;
   }
 }
+
+/**
+ * Provider-specific request fields from the environment. For the synthesis
+ * model the variable is AGENTFORGE_MODEL_ENABLE_THINKING; for a role prefix
+ * such as AGENTFORGE_CONVERSATION_ it is `${prefix}MODEL_ENABLE_THINKING`.
+ * Only the literal string 'false' disables Qwen reasoning.
+ */
+export function modelExtraBodyFromEnv(env, prefix = '') {
+  const value = prefix ? env[`${prefix}MODEL_ENABLE_THINKING`] : env.AGENTFORGE_MODEL_ENABLE_THINKING;
+  return value === 'false' ? { enable_thinking: false } : {};
+}
