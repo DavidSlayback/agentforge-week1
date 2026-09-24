@@ -17,7 +17,7 @@ import { validateScanExtraction } from './scanFormContracts.js';
 import { Citation, GroundedAnswerResult, IntakeForm, LabResult, parseOrIssues } from './schemas.js';
 import { AgentForgeService } from './service.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
-import { DeterministicAnswerComposer } from './answerComposer.js';
+import { DeterministicAnswerComposer, labelForCitation } from './answerComposer.js';
 import { verifyClaims } from './claimBinding.js';
 
 export const W2_GATE_LABELS = Object.freeze(['schema_valid', 'citation_present', 'factually_consistent', 'safe_refusal', 'no_phi_in_logs']);
@@ -76,7 +76,15 @@ function fakeInventingModelPrimary() {
     async checkReady() { return true; },
     async generate(args) {
       const anyCitation = args.verifiedLabResults?.[0]?.citation || args.verifiedIntakeCitations?.[0] || args.patientFactCitations?.[0] || args.guidelineEvidence?.[0]?.citation;
-      const invented = anyCitation ? [{ kind: 'patient_fact', text: INVENTED_CLAIM_MARKER, citations: [anyCitation] }] : [];
+      // 2026-09-24 refs-based rewrite: the model cites by short label only
+      // (never a full citation object -- see answerComposer.js#buildPrompt),
+      // so the fabricated claim below cites whichever real fact/chunk got a
+      // label this run, by that label -- `materializeClaims` still resolves
+      // it back to the real citation object, and the claim is still dropped
+      // on content (its text names an entirely different, invented value),
+      // exactly as it was when the old contract cited it directly.
+      const ref = anyCitation ? labelForCitation([...args.factLabels, ...args.guidelineLabels], anyCitation) : null;
+      const invented = ref ? [{ kind: 'patient_fact', text: INVENTED_CLAIM_MARKER, refs: [ref] }] : [];
       return { text: JSON.stringify({ claims: invented }), inputTokens: 12, outputTokens: 12, estimatedCostUsd: 0.001 };
     },
   };

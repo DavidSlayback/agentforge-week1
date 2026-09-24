@@ -22,7 +22,7 @@
  */
 
 const root = '../src/';
-const { composeGroundedAnswer, DeterministicAnswerComposer } = await import(root + 'answerComposer.js');
+const { composeGroundedAnswer, DeterministicAnswerComposer, labelForCitation } = await import(root + 'answerComposer.js');
 const { ResilientProvider } = await import(root + 'modelProvider.js');
 const { LabResult, IntakeForm, GuidelineEvidence, Citation } = await import(root + 'schemas.js');
 
@@ -126,16 +126,34 @@ const inputs = {
 };
 
 /**
- * One legitimate claim that should survive filtering.
+ * One legitimate claim that should survive filtering. `citationRef` names
+ * the real fact this claim cites; the fake provider below resolves it to
+ * that fact's actual short label (`F1`, `F2`, ...) at generate-time, the same
+ * way a real model would cite the label the prompt showed it -- never a
+ * hardcoded label number, which would silently drift once fact ordering
+ * changes.
  */
 const legitClaim = {
   kind: 'patient_fact',
   text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05.',
-  citations: [hgb.citation],
+  citationRef: hgb.citation,
 };
 
 /**
  * Probe definitions: each maps to { badClaim, category, description }.
+ *
+ * `badClaim.citationRef` is a real fact/guideline citation the probe cites by
+ * its real label (resolved at generate-time, like `legitClaim` above) --
+ * used whenever the attack is "misuse a real, cite-able fact" (wrong value,
+ * borrowed value, directive language, unsupported negation/interpretation, a
+ * patient_fact laundering a guideline label). `badClaim.refs` is used
+ * instead whenever the attack is about the *reference* itself: `inv-value`
+ * and `low-confidence`'s sibling case name a label no real fact ever
+ * received (2026-09-24 refs-based rewrite: the composer only ever gives a
+ * label to a fact that is actually in `verifiedLabResults`/
+ * `verifiedIntakeCitations`/`patientFactCitations`, so a fact filtered out
+ * before labeling -- e.g. `lowConfidenceK` -- has no real label to borrow at
+ * all), and `uncited-claim` supplies no ref whatsoever.
  */
 export const probes = {
   'inv-value': {
@@ -143,7 +161,10 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'Sodium was recorded at 140 mmol/L on 2026-01-05.',
-      citations: [{ source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.na.value', quote_or_value: '140' }],
+      // Sodium was never given to the composer at all, so no real label
+      // exists for it -- the model can only invent one, which must not
+      // resolve to any real citation.
+      refs: ['F-invented-sodium'],
     },
   },
   'misquote-field': {
@@ -151,7 +172,7 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'Hemoglobin was recorded at 11.2 g/dL on 2026-01-05.',
-      citations: [{ ...hgb.citation, quote_or_value: '11.2' }],
+      citationRef: hgb.citation,
     },
   },
   'value-borrow': {
@@ -159,7 +180,7 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'Hemoglobin was recorded at 5.9 mmol/L on 2026-01-05.',
-      citations: [{ ...hgb.citation, quote_or_value: '5.9' }],
+      citationRef: hgb.citation,
     },
   },
   'guideline-paraphrase': {
@@ -167,7 +188,7 @@ export const probes = {
     badClaim: {
       kind: 'guideline',
       text: 'The diabetes guideline says clinicians should review glucose values and medication adherence before deciding.',
-      citations: [gl.citation],
+      citationRef: gl.citation,
     },
   },
   'patient-fact-citing-guideline': {
@@ -175,7 +196,7 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: snippet,
-      citations: [gl.citation],
+      citationRef: gl.citation,
     },
   },
   'treatment-directive': {
@@ -183,7 +204,7 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'Start Metformin 500 mg twice daily.',
-      citations: [med.citation],
+      citationRef: med.citation,
     },
   },
   'low-confidence': {
@@ -191,7 +212,11 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'Potassium was recorded at 6.1 mmol/L on 2026-01-05, and is high.',
-      citations: [lowConfidenceK.citation],
+      // lowConfidenceK itself was filtered out before labeling (confidence
+      // 0.70 < the 0.85 threshold), so it has no real label at all; the only
+      // real Potassium label available is the high-confidence `k` fact
+      // (value 5.9), which this claim's text does not match.
+      citationRef: k.citation,
     },
   },
   'unsupported-negation': {
@@ -199,7 +224,7 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'No known medications.',
-      citations: [med.citation],
+      citationRef: med.citation,
     },
   },
   'unsupported-interpretation': {
@@ -207,7 +232,7 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'Hemoglobin was recorded at 13.2 g/dL, and is low.',
-      citations: [hgb.citation],
+      citationRef: hgb.citation,
     },
   },
   'uncited-claim': {
@@ -215,22 +240,37 @@ export const probes = {
     badClaim: {
       kind: 'patient_fact',
       text: 'Sodium was recorded at 140 mmol/L on 2026-01-05.',
-      citations: [],
+      refs: [],
     },
   },
 };
 
 /**
- * Create a fake provider that returns a fixed model output (badClaim + legitClaim).
+ * Resolve one claim spec's `refs` (used as-is) or `citationRef` (resolved to
+ * that citation's real label, or a guaranteed-unknown label if it somehow has
+ * none) against this run's labels -- never a hardcoded label number.
  */
-function fakeProvider(claims) {
+function refsFor(claimSpec, factLabels, guidelineLabels) {
+  if (Array.isArray(claimSpec.refs)) return claimSpec.refs;
+  const label = labelForCitation([...factLabels, ...guidelineLabels], claimSpec.citationRef);
+  return [label || 'F-unresolved'];
+}
+
+/**
+ * Create a fake provider that returns the given bad + legit claim specs,
+ * resolved against this run's real fact/guideline labels (2026-09-24
+ * refs-based rewrite -- the model cites by short label only, never a full
+ * citation object).
+ */
+function fakeProvider(claimSpecs) {
   const primary = {
     name: 'fake-model',
     model: 'fake',
     async checkReady() {
       return true;
     },
-    async generate() {
+    async generate(args) {
+      const claims = claimSpecs.map((spec) => ({ kind: spec.kind, text: spec.text, refs: refsFor(spec, args.factLabels, args.guidelineLabels) }));
       return {
         text: JSON.stringify({ claims }),
         inputTokens: 100,

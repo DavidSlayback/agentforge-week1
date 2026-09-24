@@ -33,12 +33,16 @@ It skips, with a message, where the tools are absent.
 The gate calls no live model and no external service. Guideline retrieval is
 the S5 hybrid pipeline (BM25 ∪ dense ∪ listwise rerank) over the real corpus in
 `agentforge/corpus/guidelines/corpus.json`, backed by the
-`recorded-or-stub` Gemini client, reached through the evidence worker exactly
-as the scan path calls it. No recorded Gemini fixtures or corpus embeddings are
-committed yet, so every Gemini step is the deterministic stand-in and every
-evidence item is labeled `degraded: 'stub'`. The retrieval assertions are
-interface-level (a non-empty, descending ranking whose top chunk is the
-relevant source; nothing for an off-topic question). The S6 grounded answer
+recorded-or-stub embed client and reranker, reached through the evidence worker
+exactly as the scan path calls it. Real `gemini-embedding-2` corpus vectors
+(`corpus/embeddings.json`) and real recorded query-embed and `qwen3.8-flash`
+rerank responses (`test/fixtures/retrieval/`) are committed. The gate uses them
+only when `COMPLETE.json`'s embeddings fingerprint and rerank provider/model
+match its own configuration; on a mismatch it falls back to the deterministic
+stand-in, and the evidence says so (`degraded: 'stub'`). The retrieval
+assertions check a non-empty, descending ranking whose top chunk is the
+relevant source (or, for the A1C interpretation questions, one of a small set
+of equally relevant sources), and nothing for an off-topic question. The S6 grounded answer
 is composed by the deterministic composer, except in `fc-08`, which injects an
 honestly named fake model that returns only a fabricated claim.
 
@@ -193,11 +197,11 @@ What the gate does not cover, after the review fixes:
 - **Values the pipeline cannot see.** A wrong value that OCR reads consistently
   from a wrong line is caught only where the truth file differs. The truth files
   cover 10 PDFs and 2 text documents.
-- **Retrieval.** The gate runs the hybrid retriever's pipeline shape with the
-  deterministic `stub` Gemini client (no recorded fixtures or corpus
-  embeddings are committed), so real Gemini dense scores and rerank order are
-  never exercised. Retrieval assertions are interface-level (top source,
-  ordering, empty for off-topic), not relevance judgments.
+- **Retrieval.** Dense scores and rerank order are real but recorded, not
+  live: a change in the live Gemini or Qwen models is not seen until the
+  fixtures are re-recorded (`scripts/record-retrieval-fixtures.mjs`). Retrieval
+  assertions check the top source, ordering and empty-for-off-topic; they are
+  not a graded relevance benchmark.
 - **Answers.** Five cases assert the S6 grounded answer (`fc-01`, `cp-05`,
   `fc-05`, `fc-08`, `sr-07`) and re-verify every claim with the S7
   verifier. The answer is composed deterministically (or by a fake model in

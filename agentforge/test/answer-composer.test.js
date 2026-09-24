@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DeterministicAnswerComposer, LOW_CONFIDENCE_THRESHOLD, composeGroundedAnswer, isRecordLookupQuestion } from '../src/answerComposer.js';
+import { DeterministicAnswerComposer, LOW_CONFIDENCE_THRESHOLD, composeGroundedAnswer, isRecordLookupQuestion, labelForCitation } from '../src/answerComposer.js';
 import { ResilientProvider } from '../src/modelProvider.js';
 import { GroundedAnswerResult, parseOrIssues } from '../src/schemas.js';
 
@@ -81,8 +81,9 @@ test('model path: claims that name each lab test exactly as its own test_name ve
   const a1c = labResult({ test_name: 'Hemoglobin A1C', value: '6.1', unit: '%', reference_range: 'under 5.7', collection_date: '2026-09-20', abnormal_flag: 'abnormal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.a1c.value', quote_or_value: '6.1' } });
   const fakePrimary = {
     name: 'naming-model', model: 'naming-v1', async checkReady() { return true; },
-    async generate() {
-      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin A1C 6.1 % on 2026-09-20 (reference under 5.7), flagged abnormal.', citations: [a1c.citation] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    async generate(args) {
+      const ref = labelForCitation(args.factLabels, a1c.citation);
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin A1C 6.1 % on 2026-09-20 (reference under 5.7), flagged abnormal.', refs: [ref] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
     },
   };
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
@@ -97,10 +98,11 @@ test('model path: a claim naming a different test than the one it cites is dropp
   const hemoglobinResult = labResult({ test_name: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12.0-16.0', abnormal_flag: 'normal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: '13.2' } });
   const fakePrimary = {
     name: 'wrong-name-model', model: 'wrong-v1', async checkReady() { return true; },
-    async generate() {
+    async generate(args) {
       // Cites the Hemoglobin result but names it "A1C" -- must fail structural
       // binding (LAB_NAME_ALIASES is scoped per-fact, not a blanket allowlist).
-      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'A1C 13.2 g/dL on 2026-01-05, reference 12.0-16.0, flagged normal.', citations: [hemoglobinResult.citation] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+      const ref = labelForCitation(args.factLabels, hemoglobinResult.citation);
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'A1C 13.2 g/dL on 2026-01-05, reference 12.0-16.0, flagged normal.', refs: [ref] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
     },
   };
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
@@ -125,11 +127,14 @@ test('low-confidence facts are excluded from patient_facts and listed as needs_r
 test('a model that returns an invented, uncited claim has it dropped and counted, keeping the claims that do verify', async () => {
   const fakePrimary = {
     name: 'fake-model', model: 'fake-v1', async checkReady() { return true; },
-    async generate() {
+    async generate(args) {
+      const ref = labelForCitation(args.factLabels, { source_id: 'doc-1', field_or_chunk_id: 'lab.hgb.value' });
       return {
         text: JSON.stringify({ claims: [
-          { kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', citations: [{ source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: '13.2' }] },
-          { kind: 'patient_fact', text: 'Potassium was recorded at 9.9 mmol/L on 2026-01-05.', citations: [{ source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: '13.2' }] },
+          { kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', refs: [ref] },
+          // Same real label, but an invented value the fact never carries --
+          // must fail on content, not on citation resolution.
+          { kind: 'patient_fact', text: 'Potassium was recorded at 9.9 mmol/L on 2026-01-05.', refs: [ref] },
         ] }),
         inputTokens: 12, outputTokens: 12, estimatedCostUsd: 0.001,
       };
@@ -148,8 +153,9 @@ test('a model that returns an invented, uncited claim has it dropped and counted
 test('a model whose entire output fails verification falls back to the deterministic composer, not an empty answer', async () => {
   const fakePrimary = {
     name: 'vague-model', model: 'vague-v1', async checkReady() { return true; },
-    async generate() {
-      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Everything looks fine overall, nothing concerning to report at this time.', citations: [{ source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: '13.2' }] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    async generate(args) {
+      const ref = labelForCitation(args.factLabels, { source_id: 'doc-1', field_or_chunk_id: 'lab.hgb.value' });
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Everything looks fine overall, nothing concerning to report at this time.', refs: [ref] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
     },
   };
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
@@ -186,7 +192,9 @@ test('with no guideline evidence given, a model cannot manufacture a guideline c
   const fakePrimary = {
     name: 'hallucinating-model', model: 'h-v1', async checkReady() { return true; },
     async generate() {
-      return { text: JSON.stringify({ claims: [{ kind: 'guideline', text: 'Per Some Invented Guideline: "take this medication twice daily for best results."', citations: [{ source_type: 'guideline', source_id: 'not-a-real-guideline', page_or_section: 'Nowhere', field_or_chunk_id: 'not-a-real-guideline', quote_or_value: 'take this medication twice daily for best results.' }] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+      // No guideline evidence was given at all, so there is no real G-label
+      // to cite -- the model can only invent one, which must not resolve.
+      return { text: JSON.stringify({ claims: [{ kind: 'guideline', text: 'Per Some Invented Guideline: "take this medication twice daily for best results."', refs: ['G1'] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
     },
   };
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
@@ -215,7 +223,10 @@ test('a model that verifies only one of several available facts gets the missing
   const legitText = 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.';
   const fakePrimary = {
     name: 'thin-model', model: 'thin-v1', async checkReady() { return true; },
-    async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: legitText, citations: [labResult().citation] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 }; },
+    async generate(args) {
+      const ref = labelForCitation(args.factLabels, labResult().citation);
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: legitText, refs: [ref] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    },
   };
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
   const result = await composeGroundedAnswer({ labResults: [labResult(), secondLab], guidelineEvidence: [guideline()] }, { provider });
@@ -229,10 +240,10 @@ test('a model that verifies only one of several available facts gets the missing
 test('a model that already covers every fact and guideline is not relabeled as topped up', async () => {
   const fakePrimary = {
     name: 'complete-model', model: 'complete-v1', async checkReady() { return true; },
-    async generate({ verifiedLabResults, guidelineEvidence: ge }) {
+    async generate({ verifiedLabResults, guidelineEvidence: ge, factLabels, guidelineLabels }) {
       const claims = [
-        { kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', citations: [verifiedLabResults[0].citation] },
-        { kind: 'guideline', text: `Per Synthetic primary-care diabetes follow-up guideline, section Follow-up review (2026.1): "${ge[0].snippet}"`, citations: [ge[0].citation] },
+        { kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', refs: [labelForCitation(factLabels, verifiedLabResults[0].citation)] },
+        { kind: 'guideline', text: `Per Synthetic primary-care diabetes follow-up guideline, section Follow-up review (2026.1): "${ge[0].snippet}"`, refs: [labelForCitation(guidelineLabels, ge[0].citation)] },
       ];
       return { text: JSON.stringify({ claims }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
     },
@@ -246,7 +257,9 @@ test('a model that already covers every fact and guideline is not relabeled as t
 
 // F2 review fix: dropped count and rejection reason survive the fallback.
 test('model_rejected_reason is all_claims_unverified and the drop count is carried forward when every model claim fails verification', async () => {
-  const fakePrimary = { name: 'bad-model', model: 'bad-v1', async checkReady() { return true; }, async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Sodium was recorded at 140 mmol/L.', citations: [{ source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.na.value', quote_or_value: '140' }] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 }; } };
+  // Sodium was never a fact given to the composer, so there is no real
+  // F-label for it -- the model can only invent one, which must not resolve.
+  const fakePrimary = { name: 'bad-model', model: 'bad-v1', async checkReady() { return true; }, async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Sodium was recorded at 140 mmol/L.', refs: ['F99'] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 }; } };
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
   const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider });
   assert.equal(result.composer, 'deterministic-fallback');
@@ -295,7 +308,7 @@ test('composeGroundedAnswer records exactly one model-usage entry on the trace, 
   assert.equal(detTrace.usage[0].provider, 'deterministic-answer-composer');
 
   const modelTrace = traceStub();
-  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', citations: [labResult().citation] }] }), inputTokens: 10, outputTokens: 20, estimatedCostUsd: 0.002 }; } };
+  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate(args) { const ref = labelForCitation(args.factLabels, labResult().citation); return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', refs: [ref] }] }), inputTokens: 10, outputTokens: 20, estimatedCostUsd: 0.002 }; } };
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
   await composeGroundedAnswer({ labResults: [labResult()] }, { provider, trace: modelTrace });
   assert.equal(modelTrace.usage.length, 1);
@@ -339,4 +352,89 @@ test('a signal that is already aborted skips the real model and reports model_re
   assert.equal(result.composer, 'deterministic-fallback');
   assert.equal(result.model_rejected_reason, 'deadline');
   assert.equal(result.patient_facts.length, 1);
+});
+
+// 2026-09-24 refs-based rewrite: the model's own output cites facts/guideline
+// chunks by short label only, never by echoing a full citation object (the
+// same fix already applied to the listwise reranker's candidate numbers).
+test('the prompt lists facts/guideline chunks under short labels and asks the model to cite by "refs", never by echoing a full citation object', async () => {
+  const a1c = labResult({ test_name: 'A1C', value: '6.1', unit: '%', reference_range: 'under 5.7', collection_date: '2026-09-20', abnormal_flag: 'abnormal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.a1c.value', quote_or_value: 'A1C value: 6.1' } });
+  let capturedPrompt = null;
+  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate(args) { capturedPrompt = args.prompt; return { text: JSON.stringify({ claims: [] }), inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 }; } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  await composeGroundedAnswer({ labResults: [a1c], guidelineEvidence: [guideline()] }, { provider });
+  assert.ok(capturedPrompt, 'the prompt must be built and passed to the provider');
+  assert.match(capturedPrompt, /^F1 \[lab\] A1C 6\.1 % on 2026-09-20 \(reference under 5\.7\), flagged abnormal$/m, 'the lab fact must be listed under its own short label, as a compact line');
+  assert.match(capturedPrompt, /^G1 \[/m, 'the guideline chunk must be listed under its own short label');
+  assert.match(capturedPrompt, /"refs":\["F1"\]/, 'the requested output shape must cite by label ("refs"), not by a citation object');
+  assert.ok(!/"citations"\s*:/.test(capturedPrompt), 'the prompt must never ask the model to return a "citations" key at all');
+  assert.ok(!/"source_type"/.test(capturedPrompt), 'the prompt must never ask the model to echo citation fields such as source_type');
+});
+
+test('a realistic ref-based model response for lab-a facts is materialized into claims carrying full 5-key citations that verify', async () => {
+  const a1c = labResult({ test_name: 'A1C', value: '6.1', unit: '%', reference_range: 'under 5.7', collection_date: '2026-09-20', abnormal_flag: 'abnormal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.a1c.value', quote_or_value: 'A1C value: 6.1' } });
+  const fakePrimary = {
+    name: 'lab-a-model', model: 'lab-a-v1', async checkReady() { return true; },
+    async generate(args) {
+      assert.equal(args.factLabels.length, 1);
+      const [{ label }] = args.factLabels;
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'A1C 6.1 % on 2026-09-20 (reference under 5.7), flagged abnormal.', refs: [label] }] }), inputTokens: 20, outputTokens: 20, estimatedCostUsd: 0 };
+    },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [a1c] }, { provider });
+  assertValidResult(result);
+  assert.equal(result.composer, 'model');
+  assert.equal(result.unverified_dropped, 0);
+  assert.equal(result.patient_facts.length, 1);
+  const [claim] = result.patient_facts;
+  assert.equal(claim.citations.length, 1);
+  assert.deepEqual(Object.keys(claim.citations[0]).sort(), ['field_or_chunk_id', 'page_or_section', 'quote_or_value', 'source_id', 'source_type']);
+  assert.deepEqual(claim.citations[0], a1c.citation, 'the materialized citation must be the exact allowed citation object, never reconstructed from the model\'s own text');
+});
+
+test('a claim whose ref does not name any known label is dropped: it ends up with no citations, fails UNCITED_CLAIM, and never survives', async () => {
+  const MARKER = 'phantom-ref-claim-marker';
+  const fakePrimary = {
+    name: 'phantom-ref-model', model: 'phantom-v1', async checkReady() { return true; },
+    async generate() {
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: `Hemoglobin was recorded at 13.2 g/dL on 2026-01-05 (${MARKER}).`, refs: ['F999'] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider });
+  assert.equal(result.model_rejected_reason, 'all_claims_unverified');
+  assert.equal(result.unverified_dropped, 1);
+  assert.ok(!JSON.stringify(result.patient_facts).includes(MARKER), 'a claim whose only ref never resolves must never survive');
+  // The fact itself is still answered -- just via the deterministic fallback under its real citation.
+  assert.equal(result.patient_facts.length, 1);
+});
+
+// Guards against a regression where an unknown ref is silently mapped to
+// *some* real citation (e.g. "just use the first fact") instead of being
+// dropped. With two facts present, an unresolved ref whose claim text
+// happens to match the *first* fact's own values would wrongly verify if the
+// unknown ref fell back to that first fact's citation -- exactly the kind of
+// "cite garbage, get whatever's first" laundering `materializeClaims` must
+// never allow. A ref must resolve to exactly the label it names, or not at
+// all.
+test('an unresolved ref never silently borrows another fact\'s citation, even one whose values happen to match the claim text', async () => {
+  const first = labResult({ test_name: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12.0-15.5', collection_date: '2026-01-05', abnormal_flag: 'normal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: '13.2' } });
+  const second = labResult({ test_name: 'Potassium', value: '5.9', unit: 'mmol/L', reference_range: '3.5-5.1', collection_date: '2026-01-05', abnormal_flag: 'high', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.k.value', quote_or_value: '5.9' } });
+  const fakePrimary = {
+    name: 'phantom-ref-model-2', model: 'phantom-v2', async checkReady() { return true; },
+    async generate() {
+      // "F999" names no real label at all (only F1/F2 exist here) -- it must
+      // never resolve to any citation, including the first fact's.
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin 13.2 g/dL on 2026-01-05 (reference 12.0-15.5), flagged normal.', refs: ['F999'] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [first, second] }, { provider });
+  // If an unresolved ref were ever mapped to "whatever fact is first" instead
+  // of being dropped, this claim would wrongly verify (its text matches
+  // `first`'s real values) and be counted as genuine model output rather
+  // than an unverified drop -- exactly the failure mode this guards against.
+  assert.equal(result.unverified_dropped, 1, 'a claim whose ref never resolves to a real label must be counted as dropped, never silently attributed to whatever fact happens to be listed first');
+  assert.notEqual(result.composer, 'model', 'the model produced zero genuinely-cited claims of its own; it must never be reported as having produced fully-verified model output');
 });
