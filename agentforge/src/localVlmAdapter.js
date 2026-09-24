@@ -1,4 +1,5 @@
 import { EXTRACTION_STATUSES, requiredScanFields, SCAN_FORM_CONTRACT_VERSION, validateScanExtraction, validateScanInput } from './scanFormContracts.js';
+import { formatPageOrSection } from './sourceEvidenceParsing.js';
 
 export const LOCAL_VLM_PROVIDER = 'local-vlm-adapter';
 
@@ -25,13 +26,12 @@ function blockedResult({ sourceClass = 'public_blank', model = 'unconfigured', r
 function citationFor(sourceDocumentId, layoutId, field) {
   const quote = String(field.quote || [field.label, field.value, field.unit, field.reference_range].filter(Boolean).join(': ')).trim();
   return {
-    source_type: 'public_blank_form',
-    source_document_id: sourceDocumentId,
-    page: field.page,
-    field_id: field.field_id,
-    quote,
+    source_type: 'document',
+    source_id: sourceDocumentId,
+    page_or_section: formatPageOrSection(field.page, field.section),
+    field_or_chunk_id: field.field_id,
+    quote_or_value: quote,
     bounding_box: field.bounding_box,
-    layout_id: layoutId,
   };
 }
 

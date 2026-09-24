@@ -98,7 +98,9 @@ export function fieldRows(lines, documentType, layoutId = '') {
       const mapping = labels.get(labelKey);
       const value = line.text.slice(separator + 1).trim();
       if (!mapping || !value) continue;
-      fields.push({ field_id: mapping[0], label: mapping[1], value, unit: '', line });
+      // `quote` is the verbatim OCR line text, not the canonical label below
+      // (`mapping[1]`) — a citation must show what the form actually says.
+      fields.push({ field_id: mapping[0], label: mapping[1], value, unit: '', quote: line.text, line });
     }
     return fields;
   }
@@ -113,7 +115,7 @@ export function fieldRows(lines, documentType, layoutId = '') {
     const value = documentType === 'lab_pdf' ? (tail.match(/-?\d+(?:[.,]\d+)?\s*%?/i)?.[0] || '') : tail;
     if (!value.trim()) continue;
     const labUnit = documentType === 'lab_pdf' ? tail.slice(tail.indexOf(value) + value.length).match(/^\s*(%|g\/?dL|mmol\/?L)?/i)?.[1] || '' : '';
-    fields.push({ field_id: pattern.id, label: match[0].replace(value, '').replace(/:$/, '').trim(), value: value.trim(), unit: labUnit, line });
+    fields.push({ field_id: pattern.id, label: match[0].replace(value, '').replace(/:$/, '').trim(), value: value.trim(), unit: labUnit, quote: line.text, line });
   }
   return fields;
 }

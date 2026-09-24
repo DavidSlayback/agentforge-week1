@@ -1,3 +1,5 @@
+import { Citation, IntakeForm, LabResult, parseOrIssues } from './schemas.js';
+
 export const SCAN_FORM_CONTRACT_VERSION = 'w2-scan-v1';
 export const SCAN_DOCUMENT_TYPES = Object.freeze(['lab_pdf', 'intake_form']);
 export const EXTRACTION_STATUSES = Object.freeze(['complete', 'partial', 'qualified', 'blocked']);
@@ -28,7 +30,6 @@ export function requiredScanFields({ documentType, layoutId } = {}) {
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const nonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
-const validBox = (value) => Array.isArray(value) && value.length === 4 && value.every((item) => Number.isFinite(item) && item >= 0);
 
 export function validateScanInput(value) {
   const issues = [];
@@ -50,13 +51,11 @@ export function validateScanInput(value) {
   return { valid: issues.length === 0, issues };
 }
 
+/** Validate a document citation against the strict W2 `Citation` Zod schema (`schemas.js`), the source of truth for the five-key citation contract. */
 export function validateCitation(value, { sourceDocumentId = null } = {}) {
-  const issues = [];
-  if (!isRecord(value)) return { valid: false, issues: ['citation_must_be_object'] };
-  for (const field of ['source_type', 'source_document_id', 'field_id', 'quote', 'layout_id']) if (!nonEmpty(value[field])) issues.push(`citation_${field}_required`);
-  if (sourceDocumentId && value.source_document_id !== sourceDocumentId) issues.push('citation_source_document_mismatch');
-  if (!Number.isInteger(value.page) || value.page < 1) issues.push('citation_page_invalid');
-  if (!validBox(value.bounding_box)) issues.push('citation_bounding_box_invalid');
+  const parsed = parseOrIssues(Citation, value);
+  const issues = parsed.issues.map((issue) => `citation_${issue}`);
+  if (sourceDocumentId && parsed.ok && parsed.data.source_id !== sourceDocumentId) issues.push('citation_source_document_mismatch');
   return { valid: issues.length === 0, issues };
 }
 
@@ -87,6 +86,14 @@ export function validateScanExtraction(value, { sourceDocumentId = null, documen
   }
   if (!isRecord(value.metrics)) issues.push('metrics_must_be_object');
   else for (const field of ['pages', 'candidate_fields', 'accepted_fields', 'duration_ms']) if (!Number.isFinite(value.metrics[field]) || value.metrics[field] < 0) issues.push(`metrics_${field}_invalid`);
+  // The typed view is the contract a caller should trust; validate it here
+  // too so a bad `LabResult`/`IntakeForm` can never slip through a scan
+  // extraction as "valid" just because the legacy untyped facts looked fine.
+  if ('lab_results' in value) {
+    if (!Array.isArray(value.lab_results)) issues.push('lab_results_must_be_array');
+    else value.lab_results.forEach((result, index) => issues.push(...parseOrIssues(LabResult, result).issues.map((issue) => `lab_results[${index}].${issue}`)));
+  }
+  if ('intake_form' in value && value.intake_form !== null) issues.push(...parseOrIssues(IntakeForm, value.intake_form).issues.map((issue) => `intake_form.${issue}`));
   return { valid: issues.length === 0, issues: [...new Set(issues)] };
 }
 
@@ -101,16 +108,6 @@ export function validateWorkerHandoff(value) {
   if (!Array.isArray(value.citations)) issues.push('handoff_citations_must_be_array');
   if (!isRecord(value.redacted_metrics)) issues.push('redacted_metrics_must_be_object');
   return { valid: issues.length === 0, issues: [...new Set(issues)] };
-}
-
-export function validateRetrievalEvidence(value) {
-  const issues = [];
-  if (!isRecord(value)) return { valid: false, issues: ['retrieval_evidence_must_be_object'] };
-  for (const field of ['source_type', 'source_id', 'title', 'version', 'section', 'location', 'quote']) if (!nonEmpty(value[field])) issues.push(`retrieval_${field}_required`);
-  if (value.source_type !== 'guideline') issues.push('retrieval_source_type_invalid');
-  if (!Number.isFinite(value.score)) issues.push('retrieval_score_invalid');
-  if (!Array.isArray(value.matched_terms)) issues.push('retrieval_matched_terms_must_be_array');
-  return { valid: issues.length === 0, issues };
 }
 
 export function validateActiveSupervisorRequest(value) {

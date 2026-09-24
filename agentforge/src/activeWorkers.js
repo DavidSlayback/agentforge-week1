@@ -46,7 +46,7 @@ export function runEvidenceWorker({ query, patientFacts = [], documentFacts = []
   steps.push({ name: 'formulate_query', decision: normalizedQuery ? 'query_ready' : 'empty_query' });
   const guideline = retrieve(normalizedQuery, { topK });
   const evidence = guideline.evidence || [];
-  const usable = evidence.filter((item) => item.source_type === 'guideline' && item.source_id && item.location && item.quote);
+  const usable = evidence.filter((item) => item.citation?.source_type === 'guideline' && item.citation.source_id && item.citation.page_or_section && item.citation.quote_or_value);
   steps.push({ name: 'retrieve_and_check', decision: usable.length ? `usable_guideline_hits:${usable.length}` : 'insufficient_grounded_evidence' });
   const qualified = !normalizedQuery || !usable.length || guideline.status !== 'complete';
   steps.push({ name: 'qualify', decision: qualified ? 'withhold_unsupported_claims' : 'grounded_evidence_ready' });
@@ -57,7 +57,7 @@ export function runEvidenceWorker({ query, patientFacts = [], documentFacts = []
     output_status: qualified ? 'qualified' : 'ready',
     steps,
     retry_count: 0,
-    citations: usable.map((item) => ({ source_id: item.source_id, location: item.location, quote: item.quote })),
+    citations: usable.map((item) => item.citation),
     redacted_metrics: { patient_fact_count: patientFacts.length, document_fact_count: documentFacts.length, guideline_hit_count: usable.length, query_length: normalizedQuery.length },
     patient_facts: patientFacts,
     document_facts: documentFacts,

@@ -18,6 +18,7 @@ stages:
   image: node:24-alpine
   before_script:
     - apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
+    - npm ci --prefix agentforge
 
 agentforge-tests:
   extends: .agentforge-node

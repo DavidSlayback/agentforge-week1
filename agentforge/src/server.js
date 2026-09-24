@@ -9,7 +9,7 @@ import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
-import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest, validateSupervisorRequest, validateSupervisorResponse } from './contracts.js';
+import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest, validateSupervisorRequest, validateSupervisorResponse } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
@@ -76,6 +76,15 @@ const syntheticSourceDocumentStore = process.env.AGENTFORGE_TEST_SOURCE_DOCUMENT
 const syntheticClinicalActionStore = process.env.AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE === 'true'
   ? new SyntheticClinicalActionStore({ persist() { throw Object.assign(new Error('CLINICAL_ACTION_PERSISTENCE_FAILED'), { code: 'CLINICAL_ACTION_PERSISTENCE_FAILED' }); } })
   : undefined;
+// Test-only fault injection: corrupts a scan extraction after the adapter
+// built it, so a test can prove the HTTP boundary re-validates the typed
+// contract (Citation/LabResult/IntakeForm) rather than trusting whatever the
+// service layer returns. No production code path sets this env var.
+const testInvalidScanExtraction = process.env.AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION === 'true';
+function injectTestScanExtractionFault(extraction) {
+  if (!testInvalidScanExtraction) return extraction;
+  return { ...extraction, lab_results: [...(extraction.lab_results || []), { test_name: 'test-only-invalid-injection' }] };
+}
 const chartAdapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
 const writeback = liveOpenEMR ? null : new SyntheticWriteback({ ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}), ...(syntheticClinicalActionStore ? { clinicalActionStore: syntheticClinicalActionStore } : {}) });
 const hasExternalProvider = [provider, conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
@@ -118,6 +127,20 @@ const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'a
 const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
 const invalidContract = (res, error, issues) => json(res, 400, { error, issues });
 const invalidResponse = (res, error, issues) => json(res, 500, { error, issues });
+// Scan-extraction responses carry the typed W2 contract (citations,
+// LabResult[], IntakeForm) that a client relies on for grounded claims.
+// Re-validate it here, at the HTTP boundary, before it goes out: never
+// forward an extraction whose typed contract failed, and never leak
+// document content in the failure — only the (PHI-free) issue paths are
+// logged server-side, and the client gets a generic error.
+const sendValidatedScanExtraction = (res, status, body, extraction) => {
+  const validation = validateScanExtractionTypedOutput(extraction);
+  if (!validation.valid) {
+    console.error('AgentForge scan extraction response failed contract validation', { issues: validation.issues });
+    return json(res, 500, { error: 'response_contract_invalid' });
+  }
+  return json(res, status, body);
+};
 const tokenPayload = (token) => verifySignedContext(token, process.env.AGENTFORGE_DEMO_SECRET);
 const verifiedContextFor = (body) => tokenPayload(body.demo_token);
 const syntheticWritebackEnabled = () => Boolean(writeback && typeof writeback.persistSourceDocument === 'function');
@@ -253,8 +276,9 @@ const server = http.createServer(async (req, res) => {
         const result = await service.extractScanFormEvidence(decodeURIComponent(scanFormEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
         if (result.status === 'blocked') return json(res, 403, { error: result.reason });
         if (result.status === 'failed') return json(res, 500, { error: result.reason });
-        const sourcePreview = result.extraction.facts.map((fact) => ({ field_id: fact.field_id, page: fact.citation.page, bounding_box: fact.citation.bounding_box, quote: fact.citation.quote, source_document_id: fact.citation.source_document_id }));
-        return json(res, 200, { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations, source_preview: sourcePreview });
+        const extraction = injectTestScanExtractionFault(result.extraction);
+        const sourcePreview = extraction.facts.map((fact) => ({ field_id: fact.field_id, page_or_section: fact.citation.page_or_section, bounding_box: fact.citation.bounding_box, quote_or_value: fact.citation.quote_or_value, source_id: fact.citation.source_id }));
+        return sendValidatedScanExtraction(res, 200, { synthetic_only: true, source_document: result.source_document, extraction, observations: result.observations, source_preview: sourcePreview }, extraction);
       } catch (error) {
         if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
@@ -329,7 +353,9 @@ const server = http.createServer(async (req, res) => {
       if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       const result = await service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
-      return json(res, 200, result);
+      const extraction = injectTestScanExtractionFault(result.workflow.typed_outputs.extraction);
+      const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction } } };
+      return sendValidatedScanExtraction(res, 200, responseBody, extraction);
     }
     if (req.method === 'POST' && req.url === '/v1/clinical-actions/drafts') {
       if (!syntheticClinicalActionWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });

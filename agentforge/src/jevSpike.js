@@ -3,7 +3,7 @@ import { runDeterministicSupervisor } from './supervisor.js';
 export const JEV_SPIKE_CASE_COUNT = 20;
 const DEFAULT_JEV_ENDPOINT = 'https://www.jevai.org/api/v1/decisions';
 
-const baseEvidence = { status: 'ready', patient_facts: [{ source_type: 'patient_record', patient_ref: 'fixture-patient-001', source_id: 'problem-1', field: 'problem.diabetes.status', value: 'active' }], guideline_evidence: [{ source_type: 'guideline', source_id: 'guideline-1', title: 'Synthetic guideline', version: '2026.1', section: 'Review', location: 'synthetic://guidelines/review', quote: 'Review documented evidence.', matched_terms: ['review'] }], retrieval: { guideline_status: 'complete', guideline_issues: [], failed_patient_groups: [] }, qualification: { required: false, reasons: [] } };
+const baseEvidence = { status: 'ready', patient_facts: [{ source_type: 'patient_record', patient_ref: 'fixture-patient-001', source_id: 'problem-1', field: 'problem.diabetes.status', value: 'active' }], guideline_evidence: [{ title: 'Synthetic guideline', version: '2026.1', section: 'Review', snippet: 'Review documented evidence.', sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: ['review'], citation: { source_type: 'guideline', source_id: 'guideline-1', page_or_section: 'Review', field_or_chunk_id: 'guideline-1', quote_or_value: 'Review documented evidence.' } }], retrieval: { guideline_status: 'complete', guideline_issues: [], failed_patient_groups: [] }, qualification: { required: false, reasons: [] } };
 
 export function buildJevSpikeCorpus() {
   return Array.from({ length: JEV_SPIKE_CASE_COUNT }, (_, index) => {
@@ -58,7 +58,7 @@ export async function runJevShadowReview({ baseline, jevRunner = null, mode = 'o
 function safetyState(evidence) {
   if (!evidence || evidence.status !== 'ready') return 'CLARIFY';
   if (!Array.isArray(evidence.patient_facts) || !Array.isArray(evidence.guideline_evidence)) return 'BLOCKED';
-  if (evidence.guideline_evidence.some((item) => !item?.source_id || !item?.location || !item?.quote)) return 'BLOCKED';
+  if (evidence.guideline_evidence.some((item) => !item?.citation?.source_id || !item?.citation?.page_or_section || !item?.citation?.quote_or_value)) return 'BLOCKED';
   return null;
 }
 

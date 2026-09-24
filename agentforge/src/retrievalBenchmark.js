@@ -13,7 +13,7 @@ const run = (retriever, queries) => {
   for (const item of queries) {
     const started = performance.now();
     const result = retriever(item.query);
-    rows.push({ id: item.id, top_source: result.evidence?.[0]?.source_id || null, expected: item.expected, hit: item.expected ? result.evidence?.some((evidence) => evidence.source_id === item.expected) === true : result.evidence?.length === 0 || result.status !== 'complete', status: result.status, latency_ms: Number((performance.now() - started).toFixed(3)), citation_preserved: (result.evidence || []).every((evidence) => evidence.location && evidence.quote) });
+    rows.push({ id: item.id, top_source: result.evidence?.[0]?.citation?.source_id || null, expected: item.expected, hit: item.expected ? result.evidence?.some((evidence) => evidence.citation?.source_id === item.expected) === true : result.evidence?.length === 0 || result.status !== 'complete', status: result.status, latency_ms: Number((performance.now() - started).toFixed(3)), citation_preserved: (result.evidence || []).every((evidence) => evidence.citation?.page_or_section && evidence.citation?.quote_or_value) });
   }
   return rows;
 };

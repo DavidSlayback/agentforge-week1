@@ -5,8 +5,8 @@ import { createCohereGuidelineRetriever, retrieveGuidelineEvidence } from '../sr
 test('guideline retrieval ranks relevant synthetic evidence with provenance', () => {
   const result = retrieveGuidelineEvidence('diabetes medication follow-up');
   assert.equal(result.status, 'complete');
-  assert.equal(result.evidence[0].source_type, 'guideline');
-  assert.match(result.evidence[0].location, /^synthetic:\/\/guidelines\//);
+  assert.equal(result.evidence[0].citation.source_type, 'guideline');
+  assert.ok(result.evidence[0].citation.page_or_section.length > 0);
   assert.ok(result.evidence[0].matched_terms.includes('diabetes'));
 });
 
@@ -35,7 +35,8 @@ test('Cohere retriever embeds synthetic corpus and query, reranks, and preserves
   assert.equal(result.status, 'complete');
   assert.equal(result.provider, 'cohere');
   assert.equal(result.evidence.length, 1);
-  assert.match(result.evidence[0].location, /^synthetic:\/\/guidelines\//);
+  assert.equal(result.evidence[0].citation.source_type, 'guideline');
+  assert.ok(result.evidence[0].citation.page_or_section.length > 0);
   assert.equal(calls.filter(({ url }) => url.endsWith('/v2/embed')).length, 2);
   assert.equal(calls.find(({ url }) => url.endsWith('/v2/rerank')).payload.model, 'rerank-v4.0-fast');
   assert.equal(calls.find(({ url }) => url.endsWith('/v2/rerank')).payload.query, 'synthetic diabetes follow-up documented glycemic values medication history');
@@ -77,8 +78,8 @@ test('follow-up evidence API separates patient facts from guideline evidence', a
     const body = await response.json();
     assert.equal(body.status, 'ready');
     assert.equal(body.patient_facts[0].source_type, 'patient_record');
-    assert.equal(body.guideline_evidence[0].source_type, 'guideline');
-    assert.match(body.guideline_evidence[0].location, /^synthetic:\/\/guidelines\//);
+    assert.equal(body.guideline_evidence[0].citation.source_type, 'guideline');
+    assert.ok(body.guideline_evidence[0].citation.page_or_section.length > 0);
   } finally {
     child.kill();
   }

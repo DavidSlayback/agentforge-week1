@@ -288,9 +288,9 @@ button:disabled{opacity:.6;cursor:wait}
             const section = document.createElement('p');
             section.textContent = item.section;
             const quote = document.createElement('blockquote');
-            quote.textContent = item.quote;
+            quote.textContent = item.citation.quote_or_value;
             const location = document.createElement('small');
-            location.textContent = 'Source: ' + item.location;
+            location.textContent = 'Source: ' + item.citation.page_or_section;
             card.append(title, section, quote, location);
             evidencePanel.append(card);
           }
@@ -376,7 +376,7 @@ export function renderScanSourcePreview({ sourceDocument, extraction, basePath =
   const factRows = facts.map((fact) => {
     const box = fact.citation.bounding_box.join(',');
     const coordinateSpace = fact.citation.coordinate_space === 'raster_pixels_200dpi' ? '200 DPI raster pixels' : 'fixture coordinates';
-    return `<article class="evidence-row" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>Page ${escapeHtml(fact.citation.page)}</span><span>Region <code>[${escapeHtml(box)}]</code></span><span>${coordinateSpace}</span></div><p>${escapeHtml(fact.citation.quote)}</p></div></article>`;
+    return `<article class="evidence-row" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>${escapeHtml(fact.citation.page_or_section)}</span><span>Region <code>[${escapeHtml(box)}]</code></span><span>${coordinateSpace}</span></div><p>${escapeHtml(fact.citation.quote_or_value)}</p></div></article>`;
   }).join('');
   const reviewGroups = [
     ['Missing fields', missing],

@@ -3,7 +3,8 @@ import { runEvidenceWorker, runExtractionWorker } from './activeWorkers.js';
 const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACTOR', EVIDENCE_RETRIEVER: 'EVIDENCE_RETRIEVER', VERIFY: 'VERIFY', READY: 'READY', QUALIFIED: 'QUALIFIED', CLARIFY: 'CLARIFY', BLOCKED: 'BLOCKED' });
 
 function hasUsableCitation(item) {
-  return item && typeof item.source_id === 'string' && item.source_id && typeof item.location === 'string' && item.location && typeof item.quote === 'string' && item.quote;
+  const citation = item?.citation;
+  return Boolean(citation && typeof citation.source_id === 'string' && citation.source_id && typeof citation.page_or_section === 'string' && citation.page_or_section && typeof citation.quote_or_value === 'string' && citation.quote_or_value);
 }
 
 /** Inspectable deterministic state graph for the synthetic evidence workflow. */

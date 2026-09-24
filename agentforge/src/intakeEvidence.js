@@ -1,4 +1,4 @@
-import { parseBoundingBox, parseSourceFields } from './sourceEvidenceParsing.js';
+import { formatPageOrSection, parseBoundingBox, parseSourceFields } from './sourceEvidenceParsing.js';
 
 const ALLOWED_FIELDS = new Set(['demographics', 'chief_concern', 'medication', 'allergy', 'family_history']);
 
@@ -20,7 +20,7 @@ export function extractIntakeEvidence({ sourceDocumentId, content }) {
     if (!ALLOWED_FIELDS.has(root)) { issues.push(`record:${lineNumber}:field_not_supported:${root}`); continue; }
     if (!Number.isInteger(page) || page < 1) { issues.push(`record:${lineNumber}:invalid_page`); continue; }
     if (!boundingBox) { issues.push(`record:${lineNumber}:invalid_bounding_box`); continue; }
-    facts.push({ source_document_id: sourceDocumentId, field: values.field, field_id: values.field_id, value: values.value, section: values.section, citation: { source_type: 'intake_form', source_document_id: sourceDocumentId, page, section: values.section, field_id: values.field_id, quote: values.quote, bounding_box: boundingBox, line_number: lineNumber } });
+    facts.push({ source_document_id: sourceDocumentId, field: values.field, field_id: values.field_id, value: values.value, section: values.section, citation: { source_type: 'document', source_id: sourceDocumentId, page_or_section: formatPageOrSection(page, values.section), field_or_chunk_id: values.field_id, quote_or_value: values.quote, bounding_box: boundingBox } });
   }
   const byKey = new Map();
   for (const fact of facts) {

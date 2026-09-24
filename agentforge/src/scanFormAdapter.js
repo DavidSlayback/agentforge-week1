@@ -1,4 +1,6 @@
 import { EXTRACTION_STATUSES, requiredScanFields, SCAN_FORM_CONTRACT_VERSION, validateScanExtraction, validateScanInput } from './scanFormContracts.js';
+import { formatPageOrSection } from './sourceEvidenceParsing.js';
+import { buildTypedIntakeForm, buildTypedLabResults } from './typedExtraction.js';
 
 const parseAttributes = (line) => Object.fromEntries(line.split('|').slice(1).map((part) => {
   const separator = part.indexOf('=');
@@ -33,7 +35,7 @@ function parseFixture(content) {
 
 function citationFor(sourceDocumentId, layoutId, field) {
   const quote = field.quote || [field.label, field.value, field.unit, field.reference_range].filter(Boolean).join(': ');
-  return { source_type: 'synthetic_scan_form', source_document_id: sourceDocumentId, page: field.page, field_id: field.field_id, quote, bounding_box: field.bounding_box, layout_id: layoutId, coordinate_space: layoutId.startsWith('pdf-ocr-') ? 'raster_pixels_200dpi' : 'fixture_coordinates' };
+  return { source_type: 'document', source_id: sourceDocumentId, page_or_section: formatPageOrSection(field.page, field.section), field_or_chunk_id: field.field_id, quote_or_value: quote, bounding_box: field.bounding_box, coordinate_space: layoutId.startsWith('pdf-ocr-') ? 'raster_pixels_200dpi' : 'fixture_coordinates' };
 }
 
 /**
@@ -81,12 +83,34 @@ export function extractScanForm({ sourceDocumentId, documentType, layoutId, page
   if (conflicts.length) issues.push('conflicting_values_require_review');
   if (unreadableFields.length) issues.push('unreadable_fields_require_review');
   if (missingFields.length) issues.push('missing_fields_require_review');
-  const status = conflicts.length || unreadableFields.length || (!facts.length && missingFields.length) ? 'qualified' : missingFields.length ? 'partial' : 'complete';
-  const result = { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status, facts, missing_fields: missingFields, uncertain_fields: uncertainFields, conflicts, issues: [...new Set(issues)], metrics: { pages: pageCount, candidate_fields: parsed.fields.length, accepted_fields: facts.length, duration_ms: Number((performance.now() - started).toFixed(3)) }, synthetic_only: true };
+  let status = conflicts.length || unreadableFields.length || (!facts.length && missingFields.length) ? 'qualified' : missingFields.length ? 'partial' : 'complete';
+  // The strict typed view (LabResult[]/IntakeForm) is built ALONGSIDE the
+  // untyped `facts` list rather than replacing it: `facts` still backs
+  // observation persistence and the source-preview UI, while the typed
+  // view is what a caller should validate a clinical claim against.
+  const typedIssues = [];
+  let labResults = [];
+  let intakeForm = null;
+  if (documentType === 'lab_pdf') {
+    const typed = buildTypedLabResults(facts);
+    labResults = typed.results;
+    typedIssues.push(...typed.issues);
+  } else if (documentType === 'intake_form') {
+    const typed = buildTypedIntakeForm(facts);
+    intakeForm = typed.ok ? typed.data : null;
+    typedIssues.push(...typed.issues);
+  }
+  // A "complete" status must mean the typed contract actually came out
+  // clean, not just that the untyped facts list looked fine — otherwise a
+  // caller could see readiness "READY" backed by an empty or contradicted
+  // typed view. Only `complete` is downgraded here: `partial`/`qualified`
+  // already signal a degraded extraction through the untyped-fact checks.
+  if (status === 'complete' && typedIssues.length) status = 'qualified';
+  const result = { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status, facts, missing_fields: missingFields, uncertain_fields: uncertainFields, conflicts, issues: [...new Set(issues)], lab_results: labResults, intake_form: intakeForm, typed_issues: [...new Set(typedIssues)], metrics: { pages: pageCount, candidate_fields: parsed.fields.length, accepted_fields: facts.length, duration_ms: Number((performance.now() - started).toFixed(3)) }, synthetic_only: true };
   const validation = validateScanExtraction(result, { sourceDocumentId, documentType, layoutId });
   return validation.valid ? result : blockedResult([...result.issues, ...validation.issues]);
 }
 
 function blockedResult(issues) {
-  return { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status: EXTRACTION_STATUSES[3], facts: [], missing_fields: [], uncertain_fields: [], conflicts: [], issues: [...new Set(issues)], metrics: { pages: 0, candidate_fields: 0, accepted_fields: 0, duration_ms: 0 }, synthetic_only: true };
+  return { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status: EXTRACTION_STATUSES[3], facts: [], missing_fields: [], uncertain_fields: [], conflicts: [], issues: [...new Set(issues)], lab_results: [], intake_form: null, typed_issues: [], metrics: { pages: 0, candidate_fields: 0, accepted_fields: 0, duration_ms: 0 }, synthetic_only: true };
 }

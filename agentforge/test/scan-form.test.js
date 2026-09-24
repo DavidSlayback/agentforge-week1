@@ -14,10 +14,35 @@ const fixture = (name) => fs.readFileSync(fileURLToPath(new URL(`../../docs/agen
 test('scan-form adapter extracts cited complete lab fields under the frozen contract', () => {
   const result = extractScanForm({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt') });
   assert.equal(result.contract_version, SCAN_FORM_CONTRACT_VERSION);
-  assert.equal(result.status, 'complete');
+  // This legacy fixture layout's flat `lab.hgb`/`lab.a1c` ids carry no
+  // collection_date/abnormal_flag data, so they cannot be typed into a
+  // LabResult; the untyped facts are all still present and cited, but the
+  // status is `qualified` (not `complete`) because the typed contract came
+  // out empty rather than clean.
+  assert.equal(result.status, 'qualified');
+  assert.equal(result.lab_results.length, 0);
+  // A fact that cannot be typed is never silently dropped: it shows up as
+  // its own typed_issue instead of leaving an empty lab_results[] unexplained.
+  assert.ok(result.typed_issues.includes('fact_not_mapped_to_typed_output:lab.hgb'));
+  assert.ok(result.typed_issues.includes('fact_not_mapped_to_typed_output:lab.a1c'));
   assert.deepEqual(result.facts.map((fact) => fact.field_id), REQUIRED_SCAN_FIELDS.lab_pdf);
-  assert.ok(result.facts.every((fact) => fact.citation.source_document_id === 'src-lab-a' && fact.citation.bounding_box.length === 4));
+  assert.ok(result.facts.every((fact) => fact.citation.source_id === 'src-lab-a' && fact.citation.bounding_box.length === 4));
   assert.equal(validateScanExtraction(result, { sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf' }).valid, true);
+});
+
+test('intake fixture per-item medication/allergy ids are mapped into the typed IntakeForm, not silently dropped', () => {
+  const result = extractScanForm({ sourceDocumentId: 'src-intake-a', documentType: 'intake_form', layoutId: 'intake-a', content: fixture('intake-layout-a-complete.scan.txt') });
+  // `medication.metformin` and `allergy.penicillin` (the non-PDF-OCR fixture
+  // vocabulary) are per-item facts, not the combined `medications`/
+  // `allergies` field the PDF-OCR layout emits; they must still populate the
+  // typed IntakeForm rather than leaving it looking like "no medications".
+  assert.equal(result.status, 'complete');
+  assert.equal(result.typed_issues.length, 0);
+  assert.equal(result.intake_form.current_medications.length, 1);
+  assert.equal(result.intake_form.current_medications[0].value, 'Metformin 500 mg daily');
+  assert.equal(result.intake_form.allergies.length, 1);
+  assert.equal(result.intake_form.allergies[0].value, 'Penicillin');
+  assert.equal(result.intake_form.chief_concern.value, 'Fatigue for two weeks');
 });
 
 test('scan-form adapter qualifies missing, unreadable, and conflicting values', () => {
@@ -35,7 +60,9 @@ test('scan-form adapter qualifies missing, unreadable, and conflicting values', 
 
 test('active workers expose inspect-act-qualify handoffs and never promote empty evidence', () => {
   const extraction = runExtractionWorker({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt') });
-  assert.equal(extraction.output_status, 'complete');
+  // See the equivalent assertion above: this fixture's flat lab ids cannot
+  // build a typed LabResult, so the worker's output is qualified.
+  assert.equal(extraction.output_status, 'qualified');
   assert.deepEqual(extraction.steps.map((step) => step.name), ['inspect', 'extract', 'validate_or_qualify']);
   assert.equal(JSON.stringify(extraction.redacted_metrics).includes('13.2'), false);
   const evidence = runEvidenceWorker({ query: '' });
@@ -75,7 +102,7 @@ test('local VLM adapter normalizes visual candidates without weakening the deter
   assert.equal(result.status, 'complete');
   assert.equal(result.synthetic_only, false);
   assert.deepEqual(result.facts.map((fact) => fact.field_id), REQUIRED_SCAN_FIELDS.lab_pdf);
-  assert.equal(result.facts[0].citation.source_type, 'public_blank_form');
+  assert.equal(result.facts[0].citation.source_type, 'document');
   assert.equal(validateScanExtraction(result, { sourceDocumentId: 'public-lab-a', documentType: 'lab_pdf' }).valid, true);
 });
 

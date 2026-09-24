@@ -19,7 +19,11 @@ for (const item of manifest.samples) {
   const actual = Object.fromEntries(extraction.facts.map((fact) => [fact.field_id, fact.value]));
   const expected = item.expected_fields;
   const exact = Object.keys(expected).filter((field) => actual[field] === expected[field]);
-  const citations = extraction.facts.filter((fact) => fact.citation.page >= 1 && fact.citation.page <= prepared.pageCount && fact.citation.coordinate_space === 'raster_pixels_200dpi' && fact.citation.bounding_box.length === 4 && fact.citation.bounding_box[2] > fact.citation.bounding_box[0] && fact.citation.bounding_box[3] > fact.citation.bounding_box[1]).length;
+  const citations = extraction.facts.filter((fact) => {
+    const citation = fact.citation;
+    const page = Number(/^page (\d+)/.exec(citation.page_or_section || '')?.[1]);
+    return Boolean(citation.field_or_chunk_id) && page >= 1 && page <= prepared.pageCount && citation.coordinate_space === 'raster_pixels_200dpi' && Array.isArray(citation.bounding_box) && citation.bounding_box.length === 4 && citation.bounding_box[2] > citation.bounding_box[0] && citation.bounding_box[3] > citation.bounding_box[1];
+  }).length;
   results.push({ layout: item.layout, document_type: item.document_type, render_style: item.render_style, page_count: prepared.pageCount, expected_fields: Object.keys(expected).length, accepted_fields: extraction.facts.length, exact_value_matches: exact.length, valid_contract: validation.valid, cited_fields: citations, status: extraction.status, source_bytes: content.length, source_sha256: createHash('sha256').update(content).digest('hex') });
 }
 

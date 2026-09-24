@@ -23,7 +23,27 @@ export function retrieveGuidelineEvidence(query, { topK = 3, corpus = GUIDELINE_
     .sort((left, right) => right.score - left.score || left.document.id.localeCompare(right.document.id))
     .slice(0, Math.max(0, topK));
   if (!ranked.length) return { status: 'qualified', query: String(query), evidence: [], issues: ['insufficient_guideline_evidence'] };
-  return { status: 'complete', provider: 'local-lexical-proxy', query: String(query), evidence: ranked.map(({ document, sparseScore, denseScore, score, overlap }) => ({ source_type: 'guideline', source_id: document.id, title: document.title, version: document.version, section: document.section, location: document.uri, quote: document.text, sparse_score: sparseScore, dense_score: Number(denseScore.toFixed(6)), rerank_score: Number(score.toFixed(6)), matched_terms: overlap })), issues: [] };
+  return { status: 'complete', provider: 'local-lexical-proxy', query: String(query), evidence: ranked.map(({ document, sparseScore, denseScore, score, overlap }) => guidelineEvidenceItem(document, { sparseScore, denseScore, rerankScore: score, matchedTerms: overlap })), issues: [] };
+}
+
+/**
+ * Build one `GuidelineEvidence` item (schemas.js) from a corpus document and
+ * its retrieval scores. `citation.source_id`/`citation.field_or_chunk_id`
+ * are both the document id because today's corpus has exactly one chunk per
+ * document; `citation.page_or_section` carries the guideline section title.
+ */
+function guidelineEvidenceItem(document, { sparseScore, denseScore, rerankScore, matchedTerms }) {
+  return {
+    title: document.title,
+    section: document.section,
+    version: document.version,
+    snippet: document.text,
+    sparse_score: sparseScore,
+    dense_score: Number(denseScore.toFixed(6)),
+    rerank_score: Number(rerankScore.toFixed(6)),
+    matched_terms: matchedTerms,
+    citation: { source_type: 'guideline', source_id: document.id, page_or_section: document.section, field_or_chunk_id: document.id, quote_or_value: document.text },
+  };
 }
 
 function cosineSimilarity(left, right) {
@@ -145,14 +165,7 @@ export function createCohereGuidelineRetriever({
     const evidence = rerank.results.flatMap((result) => {
       const candidate = candidates[result.index];
       if (!candidate || !Number.isFinite(result.relevance_score)) return [];
-      const { document } = candidate;
-      return [{
-        source_type: 'guideline', source_id: document.id, title: document.title,
-        version: document.version, section: document.section, location: document.uri,
-        quote: document.text, sparse_score: candidate.sparseScore,
-        dense_score: Number(candidate.denseScore.toFixed(6)),
-        rerank_score: result.relevance_score, matched_terms: candidate.matchedTerms,
-      }];
+      return [guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: result.relevance_score, matchedTerms: candidate.matchedTerms })];
     });
     return {
       status: evidence.length ? 'complete' : 'qualified',
