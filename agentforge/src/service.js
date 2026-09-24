@@ -40,28 +40,49 @@ export class AgentForgeService {
     this.preparation.conversationProvider = value;
   }
 
-  /** W2 synthetic-only ingestion seam. */
-  ingestSourceDocument(request, { verifiedContext = null } = {}) {
+  /** W2 source-document ingestion; the writeback decides where it persists (in-memory synthetic store or the OpenEMR module). */
+  async ingestSourceDocument(request, { verifiedContext = null } = {}) {
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.persistSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
-    const result = this.writeback.persistSourceDocument({
+    const result = await this.writeback.persistSourceDocument({
       patientRef: authorization.patient_uuid,
       documentType: request.document_type,
       filename: request.filename,
       content: request.content,
       uploadedBy: authorization.clinician_uuid,
+      verifiedContext,
     });
-    return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document };
+    return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document, ...(result.document.openemr ? { openemr: result.document.openemr } : {}) };
   }
 
-  readSourceDocument(id, request, { verifiedContext = null } = {}) {
+  /**
+   * After a validated extraction: persist derived facts (and lab rows) when the
+   * writeback is OpenEMR-backed; null otherwise. It is a write, so the caller's
+   * own context must be write-scoped; a read context gets an explicit
+   * not_persisted result, never a silent success.
+   */
+  async persistDerivedEvidence(sourceDocument, extraction, request, { verifiedContext = null } = {}) {
+    if (typeof this.writeback?.persistDerivedEvidence !== 'function') return null;
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'not_persisted', reason: 'persistence_not_authorized', authorization: authorization.reason, persistence_boundary: this.writeback.persistenceBoundary };
+    return this.writeback.persistDerivedEvidence({ patientRef: authorization.patient_uuid, sourceDocument, extraction, verifiedContext });
+  }
+
+  async readOpenEMRLabObservations(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.readLabObservations !== 'function') return { status: 'blocked', reason: 'openemr_persistence_not_configured' };
+    return { status: 'read', bundle: await this.writeback.readLabObservations(id, { patientRef: authorization.patient_uuid, verifiedContext }) };
+  }
+
+  async readSourceDocument(id, request, { verifiedContext = null } = {}) {
     const authorization = verifiedContext?.scope === 'write-source-document'
       ? this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' })
       : this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.getSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
-    const result = this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid });
+    const result = await this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid, verifiedContext });
     return { status: 'read', synthetic_only: true, source_document: result.document, content: result.content };
   }
 
@@ -89,10 +110,10 @@ export class AgentForgeService {
     return { status: 'read', synthetic_only: true, action: result.action };
   }
 
-  extractLabEvidence(id, request, { verifiedContext = null } = {}) {
+  async extractLabEvidence(id, request, { verifiedContext = null } = {}) {
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    const source = await this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     if (source.source_document.document_type !== 'lab_pdf') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
     const extraction = extractLabEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
@@ -102,10 +123,10 @@ export class AgentForgeService {
     return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
   }
 
-  extractIntakeEvidence(id, request, { verifiedContext = null } = {}) {
+  async extractIntakeEvidence(id, request, { verifiedContext = null } = {}) {
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    const source = await this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     if (source.source_document.document_type !== 'intake_form') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
     const extraction = extractIntakeEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
@@ -116,7 +137,7 @@ export class AgentForgeService {
   }
 
   async extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    const source = await this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     const prepared = await this.prepareScanSource(source);
     const pdf = Boolean(prepared.pdf);
@@ -132,7 +153,7 @@ export class AgentForgeService {
   async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
     let source;
     try {
-      source = this.readSourceDocument(id, request, { verifiedContext });
+      source = await this.readSourceDocument(id, request, { verifiedContext });
     } catch (error) {
       if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return { status: 'blocked', reason: 'document_scope_mismatch' };
       throw error;
@@ -225,16 +246,16 @@ export class AgentForgeService {
             const facts = [];
             const issues = [];
             for (const id of ids) {
-              const source = this.readSourceDocument(id, workflowRequest, { verifiedContext: sourceDocumentContext });
+              const source = await this.readSourceDocument(id, workflowRequest, { verifiedContext: sourceDocumentContext });
               if (source.status !== 'read') {
                 documents.push({ source_document_id: id, status: 'blocked', issue: 'source_read_blocked' });
                 issues.push('source_read_blocked');
                 continue;
               }
               const extracted = source.source_document.document_type === 'lab_pdf'
-                ? this.extractLabEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
+                ? await this.extractLabEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
                 : source.source_document.document_type === 'intake_form'
-                  ? this.extractIntakeEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
+                  ? await this.extractIntakeEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
                   : { status: 'blocked', reason: 'source_type_unsupported' };
               const extraction = extracted.extraction;
               documents.push({ source_document_id: id, document_type: source.source_document.document_type, status: extracted.status, fact_count: extraction?.facts?.length || 0, issue_count: extraction?.issues?.length || 0 });

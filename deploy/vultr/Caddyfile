@@ -1,4 +1,22 @@
+# oe-module-agentforge is internal-only except the Week 1 launcher page: the
+# W2 write endpoint (public/api.php) is reached by agentforge-w2 on the Docker
+# network (http://openemr), and nothing else in the module directory (src/,
+# tests/, table.sql, api.php, ...) is served publicly. The launcher exception is
+# an exact path, so PATH_INFO tricks such as
+# .../public/api.php/x/oe-module-agentforge/public/index.php stay denied.
+# HMAC signing stays mandatory behind this rule.
+(agentforge_module_internal_only) {
+    @agentforgeModuleInternal {
+        path */oe-module-agentforge/*
+        not path /interface/modules/custom_modules/oe-module-agentforge/public/index.php
+    }
+    handle @agentforgeModuleInternal {
+        respond 404
+    }
+}
+
 dtstest.64.177.10.182.nip.io {
+    import agentforge_module_internal_only
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }
@@ -11,6 +29,7 @@ dtstest.64.177.10.182.nip.io {
 }
 
 :80 {
+    import agentforge_module_internal_only
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }
@@ -24,6 +43,7 @@ dtstest.64.177.10.182.nip.io {
 
 :443 {
     tls internal
+    import agentforge_module_internal_only
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }

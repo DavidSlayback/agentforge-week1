@@ -6,6 +6,14 @@ export const CONTEXT_SCOPES = new Set(['read-briefing', 'write-source-document',
 // Provenance stays process-local so callers cannot forge a deployed context
 // by copying the signed payload fields.
 const verifiedContexts = new WeakSet();
+// The signed token behind each verified context, so a launcher-issued token
+// can be forwarded unchanged to the OpenEMR module, which re-verifies it.
+const signedTokens = new WeakMap();
+
+/** The exact signed token a verified context came from, or null. */
+export function signedTokenFor(verifiedContext) {
+  return (verifiedContext && typeof verifiedContext === 'object' && signedTokens.get(verifiedContext)) || null;
+}
 
 /** Issue a short-lived synthetic session assertion for a read-only patient scope. */
 export function issueSignedContext({ patient_uuid, clinician_uuid, scope = 'read-briefing', ttlSeconds = 300, issuer = 'synthetic-demo', authn = 'synthetic', role = 'clinician', acl = 'read', secret, now = () => Math.floor(Date.now() / 1000) }) {
@@ -29,6 +37,7 @@ export function verifySignedContext(token, secret, now = () => Math.floor(Date.n
     if (typeof payload.patient_uuid !== 'string' || !payload.patient_uuid || typeof payload.clinician_uuid !== 'string' || !payload.clinician_uuid || !CONTEXT_SCOPES.has(payload.scope) || typeof payload.issuer !== 'string' || !payload.issuer || typeof payload.authn !== 'string' || !payload.authn || payload.role !== 'clinician' || !['read', 'write'].includes(payload.acl) || (payload.scope === 'read-briefing' && payload.acl !== 'read') || (['write-source-document', 'write-clinical-action'].includes(payload.scope) && payload.acl !== 'write') || !Number.isFinite(payload.expires_at) || payload.expires_at <= now() || payload.expires_at > now() + MAX_CONTEXT_TTL_SECONDS) return null;
     const context = { patient_uuid: payload.patient_uuid, clinician_uuid: payload.clinician_uuid, scope: payload.scope, issuer: payload.issuer, authn: payload.authn, role: payload.role, acl: payload.acl, expires_at: payload.expires_at };
     verifiedContexts.add(context);
+    signedTokens.set(context, token);
     return Object.freeze(context);
   } catch {
     return null;

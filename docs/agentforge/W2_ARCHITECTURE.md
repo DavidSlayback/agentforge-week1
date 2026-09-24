@@ -6,7 +6,8 @@ Status: local synthetic evidence checkpoint with an agreed local-VLM lane, 2026-
 
 ```text
 source form (synthetic fixture or approved public blank form)
-  -> source-document synthetic roundtrip
+  -> source document stored: OpenEMR via oe-module-agentforge (W2 service),
+     or the in-memory synthetic store (default mode)
   -> scan-form extraction worker
      (Tesseract/deterministic baseline, then optional larger local VLM crop resolver)
      (inspect -> extract -> validate/qualify)
@@ -24,6 +25,50 @@ model runner is configured or measured. The eventual API/managed provider can
 replace this runner without changing the worker contract. The separate
 `write-clinical-action` lane still
 requires explicit clinician confirmation and remains synthetic-only.
+
+## OpenEMR persistence (S8)
+
+With `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (set for `agentforge-w2` in
+Compose) the service calls `oe-module-agentforge/public/api.php` on the internal
+network. Requests are HMAC-signed with `AGENTFORGE_MODULE_HMAC_SECRET`, which
+only `openemr` and `agentforge-w2` hold, and carry a context token signed with
+`AGENTFORGE_DEMO_SECRET`. On upload the source is stored as an OpenEMR document
+("Lab Report" or "Medical Record"). After a validated extraction, and only when
+the caller's own context is write-scoped (`write-source-document`), the service
+stores a derived-facts JSON document linked to the source and, for a lab PDF,
+one `procedure_order`/`_report` plus one `procedure_result` per LOINC-mapped
+result (`718-7` hemoglobin, `4548-4` A1c; others are reported as unmapped). A
+read-scoped caller gets `openemr.status: not_persisted`, `reason:
+persistence_not_authorized`. The service then reads the results back as FHIR
+Observations and fails the request (502) unless every value matches. A write
+ledger keyed by patient and content hash makes re-uploads return the same ids
+with `duplicate: true` and zero new rows; a different payload on an existing key
+is reported as `derived_payload_differs` / `lab_payload_differs` and not
+written. Every write is limited to the allowlisted synthetic patients, whatever
+the token issuer, and recorded with its issuer. Clinician-confirmed intake
+medications and allergies have a module route, but the service's
+clinical-action lane does not call it yet.
+
+**Lab values are preliminary.** The rows are unreviewed AI extraction, so
+`procedure_report.report_status` and `procedure_result.result_status` are
+`prelim` (OpenEMR's own option) and `review_status` is `received`, pending
+clinician review. OpenEMR 8.0.0's FHIR mapper does not translate `prelim`, so the
+Observations report `status: "unknown"`, never `final`.
+
+Known gaps:
+- The lab read-back uses OpenEMR's FHIR Observation service **in-process**
+  (`read_path: openemr-fhir-service-in-process`), not the `/fhir` HTTP API,
+  which is disabled on the deployment (`rest_fhir_api=0`) and would need an
+  interactive OAuth grant with `api:fhir user/Observation.rs`.
+- Orphan file on rollback: `Document::createDocument` writes the encrypted file
+  before the ledger transaction commits. If the transaction rolls back, the
+  database rows are rolled back but the file stays under
+  `sites/default/documents/<pid>/`, referenced by no `documents` row and never
+  served; the request fails with `write_failed` (see `Write/DocumentWriter.php`).
+- The Week 1 launcher (`public/index.php`) is unchanged and still has the F18
+  ACL bug (it checks the numeric user id instead of the username); W1 is frozen.
+- The live round-trip is unverified until `agentforge/scripts/w2-openemr-smoke.mjs`
+  passes on the deployed SHA.
 
 ## Evidence and retrieval
 

@@ -111,8 +111,8 @@ Status is as of `7ac46e9`.
 | W2-HG1 | p5 §6, "HARD GATE" | Graders inject a regression and CI must fail | HG | A GitLab MR pipeline on `main` fails for each of the 16 regressions in review G2 | FAIL | S1 |
 | W2-HG2 | p2 GATE, p5 §6 | PR-blocking hook runs 50-case gate | HG | `.gitlab-ci.yml` job `w2-gate` required on MRs; `.githooks/pre-commit` documented | FAIL | S0, S1 |
 | W2-HG3 | p3 | `./KEY_METRICS.md` with rationale | HG | At root on `main`, with measured values that cite evidence files | Partial | S12 |
-| W2-C1 | p4 §1 | `attach_and_extract` for lab_pdf and intake_form; stores the source in OpenEMR | C | The response includes the OpenEMR `document_id`; `GET /api/patient/:pid/document/:did` returns identical bytes | FAIL | S8 |
-| W2-C2 | p2, p4 §1 | Derived facts persisted as FHIR/OpenEMR records, no duplicates | C | Lab values are readable through FHIR Observation, and re-uploading the same file creates 0 new rows | FAIL | S8 |
+| W2-C1 | p4 §1 | `attach_and_extract` for lab_pdf and intake_form; stores the source in OpenEMR | C | The response includes the OpenEMR `document_id`; `GET /api/patient/:pid/document/:did` returns identical bytes | wired, untested live (S8; smoke not run) | S8 |
+| W2-C2 | p2, p4 §1 | Derived facts persisted as FHIR/OpenEMR records, no duplicates | C | Lab values are readable through FHIR Observation, and re-uploading the same file creates 0 new rows | wired, untested live (S8; smoke not run) | S8 |
 | W2-C3 | p4 §2 | Strict schemas with the required lab and intake fields plus validation tests | C | Zod schemas; negative tests per required field | Partial | S2 |
 | W2-C4 | p4 §3 | Sparse + dense + rerank; only top evidence goes to the answer model | C | Trace shows the BM25 candidates, Cohere dense and rerank scores, and top-k ≤ 3 sent to the answer model | FAIL | S5 |
 | W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | FAIL | S5 |
@@ -330,29 +330,59 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   path.
 
 ### S8 — OpenEMR round-trip (Fri–Sat, 6 h, after H1; lane B)
-- `scripts/seed-openemr-synthetic.mjs`: creates the synthetic patients that
-  match the sample PDFs through `POST /api/patient` and records their uuids and
-  pids in `deploy/vultr/seed.json`. The script is idempotent.
-- `openemrAdapter.js` write side:
-  - `storeDocument(pid, file, category='AgentForge Uploads')` →
-    `POST /api/patient/:pid/document`;
-  - `storeDerivedFacts(pid, docId, json)` → a second document.
-- `oe-module-agentforge`: new route `POST .../lab-results`. It uses OAuth
-  bearer validation plus the `patients/med` write ACL, is written as PHP 8.2
-  strict and PHPStan level 10 clean per `CLAUDE.md`, uses `QueryUtils` in a
-  transaction, and writes `procedure_order/report/result` with
-  `document_id` and doc SHA as the idempotency key. It returns the result ids.
-- Intake meds and allergies are confirmed via the clinical-action lane
-  (`POST /api/patient/:puuid/allergy`, `/medication`), and only after
-  clinician confirmation.
-- Read-back: after the write, `GET /fhir/Observation?patient=<uuid>&category=
-  laboratory` must contain the values. The response includes
-  `openemr: {document_id, derived_document_id, observation_ids[]}`.
-- Switch compose to `AGENTFORGE_OPENEMR_MODE=live` for both routes. Remove the
-  `openemr-live` label from fixture mode (fixture mode keeps working for CI
-  under an honest name).
-- Tests: adapter contract tests against a recorded OpenEMR HTTP fixture, and
-  PHP isolated tests for the module writer. The live round-trip is proven in S11.
+Implemented per D7 and `.scratch/agentforge-week2/S8_DESIGN.md` (which replaced
+the OAuth/REST-write plan that used to be here). Status: **wired, not yet
+observed live** — the post-deploy smoke below has not run.
+- `oe-module-agentforge/public/api.php` (internal only; Caddy answers 404 for the
+  whole module directory except the W1 launcher
+  page) with HMAC scheme v1 (key derived from `AGENTFORGE_MODULE_HMAC_SECRET`,
+  held only by `openemr` and `agentforge-w2`; ±300 s skew, nonce replay table,
+  signed canonical string incl. body sha256, query and context-token hash) and
+  routes `documents` (POST/GET), `lab-results`, `lab-observations`,
+  `clinical-list-items`, `health`. The actor comes from the module-signed
+  context token (D-D) or the `synthetic-demo` fallback (D-E); every issuer is
+  limited to `AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS`, writes need a write-scoped
+  token (a read token gets `persistence_not_authorized`), and
+  the ledger and audit rows record the issuer.
+- Documents reuse the existing categories "Lab Report" / "Medical Record" (D-B;
+  no "AgentForge Uploads" category). Derived facts are a JSON document with
+  `foreign_reference` to the source. Lab rows are one
+  `procedure_order`/`_code`/`_report` plus N `procedure_result` rows with
+  `document_id`; idempotency keys live in `agentforge_write_ledger`
+  (`table.sql`), so a re-upload returns the same ids and adds 0 rows. Lab rows
+  are `prelim` (unreviewed AI extraction; FHIR shows `status: unknown`).
+- Read-back is OpenEMR's FHIR Observation service called in-process
+  (`read_path: openemr-fhir-service-in-process`). The `/fhir` HTTP API stays
+  disabled on the VM (`rest_fhir_api=0`); enabling it needs an owner decision.
+- `agentforge-w2` runs `AGENTFORGE_PERSISTENCE_MODE=openemr-module`; the upload
+  response carries `openemr.document_id`, the scan-supervisor response carries
+  `openemr: {document_id, derived_document_id, procedure_order_id,
+  observation_ids[], read_path, read_back, duplicate}`. W1 `agentforge` stays
+  synthetic (frozen; owner scope, 2026-09-24). Fixture mode is labelled
+  `in-memory-synthetic` / `retrieve_synthetic_fixture_read`. The W1 launcher
+  `public/index.php` is unchanged: F18 (ACL checked with the numeric user id)
+  stays a documented W1 known issue.
+- Not done: the Node clinical-action lane does not yet call
+  `clinical-list-items` (module route and client method exist; A3 UI wiring
+  open). The seed script and a REST `GET /api/patient/:pid/document/:did`
+  cross-check (W2-C1 wording) are not implemented; byte identity is checked
+  through the module's `Document::get_data()` read instead. The W2 UI
+  (`ui.js`, owned by S1/S3) still calls `/v1/scan-supervisor` with the read
+  token, so UI uploads store the source but report `persistence_not_authorized`
+  for derived facts until it sends the write-scoped context.
+- Tests: `php interface/modules/custom_modules/oe-module-agentforge/tests/run.php`
+  (shared vectors `agentforge/test/fixtures/hmac-vectors.json`, skew, replay,
+  idempotency with a stubbed DB, lab row plan, and the dispatcher with ACL,
+  cross-patient, allowlist and secret-separation cases), run by
+  `.githooks/pre-commit`;
+  `agentforge/test/openemr-module-*.test.js` (vectors, client errors, server
+  round-trip against a test-only fake module). PHPStan level 10 was not run
+  (no dev stack; the fork's rules assume 8.2 APIs, A6).
+- Post-deploy proof: `AGENTFORGE_DEPLOY_APPLY_MODULE_SQL=1
+  AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1 deploy/vultr/deploy.sh`, then
+  `node agentforge/scripts/w2-openemr-smoke.mjs --base <public>/agentforge-w2`
+  and, inside the `agentforge-w2` container, `node
+  scripts/w2-openemr-smoke.mjs --module-checks`.
 - Circuit breaker: if the module writer isn't passing by Sat 14:00, ship the
   document + derived-facts JSON documents only (A2 fallback). Write that down
   in W2_ARCHITECTURE as a known gap; do not rename it.

@@ -28,7 +28,7 @@ function serviceWithReplay() {
   const traceSink = new InMemoryTraceSink();
   const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(fixturePath), writeback, provider: new DeterministicProvider(), traceSink, ocrEngine: createRecordedOcrReplay(recordings) });
   const run = async (docId, declaredType, { uploadPatient = 'fixture-patient-001', requestPatient = uploadPatient, query = 'glycemic follow-up with medication history' } = {}) => {
-    const upload = service.ingestSourceDocument({ patient_uuid: uploadPatient, clinician_uuid: 'fixture-physician-001', document_type: declaredType, filename: `${docId}.pdf`, content: pdf(docId) }, { verifiedContext: context(uploadPatient, 'write-source-document') });
+    const upload = await service.ingestSourceDocument({ patient_uuid: uploadPatient, clinician_uuid: 'fixture-physician-001', document_type: declaredType, filename: `${docId}.pdf`, content: pdf(docId) }, { verifiedContext: context(uploadPatient, 'write-source-document') });
     return service.runActiveSupervisorForDocument(upload.source_document.id, { patient_uuid: requestPatient, clinician_uuid: 'fixture-physician-001' }, { verifiedContext: context(requestPatient), query });
   };
   return { service, traceSink, run };

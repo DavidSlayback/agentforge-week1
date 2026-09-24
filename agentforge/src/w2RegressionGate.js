@@ -154,8 +154,8 @@ function harness() {
   const writeback = new SyntheticWriteback();
   const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, provider: new DeterministicProvider(), traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings) });
   const context = (patient, scope = 'read-briefing') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: CLINICIAN, scope, acl: scope === 'read-briefing' ? 'read' : 'write', secret }), secret);
-  const upload = (doc, patient, documentType) => {
-    const result = service.ingestSourceDocument({ patient_uuid: patient, clinician_uuid: CLINICIAN, document_type: documentType, filename: `${doc.id}.${doc.kind === 'pdf' ? 'pdf' : 'txt'}`, content: doc.content }, { verifiedContext: context(patient, 'write-source-document') });
+  const upload = async (doc, patient, documentType) => {
+    const result = await service.ingestSourceDocument({ patient_uuid: patient, clinician_uuid: CLINICIAN, document_type: documentType, filename: `${doc.id}.${doc.kind === 'pdf' ? 'pdf' : 'txt'}`, content: doc.content }, { verifiedContext: context(patient, 'write-source-document') });
     if (result.status !== 'persisted') throw new Error(`GOLDEN_UPLOAD_FAILED:${result.reason}`);
     return result.source_document;
   };
@@ -168,18 +168,18 @@ async function runScenario(scenario) {
   const run = { h, docs, sourceIds: [], result: null, error: null };
   try {
     if (scenario.kind === 'scan') {
-      const stored = h.upload(docs[0], scenario.upload_patient, scenario.declared_type);
+      const stored = await h.upload(docs[0], scenario.upload_patient, scenario.declared_type);
       run.sourceIds.push(stored.id);
       const requestPatient = scenario.request_patient || scenario.upload_patient;
       run.result = await h.service.runActiveSupervisorForDocument(stored.id, { patient_uuid: requestPatient, clinician_uuid: CLINICIAN }, { verifiedContext: h.context(requestPatient), query: scenario.query });
     } else if (scenario.kind === 'text_supervisor') {
-      for (const doc of docs) run.sourceIds.push(h.upload(doc, scenario.upload_patient, scenario.declared_type || doc.truth.document_kind).id);
+      for (const doc of docs) run.sourceIds.push((await h.upload(doc, scenario.upload_patient, scenario.declared_type || doc.truth.document_kind)).id);
       const request = { patient_uuid: scenario.upload_patient, clinician_uuid: CLINICIAN, message: scenario.query, source_document_ids: run.sourceIds };
       run.result = await h.service.runSupervisorWorkflow(request, { verifiedContext: h.context(scenario.upload_patient), sourceDocumentContext: h.context(scenario.upload_patient, 'write-source-document') });
     } else if (scenario.kind === 'text_lab_evidence') {
-      const stored = h.upload(docs[0], scenario.upload_patient, 'lab_pdf');
+      const stored = await h.upload(docs[0], scenario.upload_patient, 'lab_pdf');
       run.sourceIds.push(stored.id);
-      run.result = h.service.extractLabEvidence(stored.id, { patient_uuid: scenario.upload_patient, clinician_uuid: CLINICIAN }, { verifiedContext: h.context(scenario.upload_patient, 'write-source-document') });
+      run.result = await h.service.extractLabEvidence(stored.id, { patient_uuid: scenario.upload_patient, clinician_uuid: CLINICIAN }, { verifiedContext: h.context(scenario.upload_patient, 'write-source-document') });
     } else throw new Error('GOLDEN_SCENARIO_UNKNOWN');
   } catch (error) {
     run.error = error;

@@ -17,3 +17,9 @@ function agentforge_patient_menu_item(PatientMenuEvent $event): PatientMenuEvent
 }
 
 $eventDispatcher->addListener(PatientMenuEvent::MENU_UPDATE, 'agentforge_patient_menu_item');
+
+// ModulesApplication also provides $classLoader (a ModulesClassLoader). The
+// write endpoint loads src/autoload.php itself, so it does not depend on this.
+if (isset($classLoader) && method_exists($classLoader, 'registerNamespaceIfNotExists')) {
+    $classLoader->registerNamespaceIfNotExists('OpenEMR\\Modules\\AgentForge\\', __DIR__ . '/src');
+}

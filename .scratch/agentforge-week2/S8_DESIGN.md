@@ -249,3 +249,56 @@ explained ignore, or a small `class_exists(ServiceContainer::class)` shim. **Dec
 - **Fallback (the PLAN circuit breaker, Sat 14:00):** ship only `route=documents` (the source PDF plus a derived-facts JSON with a `foreign_reference` to
   the source) and the GET read-back. That meets W2-C1. Mark W2-C2 as "derived facts stored as an OpenEMR document; not
   Observation rows" in W2_ARCHITECTURE. `procedure_*` writes and list writes are then `not done`.
+
+## 10. Implementation deviations (S8 commit)
+
+- **Canonical string:** two lines were added after `nonce`: the sorted query
+  (`k=v&...`, keys `[a-z_]`, values `[A-Za-z0-9._-]`, so no percent-encoding can
+  drift) and the sha256 of the context token (or `-`). The token moved from a
+  body field to the `X-AgentForge-Context-Token` header, so GET and POST work
+  the same way and the token is bound into the signature.
+- **Content types:** `lab_pdf`/`intake_form` also accept `text/plain` (valid
+  UTF-8, `.txt`, no NUL) so the deployed demo's synthetic scan envelope still
+  works. `abnormal` also accepts `""` for "source states no flag".
+- **Paths:** shared vectors are `agentforge/test/fixtures/hmac-vectors.json`;
+  the PHP script is `tests/run.php` (pass the vector path when run outside the
+  repo). No PHPUnit wrappers were added.
+- **Service wiring:** persistence is chosen by `AGENTFORGE_PERSISTENCE_MODE`
+  (`in-memory-synthetic` | `openemr-module`), independent of the chart mode, so
+  W2 keeps its fixture chart. `AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP` maps
+  `fixture-patient-001` to pid 1's uuid; for `synthetic-demo` contexts the
+  service mints the module token for the mapped uuid, and it forwards
+  `openemr-module` tokens unchanged. Derived facts and lab rows are written from
+  the scan-supervisor path after the typed contract validates. The legacy
+  `LAB|`/`INTAKE|` text lane returns `OBSERVATION_WRITE_UNAVAILABLE` in module
+  mode. `clinicalActions.js` was not changed: the module route and client
+  method for list items exist, but the confirm lane does not call them yet.
+- **Reads:** GET `documents` returns only documents in the ledger. GET routes
+  accept any context scope and check read ACL.
+- **Other:** lock names are hashed (the 64-character limit); the ledger has a
+  `(pid, document_id)` index; `new SystemLogger()` is confined to `api.php`;
+  `deploy.sh` uses `docker compose exec -T mysql` with `MYSQL_PWD`. The smoke
+  is `agentforge/scripts/w2-openemr-smoke.mjs` (public mode plus
+  `--module-checks`). The REST `GET /api/patient/:pid/document/:did`
+  cross-check (F14) is not implemented, so F14 stays **UNVERIFIED**.
+
+### Security review follow-up (second S8 commit)
+
+- The W1 launcher `public/index.php` was reverted to `84f232b`; F18 stays a
+  documented W1 known issue (W1 is frozen). There is no W2 launcher; W2 uses the
+  allowlisted `synthetic-demo` path only.
+- Request signatures now use `AGENTFORGE_MODULE_HMAC_SECRET` (only `openemr`
+  and `agentforge-w2`; it must differ from `AGENTFORGE_DEMO_SECRET`, which keeps
+  signing context tokens). The allowlist binds every issuer.
+- Writes require the caller's own write-scoped context. The service never mints
+  a module token above the caller's scope and forwards a context only for its
+  own patient. A read token on `/v1/scan-supervisor` yields
+  `openemr.status: not_persisted` (`persistence_not_authorized`).
+- Lab rows are `prelim`; 8.0.0 FHIR reports them as `status: "unknown"`.
+- List items are inserted through `QueryUtils` (no `AllergyIntoleranceService`),
+  so failures throw instead of reaching HelpfulDie.
+- The dispatcher takes an injected `AclChecker` and `ChartGateway` and re-checks
+  the pid on every ledger row it uses; PHP tests cover the ACL, cross-patient,
+  allowlist and secret-separation cases, and the pre-commit hook runs them.
+- The Caddy deny covers the whole module directory except the exact launcher
+  path.

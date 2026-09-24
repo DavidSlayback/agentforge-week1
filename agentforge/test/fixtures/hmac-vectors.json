@@ -1,0 +1,100 @@
+{
+  "schema": "agentforge-hmac-vectors-v1",
+  "purpose": "Shared by agentforge/test/openemr-module-client.test.js and interface/modules/custom_modules/oe-module-agentforge/tests/run.php so Node signing and PHP verification cannot drift. Synthetic secret; never deployed.",
+  "secret": "synthetic-vector-secret-not-deployed",
+  "write_key_hex": "e17a5b4a1c140117200843240767a5966576b441240700b1225a0ea35b611bf8",
+  "signature_vectors": [
+    {
+      "name": "post-documents-with-context",
+      "method": "POST",
+      "query": {
+        "route": "documents",
+        "site": "default"
+      },
+      "body": "{\"patient_uuid\":\"a2c37f7f-1076-4172-b17a-bee8bb8d2da6\",\"document_type\":\"lab_pdf\",\"filename\":\"filled-lab-a.pdf\",\"mime_type\":\"application/pdf\",\"content_sha256\":\"b1d5af3643c9aca5e811f42702234f7b78f23af5b506ca68466926190301e139\",\"content_base64\":\"JVBERi0xLjQKc3ludGhldGljIHZlY3RvciBieXRlcwo=\"}",
+      "context_token": "eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6ImZpeHR1cmUtcGh5c2ljaWFuLTAwMSIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoic3ludGhldGljLWRlbW8iLCJhdXRobiI6InN5bnRoZXRpYyIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAzMDB9.JE4xw3dwWq7NjG8JCbyFIjdkTBu2xzCks7Gk72Chbj8",
+      "timestamp": 1790000000,
+      "nonce": "0123456789abcdef0123456789abcdef",
+      "body_sha256": "3e17f6a23facf5d9b75a68b0f114077e79c161560799ef938f7bff0d8b0c9071",
+      "canonical": "AGENTFORGE-HMAC-SHA256-V1\nPOST\ndocuments\ndefault\na2c37f7f-1076-4172-b17a-bee8bb8d2da6\nb1d5af3643c9aca5e811f42702234f7b78f23af5b506ca68466926190301e139\n3e17f6a23facf5d9b75a68b0f114077e79c161560799ef938f7bff0d8b0c9071\n1790000000\n0123456789abcdef0123456789abcdef\nroute=documents&site=default\nd754cca6545a9f224bf8870b6ad11d0bb2f403afa4994a4e1409965a81d102b2",
+      "signature": "7m9Sf6LVrN3G6bagYXT7r6nAyJDk2c3GB-xpvFswHwE"
+    },
+    {
+      "name": "get-lab-observations",
+      "method": "GET",
+      "query": {
+        "route": "lab-observations",
+        "site": "default",
+        "patient_uuid": "a2c37f7f-1076-4172-b17a-bee8bb8d2da6",
+        "source_document_id": "57"
+      },
+      "body": "",
+      "context_token": "eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6ImZpeHR1cmUtcGh5c2ljaWFuLTAwMSIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoic3ludGhldGljLWRlbW8iLCJhdXRobiI6InN5bnRoZXRpYyIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAzMDB9.JE4xw3dwWq7NjG8JCbyFIjdkTBu2xzCks7Gk72Chbj8",
+      "timestamp": 1790000001,
+      "nonce": "fedcba9876543210fedcba9876543210",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "canonical": "AGENTFORGE-HMAC-SHA256-V1\nGET\nlab-observations\ndefault\na2c37f7f-1076-4172-b17a-bee8bb8d2da6\n-\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n1790000001\nfedcba9876543210fedcba9876543210\npatient_uuid=a2c37f7f-1076-4172-b17a-bee8bb8d2da6&route=lab-observations&site=default&source_document_id=57\nd754cca6545a9f224bf8870b6ad11d0bb2f403afa4994a4e1409965a81d102b2",
+      "signature": "FeWbVrzNE5fZhExRNxlYn2-FCzdsgt2sU3oc0y3Q-ck"
+    },
+    {
+      "name": "get-health-no-context",
+      "method": "GET",
+      "query": {
+        "route": "health",
+        "site": "default"
+      },
+      "body": "",
+      "context_token": null,
+      "timestamp": 1790000002,
+      "nonce": "00000000000000000000000000000001",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "canonical": "AGENTFORGE-HMAC-SHA256-V1\nGET\nhealth\ndefault\n-\n-\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n1790000002\n00000000000000000000000000000001\nroute=health&site=default\n-",
+      "signature": "jNqJiqOZ7gX8YEPzwMSneOvBWlxvXqg8G_m8jCZ9a50"
+    }
+  ],
+  "context_token_vectors": [
+    {
+      "name": "synthetic-demo-write",
+      "token": "eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6ImZpeHR1cmUtcGh5c2ljaWFuLTAwMSIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoic3ludGhldGljLWRlbW8iLCJhdXRobiI6InN5bnRoZXRpYyIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAzMDB9.JE4xw3dwWq7NjG8JCbyFIjdkTBu2xzCks7Gk72Chbj8",
+      "verify_at": 1790000010,
+      "expected": {
+        "patient_uuid": "a2c37f7f-1076-4172-b17a-bee8bb8d2da6",
+        "clinician_uuid": "fixture-physician-001",
+        "scope": "write-source-document",
+        "issuer": "synthetic-demo",
+        "authn": "synthetic",
+        "acl": "write",
+        "expires_at": 1790000300
+      }
+    }
+  ],
+  "idempotency_key_vectors": [
+    {
+      "kind": "document",
+      "pid": 1,
+      "document_type": "lab_pdf",
+      "content_sha256": "b1d5af3643c9aca5e811f42702234f7b78f23af5b506ca68466926190301e139",
+      "expected": "doc:v1:1:lab_pdf:b1d5af3643c9aca5e811f42702234f7b78f23af5b506ca68466926190301e139"
+    },
+    {
+      "kind": "derived_facts",
+      "pid": 1,
+      "source_document_id": 57,
+      "expected": "derived:v1:1:57"
+    },
+    {
+      "kind": "lab_results",
+      "pid": 1,
+      "source_sha256": "b1d5af3643c9aca5e811f42702234f7b78f23af5b506ca68466926190301e139",
+      "expected": "lab:v1:1:b1d5af3643c9aca5e811f42702234f7b78f23af5b506ca68466926190301e139"
+    },
+    {
+      "kind": "list_item",
+      "pid": 1,
+      "list_kind": "allergy",
+      "source_document_id": 58,
+      "title": "  Penicillin ",
+      "expected": "list:v1:1:allergy:58:f4af6a5f622dcf6520410c046111d053b06ca5f90355f841c19d7f13f63b4f72"
+    }
+  ]
+}
