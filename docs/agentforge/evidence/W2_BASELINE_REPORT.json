@@ -5,8 +5,8 @@
   "thresholds_passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "2025724409c74f2fd6934274d736c3e2f79eb671c098e9ed810bf1802813338f",
-  "baseline_corpus_sha256": "2025724409c74f2fd6934274d736c3e2f79eb671c098e9ed810bf1802813338f",
+  "corpus_sha256": "5a62b11f711bd386608a0aded51faf596292247c5fa14d0d5351f36cc6f315b1",
+  "baseline_corpus_sha256": "5a62b11f711bd386608a0aded51faf596292247c5fa14d0d5351f36cc6f315b1",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -27,13 +27,13 @@
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 10,
-      "passed": 10,
+      "cases": 11,
+      "passed": 11,
       "rate": 1
     },
     "safe_refusal": {
-      "cases": 13,
-      "passed": 13,
+      "cases": 12,
+      "passed": 12,
       "rate": 1
     },
     "no_phi_in_logs": {
@@ -134,7 +134,7 @@
     {
       "id": "cp-05-lab-d-citations",
       "label": "citation_present",
-      "guards_against": "Facts read from low-confidence OCR lines lose their human-review flag (so the preview would call them verified), or are cited with a reconstructed label instead of the verbatim OCR text.",
+      "guards_against": "Facts read from low-confidence OCR lines lose their human-review flag (so the preview would call them verified), or are cited with a reconstructed label instead of the verbatim OCR text. S6: the same low-confidence values must also never surface as a grounded-answer patient_fact claim.",
       "passed": true
     },
     {
@@ -170,7 +170,7 @@
     {
       "id": "fc-01-lab-a-values",
       "label": "factually_consistent",
-      "guards_against": "Value, unit, reference range, collection date, abnormal flag or confidence (min of its source lines) of a clean lab PDF no longer matches the document.",
+      "guards_against": "Value, unit, reference range, collection date, abnormal flag or confidence (min of its source lines) of a clean lab PDF no longer matches the document. S6: the grounded answer built from these same facts must have every claim cited with the 5-key contract, and patient-record claims must never appear in the guideline section or vice versa.",
       "passed": true
     },
     {
@@ -194,7 +194,7 @@
     {
       "id": "fc-05-intake-a-values",
       "label": "factually_consistent",
-      "guards_against": "Intake demographics, chief concern, medications, allergies or family history no longer match the form.",
+      "guards_against": "Intake demographics, chief concern, medications, allergies or family history no longer match the form. S6: every observed intake leaf must also survive independently in the grounded answer as a cited patient_fact claim (the deterministic intake template).",
       "passed": true
     },
     {
@@ -212,7 +212,7 @@
     {
       "id": "fc-08-retrieval-abnormal-a1c",
       "label": "factually_consistent",
-      "guards_against": "Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence.",
+      "guards_against": "Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one real claim plus one invented, uncited-in-substance claim must have the invented claim dropped and counted, never shipped.",
       "passed": true
     },
     {
@@ -225,6 +225,12 @@
       "id": "fc-10-retrieval-medrec",
       "label": "factually_consistent",
       "guards_against": "Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.",
+      "passed": true
+    },
+    {
+      "id": "fc-11-retrieval-empty-clinician-question",
+      "label": "factually_consistent",
+      "guards_against": "Query formulation stops building the query from the document's own typed abnormal lab findings (e.g. the abnormal-findings phrase is dropped), so a request with no clinician message at all finds no evidence even though the document has a real abnormal A1C.",
       "passed": true
     },
     {
@@ -266,7 +272,7 @@
     {
       "id": "sr-07-unsupported-query-scan",
       "label": "safe_refusal",
-      "guards_against": "An off-topic question gets guideline evidence or a READY state on the scan path.",
+      "guards_against": "An off-topic question gets guideline evidence or a READY state on the scan path. S6: an off-topic question must also never produce a guideline claim in the grounded answer.",
       "passed": true
     },
     {
@@ -291,12 +297,6 @@
       "id": "sr-13-lab-header-other-patient",
       "label": "safe_refusal",
       "guards_against": "A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.",
-      "passed": true
-    },
-    {
-      "id": "sr-14-scan-text-unsupported-query",
-      "label": "safe_refusal",
-      "guards_against": "An off-topic clinical question against a `.scan.txt` text-envelope upload gets guideline evidence or a READY state — the refusal defect the retired /v1/supervisor text path could hide.",
       "passed": true
     },
     {

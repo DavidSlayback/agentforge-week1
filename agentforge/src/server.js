@@ -11,16 +11,67 @@ import { createOpenEMRModuleWritebackFromEnv } from './openemrModuleWriteback.js
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest } from './contracts.js';
+import { DeterministicAnswerComposer } from './answerComposer.js';
+import { GroundedAnswerResult, parseOrIssues } from './schemas.js';
 import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
-import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
+import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, loadGuidelineCorpus } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
+import { createLiveGeminiClient } from './geminiClient.js';
 import { readBuildSha } from './buildInfo.js';
+import { renderPdfPagePng } from './pdfScanAdapter.js';
 
 const gitSha = readBuildSha();
+const renderedPageCache = new Map();
+const PAGE_IMAGE_CACHE_BUDGET_BYTES = 64 * 1024 * 1024;
+const MAX_CONCURRENT_PAGE_RENDERS = 2;
+let renderedPageCacheBytes = 0;
+let activePageRenders = 0;
+const waitingPageRenders = [];
+
+async function withPageRenderLimit(render) {
+  if (activePageRenders >= MAX_CONCURRENT_PAGE_RENDERS) await new Promise((resolve) => waitingPageRenders.push(resolve));
+  activePageRenders += 1;
+  try { return await render(); }
+  finally {
+    activePageRenders -= 1;
+    waitingPageRenders.shift()?.();
+  }
+}
+
+function cachedPageImage(key, render) {
+  let entry = renderedPageCache.get(key);
+  if (entry) {
+    renderedPageCache.delete(key);
+    renderedPageCache.set(key, entry);
+    return entry.promise;
+  }
+  entry = { bytes: 0, promise: null };
+  entry.promise = withPageRenderLimit(render).then((image) => {
+    if (renderedPageCache.get(key) !== entry) return image;
+    if (image.length > PAGE_IMAGE_CACHE_BUDGET_BYTES) {
+      renderedPageCache.delete(key);
+      return image;
+    }
+    entry.bytes = image.length;
+    renderedPageCacheBytes += entry.bytes;
+    while (renderedPageCacheBytes > PAGE_IMAGE_CACHE_BUDGET_BYTES) {
+      const oldest = [...renderedPageCache.entries()].find(([, candidate]) => candidate.bytes > 0);
+      if (!oldest) break;
+      renderedPageCache.delete(oldest[0]);
+      renderedPageCacheBytes -= oldest[1].bytes;
+    }
+    return image;
+  }).catch((error) => {
+    if (renderedPageCache.get(key) === entry) renderedPageCache.delete(key);
+    throw error;
+  });
+  renderedPageCache.set(key, entry);
+  return entry.promise;
+}
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -45,6 +96,15 @@ const buildProvider = (mode, role = 'synthesis') => {
 };
 const publicBasePath = process.env.AGENTFORGE_PUBLIC_BASE_PATH || '';
 const provider = buildProvider(providerMode);
+// The W2 answer composer (answerComposer.js) reuses the same configured
+// model client and env (AGENTFORGE_PROVIDER_MODE / AGENTFORGE_MODEL_*) as
+// `provider` above -- no separate model configuration -- but wraps it in its
+// own ResilientProvider whose fallback is the deterministic *composer*, not
+// the briefing-shaped `DeterministicProvider` (which expects `patient`/
+// `qualification`/`comparison` args the composer never has and would throw
+// on). When `provider` is itself already deterministic (no model
+// configured), the answer composer is deterministic too.
+const answerProvider = new ResilientProvider({ primary: provider instanceof ResilientProvider ? provider.primary : provider, fallback: new DeterministicAnswerComposer() });
 // Optional cheap interactive lane. It is deliberately opt-in so the existing
 // Qwen-only deployment remains unchanged until a model and budget are approved.
 const conversationProvider = conversationProviderMode ? buildProvider(conversationProviderMode, 'conversation') : null;
@@ -57,12 +117,23 @@ if (scanProviderMode === 'gemini' && liveOpenEMR) throw new Error('Gemini scan e
 const scanProvider = scanProviderMode === 'gemini'
   ? createGeminiScanAdapter({ apiKey: process.env.GEMINI_API_KEY, model: process.env.AGENTFORGE_GEMINI_SCAN_MODEL || 'gemini-3.8-flash', timeoutMs: Number(process.env.AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS || 45000), dailyLimit: Number(process.env.AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT || 12) })
   : null;
+// gemini-hybrid (D2′, docs/agentforge/PLAN.md): real BM25 sparse ∪ Gemini
+// dense embeddings, reranked by a Gemini flash model. It degrades itself to
+// sparse-only (never silently relabeled as hybrid) when GEMINI_API_KEY or the
+// precomputed corpus embeddings file is missing. The default here stays
+// `local-lexical` — unset, this is shared code with the frozen W1
+// `agentforge` service (D8) — the `agentforge-w2` compose block sets
+// `AGENTFORGE_RAG_PROVIDER=gemini-hybrid` explicitly to make it the W2
+// default without touching W1's behavior.
 const ragProviderMode = process.env.AGENTFORGE_RAG_PROVIDER || 'local-lexical';
-if (!['local-lexical', 'cohere'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical or cohere');
+if (!['local-lexical', 'cohere', 'gemini-hybrid'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical, cohere, or gemini-hybrid');
 if (ragProviderMode === 'cohere' && liveOpenEMR) throw new Error('Cohere RAG is restricted to the synthetic OpenEMR mode');
+if (ragProviderMode === 'gemini-hybrid' && liveOpenEMR) throw new Error('Gemini hybrid RAG is restricted to the synthetic OpenEMR mode');
 const guidelineRetriever = ragProviderMode === 'cohere'
   ? createCohereGuidelineRetriever({ apiKey: process.env.AGENTFORGE_COHERE_API_KEY })
-  : null;
+  : ragProviderMode === 'gemini-hybrid'
+    ? createGeminiHybridGuidelineRetriever({ geminiClient: process.env.GEMINI_API_KEY ? createLiveGeminiClient({ apiKey: process.env.GEMINI_API_KEY }) : null })
+    : null;
 const openEMRTokenProvider = liveOpenEMR && process.env.AGENTFORGE_OPENEMR_CLIENT_ID && process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET && process.env.AGENTFORGE_OPENEMR_TOKEN_URL && process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH
   ? new OpenEMRRefreshTokenProvider({ tokenUrl: process.env.AGENTFORGE_OPENEMR_TOKEN_URL, clientId: process.env.AGENTFORGE_OPENEMR_CLIENT_ID, clientSecret: process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET, cachePath: process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) })
   : null;
@@ -85,6 +156,15 @@ function injectTestScanExtractionFault(extraction) {
   if (!testInvalidScanExtraction) return extraction;
   return { ...extraction, lab_results: [...(extraction.lab_results || []), { test_name: 'test-only-invalid-injection' }] };
 }
+// Test-only fault injection: corrupts a composed grounded answer, so a test
+// can prove F10 -- the server validates `workflow.answer` and refuses to
+// persist derived facts *before* ever attempting the write, not after. No
+// production code path sets this env var.
+const testInvalidAnswer = process.env.AGENTFORGE_TEST_INVALID_ANSWER === 'true';
+function injectTestAnswerFault(answer) {
+  if (!testInvalidAnswer || !answer) return answer;
+  return { ...answer, composer: 'test-only-invalid-injection' };
+}
 const chartAdapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
 // Persistence is chosen independently of the chart mode: the W2 service keeps
 // the synthetic chart but stores uploads in OpenEMR through the module.
@@ -99,7 +179,7 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000) });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000) });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
@@ -122,6 +202,12 @@ const readiness = createReadinessChecker({
   retrieval: chartAdapter,
   model: modelReadiness,
   trace: { checkReady: async () => traceSink.health().status === 'ok' },
+  // A missing/unreadable corpus/guidelines/corpus.json no longer crashes the
+  // process (guidelineEvidence.js resolves it lazily and degrades to
+  // sparse-only per request); this surfaces the same condition loudly
+  // instead, in /ready, for local-lexical and gemini-hybrid modes (cohere
+  // uses its own in-memory synthetic corpus and never reads this file).
+  ...(ragProviderMode === 'cohere' ? {} : { guidelineCorpus: { checkReady: async () => { try { loadGuidelineCorpus(); return true; } catch { return false; } } } }),
 });
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const evalsRoot = path.join(projectRoot, 'evals');
@@ -270,6 +356,32 @@ const server = http.createServer(async (req, res) => {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
     }
+    const sourcePageMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/pages\/(\d+)\.png(?:\?(.*))?$/);
+    if (req.method === 'GET' && sourcePageMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      const page = Number(sourcePageMatch[2]);
+      try {
+        const id = decodeURIComponent(sourcePageMatch[1]);
+        const result = await service.readSourceDocument(id, { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status !== 'read') return json(res, 403, { error: result.reason });
+        if (result.content.subarray(0, 5).toString() !== '%PDF-') return json(res, 404, { error: 'source_page_not_found' });
+        const cacheKey = `${id}:${page}`;
+        const png = await cachedPageImage(cacheKey, () => renderPdfPagePng(result.content, page));
+        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'private, max-age=300' });
+        return res.end(png);
+      } catch (error) {
+        if (error instanceof URIError) return json(res, 400, { error: 'invalid_source_document_id' });
+        const code = error.code || error.message;
+        if (code === 'PDF_OCR_RUNTIME_UNAVAILABLE') return json(res, 503, { error: 'ocr_runtime_unavailable' });
+        if (code === 'PDF_PAGE_RENDER_FAILED' || code === 'PDF_PAGE_INFO_INVALID') return json(res, 422, { error: 'pdf_page_render_failed' });
+        if (code === 'PDF_PAGE_NOT_FOUND') return json(res, 404, { error: 'source_page_not_found' });
+        return json(res, sourceDocumentErrorStatus(error), { error: code });
+      }
+    }
     const scanSourcePreviewMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/source-preview(?:\?(.*))?$/);
     if (req.method === 'GET' && scanSourcePreviewMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -280,7 +392,7 @@ const server = http.createServer(async (req, res) => {
       const result = await service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       if (result.status === 'failed') return json(res, 500, { error: result.reason });
-      return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath }));
+      return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath, patient_uuid, demo_token: query.get('demo_token') || '' }));
     }
     const sourceDocumentMatch = req.url.match(/^\/v1\/source-documents\/([^?]+)(?:\?(.*))?$/);
     if (req.method === 'GET' && sourceDocumentMatch) {
@@ -341,7 +453,20 @@ const server = http.createServer(async (req, res) => {
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       if (result.status === 'unreadable') return json(res, 422, { error: result.reason, final_state: result.final_state, synthetic_only: true });
       const extraction = injectTestScanExtractionFault(result.workflow.typed_outputs.extraction);
-      const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction } } };
+      const answer = injectTestAnswerFault(result.workflow.answer);
+      const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction }, ...(result.workflow.answer ? { answer } : {}) } };
+      // F10 review fix: the S6 grounded answer (when the workflow reached far
+      // enough to compose one) is validated against its own strict contract
+      // *before* any write below -- a contract failure must write nothing,
+      // not persist derived facts and then answer 500. Never leak
+      // claim/citation content in the failure log.
+      if (responseBody.workflow?.answer) {
+        const answerValidation = parseOrIssues(GroundedAnswerResult, responseBody.workflow.answer);
+        if (!answerValidation.ok) {
+          console.error('AgentForge grounded answer failed contract validation', { issues: answerValidation.issues });
+          return json(res, 500, { error: 'response_contract_invalid' });
+        }
+      }
       // Derived facts are persisted only from an extraction whose typed
       // contract validates; an invalid one is answered with 500 below.
       if (validateScanExtractionTypedOutput(extraction).valid) {

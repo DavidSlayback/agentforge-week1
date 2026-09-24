@@ -38,6 +38,18 @@ export const Citation = z.object({
   coordinate_space: z.string().min(1).optional(),
 }).strict();
 
+/** Rendered page dimensions for raster-pixel citation boxes. */
+export const PageSize = z.object({
+  page: z.number().int().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+}).strict();
+
+/** Optional scan metadata keeps older `.scan.txt` envelopes valid. */
+export const ScanExtractionMetadata = z.object({
+  page_sizes: z.array(PageSize).optional(),
+}).strict();
+
 /**
  * Abnormal-flag values a lab result can carry.
  *
@@ -124,17 +136,102 @@ export const IntakeForm = z.object({
  * `dense_score`, and `rerank_score` record the hybrid-retrieval signals
  * that ranked it, for the routing trace. `citation.field_or_chunk_id`
  * identifies the specific chunk within `citation.source_id`'s document.
+ *
+ * `url`/`publisher` are the chunk's source-page metadata (from the corpus
+ * file, not invented at retrieval time). `degraded` is `null` when this item
+ * came from the full sparse+dense+rerank pipeline using a real Gemini
+ * client; `'sparse_only'` when it came from a BM25-only fallback (no corpus
+ * embeddings, no Gemini key, or a failed Gemini call); or `'stub'` when the
+ * hybrid pipeline ran its full shape but one or more steps were answered by
+ * the deterministic test/gate stand-in (`recorded-or-stub` with no matching
+ * recorded fixture) rather than a real or recorded Gemini response — never
+ * optional, so neither case can be silently presented as a genuine hybrid
+ * result (AGENTS.md).
  */
 export const GuidelineEvidence = z.object({
   title: z.string().min(1),
   section: z.string().min(1),
   version: z.string().min(1),
+  url: z.string().min(1),
+  publisher: z.string().min(1),
   snippet: z.string().min(1),
   sparse_score: z.number(),
   dense_score: z.number(),
   rerank_score: z.number(),
   matched_terms: z.array(z.string()),
+  degraded: z.enum(['sparse_only', 'stub']).nullable(),
   citation: Citation,
+}).strict();
+
+/**
+ * One claim in a W2 grounded answer (S6).
+ *
+ * `kind` separates patient-record facts (this document's typed extraction or
+ * an OpenEMR chart record) from guideline evidence and pure framing prose, so
+ * the UI and the eval gate can render/check "patient record" and "guideline
+ * evidence" as distinct sections per the W2 scenario ("separate patient-record
+ * facts from guideline evidence"). `citations` is validated against the same
+ * five-key `Citation` used everywhere else; `claimBinding.js#verifyClaims`
+ * additionally enforces that `patient_fact` claims cite only `document`/
+ * `openemr_record` sources and `guideline` claims cite only `guideline`
+ * sources, and that the claim text is actually derivable from what is cited.
+ */
+export const AnswerClaim = z.object({
+  kind: z.enum(['patient_fact', 'guideline', 'framing']),
+  text: z.string().min(1),
+  citations: z.array(Citation),
+}).strict();
+
+/**
+ * The exact JSON contract the answer-composer model (or its deterministic
+ * fallback) must return. This is intentionally narrow — just claims — so the
+ * model/fallback boundary is a single well-defined shape; `answerComposer.js`
+ * separates and annotates these claims into the richer `GroundedAnswerResult`
+ * below after verification.
+ */
+export const GroundedAnswer = z.object({
+  claims: z.array(AnswerClaim),
+}).strict();
+
+/**
+ * One fact excluded from the answer because it was flagged low-confidence or
+ * needs-review before composition ever ran (never because it failed
+ * verification — those are counted separately in `unverified_dropped`).
+ */
+export const NeedsReviewItem = z.object({
+  kind: z.enum(['lab_result', 'intake_field', 'patient_record']),
+  field: z.string().min(1),
+  reason: z.string().min(1),
+}).strict();
+
+/**
+ * The full W2 grounded-answer response (`workflow.answer` on
+ * `/v1/scan-supervisor`). `patient_facts` and `guideline_evidence` are the
+ * verified claims that survived `verifyClaims`, already split by `kind` so a
+ * caller never has to re-derive the W2-required separation. `composer`
+ * records whether the claims came from the configured model, the
+ * deterministic fallback, or a model answer topped up with deterministic
+ * claims for facts/evidence the model itself missed (never silently
+ * relabeled). `model_rejected_reason` is present only when a real model was
+ * attempted and its own output could not be used as-is: `invalid_json` (the
+ * model's JSON never passed the `GroundedAnswer` schema after retries),
+ * `provider_error` (a network/timeout/other failure), `all_claims_unverified`
+ * (schema-valid JSON, but every claim failed content verification), or
+ * `deadline` (the per-request scan deadline had already passed). It is absent
+ * when no model was configured at all, or one part of the answer came
+ * through cleanly. `unverified_dropped` counts claims that failed
+ * verification and were removed — carried forward from the model's own
+ * attempt when it fell back (F2), not reset to 0. The server validates this
+ * exact shape before ever sending it (S6 item 4: invalid answer -> 500,
+ * never unvalidated).
+ */
+export const GroundedAnswerResult = z.object({
+  composer: z.enum(['model', 'deterministic-fallback', 'model+deterministic-topup']),
+  model_rejected_reason: z.enum(['all_claims_unverified', 'invalid_json', 'provider_error', 'deadline']).optional(),
+  patient_facts: z.array(AnswerClaim),
+  guideline_evidence: z.array(AnswerClaim),
+  needs_review: z.array(NeedsReviewItem),
+  unverified_dropped: z.number().int().nonnegative(),
 }).strict();
 
 /**

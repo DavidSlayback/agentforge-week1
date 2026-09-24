@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { extractScanForm } from '../src/scanFormAdapter.js';
-import { REQUIRED_SCAN_FIELDS, SCAN_FORM_CONTRACT_VERSION, validateScanExtraction } from '../src/scanFormContracts.js';
-import { runEvidenceWorker, runExtractionWorker } from '../src/activeWorkers.js';
+import { REQUIRED_SCAN_FIELDS, SCAN_FORM_CONTRACT_VERSION, validateActiveSupervisorRequest, validateScanExtraction } from '../src/scanFormContracts.js';
+import { formulateEvidenceQuery, runEvidenceWorker, runExtractionWorker } from '../src/activeWorkers.js';
 import { runActiveSupervisor } from '../src/supervisor.js';
 
 const fixture = (name) => fs.readFileSync(fileURLToPath(new URL(`../../docs/agentforge/fixtures/scan-forms/${name}`, import.meta.url)));
@@ -63,7 +63,7 @@ test('active workers expose inspect-act-qualify handoffs and never promote empty
   assert.equal(extraction.output_status, 'qualified');
   assert.deepEqual(extraction.steps.map((step) => step.name), ['inspect', 'extract', 'validate_or_qualify']);
   assert.equal(JSON.stringify(extraction.redacted_metrics).includes('13.2'), false);
-  const evidence = await runEvidenceWorker({ query: '' });
+  const evidence = await runEvidenceWorker({ clinicianQuestion: '' });
   assert.equal(evidence.output_status, 'qualified');
   assert.equal(evidence.guideline_evidence.length, 0);
 });
@@ -75,16 +75,17 @@ test('evidence worker awaits an async retriever instead of silently qualifying i
     assert.equal(topK, 3);
     return { status: 'complete', provider: 'async-fake-retriever', evidence: [{ citation }], issues: [] };
   };
-  const evidence = await runEvidenceWorker({ query: 'async guideline lookup', retrieve: asyncRetriever });
+  const evidence = await runEvidenceWorker({ clinicianQuestion: 'async guideline lookup', retrieve: asyncRetriever });
   assert.equal(evidence.output_status, 'ready');
   assert.equal(evidence.guideline_evidence.length, 1);
   assert.deepEqual(evidence.guideline_evidence[0].citation, citation);
   assert.equal(evidence.qualification.required, false);
+  assert.equal(evidence.provider, 'async-fake-retriever');
 });
 
 test('evidence worker turns a rejecting retriever into a qualified result with an error code, not raw error text', async () => {
   const rejecting = async () => { throw new Error('boom: leaking a connection string or stack trace here would be a PHI/secret risk'); };
-  const evidence = await runEvidenceWorker({ query: 'async guideline lookup', retrieve: rejecting });
+  const evidence = await runEvidenceWorker({ clinicianQuestion: 'async guideline lookup', retrieve: rejecting });
   assert.equal(evidence.output_status, 'qualified');
   assert.equal(evidence.guideline_evidence.length, 0);
   assert.deepEqual(evidence.qualification.reasons, ['guideline_retrieval_failed']);
@@ -125,6 +126,45 @@ test('active supervisor takes the retrieval provider label from the injected ret
   assert.equal(events[0].provider, 'test-named-retriever');
   const defaulted = [];
   await runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence', observer: { startStage() {}, finishStage() {}, setExtraction() {}, recordRetrievalAttempt: (attempt) => defaulted.push(attempt) } });
-  assert.equal(defaulted[0].provider, 'local-lexical-proxy');
+  assert.equal(defaulted[0].provider, 'bm25-sparse-only');
 });
 
+
+test('active-supervisor request validation makes message optional but still type-checked', () => {
+  const base = { patient_uuid: 'p', clinician_uuid: 'c', demo_token: 't', source_document_id: 'd' };
+  assert.equal(validateActiveSupervisorRequest({ ...base, message: 'a real question' }).valid, true);
+  assert.equal(validateActiveSupervisorRequest({ ...base, message: '' }).valid, true);
+  assert.equal(validateActiveSupervisorRequest(base).valid, true);
+  const wrongType = validateActiveSupervisorRequest({ ...base, message: 42 });
+  assert.equal(wrongType.valid, false);
+  assert.ok(wrongType.issues.includes('message_must_be_string'));
+  const missingRequired = validateActiveSupervisorRequest({ clinician_uuid: 'c', demo_token: 't', source_document_id: 'd' });
+  assert.equal(missingRequired.valid, false);
+  assert.ok(missingRequired.issues.includes('patient_uuid_required'));
+});
+
+test('formulateEvidenceQuery builds the query from typed abnormal labs and chief concern, appending the clinician question last', () => {
+  const abnormalLab = [{ test_name: 'A1C', abnormal_flag: 'high' }, { test_name: 'Hemoglobin', abnormal_flag: 'normal' }];
+  const intake = { chief_concern: { status: 'observed', value: 'Fatigue for two weeks' } };
+  const withBoth = formulateEvidenceQuery({ labResults: abnormalLab, intakeForm: intake, clinicianQuestion: 'what should I watch for' });
+  assert.match(withBoth, /Abnormal findings: A1C test result high\./);
+  assert.doesNotMatch(withBoth, /Hemoglobin/, 'a normal flag must not be treated as an abnormal finding');
+  assert.match(withBoth, /Chief concern: Fatigue for two weeks\./);
+  assert.ok(withBoth.trim().endsWith('what should I watch for'), 'the clinician question is appended last');
+
+  // No typed evidence at all: the formulated query is exactly the clinician
+  // question, unchanged (this is the exact contract runEvidenceWorker's
+  // fallback tests below depend on).
+  assert.equal(formulateEvidenceQuery({ clinicianQuestion: 'async guideline lookup' }), 'async guideline lookup');
+  assert.equal(formulateEvidenceQuery({ labResults: [], intakeForm: null, clinicianQuestion: '' }), '');
+
+  // Mutation-gap regression: dropping the abnormal-labs phrase (leaving only
+  // the chief concern and/or clinician question) must change the query.
+  const withoutAbnormalPhrase = formulateEvidenceQuery({ labResults: [], intakeForm: intake, clinicianQuestion: 'what should I watch for' });
+  assert.notEqual(withBoth, withoutAbnormalPhrase);
+  assert.doesNotMatch(withoutAbnormalPhrase, /Abnormal findings/);
+
+  // A not_found_on_form chief concern contributes nothing.
+  const notFound = formulateEvidenceQuery({ intakeForm: { chief_concern: { status: 'not_found_on_form', value: null } }, clinicianQuestion: 'q' });
+  assert.equal(notFound, 'q');
+});

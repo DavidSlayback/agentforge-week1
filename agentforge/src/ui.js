@@ -109,6 +109,7 @@ button:disabled{opacity:.6;cursor:wait}
   const humanize = (value) => String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
+  const citationBoxId = ${citationBoxId.toString()};
   const displayLabel = (field) => { const label = clinicalLabel(field); return label.charAt(0).toUpperCase() + label.slice(1); };
   const renderBriefing = (response, container) => {
     const claims = response.claims || [];
@@ -253,9 +254,11 @@ button:disabled{opacity:.6;cursor:wait}
       // there is no other extraction path.
       // The write-scoped context lets the server persist derived facts to
       // OpenEMR; a read token extracts but is refused persistence.
-      const documentType = sourceDocumentForm.elements.document_type.value;
-      const retrievalQuery = documentType === 'lab_pdf' ? 'documented glycemic values medication adherence' : 'medication reconciliation current documented list prior records';
-      const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: retrievalQuery });
+      // The retrieval query is formulated server-side from the document's own
+      // typed abnormal lab results and intake chief concern
+      // (activeWorkers.js); message is never a canned per-type string here
+      // -- it is only an optional clinician question the server appends.
+      const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: '' });
       const active = workflow.workflow;
       const workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
       const guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
@@ -290,6 +293,77 @@ button:disabled{opacity:.6;cursor:wait}
         evidencePanel.append(empty);
       }
       sourceStatus.append(document.createTextNode(' '), evidencePanel);
+      // S6 grounded answer: "patient record" facts and "guideline evidence"
+      // claims are rendered as separate sections (W2 scenario: "separate
+      // patient-record facts from guideline evidence"), each claim already
+      // verified against its own citations before the server ever sent it.
+      const answer = workflow.workflow.answer;
+      if (answer) {
+        const answerPanel = document.createElement('details');
+        answerPanel.open = true;
+        const answerHeading = document.createElement('summary');
+        answerHeading.textContent = 'Grounded answer (' + answer.composer + ')';
+        answerPanel.append(answerHeading);
+        const claimSection = (heading, claims) => {
+          const section = document.createElement('section');
+          const title = document.createElement('h4');
+          title.textContent = heading + ' (' + claims.length + ')';
+          section.append(title);
+          if (!claims.length) {
+            const empty = document.createElement('p');
+            empty.textContent = 'None verified for this question.';
+            section.append(empty);
+            return section;
+          }
+          const list = document.createElement('ul');
+          for (const claim of claims) {
+            const row = document.createElement('li');
+            const text = document.createElement('span');
+            text.textContent = claim.text + ' ';
+            row.append(text);
+            for (const citation of claim.citations) {
+              // F9 review fix: only a document-type citation has a source
+              // preview page behind it. A guideline citation's 5-key shape
+              // carries no URL (the S5 corpus URL lives on the evidence item,
+              // not the claim citation), and an openemr_record
+              // citation is a chart record with no document/preview at all --
+              // both render as plain, non-interactive text, never a link
+              // that goes nowhere real.
+              if (citation.source_type === 'document') {
+                const link = document.createElement('a');
+                link.href = basePath + '/v1/source-documents/' + encodeURIComponent(citation.source_id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken) + '#' + citationBoxId(citation.field_or_chunk_id);
+                link.target = '_blank';
+                link.textContent = '[' + citation.page_or_section + ']';
+                row.append(document.createTextNode(' '), link);
+              } else {
+                const span = document.createElement('span');
+                span.className = 'citation-text';
+                span.textContent = '[' + citation.page_or_section + ']';
+                row.append(document.createTextNode(' '), span);
+              }
+            }
+            list.append(row);
+          }
+          section.append(list);
+          return section;
+        };
+        answerPanel.append(claimSection('Patient record', answer.patient_facts), claimSection('Guideline evidence', answer.guideline_evidence));
+        if (answer.needs_review.length) {
+          const reviewSection = document.createElement('section');
+          const reviewTitle = document.createElement('h4');
+          reviewTitle.textContent = 'Needs review (' + answer.needs_review.length + ')';
+          reviewSection.append(reviewTitle);
+          const reviewList = document.createElement('ul');
+          for (const item of answer.needs_review) {
+            const row = document.createElement('li');
+            row.textContent = item.field + ' -- ' + item.reason;
+            reviewList.append(row);
+          }
+          reviewSection.append(reviewList);
+          answerPanel.append(reviewSection);
+        }
+        sourceStatus.append(document.createTextNode(' '), answerPanel);
+      }
       sourceDocumentForm.reset();
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
     finally { setBusy(false); }
@@ -355,33 +429,70 @@ export function renderEvaluatorPage({ golden, errorAnalysis, w2Gate = null, base
 </main></body></html>`;
 }
 
-export function renderScanSourcePreview({ sourceDocument, extraction, basePath = '' }) {
+/**
+ * The click-to-source DOM id for one citation's box on the source-preview
+ * overlay (`renderScanSourcePreview`). Chars outside `[A-Za-z0-9_-]` become
+ * `-`, so any `field_or_chunk_id` (e.g. `lab.hgb.value`) is a safe,
+ * deterministic anchor id. This is the single copy: the S6 grounded-answer
+ * panel in `renderAgentForgePage` serializes this same function into its
+ * client script to build its document-citation links, so the two can never
+ * drift apart.
+ */
+export function citationBoxId(fieldOrChunkId) {
+  return `box-${String(fieldOrChunkId).replace(/[^A-Za-z0-9_-]/g, '-')}`;
+}
+
+export function renderScanSourcePreview({ sourceDocument, extraction, basePath = '', patient_uuid = '', demo_token = '', pageUrl = null }) {
   const allFacts = extraction?.facts || [];
-  // A fact carrying an uncertainty (for example low OCR confidence) is shown
-  // for review but never counted or labelled as verified.
-  const facts = allFacts.filter((fact) => !fact.uncertainty);
-  const lowConfidenceFacts = allFacts.filter((fact) => fact.uncertainty);
+  const confidenceOf = (fact) => Number.isFinite(fact.confidence) ? fact.confidence : 0;
+  const facts = allFacts.filter((fact) => confidenceOf(fact) >= 0.85 && !fact.uncertainty);
+  const lowConfidenceFacts = allFacts.filter((fact) => confidenceOf(fact) < 0.85 || fact.uncertainty);
+  const lowConfidenceIds = new Set(lowConfidenceFacts.map((fact) => fact.field_id));
   const missing = extraction?.missing_fields || [];
   const uncertain = extraction?.uncertain_fields || [];
   const conflicts = extraction?.conflicts || [];
   const reviewCount = missing.length + uncertain.length + conflicts.length;
   const status = ['complete', 'partial', 'qualified', 'blocked'].includes(extraction?.status) ? extraction.status : 'unknown';
+  const pageSizes = new Map((extraction?.page_sizes || []).map((size) => [size.page, size]));
+  const isPdf = /\.pdf$/i.test(sourceDocument?.filename || '');
+  const pageNumberFor = (fact) => Number(fact.citation.page_or_section.match(/page\s+(\d+)/i)?.[1] || 0);
+  const hasPageImages = isPdf && pageSizes.size > 0;
+  const imageUrlFor = (page) => {
+    if (pageUrl) return pageUrl(page);
+    const params = new URLSearchParams({ patient_uuid, demo_token });
+    return `${basePath}/v1/source-documents/${encodeURIComponent(sourceDocument?.id || '')}/pages/${page}.png?${params}`;
+  };
+  const percent = (value, total) => `${Number((value / total * 100).toFixed(4))}%`;
   const evidenceRow = (fact) => {
-    const box = fact.citation.bounding_box.join(',');
+    const box = (fact.citation.bounding_box || []).join(',');
     const coordinateSpace = fact.citation.coordinate_space === 'raster_pixels_200dpi' ? '200 DPI raster pixels' : 'fixture coordinates';
-    return `<article class="evidence-row" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>${escapeHtml(fact.citation.page_or_section)}</span><span>Region <code>[${escapeHtml(box)}]</code></span><span>${coordinateSpace}</span></div><p>${escapeHtml(fact.citation.quote_or_value)}</p></div></article>`;
+    const pageSize = pageSizes.get(pageNumberFor(fact));
+    const canLink = hasPageImages && pageSize && fact.citation.bounding_box?.length === 4;
+    const citationLink = canLink ? `<a class="citation-source-link" href="#${citationBoxId(fact.citation.field_or_chunk_id)}">View source region</a>` : '';
+    const rowId = `row-${citationBoxId(fact.citation.field_or_chunk_id).slice(4)}`;
+    return `<article class="evidence-row" id="${rowId}" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>${escapeHtml(fact.citation.page_or_section)}</span><span>Region <code>[${escapeHtml(box)}]</code></span><span>${coordinateSpace}</span>${citationLink}</div><p>${escapeHtml(fact.citation.quote_or_value)}</p></div></article>`;
   };
   const factRows = facts.map(evidenceRow).join('');
   const lowConfidenceRows = lowConfidenceFacts.map(evidenceRow).join('');
   const reviewGroups = [
     ['Missing fields', missing],
-    ['Needs a closer look', uncertain],
+    ['Needs a closer look', uncertain.filter((item) => !lowConfidenceIds.has(item.field_id))],
     ['Conflicting values', conflicts],
   ].filter(([, items]) => items.length).map(([label, items]) => `<section class="review-group"><h3>${label}</h3><ul>${items.map((item) => {
     const name = item.field_id || 'Unspecified field';
     const detail = Array.isArray(item.values) ? item.values.join(' / ') : item.reason;
     return `<li><strong>${escapeHtml(name)}</strong>${detail ? `<span>${escapeHtml(detail)}</span>` : ''}</li>`;
   }).join('')}</ul></section>`).join('');
+  const pageImages = hasPageImages ? [...pageSizes.values()].sort((a, b) => a.page - b.page).map((size) => {
+    const boxes = allFacts.filter((fact) => pageNumberFor(fact) === size.page && fact.citation.bounding_box?.length === 4).map((fact) => {
+      const [x1, y1, x2, y2] = fact.citation.bounding_box;
+      const confidenceClass = confidenceOf(fact) >= 0.85 && !fact.uncertainty ? 'source-box--verified' : 'source-box--review';
+      const style = `left:${percent(x1, size.width)};top:${percent(y1, size.height)};width:${percent(x2 - x1, size.width)};height:${percent(y2 - y1, size.height)}`;
+      const rowId = `row-${citationBoxId(fact.citation.field_or_chunk_id).slice(4)}`;
+      return `<a class="source-box ${confidenceClass}" id="${citationBoxId(fact.citation.field_or_chunk_id)}" href="#${rowId}" style="${style}" aria-label="View citation for ${escapeHtml(fact.field_id)}"></a>`;
+    }).join('');
+    return `<div class="pdf-page" data-page="${size.page}" aria-label="Page ${size.page}"><img src="${escapeHtml(imageUrlFor(size.page))}" alt="Page ${size.page} of ${escapeHtml(sourceDocument?.filename || 'source document')}"><div class="page-overlay">${boxes}</div></div>`;
+  }).join('') : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -398,7 +509,7 @@ export function renderScanSourcePreview({ sourceDocument, extraction, basePath =
     .hero{padding:1.3rem 0 1.1rem;border-bottom:1px solid var(--line)}.eyebrow{margin:0 0 .45rem;color:var(--teal);font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.hero-row{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}h1{margin:0;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.12;overflow-wrap:anywhere}.meta{margin:.65rem 0 0;color:var(--muted);font-size:.9rem}.meta code{overflow-wrap:anywhere}
     .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.5rem;padding:1.2rem 0;border-bottom:1px solid var(--line)}.summary-item{display:flex;align-items:baseline;gap:.55rem}.summary-item strong{font-size:1.45rem;font-variant-numeric:tabular-nums}.summary-item span{color:var(--muted);font-size:.88rem}
     .notice{margin:1.4rem 0;padding:1rem 1.1rem;border-left:4px solid #d8a638;background:var(--amber-soft);color:#573e08}.notice strong{display:block;margin-bottom:.35rem}.review-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem;margin-top:.8rem}.review-group h3{margin:0 0 .4rem;font-size:.9rem}.review-group ul{margin:0;padding:0;list-style:none}.review-group li{display:grid;gap:.1rem;padding:.45rem 0;border-top:1px solid #e5d8b6;font-size:.84rem}.review-group li span{color:#6a5526}
-    .section-title{margin:1.8rem 0 .2rem;font-size:1.25rem}.section-intro{margin:0 0 .8rem;color:var(--muted);font-size:.9rem}.evidence-list{border-top:1px solid var(--line)}.evidence-row{display:grid;grid-template-columns:minmax(10rem,.7fr) minmax(0,1.3fr);gap:1.5rem;padding:1rem 0;border-bottom:1px solid var(--line)}.evidence-value{display:grid;align-content:start;gap:.3rem}.field-id{color:var(--muted);font-size:.78rem;font-weight:700;letter-spacing:.025em}.evidence-value strong{font-size:1.06rem}.citation{min-width:0;padding-left:1rem;border-left:2px solid #9dcfc5}.citation-meta{display:flex;flex-wrap:wrap;gap:.4rem 1rem;color:var(--teal);font-size:.8rem;font-weight:750}.citation code{color:var(--ink);font-size:.78rem;font-weight:600;overflow-wrap:anywhere}.citation p{margin:.45rem 0 0;color:#405563;font-size:.9rem}
+    .section-title{margin:1.8rem 0 .2rem;font-size:1.25rem}.section-intro{margin:0 0 .8rem;color:var(--muted);font-size:.9rem}.evidence-list{border-top:1px solid var(--line)}.evidence-row{display:grid;grid-template-columns:minmax(10rem,.7fr) minmax(0,1.3fr);gap:1.5rem;padding:1rem 0;border-bottom:1px solid var(--line)}.evidence-value{display:grid;align-content:start;gap:.3rem}.field-id{color:var(--muted);font-size:.78rem;font-weight:700;letter-spacing:.025em}.evidence-value strong{font-size:1.06rem}.citation{min-width:0;padding-left:1rem;border-left:2px solid #9dcfc5}.citation-meta{display:flex;flex-wrap:wrap;gap:.4rem 1rem;color:var(--teal);font-size:.8rem;font-weight:750}.citation code{color:var(--ink);font-size:.78rem;font-weight:600;overflow-wrap:anywhere}.citation p{margin:.45rem 0 0;color:#405563;font-size:.9rem}.citation-source-link{color:var(--teal)}.pdf-pages{display:grid;gap:1rem}.pdf-page{position:relative;width:min(100%,55rem);margin:0 auto;background:#fff;box-shadow:0 2px 10px #172b3a20}.pdf-page img{display:block;width:100%;height:auto}.page-overlay{position:absolute;inset:0}.source-box{position:absolute;display:block;border:2px solid;cursor:pointer;text-decoration:none}.source-box--verified{border-color:#087f6b;background:#087f6b24}.source-box--review{border-color:#b77900;background:#f0b42935}.source-box:target{z-index:2;border:4px solid #c22e2e;background:#f0444430;box-shadow:0 0 0 3px #fff,0 0 0 6px #c22e2e}
     .empty{padding:1.2rem 0;color:var(--muted)}footer{margin-top:2rem;padding-top:1rem;border-top:1px solid var(--line)}footer a{display:inline-flex;align-items:center;min-height:44px;color:var(--teal);font-weight:750;text-decoration:none}footer a:hover{text-decoration:underline}
     @media(max-width:600px){.topbar{padding:.8rem 1rem}.brand span{display:block;margin:.1rem 0 0}.topbar .badge{font-size:.7rem}main{width:min(calc(100% - 1.25rem),70rem);margin-top:1rem}.hero-row{display:grid}.summary{gap:.5rem;grid-template-columns:1fr}.summary-item{justify-content:flex-start}.evidence-row{grid-template-columns:1fr;gap:.55rem}.citation{padding:.2rem 0 .1rem .8rem}}
     @media print{body{background:#fff}.topbar{background:#fff;color:var(--ink);border-bottom:1px solid var(--line);padding:.5rem 0}.badge{border:1px solid var(--line)}main{width:100%;margin:1rem 0}.back-link,footer{display:none}.notice{break-inside:avoid}}
@@ -411,8 +522,9 @@ export function renderScanSourcePreview({ sourceDocument, extraction, basePath =
     <header class="hero"><p class="eyebrow">Source document</p><div class="hero-row"><div><h1>${escapeHtml(sourceDocument?.filename || 'Source document')}</h1><p class="meta">Document ID <code>${escapeHtml(sourceDocument?.id || 'unavailable')}</code></p></div><span class="status" data-status="${status}">Extraction ${escapeHtml(status)}</span></div></header>
     <section class="summary" aria-label="Extraction summary"><div class="summary-item"><strong>${facts.length}</strong><span>verified fields</span></div><div class="summary-item"><strong>${extraction?.metrics?.pages ?? '—'}</strong><span>pages processed</span></div><div class="summary-item"><strong>${reviewCount}</strong><span>items needing review</span></div></section>
     ${reviewCount ? `<aside class="notice" aria-labelledby="review-heading"><strong id="review-heading">Human review required</strong><span>Values listed here are incomplete, uncertain, or conflicting. They are not promoted as verified facts.</span><div class="review-groups">${reviewGroups}</div></aside>` : ''}
-    <section aria-labelledby="evidence-heading"><h2 class="section-title" id="evidence-heading">Verified field evidence</h2><p class="section-intro">Each accepted value includes its page, captured region, and source text.</p>${factRows ? `<div class="evidence-list">${factRows}</div>` : '<p class="empty">No verified fields were extracted from this document.</p>'}</section>
-    ${lowConfidenceRows ? `<section aria-labelledby="low-confidence-heading" data-section="low-confidence"><h2 class="section-title" id="low-confidence-heading">Low-confidence values (not verified)</h2><p class="section-intro">These values were read with low confidence and need human review before use.</p><div class="evidence-list">${lowConfidenceRows}</div></section>` : ''}
+    ${pageImages ? `<section aria-label="PDF page images and citation overlays"><h2 class="section-title">PDF source pages</h2><p class="section-intro">Green boxes are higher confidence; amber boxes need review. Select a citation below to highlight its source region.</p><div class="pdf-pages">${pageImages}</div></section>` : (isPdf ? '<p class="empty">page geometry unavailable</p>' : '<p class="empty">no page image for fixture documents</p>')}
+    <section aria-labelledby="evidence-heading" data-section="verified"><h2 class="section-title" id="evidence-heading">Verified field evidence</h2><p class="section-intro">Each accepted value includes its page, captured region, and source text.</p>${factRows ? `<div class="evidence-list">${factRows}</div>` : '<p class="empty">No verified fields were extracted from this document.</p>'}</section>
+    ${lowConfidenceRows ? `<section aria-labelledby="low-confidence-heading" data-section="needs-review"><h2 class="section-title" id="low-confidence-heading">Needs a closer look</h2><p class="section-intro">These values were read with low confidence and need human review before use.</p><div class="evidence-list">${lowConfidenceRows}</div></section>` : ''}
     <footer><a href="${escapeHtml(basePath)}/">← Return to visit workspace</a></footer>
   </main>
 </body>

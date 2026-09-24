@@ -1,58 +1,53 @@
-const tokenize = (value) => new Set(String(value || '').toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length > 2));
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { buildBm25Index, tokenize } from './bm25.js';
 
-export const GUIDELINE_CORPUS = Object.freeze([
-  { id: 'guideline-diabetes-follow-up-1', title: 'Synthetic primary-care diabetes follow-up', version: '2026.1', section: 'Follow-up review', uri: 'synthetic://guidelines/diabetes/follow-up#review', text: 'Review documented glycemic values, medication history, adherence, symptoms, and missing monitoring evidence before clinician decisions.' },
-  { id: 'guideline-fatigue-review-1', title: 'Synthetic primary-care fatigue review', version: '2026.1', section: 'Initial review', uri: 'synthetic://guidelines/fatigue/review#initial', text: 'For fatigue review, separate the patient-reported concern from documented findings, medication context, sleep history, and missing or conflicting evidence.' },
-  { id: 'guideline-medication-reconciliation-1', title: 'Synthetic medication reconciliation', version: '2026.1', section: 'Reconciliation', uri: 'synthetic://guidelines/medications/reconciliation#core', text: 'Medication reconciliation should compare the current documented list with prior records and surface discrepancies for clinician review.' },
-]);
+const CORPUS_PATH = fileURLToPath(new URL('../corpus/guidelines/corpus.json', import.meta.url));
+const EMBEDDINGS_PATH = fileURLToPath(new URL('../corpus/embeddings.json', import.meta.url));
 
-function scoreDocument(queryTokens, document) {
-  const textTokens = tokenize(`${document.title} ${document.section} ${document.text}`);
-  const overlap = [...queryTokens].filter((token) => textTokens.has(token));
-  const sparseScore = overlap.length;
-  const denseScore = queryTokens.size ? overlap.length / new Set([...queryTokens, ...textTokens]).size : 0;
-  return { sparseScore, denseScore, score: sparseScore + denseScore, overlap };
-}
+let corpusCache = null;
 
-/** Deterministic sparse+dense proxy over a versioned, provenance-tracked corpus. */
-export function retrieveGuidelineEvidence(query, { topK = 3, corpus = GUIDELINE_CORPUS } = {}) {
-  const queryTokens = tokenize(query);
-  if (!queryTokens.size) return { status: 'qualified', query: String(query || ''), evidence: [], issues: ['empty_query'] };
-  const ranked = corpus.map((document) => ({ document, ...scoreDocument(queryTokens, document) }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score || left.document.id.localeCompare(right.document.id))
-    .slice(0, Math.max(0, topK));
-  if (!ranked.length) return { status: 'qualified', query: String(query), evidence: [], issues: ['insufficient_guideline_evidence'] };
-  return { status: 'complete', provider: 'local-lexical-proxy', query: String(query), evidence: ranked.map(({ document, sparseScore, denseScore, score, overlap }) => guidelineEvidenceItem(document, { sparseScore, denseScore, rerankScore: score, matchedTerms: overlap })), issues: [] };
+/**
+ * Load the real guideline corpus (`corpus/guidelines/corpus.json`) — 20-60
+ * chunks of verbatim public-domain U.S. government guideline text, each with
+ * `{source_id, title, publisher, url, section, version_or_date, retrieved_at,
+ * text}` (see `corpus/guidelines/README.md`). Throws rather than silently
+ * falling back to an empty or synthetic corpus, since a caller that treats a
+ * missing corpus as "zero evidence" would misreport a config error as a
+ * legitimate "no relevant guideline" result.
+ */
+export function loadGuidelineCorpus(path = CORPUS_PATH) {
+  if (corpusCache && path === CORPUS_PATH) return corpusCache;
+  if (!existsSync(path)) throw new Error('GUIDELINE_CORPUS_MISSING');
+  const parsed = JSON.parse(readFileSync(path, 'utf8'));
+  if (!Array.isArray(parsed) || !parsed.length) throw new Error('GUIDELINE_CORPUS_EMPTY');
+  const chunks = Object.freeze(parsed.map((chunk) => Object.freeze({ ...chunk })));
+  if (path === CORPUS_PATH) corpusCache = chunks;
+  return chunks;
 }
 
 /**
- * Named default retriever wrapping the deterministic local lexical/dense
- * proxy. The name is the single source of truth for the "local-lexical-proxy"
- * provider label; callers that inject a retriever (the scan supervisor, the
- * service) read `.name` instead of hardcoding the string.
+ * Load precomputed corpus embeddings (`corpus/embeddings.json`), built
+ * offline by `scripts/build-corpus-embeddings.mjs` against a real
+ * `GEMINI_API_KEY` (this process never calls the embedding API for the
+ * corpus itself, only for the query at request time). Returns `null` when
+ * the file is missing, unreadable, or carries no vectors — the caller must
+ * treat that as "dense retrieval unavailable", not throw, since an absent
+ * embeddings file is an expected, recoverable degraded-mode trigger, not a
+ * configuration error.
  */
-export const localLexicalGuidelineRetriever = Object.freeze({ name: 'local-lexical-proxy', retrieve: retrieveGuidelineEvidence });
-
-/**
- * Build one `GuidelineEvidence` item (schemas.js) from a corpus document and
- * its retrieval scores. `citation.source_id`/`citation.field_or_chunk_id`
- * are both the document id because today's corpus has exactly one chunk per
- * document; `citation.page_or_section` carries the guideline section title.
- */
-function guidelineEvidenceItem(document, { sparseScore, denseScore, rerankScore, matchedTerms }) {
-  return {
-    title: document.title,
-    section: document.section,
-    version: document.version,
-    snippet: document.text,
-    sparse_score: sparseScore,
-    dense_score: Number(denseScore.toFixed(6)),
-    rerank_score: Number(rerankScore.toFixed(6)),
-    matched_terms: matchedTerms,
-    citation: { source_type: 'guideline', source_id: document.id, page_or_section: document.section, field_or_chunk_id: document.id, quote_or_value: document.text },
-  };
+export function loadCorpusEmbeddings(path = EMBEDDINGS_PATH) {
+  if (!existsSync(path)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || !parsed.vectors || !Object.keys(parsed.vectors).length) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
+
+const chunkText = (chunk) => `${chunk.title}\n${chunk.section}\n${chunk.text}`;
 
 function cosineSimilarity(left, right) {
   if (!Array.isArray(left) || !Array.isArray(right) || !left.length || left.length !== right.length) return 0;
@@ -67,19 +62,282 @@ function cosineSimilarity(left, right) {
   return leftNorm && rightNorm ? dot / Math.sqrt(leftNorm * rightNorm) : 0;
 }
 
+/**
+ * Build one `GuidelineEvidence` item (schemas.js) from a corpus chunk and its
+ * retrieval scores. `citation.source_id`/`citation.field_or_chunk_id` are
+ * both the chunk id (today's corpus has one chunk per `source_id`);
+ * `citation.quote_or_value` is the verbatim chunk text, never a
+ * reconstruction or summary.
+ */
+function guidelineEvidenceItem(chunk, { sparseScore, denseScore, rerankScore, matchedTerms, degraded }) {
+  return {
+    title: chunk.title,
+    section: chunk.section,
+    version: chunk.version_or_date,
+    url: chunk.url,
+    publisher: chunk.publisher,
+    snippet: chunk.text,
+    sparse_score: Number(sparseScore.toFixed(6)),
+    dense_score: Number(denseScore.toFixed(6)),
+    rerank_score: Number(rerankScore.toFixed(6)),
+    matched_terms: matchedTerms,
+    degraded: degraded ?? null,
+    citation: { source_type: 'guideline', source_id: chunk.source_id, page_or_section: chunk.section, field_or_chunk_id: chunk.source_id, quote_or_value: chunk.text },
+  };
+}
+
+const SPARSE_ONLY_PROVIDER = 'bm25-sparse-only';
+
+/**
+ * Real BM25 (Okapi, IDF + k1/b) over the corpus — sparse-only. This is also
+ * the fallback every hybrid retriever below degrades to, so its provider
+ * name (`bm25-sparse-only`) and `degraded: 'sparse_only'` marker are shared
+ * with the degraded-mode path: a sparse-only result looks the same whether
+ * it came from an explicit sparse-only configuration or from a hybrid
+ * pipeline that could not reach Gemini.
+ */
+export function retrieveGuidelineEvidence(query, { topK = 3, corpus } = {}) {
+  const trimmed = String(query || '').trim();
+  if (!trimmed) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: '', evidence: [], issues: ['empty_query'], degraded: 'sparse_only' };
+  // Loaded here (not as a default parameter) so a missing/unreadable corpus
+  // file surfaces as a qualified result with a loud, specific issue code —
+  // never an uncaught exception that would crash the request (or, worse, the
+  // whole process if a caller evaluates this at module load — see
+  // createGeminiHybridGuidelineRetriever below for the same guard).
+  let resolvedCorpus = corpus;
+  if (!resolvedCorpus) {
+    try { resolvedCorpus = loadGuidelineCorpus(); } catch { return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence: [], issues: ['guideline_corpus_unavailable'], degraded: 'sparse_only' }; }
+  }
+  const index = buildBm25Index(resolvedCorpus, { getText: chunkText });
+  const ranked = index.search(trimmed, { topK: Math.max(topK, 1) });
+  if (!ranked.length) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: 'sparse_only' };
+  const evidence = ranked.slice(0, topK).map(({ document, score, matchedTerms }) => guidelineEvidenceItem(document, { sparseScore: score, denseScore: 0, rerankScore: score, matchedTerms, degraded: 'sparse_only' }));
+  return { status: 'complete', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence, issues: [], degraded: 'sparse_only' };
+}
+
+/**
+ * Named default retriever: real BM25 over the real corpus, sparse-only. Used
+ * whenever no retriever is injected (`AGENTFORGE_RAG_PROVIDER=local-lexical`,
+ * and as the hard-wired default the scan supervisor and service fall back to
+ * when a caller omits `guidelineRetriever`/`retrievalAdapter` entirely).
+ */
+export const localLexicalGuidelineRetriever = Object.freeze({ name: SPARSE_ONLY_PROVIDER, retrieve: retrieveGuidelineEvidence });
+
+// Query-scaffolding words `formulateEvidenceQuery` (activeWorkers.js) itself
+// introduces around the patient-derived text ("Abnormal findings:", "Chief
+// concern:", "test result", flag words) — allowed even though a given
+// corpus edit might not happen to contain every one of them verbatim,
+// since these come from our own code, never from patient or clinician text.
+const QUERY_SCAFFOLD_VOCABULARY = ['abnormal', 'findings', 'chief', 'concern', 'test', 'result', 'results', 'high', 'low', 'normal', 'unknown'];
+
+/**
+ * Build the allowlist of words safe to send to an external Gemini call: the
+ * corpus's own vocabulary (every word appearing in a real guideline chunk)
+ * plus a short list of query-scaffolding words. Anything else — a patient
+ * or clinician's own free text, which may contain a name, a date of birth,
+ * a phone number, or any other identifier — is not on this list by
+ * construction, since a corpus of U.S. government guideline text does not
+ * contain patient identifiers.
+ */
+function buildGeminiVocabulary(corpus) {
+  const vocabulary = new Set(QUERY_SCAFFOLD_VOCABULARY);
+  for (const chunk of corpus) for (const token of tokenize(chunkText(chunk))) vocabulary.add(token);
+  return vocabulary;
+}
+
+/**
+ * Sanitize text before it leaves this process for a Gemini call: keep only
+ * whole words present in `vocabulary`, dropping everything else — digits,
+ * dates, names, addresses, phone numbers, or any other free text the
+ * vocabulary doesn't recognize as clinical/guideline vocabulary. This runs
+ * only on the query sent to Gemini's embed/rerank calls; the local BM25
+ * search (which never leaves this process) still searches the original,
+ * unsanitized query for the best local retrieval quality.
+ */
+export function sanitizeForGemini(text, vocabulary) {
+  // Must start with a letter (so a bare number, a date like "1980-04-12", or
+  // a phone number never matches at all) but may contain digits after (so a
+  // real test name like "A1C" or "HbA1c" survives as one token rather than
+  // splitting into single letters at the digit).
+  const words = String(text || '').match(/[A-Za-z][A-Za-z0-9'-]*/g) || [];
+  return words.filter((word) => vocabulary.has(word.toLowerCase())).join(' ');
+}
+
+/**
+ * Build the real hybrid retriever: BM25 top-K ∪ Gemini dense cosine top-K →
+ * Gemini listwise rerank → top-`topK` at or above `rerankThreshold`.
+ *
+ * Degrades to BM25-only (`degraded: 'sparse_only'` on every returned item
+ * and on the response) whenever corpus embeddings are unavailable, no
+ * `geminiClient` was supplied, or any Gemini call throws — never silently
+ * relabeled as hybrid (AGENTS.md). The response's `provider` and each
+ * evidence item's `degraded` field always reflect the mode that actually
+ * produced that response, not the retriever's static configuration.
+ *
+ * Args:
+ *   geminiClient: `{name, embed(text, taskType), rerank(query, candidates)}`
+ *     — either `createLiveGeminiClient` (production) or
+ *     `createRecordedOrStubGeminiClient` (tests/gate). `null`/`undefined`
+ *     forces sparse-only.
+ *   corpus: Guideline chunks (defaults to the real corpus file).
+ *   embeddings: `{vectors: {[source_id]: number[]}}` (defaults to the real
+ *     precomputed file, or `null` if absent).
+ *   candidateCount: How many sparse and dense candidates to union before
+ *     reranking (assignment: top 20 each).
+ *   rerankThreshold: Minimum rerank relevance score to keep a chunk.
+ */
+export function createGeminiHybridGuidelineRetriever({
+  geminiClient = null,
+  corpus,
+  embeddings,
+  candidateCount = 20,
+  rerankThreshold = 0.5,
+} = {}) {
+  // Resolved here, inside the factory body, rather than as a default
+  // parameter: a default parameter expression runs eagerly as part of the
+  // call, so a caller invoking this factory at module load (server.js does,
+  // for the deployed retriever) would have a missing/unreadable corpus file
+  // crash the whole process at boot. Falling back to `[]` here instead makes
+  // it a loud but recoverable "guideline_corpus_unavailable" result on every
+  // call — visible in /ready and in traces — never an unhandled boot crash.
+  let corpusError = null;
+  let resolvedCorpus = corpus;
+  if (!resolvedCorpus) {
+    try { resolvedCorpus = loadGuidelineCorpus(); } catch (error) { corpusError = error?.message || 'GUIDELINE_CORPUS_UNAVAILABLE'; resolvedCorpus = []; }
+  }
+  const resolvedEmbeddings = embeddings !== undefined ? embeddings : (corpusError ? null : loadCorpusEmbeddings());
+  const bm25 = buildBm25Index(resolvedCorpus, { getText: chunkText });
+  const embeddingsUsable = Boolean(resolvedEmbeddings?.vectors && Object.keys(resolvedEmbeddings.vectors).length);
+  const hybridProvider = `gemini-hybrid:${geminiClient?.name || 'unconfigured'}`;
+  // Built once, from the corpus that is actually loaded — so the allowlist
+  // never depends on the query itself and can't be widened by patient text.
+  const geminiVocabulary = buildGeminiVocabulary(resolvedCorpus);
+
+  function sparseOnly(query, topK, issue, extraUsage = []) {
+    const ranked = bm25.search(query, { topK: Math.max(topK, 1) });
+    const evidence = ranked.slice(0, topK).map(({ document, score, matchedTerms }) => guidelineEvidenceItem(document, { sparseScore: score, denseScore: 0, rerankScore: score, matchedTerms, degraded: 'sparse_only' }));
+    return {
+      status: evidence.length ? 'complete' : 'qualified',
+      provider: SPARSE_ONLY_PROVIDER,
+      query,
+      evidence,
+      issues: evidence.length ? [] : [corpusError ? 'guideline_corpus_unavailable' : 'insufficient_guideline_evidence'],
+      degraded: 'sparse_only',
+      degraded_reason: issue,
+      // A Gemini call already made (and billed) before the failure — e.g. the
+      // embed succeeded but the rerank call then failed — is still real
+      // usage and must still reach the trace, even though the response
+      // itself degraded to sparse-only.
+      usage: extraUsage.filter(Boolean),
+    };
+  }
+
+  async function retrieve(query, { topK = 3 } = {}) {
+    const trimmed = String(query || '').trim();
+    // No retrieval work of any kind ran (not even a BM25 search), so this is
+    // never labeled hybrid, even when a geminiClient is configured.
+    if (!trimmed) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: '', evidence: [], issues: ['empty_query'], degraded: 'sparse_only', usage: [] };
+    if (!geminiClient) return sparseOnly(trimmed, topK, 'gemini_client_not_configured');
+    if (!embeddingsUsable) return sparseOnly(trimmed, topK, 'corpus_embeddings_missing');
+    // Never send the client's own text to Gemini: only the words this
+    // corpus's own vocabulary recognizes leave this process (MEDIUM review
+    // item 7). The unsanitized `trimmed` query is still used for the local
+    // BM25 search below, which never leaves this process.
+    const sanitizedQuery = sanitizeForGemini(trimmed, geminiVocabulary);
+    if (!sanitizedQuery) return sparseOnly(trimmed, topK, 'no_sanitizable_query_terms');
+
+    // Captured outside the try block so a failure after a successful embed
+    // call (e.g. the rerank request fails) still reports the embed cost that
+    // was actually incurred, instead of silently dropping it when falling
+    // back to sparse-only.
+    let embedUsage = null;
+    try {
+      const sparseCandidates = bm25.search(trimmed, { topK: candidateCount });
+      const embedResult = await geminiClient.embed(sanitizedQuery, 'RETRIEVAL_QUERY');
+      const queryVector = embedResult.values;
+      embedUsage = embedResult.usage;
+      if (!Array.isArray(queryVector) || !queryVector.length) throw new Error('GEMINI_EMBED_RESPONSE_INVALID');
+      const denseScored = resolvedCorpus
+        .map((document) => {
+          const vector = resolvedEmbeddings.vectors[document.source_id];
+          // A dimension mismatch is a real configuration error (query and
+          // corpus embeddings came from different models/output sizes), not
+          // "no similarity" — treat it as a hybrid failure so the whole
+          // request degrades to sparse-only rather than silently scoring
+          // every chunk 0 and calling that a successful hybrid rank.
+          if (Array.isArray(vector) && vector.length && vector.length !== queryVector.length) throw new Error('GEMINI_EMBED_DIMENSION_MISMATCH');
+          return { document, score: cosineSimilarity(queryVector, vector) };
+        })
+        .filter((candidate) => candidate.score > 0)
+        .sort((left, right) => right.score - left.score);
+      const denseCandidates = denseScored.slice(0, candidateCount);
+
+      const byId = new Map();
+      for (const candidate of sparseCandidates) byId.set(candidate.document.source_id, { document: candidate.document, sparseScore: candidate.score, denseScore: 0, matchedTerms: candidate.matchedTerms });
+      for (const candidate of denseCandidates) {
+        const existing = byId.get(candidate.document.source_id);
+        if (existing) existing.denseScore = candidate.score;
+        else byId.set(candidate.document.source_id, { document: candidate.document, sparseScore: 0, denseScore: candidate.score, matchedTerms: [] });
+      }
+      const candidates = [...byId.values()];
+      if (!candidates.length) return { status: 'qualified', provider: hybridProvider, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: embedUsage?.source === 'stub' ? 'stub' : null, usage: [embedUsage] };
+
+      const { results, usage: rerankUsage } = await geminiClient.rerank(sanitizedQuery, candidates.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
+      const scoreById = new Map(results.map((result) => [result.chunk_id, result.relevance_score]));
+      const ranked = candidates
+        .filter((candidate) => scoreById.has(candidate.document.source_id))
+        .map((candidate) => ({ ...candidate, rerankScore: scoreById.get(candidate.document.source_id) }))
+        .sort((left, right) => right.rerankScore - left.rerankScore)
+        .filter((candidate) => candidate.rerankScore >= rerankThreshold)
+        .slice(0, topK);
+
+      // The pipeline ran its full hybrid shape, but if either call fell back
+      // to the deterministic stand-in (no recorded fixture for this exact
+      // request), the result is not a genuine hybrid rank and must say so —
+      // `degraded: 'stub'`, never `null` under a `gemini-hybrid:` name
+      // (AGENTS.md: never present a simulation as the real thing).
+      const usedStub = embedUsage?.source === 'stub' || rerankUsage?.source === 'stub';
+      const itemDegraded = usedStub ? 'stub' : null;
+      const evidence = ranked.map((candidate) => guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: candidate.rerankScore, matchedTerms: candidate.matchedTerms, degraded: itemDegraded }));
+      return {
+        status: evidence.length ? 'complete' : 'qualified',
+        provider: hybridProvider,
+        query: trimmed,
+        evidence,
+        issues: evidence.length ? [] : ['insufficient_guideline_evidence'],
+        degraded: itemDegraded,
+        usage: [embedUsage, rerankUsage],
+      };
+    } catch {
+      // A fixed code only, never the caught error's message: it may carry
+      // upstream HTTP/network detail that must not reach a trace or an API
+      // response (matches service.js's retrieveFollowUpEvidence).
+      return sparseOnly(trimmed, topK, 'gemini_hybrid_failed', [embedUsage]);
+    }
+  }
+
+  return Object.freeze({ name: geminiClient ? hybridProvider : SPARSE_ONLY_PROVIDER, retrieve });
+}
+
 function documentText(document) {
   return `${document.title}\n${document.section}\n${document.text}`;
 }
 
 function canonicalSyntheticQuery(value) {
-  const tokens = tokenize(value);
-  if ([...tokens].some((token) => ['diabetes', 'glycemic', 'glucose'].includes(token))) return 'synthetic diabetes follow-up documented glycemic values medication history';
-  if ([...tokens].some((token) => ['fatigue', 'sleep', 'tiredness'].includes(token))) return 'synthetic fatigue review documented symptoms medication context sleep history';
-  if ([...tokens].some((token) => ['medication', 'medications', 'reconciliation'].includes(token))) return 'synthetic medication reconciliation current documented list prior records';
+  const tokens = new Set(String(value || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  if (['diabetes', 'glycemic', 'glucose'].some((token) => tokens.has(token))) return 'synthetic diabetes follow-up documented glycemic values medication history';
+  if (['fatigue', 'sleep', 'tiredness'].some((token) => tokens.has(token))) return 'synthetic fatigue review documented symptoms medication context sleep history';
+  if (['medication', 'medications', 'reconciliation'].some((token) => tokens.has(token))) return 'synthetic medication reconciliation current documented list prior records';
   return '';
 }
 
-/** Create a Cohere Embed + Rerank retriever for the synthetic guideline corpus.
+/**
+ * Cohere Embed + Rerank retriever (D2 in `docs/agentforge/PLAN.md`),
+ * superseded for the deployed default by the Gemini hybrid retriever above
+ * (D2′) but kept behind the same `{name, retrieve}` interface for a later
+ * revisit. Restricted to a fixed set of canonical synthetic queries — it
+ * predates the real corpus and real query formulation and must not be
+ * pointed at real patient-derived queries or the real guideline corpus.
  *
  * Args:
  *   apiKey: Server-only Cohere API key.
@@ -101,7 +359,7 @@ export function createCohereGuidelineRetriever({
   rerankModel = 'rerank-v4.0-fast',
   timeoutMs = 8000,
   candidateCount = 8,
-  corpus = GUIDELINE_CORPUS,
+  corpus = SYNTHETIC_COHERE_CORPUS,
 } = {}) {
   if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('COHERE_API_KEY_REQUIRED');
   if (typeof fetchImpl !== 'function') throw new Error('FETCH_UNAVAILABLE');
@@ -140,16 +398,16 @@ export function createCohereGuidelineRetriever({
   async function retrieve(query, { topK = 3 } = {}) {
     const userQuery = String(query || '').trim();
     const normalizedQuery = canonicalSyntheticQuery(userQuery);
-    if (!normalizedQuery) return { status: 'qualified', provider: 'cohere', query: '', evidence: [], issues: ['no_approved_synthetic_query'] };
+    if (!normalizedQuery) return { status: 'qualified', provider: 'cohere', query: '', evidence: [], issues: ['no_approved_synthetic_query'], degraded: null };
     const texts = corpus.map(documentText);
     corpusEmbeddingPromise ||= embed(texts, 'search_document');
     const [corpusEmbeddings, queryEmbedding] = await Promise.all([
       corpusEmbeddingPromise,
       embed([normalizedQuery], 'search_query'),
     ]);
-    const queryTokens = tokenize(normalizedQuery);
+    const queryTokens = new Set(normalizedQuery.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
     const ranked = corpus.map((document, index) => {
-      const textTokens = tokenize(texts[index]);
+      const textTokens = new Set(texts[index].toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
       const matchedTerms = [...queryTokens].filter((token) => textTokens.has(token));
       return {
         document,
@@ -162,7 +420,7 @@ export function createCohereGuidelineRetriever({
     const denseCandidates = [...ranked].sort((left, right) => right.denseScore - left.denseScore || left.document.id.localeCompare(right.document.id)).slice(0, candidateCount);
     const candidatesById = new Map([...sparseCandidates, ...denseCandidates].map((candidate) => [candidate.document.id, candidate]));
     const candidates = [...candidatesById.values()];
-    if (!candidates.length) return { status: 'qualified', provider: 'cohere', query: normalizedQuery, evidence: [], issues: ['insufficient_guideline_evidence'] };
+    if (!candidates.length) return { status: 'qualified', provider: 'cohere', query: normalizedQuery, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: null };
     const rerank = await post('/v2/rerank', {
       model: rerankModel,
       query: normalizedQuery,
@@ -173,7 +431,20 @@ export function createCohereGuidelineRetriever({
     const evidence = rerank.results.flatMap((result) => {
       const candidate = candidates[result.index];
       if (!candidate || !Number.isFinite(result.relevance_score)) return [];
-      return [guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: result.relevance_score, matchedTerms: candidate.matchedTerms })];
+      return [{
+        title: candidate.document.title,
+        section: candidate.document.section,
+        version: candidate.document.version,
+        url: candidate.document.uri,
+        publisher: 'synthetic-placeholder',
+        snippet: candidate.document.text,
+        sparse_score: candidate.sparseScore,
+        dense_score: Number(candidate.denseScore.toFixed(6)),
+        rerank_score: Number(result.relevance_score.toFixed(6)),
+        matched_terms: candidate.matchedTerms,
+        degraded: null,
+        citation: { source_type: 'guideline', source_id: candidate.document.id, page_or_section: candidate.document.section, field_or_chunk_id: candidate.document.id, quote_or_value: candidate.document.text },
+      }];
     });
     return {
       status: evidence.length ? 'complete' : 'qualified',
@@ -181,9 +452,24 @@ export function createCohereGuidelineRetriever({
       query: normalizedQuery,
       evidence,
       issues: evidence.length ? [] : ['insufficient_guideline_evidence'],
+      degraded: null,
       usage: { embed_billed_units: [corpusEmbeddings.billedUnits, queryEmbedding.billedUnits], rerank_billed_units: rerank.meta?.billed_units || null },
     };
   }
 
   return Object.freeze({ name: 'cohere-embed-rerank', retrieve });
 }
+
+/**
+ * The Cohere lane's own tiny corpus. This is a **synthetic fixture**, named
+ * as such (never `GUIDELINE_CORPUS`, never imported by production retrieval
+ * code) — it predates and is unrelated to the real corpus in
+ * `corpus/guidelines/corpus.json`; it exists only so
+ * `createCohereGuidelineRetriever`'s fixed canonical-query lane keeps working
+ * for its own tests until D2 is revisited.
+ */
+export const SYNTHETIC_COHERE_CORPUS = Object.freeze([
+  { id: 'synthetic-guideline-diabetes-follow-up-1', title: 'Synthetic primary-care diabetes follow-up', version: '2026.1', section: 'Follow-up review', uri: 'synthetic://guidelines/diabetes/follow-up#review', text: 'Review documented glycemic values, medication history, adherence, symptoms, and missing monitoring evidence before clinician decisions.' },
+  { id: 'synthetic-guideline-fatigue-review-1', title: 'Synthetic primary-care fatigue review', version: '2026.1', section: 'Initial review', uri: 'synthetic://guidelines/fatigue/review#initial', text: 'For fatigue review, separate the patient-reported concern from documented findings, medication context, sleep history, and missing or conflicting evidence.' },
+  { id: 'synthetic-guideline-medication-reconciliation-1', title: 'Synthetic medication reconciliation', version: '2026.1', section: 'Reconciliation', uri: 'synthetic://guidelines/medications/reconciliation#core', text: 'Medication reconciliation should compare the current documented list with prior records and surface discrepancies for clinician review.' },
+]);

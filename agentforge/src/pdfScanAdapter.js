@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 const MAX_PAGES = 6;
 const COMMAND_TIMEOUT_MS = 30_000;
 const MAX_COMMAND_OUTPUT_BYTES = 16 * 1024 * 1024;
+const MAX_RENDERED_PAGE_PIXELS = 20_000_000;
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -149,7 +150,14 @@ const assertPdf = (content) => {
  *   `{pageCount, pages: [{page, width, height, lines, image_base64?}]}` where
  *   `lines` are Tesseract lines with pixel boxes and min-word confidence.
  */
-export async function pdfToOcrLines(content, { includeImages = false } = {}) {
+/**
+ * `psm` is Tesseract's `--psm` (page-segmentation mode) flag: `6` (default)
+ * assumes a uniform block of text; `4` assumes a single column of
+ * variable-sized text. The supervisor's `low_confidence_retry` decision
+ * (supervisor.js) re-OCRs once at the alternate mode when mean confidence is
+ * below 0.7 -- some scanned layouts read better one way than the other.
+ */
+export async function pdfToOcrLines(content, { includeImages = false, psm = 6 } = {}) {
   assertPdf(content);
   const directory = await mkdtemp(join(tmpdir(), 'agentforge-pdf-'));
   try {
@@ -163,7 +171,7 @@ export async function pdfToOcrLines(content, { includeImages = false } = {}) {
     const images = (await readdir(directory)).filter((name) => /^page-\d+\.png$/.test(name)).sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
     const pages = [];
     for (let i = 0; i < images.length; i++) {
-      const tsv = await run('tesseract', [join(directory, images[i]), 'stdout', 'tsv']);
+      const tsv = await run('tesseract', [join(directory, images[i]), 'stdout', '--psm', String(psm), 'tsv']);
       pages.push({
         page: i + 1,
         ...parseTsvPageSize(tsv),
@@ -175,23 +183,90 @@ export async function pdfToOcrLines(content, { includeImages = false } = {}) {
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
+/** Render one source page in the same 200 DPI pixel space used by Tesseract. */
+export function renderedPageFilename(names, page) {
+  return names.find((name) => new RegExp(`^page-0*${page}\\.png$`).test(name)) || null;
+}
+
+function pagePixelCount(pdfInfo, page) {
+  const size = pdfInfo.match(new RegExp(`^(?:Page(?:\\s+${page})?\\s+size|size):\\s*([\\d.]+) x ([\\d.]+) pts`, 'mi'));
+  if (!size) throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+  const pixels = Math.ceil(Number(size[1]) * 200 / 72) * Math.ceil(Number(size[2]) * 200 / 72);
+  if (!Number.isSafeInteger(pixels) || pixels <= 0 || pixels > MAX_RENDERED_PAGE_PIXELS) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+  return pixels;
+}
+
+export async function renderPdfPagePng(content, page) {
+  assertPdf(content);
+  if (!Number.isInteger(page) || page < 1) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
+  const directory = await mkdtemp(join(tmpdir(), 'agentforge-page-'));
+  try {
+    const pdf = join(directory, 'source.pdf');
+    await writeFile(pdf, content);
+    let documentInfo;
+    try { documentInfo = await run('pdfinfo', [pdf]); }
+    catch (error) {
+      if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+      throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+    }
+    const pageCount = Number(documentInfo.match(/^Pages:\s+(\d+)/m)?.[1] || 0);
+    if (!pageCount) throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+    if (pageCount > MAX_PAGES) throw Object.assign(new Error('PDF_PAGE_LIMIT_EXCEEDED'), { code: 'PDF_PAGE_LIMIT_EXCEEDED' });
+    if (page > pageCount) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
+    let pageInfo = documentInfo;
+    if (page > 1) {
+      try { pageInfo = await run('pdfinfo', ['-f', String(page), '-l', String(page), pdf]); }
+      catch (error) {
+        if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+        throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+      }
+    }
+    pagePixelCount(pageInfo, page);
+    const prefix = join(directory, 'page');
+    try { await run('pdftoppm', ['-r', '200', '-f', String(page), '-l', String(page), '-png', pdf, prefix]); }
+    catch (error) {
+      if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+      throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    }
+    const imageName = renderedPageFilename(await readdir(directory), page);
+    if (!imageName) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    const imagePath = join(directory, imageName);
+    const imageStats = await stat(imagePath);
+    if (imageStats.size < 8 || imageStats.size > MAX_COMMAND_OUTPUT_BYTES) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    const image = await readFile(imagePath);
+    if (image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    return image;
+  } finally { await rm(directory, { recursive: true, force: true }); }
+}
+
 /** Production OCR engine: the real poppler + Tesseract binaries. */
 export const tesseractOcrEngine = Object.freeze({ name: 'tesseract-local-pdf', recognize: pdfToOcrLines });
 
+/** Default page-segmentation mode label, matching Tesseract's own default. */
+export const DEFAULT_OCR_MODE = 'psm6';
+/** The one alternate mode the low-confidence retry decision tries. */
+export const ALTERNATE_OCR_MODE = 'psm4';
+const OCR_MODE_PSM = Object.freeze({ [DEFAULT_OCR_MODE]: 6, [ALTERNATE_OCR_MODE]: 4 });
+
 /**
  * OCR engine that replays OCR output previously recorded from the real
- * binaries (`scripts/record-golden-ocr.mjs`), keyed by the PDF's SHA-256.
- * It exists so the eval gate runs the post-OCR path deterministically on
- * machines without Tesseract; it never OCRs anything itself and throws for a
- * PDF it has no recording of.
+ * binaries (`scripts/record-golden-ocr.mjs`), keyed by the PDF's SHA-256 and
+ * (optionally) the OCR mode it was recorded at. A recording with no
+ * `ocr_mode` is treated as the default mode, so every recording made before
+ * S6 (the low-confidence-retry feature) still matches unchanged. A caller
+ * that asks for a mode with no matching recording gets `RECORDED_OCR_NOT_FOUND`
+ * rather than a silent, misleading fallback to a different mode's output --
+ * it exists so the eval gate runs the post-OCR path deterministically on
+ * machines without Tesseract, and it never OCRs anything itself.
  */
 export function createRecordedOcrReplay(recordings) {
-  const bySha = new Map(recordings.map((recording) => [recording.pdf_sha256, recording]));
+  const byKey = new Map(recordings.map((recording) => [`${recording.pdf_sha256}:${recording.ocr_mode || DEFAULT_OCR_MODE}`, recording]));
   return Object.freeze({
     name: 'tesseract-recorded-replay',
-    async recognize(content) {
+    async recognize(content, { psm } = {}) {
       assertPdf(content);
-      const recording = bySha.get(createHash('sha256').update(content).digest('hex'));
+      const mode = Object.entries(OCR_MODE_PSM).find(([, value]) => value === psm)?.[0] || DEFAULT_OCR_MODE;
+      const recording = byKey.get(`${createHash('sha256').update(content).digest('hex')}:${mode}`);
       if (!recording) throw new Error('RECORDED_OCR_NOT_FOUND');
       if (recording.error) throw new Error(recording.error);
       return { pageCount: recording.page_count, pages: structuredClone(recording.pages) };
@@ -200,16 +275,20 @@ export function createRecordedOcrReplay(recordings) {
 }
 
 /** Converts PDF pages to OCR word/line regions, then adapts supported assignment fields to w2-scan-v1. */
-export async function extractPdfScanFixture({ content, documentType, layoutId = `pdf-ocr-${documentType}`, scanProvider = null, ocrEngine = tesseractOcrEngine }) {
+export async function extractPdfScanFixture({ content, documentType, layoutId = `pdf-ocr-${documentType}`, scanProvider = null, ocrMode = DEFAULT_OCR_MODE, ocrEngine = tesseractOcrEngine }) {
   assertPdf(content);
-  const { pageCount: pages, pages: renderedPages } = await ocrEngine.recognize(content, { includeImages: Boolean(scanProvider) });
+  const psm = OCR_MODE_PSM[ocrMode] ?? 6;
+  const { pageCount: pages, pages: renderedPages } = await ocrEngine.recognize(content, { includeImages: Boolean(scanProvider), psm });
   if (scanProvider && renderedPages.some((page) => !page.image_base64)) throw new Error('SCAN_PROVIDER_REQUIRES_PAGE_IMAGES');
   const ocrLines = renderedPages.flatMap((page) => page.lines);
   const modelResult = scanProvider ? await scanProvider.extract({ documentType, pages: renderedPages }) : null;
   const extracted = modelResult
     ? modelResult.fields
     : fieldRows(ocrLines, documentType, layoutId);
-  const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}`];
+  const pageSizes = renderedPages
+    .filter((page) => Number.isInteger(page.page) && Number.isInteger(page.width) && Number.isInteger(page.height) && page.width > 0 && page.height > 0)
+    .map((page) => `${page.page}:${page.width}x${page.height}`);
+  const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}${pageSizes.length ? `|page_sizes=${pageSizes.join(',')}` : ''}`];
   for (const field of extracted) {
     const line = field.line;
     const page = field.page || line?.page;
@@ -218,5 +297,5 @@ export async function extractPdfScanFixture({ content, documentType, layoutId = 
     fixture.push(`FIELD|field_id=${field.field_id}|label=${safe(field.label)}|value=${safe(field.value)}|unit=${safe(field.unit)}|quote=${safe(field.quote)}|page=${page}|box=${box.join(',')}|confidence=${confidence.toFixed(2)}`);
   }
   // `ocrText` stays in memory for document-type detection; it is never logged or traced.
-  return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: modelResult ? modelResult.model : ocrEngine.name, ocrText: ocrLines.map((line) => line.text).join('\n') };
+  return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: modelResult ? modelResult.model : ocrEngine.name, ocrText: ocrLines.map((line) => line.text).join('\n'), ocrMode };
 }

@@ -30,11 +30,17 @@ every golden PDF whenever `pdftoppm`, `pdfinfo` and `tesseract` are on PATH, and
 it fails if any line's text, box or confidence has drifted from the recording.
 It skips, with a message, where the tools are absent.
 
-The gate calls no model and no external service. Guideline retrieval is the
-local lexical retriever, reached through the evidence worker exactly as the scan
-path calls it. The retrieval assertions are interface-level (a non-empty,
-descending ranking whose top chunk is the relevant source; nothing for an
-off-topic question) so they survive the S5 retriever replacement.
+The gate calls no live model and no external service. Guideline retrieval is
+the S5 hybrid pipeline (BM25 ∪ dense ∪ listwise rerank) over the real corpus in
+`agentforge/corpus/guidelines/corpus.json`, backed by the
+`recorded-or-stub` Gemini client, reached through the evidence worker exactly
+as the scan path calls it. No recorded Gemini fixtures or corpus embeddings are
+committed yet, so every Gemini step is the deterministic stand-in and every
+evidence item is labeled `degraded: 'stub'`. The retrieval assertions are
+interface-level (a non-empty, descending ranking whose top chunk is the
+relevant source; nothing for an off-topic question). The S6 grounded answer
+is composed by the deterministic composer, except in `fc-08`, which injects an
+honestly named fake model that returns only a fabricated claim.
 
 ## Committed inputs
 
@@ -112,8 +118,8 @@ npm run eval:gate --prefix agentforge -- --update-baseline    # explicit rebasel
 | --- | --- | --- |
 | `schema_valid` | 9 | Typed `lab_results[]` and `intake_form` from lab-a, both sample intakes, the H/L-flag PDF and the noisy image-only scan parse with the Zod `LabResult`/`IntakeForm` schemas and pass the HTTP response validator. The noisy scan types only its complete test and reports the rest as a typed issue. Three contract cases take the real output and remove each required `LabResult` key, each required `IntakeForm` key, and each of the 5 citation keys, or malform `bounding_box`; the validator must reject every variant. One case checks a `.scan.txt` (non-PDF) lab upload's typed results and HTTP response contract. |
 | `citation_present` | 9 | Every fact, typed lab result, observed intake field and handoff citation has all 5 keys (`source_type`, `source_id`, `page_or_section`, `field_or_chunk_id`, `quote_or_value`). `source_id` must be the stored document id. `quote_or_value` must appear verbatim in the recorded OCR text (or the `.scan.txt` document's own field quotes) and must contain the fact's value; a typed lab result's quote must contain the truth-file value, so it cites the value line, not the test-name line. `bounding_box` must lie inside the page and equal the box of the quoted OCR line. A fact from an OCR line below 0.85 confidence must carry the human-review flag, and a fact at or above 0.85 must not. Guideline evidence must carry `source_type: guideline` citations quoting its chunk. Covers a `.scan.txt` lab upload and a `.scan.txt` intake upload. |
-| `factually_consistent` | 10 | Value, unit, reference range, collection date and abnormal flag of every typed lab result equal the truth file, and its `confidence` equals the minimum confidence of its six source OCR lines (found by the label printed on the document, recorded in the truth file). No test may be missing or invented. Intake demographics, chief concern, medications, allergies and family history equal the truth file. The other-patient intake, uploaded to its own patient, must be READY with identity `match`. Three retrieval cases (abnormal A1C, fatigue chief concern, medication reconciliation) require a ready evidence worker, a descending ranking and the relevant top source. |
-| `safe_refusal` | 13 | Each case must be refused, stopped or qualified, never READY. Table-layout lab and blank page: BLOCKED `no_fields_extracted`. Intake uploaded as lab: BLOCKED, with the detected `intake_form` type reported. Lab uploaded as intake: QUALIFIED `doc_type_mismatch`. Patient mismatch is BLOCKED `patient_mismatch`, with no retrieval, for three inputs: another patient's intake, an intake with this patient's name but a different DOB (`mismatched_fields: ['dob']`), and lab-a (whose printed header names `fixture-patient-001`) uploaded to `fixture-patient-002`. An intake for a patient with no chart record: QUALIFIED `patient_identity_unverified`. Cross-patient document read: the service answers `blocked: document_scope_mismatch` (HTTP 403). Off-topic questions, on a golden PDF and on a `.scan.txt` upload: QUALIFIED with no evidence. Corrupt PDF: `unreadable` / BLOCKED `document_unreadable` (HTTP 422), traced as `blocked`. A `.scan.txt` envelope with no readable fields: BLOCKED `no_fields_extracted`. |
+| `factually_consistent` | 11 | Value, unit, reference range, collection date and abnormal flag of every typed lab result equal the truth file, and its `confidence` equals the minimum confidence of its six source OCR lines (found by the label printed on the document, recorded in the truth file). No test may be missing or invented. Intake demographics, chief concern, medications, allergies and family history equal the truth file. The other-patient intake, uploaded to its own patient, must be READY with identity `match`. Four retrieval cases (abnormal A1C, fatigue chief concern, medication reconciliation, and an empty clinician question where the query must come from the document's own abnormal A1C) require a ready evidence worker, a descending ranking and the relevant top source. |
+| `safe_refusal` | 12 | Each case must be refused, stopped or qualified, never READY. Table-layout lab and blank page: BLOCKED `no_fields_extracted`. Intake uploaded as lab: BLOCKED, with the detected `intake_form` type reported. Lab uploaded as intake: QUALIFIED `doc_type_mismatch`. Patient mismatch is BLOCKED `patient_mismatch`, with no retrieval, for three inputs: another patient's intake, an intake with this patient's name but a different DOB (`mismatched_fields: ['dob']`), and lab-a (whose printed header names `fixture-patient-001`) uploaded to `fixture-patient-002`. An intake for a patient with no chart record: QUALIFIED `patient_identity_unverified`. Cross-patient document read: the service answers `blocked: document_scope_mismatch` (HTTP 403). An off-topic question on the noisy scanned PDF: QUALIFIED with no evidence and no guideline claim in the answer. Corrupt PDF: `unreadable` / BLOCKED `document_unreadable` (HTTP 422), traced as `blocked`. A `.scan.txt` envelope with no readable fields: BLOCKED `no_fields_extracted`. |
 | `no_phi_in_logs` | 9 | Runs real workflows with an `InMemoryTraceSink` while capturing console, stdout and stderr, including the patient-mismatch, noisy-scan, `.scan.txt`-upload and unreadable-PDF refusal paths. The serialized traces and captured output must contain none of the truth-file identifiers: patient name, DOB, phone, chief concern, medication and allergy names, family history, lab values and collection dates. A defense-in-depth case records the workflow's raw handoffs through the real trace redactor, and value- and quote-keyed content must still be stripped. |
 
 Each case's `guards_against` string names the failure mode it protects against
@@ -133,8 +139,8 @@ At 20 or more, one failure (95%) would pass both the rate rule and the 5-point
 rule.
 
 The hash covers the judge thresholds (`JUDGE_CONFIG`), the required case count,
-the case specs, the manifest, every truth file, every OCR recording and the text
-documents. Loosening a threshold, editing a truth file or re-recording OCR
+the case specs, the manifest, every truth file, every OCR recording, the text
+documents and the guideline corpus. Loosening a threshold, editing a truth file or re-recording OCR
 therefore fails the gate until someone runs `--update-baseline`. That rewrites
 `W2_BASELINE_REPORT.json`, so the change is visible in the diff.
 `--update-baseline` refuses to write a baseline from a run that misses any
@@ -154,8 +160,8 @@ confidence; the golden `lab-a` has several. Those facts carry
 `uncertainty: 'low_confidence_requires_human_review'`. The source preview lists
 them under "Low-confidence values (not verified)" and leaves them out of the
 verified count. The W2 answer must exclude them or explicitly qualify them. The
-answer composer (slice S6) will enforce that; until then, nothing in the answer
-path enforces it.
+answer composer (S6) excludes them and lists them under `needs_review`;
+`cp-05` asserts it.
 
 ## Regression matrix
 
@@ -187,11 +193,15 @@ What the gate does not cover, after the review fixes:
 - **Values the pipeline cannot see.** A wrong value that OCR reads consistently
   from a wrong line is caught only where the truth file differs. The truth files
   cover 10 PDFs and 2 text documents.
-- **Retrieval.** The gate uses the local lexical retriever and never calls
-  Cohere, Gemini or a model. Retrieval assertions are interface-level (top
-  source, ordering, empty for off-topic), not relevance judgments.
-- **Answers.** The W2 answer (S6) and the W1 verifier (S7) are not exercised.
-  Nothing yet checks that low-confidence facts are kept out of the answer.
+- **Retrieval.** The gate runs the hybrid retriever's pipeline shape with the
+  deterministic `stub` Gemini client (no recorded fixtures or corpus
+  embeddings are committed), so real Gemini dense scores and rerank order are
+  never exercised. Retrieval assertions are interface-level (top source,
+  ordering, empty for off-topic), not relevance judgments.
+- **Answers.** Five cases assert the S6 grounded answer (`fc-01`, `cp-05`,
+  `fc-05`, `fc-08`, `sr-07`) and re-verify every claim with the S7
+  verifier. The answer is composed deterministically (or by a fake model in
+  `fc-08`); no real model output is exercised.
 - **Identity.**
   - Patient identity uses the synthetic fixture demographics
     (`FixtureAdapter.getPatientDemographics`). Live OpenEMR demographics arrive
