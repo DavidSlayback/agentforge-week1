@@ -58,12 +58,24 @@ export function runExtractionWorker({ sourceDocumentId, documentType, layoutId, 
   return handoffValidation.valid ? handoff : { ...handoff, output_status: 'blocked', steps: [...steps, { name: 'handoff_validation', decision: handoffValidation.issues.join(',') }] };
 }
 
-/** Independently testable retrieval workflow that separates patient facts from guidelines. */
-export function runEvidenceWorker({ query, patientFacts = [], documentFacts = [], retrieve = retrieveGuidelineEvidence, topK = 3 }) {
+/**
+ * Independently testable retrieval workflow that separates patient facts from
+ * guidelines. `retrieve` may be sync or async (e.g. a Cohere embed+rerank
+ * retriever); the result is always awaited so an async retriever's Promise is
+ * never mistaken for evidence. A retriever that throws or rejects is caught
+ * here and turned into a qualified result carrying an error code, never the
+ * raw exception text.
+ */
+export async function runEvidenceWorker({ query, patientFacts = [], documentFacts = [], retrieve = retrieveGuidelineEvidence, topK = 3 }) {
   const steps = [{ name: 'inspect', decision: 'accepted scoped evidence request' }];
   const normalizedQuery = String(query || '').trim();
   steps.push({ name: 'formulate_query', decision: normalizedQuery ? 'query_ready' : 'empty_query' });
-  const guideline = retrieve(normalizedQuery, { topK });
+  let guideline;
+  try {
+    guideline = await retrieve(normalizedQuery, { topK });
+  } catch {
+    guideline = { status: 'qualified', evidence: [], issues: ['guideline_retrieval_failed'] };
+  }
   const evidence = guideline.evidence || [];
   const usable = evidence.filter((item) => item.citation?.source_type === 'guideline' && item.citation.source_id && item.citation.page_or_section && item.citation.quote_or_value);
   steps.push({ name: 'retrieve_and_check', decision: usable.length ? `usable_guideline_hits:${usable.length}` : 'insufficient_grounded_evidence' });
