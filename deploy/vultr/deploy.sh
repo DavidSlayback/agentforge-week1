@@ -60,6 +60,16 @@ git -c core.autocrlf=false archive --format=tar "$sha" $paths | ssh_run "sudo ta
 
 compose="cd $root/deploy/vultr && docker compose --env-file $root/.env"
 
+# The module dir is bind-mounted into OpenEMR, whose startup hardens webroot
+# permissions to 500/400 on the assumption that apache (uid 1000) owns the
+# files. Extracted as root, the module would become unreadable to apache and
+# break both the W1 launcher and the W2 module API, so hand it to apache.
+module_dir=$root/interface/modules/custom_modules/oe-module-agentforge
+fix_module_perms() {
+  ssh_run "sudo chown -R 1000:101 $module_dir && sudo find $module_dir -type d -exec chmod 755 {} + && sudo find $module_dir -type f -exec chmod 644 {} +"
+}
+fix_module_perms
+
 # The Caddyfile is a single-file bind mount, so a changed file is only seen
 # after the proxy is recreated. Do it first, so the new deny rules are live
 # before any module or service change below.
@@ -79,7 +89,12 @@ fi
 if [ "${AGENTFORGE_DEPLOY_RECREATE_OPENEMR:-}" = "1" ]; then
   echo "Recreating openemr for module env changes..."
   ssh_run "$compose up -d --no-deps --wait openemr"
+  fix_module_perms
 fi
+
+# Fail the deploy if apache cannot read the module (W1 launcher + W2 API).
+ssh_run "docker exec -u apache vultr-openemr-1 test -r /var/www/localhost/htdocs/openemr/interface/modules/custom_modules/oe-module-agentforge/public/index.php" \
+  || { echo "FAILED: apache cannot read oe-module-agentforge" >&2; exit 1; }
 
 echo "Rebuilding: $services"
 ssh_run "$compose up -d --build --no-deps $services"
