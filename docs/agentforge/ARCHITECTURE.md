@@ -347,7 +347,7 @@ partial results, stale-cache refresh, prewarm deduplication, and conversation
 history limits remain unchanged. Cache and tracing stay injected collaborators;
 they do not receive new adapters until a second implementation justifies a
 real seam. See `docs/adr/0001-pre-visit-preparation-module.md` and
-`PRE_VISIT_PREPARATION_PLAN.md`.
+`archive/PRE_VISIT_PREPARATION_PLAN.md`.
 
 ### Read-only chart and synthetic writeback seam
 
@@ -364,7 +364,7 @@ callers, but the server composition root no longer presents synthetic write
 methods as part of the chart integration seam. This preserves the current
 route and response contracts while making the synthetic/read-only boundary
 structurally visible. See `docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md`
-and `READ_WRITE_SEAM_PLAN.md`.
+and `archive/READ_WRITE_SEAM_PLAN.md`.
 
 ## Open decisions and measurements
 

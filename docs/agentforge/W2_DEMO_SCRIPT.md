@@ -33,7 +33,7 @@ until the “Completed synthetic PDF samples” heading and sample cards are vis
 ## 0:35–1:55 — Upload a lab PDF and follow the new pipeline
 
 **Action:** Scroll to **Scan form workflow**. Leave **Document schema** set to
-**Lab scan PDF**. Click the **Filled synthetic PDF or text fixture** file
+**Lab scan PDF**. Click the **Filled synthetic PDF or .scan.txt envelope** file
 control. In Downloads, select `agentforge-lab-b-synthetic.pdf` and confirm the
 file selection. Click **Read filled form** once. Wait for the status line below
 that button to say the workflow completed. Keep the line visible.
@@ -76,7 +76,7 @@ quote, page number, and region coordinates.
 
 **Action:** In the source-preview tab, click **← Return to visit workspace** at
 the top of the page. In **Scan form workflow**, open **Document schema** and
-select **Patient intake form**. Click **Filled synthetic PDF or text fixture**.
+select **Patient intake form**. Click **Filled synthetic PDF or .scan.txt envelope**.
 In Downloads, select `agentforge-intake-b-synthetic.pdf` and confirm the file
 selection. Click **Read filled form** once. Wait for the completion status line
 below that button.

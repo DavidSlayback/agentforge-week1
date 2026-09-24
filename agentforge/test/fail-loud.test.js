@@ -11,7 +11,7 @@ import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
 import { createRecordedOcrReplay } from '../src/pdfScanAdapter.js';
 import { AgentForgeService } from '../src/service.js';
-import { runActiveSupervisor, runDeterministicSupervisor } from '../src/supervisor.js';
+import { runActiveSupervisor } from '../src/supervisor.js';
 import { SyntheticWriteback } from '../src/syntheticWriteback.js';
 import { renderScanSourcePreview } from '../src/ui.js';
 
@@ -57,26 +57,23 @@ test('patient identity check matches, mismatches and refuses to guess', () => {
   assert.equal(normalizeDob('4/2/1980'), '1980-04-02');
 });
 
-test('zero extracted facts is BLOCKED no_fields_extracted before retrieval, on both supervisors', () => {
-  const active = runActiveSupervisor({ sourceDocumentId: 'doc-empty', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope('lab_pdf', []), query: 'glycemic follow-up', documentText: '' });
+test('zero extracted facts is BLOCKED no_fields_extracted before retrieval', async () => {
+  const active = await runActiveSupervisor({ sourceDocumentId: 'doc-empty', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope('lab_pdf', []), query: 'glycemic follow-up', documentText: '' });
   assert.equal(active.final_state, 'BLOCKED');
   assert.equal(active.stop_reason, 'no_fields_extracted');
   assert.equal(active.typed_outputs.evidence, null);
-  const text = runDeterministicSupervisor({ intakeResult: { status: 'qualified', facts: [], documents: [] }, evidenceResult: { status: 'ready', patient_facts: [], guideline_evidence: [] } });
-  assert.equal(text.final_state, 'BLOCKED');
-  assert.equal(text.stop_reason, 'no_fields_extracted');
 });
 
-test('a declared type contradicted by the document text is QUALIFIED doc_type_mismatch, never READY', () => {
-  const result = runActiveSupervisor({ sourceDocumentId: 'doc-mismatch', documentType: 'intake_form', layoutId: 'pdf-ocr-intake_form', content: envelope('intake_form', [['patient.name', 'Test Patient One'], ['patient.date_of_birth', '1980-04-12']]), query: 'glycemic follow-up with medication history', documentText: LAB_OCR, targetPatient: { name: 'Test Patient One', dob: '1980-04-12' } });
+test('a declared type contradicted by the document text is QUALIFIED doc_type_mismatch, never READY', async () => {
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-mismatch', documentType: 'intake_form', layoutId: 'pdf-ocr-intake_form', content: envelope('intake_form', [['patient.name', 'Test Patient One'], ['patient.date_of_birth', '1980-04-12']]), query: 'glycemic follow-up with medication history', documentText: LAB_OCR, targetPatient: { name: 'Test Patient One', dob: '1980-04-12' } });
   assert.equal(result.final_state, 'QUALIFIED');
   assert.ok(result.qualification.reasons.includes('doc_type_mismatch'));
   assert.deepEqual(result.safety_checks.document_type, { declared: 'intake_form', detected: 'lab_pdf', status: 'mismatch' });
 });
 
-test('intake demographics that contradict the chart are BLOCKED patient_mismatch', () => {
+test('intake demographics that contradict the chart are BLOCKED patient_mismatch', async () => {
   const content = envelope('intake_form', [['patient.name', 'Test Conflict'], ['patient.date_of_birth', '1968-07-21'], ['chief_concern', 'Headache']]);
-  const result = runActiveSupervisor({ sourceDocumentId: 'doc-other', documentType: 'intake_form', layoutId: 'pdf-ocr-intake_form', content, query: 'medication reconciliation', documentText: INTAKE_OCR, targetPatient: { name: 'Test Patient One', dob: '1980-04-12' } });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-other', documentType: 'intake_form', layoutId: 'pdf-ocr-intake_form', content, query: 'medication reconciliation', documentText: INTAKE_OCR, targetPatient: { name: 'Test Patient One', dob: '1980-04-12' } });
   assert.equal(result.final_state, 'BLOCKED');
   assert.equal(result.stop_reason, 'patient_mismatch');
   assert.deepEqual(result.safety_checks.patient_identity.mismatched_fields, ['name', 'dob']);
@@ -132,7 +129,7 @@ test('source preview never lists a low-confidence field as verified', () => {
   assert.match(html.slice(html.indexOf('Low-confidence values')), /data-field-id="lab\.hgb\.value"/);
 });
 
-test('lab reports are identity-checked on their printed patient header', () => {
+test('lab reports are identity-checked on their printed patient header', async () => {
   const chart = { name: 'Test Patient One', dob: '1980-04-12' };
   assert.deepEqual(readHeaderIdentity('Patient: Test Patient One - DOB: 1980-04-12'), { name: 'Test Patient One', dob: '1980-04-12' });
   assert.deepEqual(readHeaderIdentity('~ Patient: Test Patient One -DOB: 1980-04-12'), { name: 'Test Patient One', dob: '1980-04-12' });
@@ -140,7 +137,7 @@ test('lab reports are identity-checked on their printed patient header', () => {
   assert.deepEqual(readHeaderIdentity('Fictional values. Not a real patient record.'), { name: null, dob: null });
   assert.equal(compareIdentity(readHeaderIdentity('Patient: Test Patient One - DOB: 1980-04-12'), chart).status, 'match');
   assert.deepEqual(compareIdentity(readHeaderIdentity('Patient: Test Conflict - DOB: 1968-07-21'), chart).mismatched_fields, ['name', 'dob']);
-  const lab = runActiveSupervisor({ sourceDocumentId: 'doc-lab', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope('lab_pdf', [['lab.hgb.value', '13.2']]), query: 'glycemic follow-up', documentText: `Patient: Test Conflict DOB: 1968-07-21\n${LAB_OCR}`, targetPatient: chart });
+  const lab = await runActiveSupervisor({ sourceDocumentId: 'doc-lab', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope('lab_pdf', [['lab.hgb.value', '13.2']]), query: 'glycemic follow-up', documentText: `Patient: Test Conflict DOB: 1968-07-21\n${LAB_OCR}`, targetPatient: chart });
   assert.equal(lab.stop_reason, 'patient_mismatch');
   assert.equal(lab.safety_checks.patient_identity.source, 'lab_report_header');
 });

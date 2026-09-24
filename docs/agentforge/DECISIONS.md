@@ -398,7 +398,7 @@ failure-policy evidence.
 - **Safety:** No synthesis or cache write follows failed retrieval validation
   or evidence verification. Qualified partial results and patient/clinician
   scope checks remain unchanged.
-- **Evidence:** `docs/agentforge/PRE_VISIT_PREPARATION_PLAN.md`,
+- **Evidence:** `docs/agentforge/archive/PRE_VISIT_PREPARATION_PLAN.md`,
   `agentforge/test/pre-visit-preparation.test.js`, and the full AgentForge
   suite provide the implementation and behavior evidence.
 
@@ -417,5 +417,5 @@ failure-policy evidence.
   observations, and clinician-confirmed action drafts remain local and
   synthetic; they are never represented as live OpenEMR writeback.
 - **Evidence:** `docs/adr/0002-separate-chart-retrieval-from-synthetic-writeback.md`,
-  `docs/agentforge/READ_WRITE_SEAM_PLAN.md`, and
+  `docs/agentforge/archive/READ_WRITE_SEAM_PLAN.md`, and
   `agentforge/test/architecture-seams.test.js`.

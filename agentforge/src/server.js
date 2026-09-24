@@ -10,7 +10,7 @@ import { SyntheticWriteback } from './syntheticWriteback.js';
 import { createOpenEMRModuleWritebackFromEnv } from './openemrModuleWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
-import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest, validateSupervisorRequest, validateSupervisorResponse } from './contracts.js';
+import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest } from './contracts.js';
 import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
@@ -237,44 +237,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/evals/active-service-results.json') return json(res, 200, readGoldenEvidence());
     if (req.method === 'GET' && req.url === '/evals/w2-baseline.json') return json(res, 200, readW2Baseline());
     if (req.method === 'GET' && req.url === '/evals') { const golden = readGoldenEvidence(); const errorAnalysis = readEvidence('error-analysis.json'); const w2Gate = readW2Baseline(); return html(res, renderEvaluatorPage({ golden, errorAnalysis, w2Gate, basePath: publicBasePath, localReport: Boolean(process.env.AGENTFORGE_EVAL_REPORT_PATH) })); }
-    const labEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/lab-evidence(?:\?(.*))?$/);
-    if (req.method === 'GET' && labEvidenceMatch) {
-      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
-      const query = new URL(req.url, 'http://localhost').searchParams;
-      const patient_uuid = query.get('patient_uuid') || '';
-      const token = tokenPayload(query.get('demo_token') || '');
-      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      try {
-        const result = await service.extractLabEvidence(decodeURIComponent(labEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
-        if (result.status === 'blocked') return json(res, result.reason === 'SOURCE_DOCUMENT_TYPE_MISMATCH' ? 400 : 403, { error: result.reason });
-        if (result.status === 'failed') return json(res, 500, { error: result.reason });
-        const response = { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations };
-        const validation = validateLabEvidenceResponse(response);
-        return validation.valid ? json(res, 200, response) : invalidResponse(res, 'invalid_lab_evidence_response', validation.issues);
-      } catch (error) {
-        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
-        return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
-      }
-    }
-    const intakeEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/intake-evidence(?:\?(.*))?$/);
-    if (req.method === 'GET' && intakeEvidenceMatch) {
-      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
-      const query = new URL(req.url, 'http://localhost').searchParams;
-      const patient_uuid = query.get('patient_uuid') || '';
-      const token = tokenPayload(query.get('demo_token') || '');
-      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      try {
-        const result = await service.extractIntakeEvidence(decodeURIComponent(intakeEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
-        if (result.status === 'blocked') return json(res, result.reason === 'SOURCE_DOCUMENT_TYPE_MISMATCH' ? 400 : 403, { error: result.reason });
-        if (result.status === 'failed') return json(res, 500, { error: result.reason });
-        const response = { synthetic_only: true, source_document: result.source_document, extraction: result.extraction, observations: result.observations };
-        const validation = validateIntakeEvidenceResponse(response);
-        return validation.valid ? json(res, 200, response) : invalidResponse(res, 'invalid_intake_evidence_response', validation.issues);
-      } catch (error) {
-        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
-        return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
-      }
-    }
     const scanFormEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/scan-form-evidence(?:\?(.*))?$/);
     if (req.method === 'GET' && scanFormEvidenceMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -424,21 +386,6 @@ const server = http.createServer(async (req, res) => {
     const match = req.url.match(/^\/v1\/conversations\/([^/]+)\/messages$/);
     if (req.method === 'POST' && match) { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.followUp(match[1], body, { verifiedContext: token }); const responseValidation = validateFollowUpResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_response', responseValidation.issues); }
     if (req.method === 'POST' && req.url === '/v1/follow-up-evidence') { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = await service.retrieveFollowUpEvidence(body, { verifiedContext: token }); if (result.status === 'blocked') return json(res, 403, { error: result.reason }); const responseValidation = validateFollowUpEvidenceResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_evidence_response', responseValidation.issues); }
-    if (req.method === 'POST' && req.url === '/v1/supervisor') {
-      const validation = validateSupervisorRequest(body);
-      if (!validation.valid) return invalidContract(res, 'invalid_supervisor_request', validation.issues);
-      const token = verifiedContextFor(body);
-      if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      let sourceDocumentContext = null;
-      if (body.source_document_ids?.length) {
-        sourceDocumentContext = tokenPayload(body.source_document_context_token);
-        if (!sourceDocumentContext || sourceDocumentContext.scope !== 'write-source-document' || sourceDocumentContext.patient_uuid !== token.patient_uuid || sourceDocumentContext.clinician_uuid !== token.clinician_uuid) return json(res, 403, { error: 'invalid_source_document_context' });
-      }
-      body.clinician_uuid = token.clinician_uuid;
-      const result = await service.runSupervisorWorkflow(body, { verifiedContext: token, sourceDocumentContext });
-      const responseValidation = validateSupervisorResponse(result);
-      return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_supervisor_response', responseValidation.issues);
-    }
     return json(res, 404, { error: 'not_found' });
   } catch (error) {
     // Module errors carry only a code and statuses (no bodies), so they are safe to surface.

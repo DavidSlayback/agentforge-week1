@@ -54,10 +54,14 @@ store uploads, a derived-facts JSON and extracted lab results in OpenEMR through
 default mode the upload store is in-memory (`in-memory-synthetic`) and is
 **not** OpenEMR persistence.
 
-The current Week 2 parser accepts UTF-8 text fixtures with `LAB|` or `INTAKE|`
-records. `lab_pdf` is a schema name: binary PDF parsing, OCR/VLM extraction,
-confidence scoring, and scan handling are not implemented. Only the two scoped
-types, `lab_pdf` and `intake_form`, are planned; there is no third type.
+The Week 2 upload path accepts a PDF or a `.scan.txt` envelope; there is no
+plain-text or `LAB|`/`INTAKE|` upload format. A PDF is rendered and OCR'd
+locally with `pdftoppm` and Tesseract; each extracted field carries the
+OCR confidence that backs it, and a fact from a low-confidence line is
+flagged for human review rather than shown as verified. A `.scan.txt`
+envelope carries the same tagged-field shape the OCR step produces, for
+fixtures and tests that do not need a real PDF. `lab_pdf` and `intake_form`
+are the two scoped document types; there is no third type.
 
 The Week 2 supervisor calls extraction and evidence-retrieval workers. RAG uses
 a deterministic local lexical fallback by default. Optional Cohere Embed and

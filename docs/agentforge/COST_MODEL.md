@@ -94,6 +94,6 @@ CPU, memory, database saturation, queue depth, p95/p99 latency, error rate,
 egress, and telemetry cost.
 
 Source notes: the former AF-17/AF-18 raw evidence was retired with the
-historical queue; see `HISTORICAL_QUEUE_SUMMARY.md` for its interpretation.
+historical queue; see `archive/HISTORICAL_QUEUE_SUMMARY.md` for its interpretation.
 Provider billing is hourly per the [Vultr billing
 documentation](https://docs.vultr.com/support/platform/billing/how-am-i-billed-for-my-servers).

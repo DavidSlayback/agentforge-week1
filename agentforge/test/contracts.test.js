@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { correlationId, validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validateIntakeEvidenceResponse, validateLabEvidenceResponse, validatePrepareRequest, validateSourceDocumentRequest } from '../src/contracts.js';
+import { correlationId, validateBriefingResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateSourceDocumentRequest } from '../src/contracts.js';
 
 test('canonical request contracts reject body authorization and malformed input', () => {
   const legacy = validatePrepareRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', authorization: { status: 'authorized', scope: 'read-briefing' } });
@@ -53,21 +53,23 @@ test('opaque correlation IDs remain stable across stale refreshes', () => {
 });
 
 test('source document contract requires a supported type, filename, and base64 content', () => {
-  assert.equal(validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: 'aGVsbG8=' }).valid, true);
+  assert.equal(validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('%PDF-1.7 synthetic').toString('base64') }).valid, true);
   const invalid = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'diagnosis', filename: 'lab.pdf', content_base64: 'not base64!' });
   assert.equal(invalid.valid, false);
   assert.ok(invalid.issues.includes('document_type_invalid'));
   assert.ok(invalid.issues.includes('content_base64_invalid'));
 });
 
-test('lab evidence contract requires source-linked citation boxes', () => {
-  const valid = validateLabEvidenceResponse({ synthetic_only: true, source_document: { id: 'src-1' }, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field_id: 'lab.hgb', test: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12-16', collection_date: '2026-09-20', abnormal: false, citation: { source_type: 'document', source_id: 'src-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb', quote_or_value: 'Hemoglobin 13.2 g/dL', bounding_box: [10, 20, 100, 40] } }] }, observations: [] });
-  assert.equal(valid.valid, true);
-  assert.equal(validateLabEvidenceResponse({ synthetic_only: true, source_document: {}, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field_id: 'lab.hgb', test: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12-16', collection_date: '2026-09-20', abnormal: false, citation: { source_type: 'document', source_id: 'src-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb', quote_or_value: 'x', bounding_box: [10, 20] } }] }, observations: [] }).valid, false);
-  assert.equal(validateLabEvidenceResponse({ synthetic_only: true, source_document: { id: 'src-1' }, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field_id: 'lab.hgb', test: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12-16', collection_date: '2026-09-20', abnormal: false, citation: { source_type: 'lab_pdf', source_document_id: 'src-1', page: 1, field_id: 'lab.hgb', quote: 'Hemoglobin 13.2 g/dL', bounding_box: [10, 20, 100, 40] } }] }, observations: [] }).valid, false);
+test('source document contract rejects content that is not a PDF or a .scan.txt envelope', () => {
+  const pdf = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('%PDF-1.7 synthetic').toString('base64') });
+  assert.equal(pdf.valid, true);
+  const scanTxt = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.scan.txt', content_base64: Buffer.from('SYNTHETIC_SCAN_FORM|layout=lab-a|page_count=1|document_type=lab_pdf').toString('base64') });
+  assert.equal(scanTxt.valid, true);
+  const legacyText = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('LAB|test=Hemoglobin|value=13.2').toString('base64') });
+  assert.equal(legacyText.valid, false);
+  assert.ok(legacyText.issues.includes('unsupported_upload_format'));
+  const arbitraryText = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.txt', content_base64: Buffer.from('plain text, not an envelope').toString('base64') });
+  assert.equal(arbitraryText.valid, false);
+  assert.ok(arbitraryText.issues.includes('unsupported_upload_format'));
 });
 
-test('intake evidence contract requires source-linked section citations', () => {
-  const valid = validateIntakeEvidenceResponse({ synthetic_only: true, source_document: { id: 'src-1' }, extraction: { status: 'complete', issues: [], facts: [{ source_document_id: 'src-1', field: 'medication.metformin', field_id: 'intake.medications.1', value: '500 mg daily', section: 'Medications', citation: { source_type: 'document', source_id: 'src-1', page_or_section: 'page 1 · Medications', field_or_chunk_id: 'intake.medications.1', quote_or_value: 'Metformin 500 mg daily', bounding_box: [10, 20, 100, 40] } }] }, observations: [] });
-  assert.equal(valid.valid, true);
-});

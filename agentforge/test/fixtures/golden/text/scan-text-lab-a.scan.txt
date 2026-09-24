@@ -1,0 +1,13 @@
+SYNTHETIC_SCAN_FORM|layout=pdf-ocr-lab_pdf|page_count=1|document_type=lab_pdf
+FIELD|field_id=lab.hgb.test_name|label=Hemoglobin test name|value=Hemoglobin|unit=|quote=Hemoglobin test name: Hemoglobin|page=1|box=40,60,520,80|confidence=0.99
+FIELD|field_id=lab.hgb.value|label=Hemoglobin value|value=13.2|unit=|quote=Hemoglobin value: 13.2|page=1|box=40,80,520,100|confidence=0.99
+FIELD|field_id=lab.hgb.unit|label=Hemoglobin unit|value=g/dL|unit=|quote=Hemoglobin unit: g/dL|page=1|box=40,100,520,120|confidence=0.99
+FIELD|field_id=lab.hgb.reference_range|label=Hemoglobin reference range|value=12.0-16.0|unit=|quote=Hemoglobin reference range: 12.0-16.0|page=1|box=40,120,520,140|confidence=0.99
+FIELD|field_id=lab.hgb.collection_date|label=Hemoglobin collection date|value=2026-09-20|unit=|quote=Hemoglobin collection date: 2026-09-20|page=1|box=40,140,520,160|confidence=0.99
+FIELD|field_id=lab.hgb.abnormal|label=Hemoglobin abnormal|value=normal|unit=|quote=Hemoglobin abnormal: normal|page=1|box=40,160,520,180|confidence=0.99
+FIELD|field_id=lab.a1c.test_name|label=A1C test name|value=A1C|unit=|quote=A1C test name: A1C|page=1|box=40,180,520,200|confidence=0.98
+FIELD|field_id=lab.a1c.value|label=A1C value|value=6.1|unit=|quote=A1C value: 6.1|page=1|box=40,200,520,220|confidence=0.98
+FIELD|field_id=lab.a1c.unit|label=A1C unit|value=%|unit=|quote=A1C unit: %|page=1|box=40,220,520,240|confidence=0.98
+FIELD|field_id=lab.a1c.reference_range|label=A1C reference range|value=under 5.7|unit=|quote=A1C reference range: under 5.7|page=1|box=40,240,520,260|confidence=0.98
+FIELD|field_id=lab.a1c.collection_date|label=A1C collection date|value=2026-09-20|unit=|quote=A1C collection date: 2026-09-20|page=1|box=40,260,520,280|confidence=0.98
+FIELD|field_id=lab.a1c.abnormal|label=A1C abnormal|value=abnormal|unit=|quote=A1C abnormal: abnormal|page=1|box=40,280,520,300|confidence=0.98

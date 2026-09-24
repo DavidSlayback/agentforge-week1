@@ -1,5 +1,0 @@
-Synthetic intake note for Test Patient One
-Current medication: Atorvastatin 20 mg nightly
-Allergy: Shellfish
-INTAKE|field=medication.statin|value=Atorvastatin 20 mg nightly|section=Medications|page=1|field_id=intake.medication.1|quote=Current medication: Atorvastatin 20 mg nightly|bounding_box=40,100,500,130
-INTAKE|field=allergy.food|value=Shellfish|section=Allergies|page=1|field_id=intake.allergy.1|quote=Allergy: Shellfish|bounding_box=40,140,500,170

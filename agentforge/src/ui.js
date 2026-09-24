@@ -75,7 +75,7 @@ button:disabled{opacity:.6;cursor:wait}
 <div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="hint">Read-only · clinician review required</span></div></header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
-<form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Scan form workflow</h2><span class="hint">Synthetic local storage · OCR runs on this server</span></div><label>Document schema<select name="document_type"><option value="lab_pdf">Lab scan PDF</option><option value="intake_form">Patient intake form</option></select></label><label>Filled synthetic PDF or text fixture<input type="file" name="source_file" accept=".pdf,application/pdf,.txt,text/plain" required></label><p class="hint">Upload a synthetic filled lab PDF or intake form. Local OCR returns cited page regions and worker handoffs; unclear values require review.</p><button type="submit">Read filled form</button><p id="source-status" class="status" role="status"></p></form>
+<form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Scan form workflow</h2><span class="hint">Synthetic local storage · OCR runs on this server</span></div><label>Document schema<select name="document_type"><option value="lab_pdf">Lab scan PDF</option><option value="intake_form">Patient intake form</option></select></label><label>Filled synthetic PDF or .scan.txt envelope<input type="file" name="source_file" accept=".pdf,application/pdf,.scan.txt" required></label><p class="hint">Upload a synthetic filled lab PDF or a .scan.txt envelope. Local OCR (for a PDF) returns cited page regions and worker handoffs; unclear values require review.</p><button type="submit">Read filled form</button><p id="source-status" class="status" role="status"></p></form>
 <section id="synthetic-samples" aria-labelledby="synthetic-samples-heading"${liveOpenEMR ? ' hidden' : ''}><h3 id="synthetic-samples-heading">Completed synthetic PDF samples</h3><p class="hint">Fictional patient details. Run a sample here or download it to upload later. Each type has a vector and rasterized layout.</p><div class="source-links"><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=lab-a" download>Lab result · Layout A<span>Vector PDF · complete results</span></a><button type="button" class="secondary" data-run-pdf-sample="lab-a" data-document-type="lab_pdf">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=lab-b" download>Lab result · Layout B<span>Rasterized PDF · alternate labels and values</span></a><button type="button" class="secondary" data-run-pdf-sample="lab-b" data-document-type="lab_pdf">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=intake-a" download>Patient intake · Layout A<span>Vector PDF · demographics and history</span></a><button type="button" class="secondary" data-run-pdf-sample="intake-a" data-document-type="intake_form">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=intake-b" download>Patient intake · Layout B<span>Rasterized PDF · alternate labels and values</span></a><button type="button" class="secondary" data-run-pdf-sample="intake-b" data-document-type="intake_form">Run this sample</button></div></div></section>
 <button id="scan-sample" class="secondary" type="button"${liveOpenEMR ? ' hidden' : ''}>Run sample text-fixture workflow</button>
 <section id="official-sources" aria-labelledby="official-sources-heading"><h2 id="official-sources-heading">Public blank PDF references</h2><p class="hint">Agency forms are included as layout references only; these source PDFs are not modified or processed here.</p><div class="source-links"><a href="https://www.fda.gov/media/76299/download" target="_blank" rel="noopener noreferrer">FDA MedWatch Form 3500<span>Official health professional adverse event report · PDF</span></a><a href="https://www.cdc.gov/laboratory/specimen-submission/pdf/form-50-34.pdf" target="_blank" rel="noopener noreferrer">CDC Form 50.34<span>Official legacy specimen submission form · scheduled for retirement October 30, 2026</span></a></div><p class="hint">Source: FDA and CDC. Government agency attribution; AgentForge is not endorsed by either agency. For extraction, use the synthetic completed PDFs above.</p></section>
@@ -249,59 +249,47 @@ button:disabled{opacity:.6;cursor:wait}
       }
       const content = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
       const result = await request('/v1/source-documents', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, document_type: sourceDocumentForm.elements.document_type.value, filename: file.name, content_base64: content });
-      const isScanFixture = file.name.endsWith('.scan.txt') || file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-      let workflowSummary;
-      let guidelineEvidence = [];
-      if (isScanFixture) {
-        // The write-scoped context lets the server persist derived facts to
-        // OpenEMR; a read token extracts but is refused persistence.
-        const documentType = sourceDocumentForm.elements.document_type.value;
-        const retrievalQuery = documentType === 'lab_pdf' ? 'documented glycemic values medication adherence' : 'medication reconciliation current documented list prior records';
-        const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: retrievalQuery });
-        const active = workflow.workflow;
-        workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
-        guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
-        setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
-      } else {
-        const workflow = await request('/v1/supervisor', authorizedRequest({ patient_uuid: patient, message: 'Review the synthetic uploaded evidence and identify relevant documented facts.', source_document_ids: [result.source_document.id], source_document_context_token: writeContext.demo_token }));
-        const documentResults = workflow.typed_outputs.intake.documents || [];
-        const factCount = workflow.typed_outputs.intake.facts?.length || 0;
-        const evidenceCount = workflow.typed_outputs.evidence?.guideline_evidence?.length || 0;
-        workflowSummary = documentResults.length + ' document worker result(s), ' + factCount + ' extracted fact(s), ' + evidenceCount + ' guideline source(s).';
-        setStatus('Supervisor completed the synthetic document and evidence workers.');
-      }
+      // Every accepted upload (PDF or .scan.txt) runs the scan supervisor;
+      // there is no other extraction path.
+      // The write-scoped context lets the server persist derived facts to
+      // OpenEMR; a read token extracts but is refused persistence.
+      const documentType = sourceDocumentForm.elements.document_type.value;
+      const retrievalQuery = documentType === 'lab_pdf' ? 'documented glycemic values medication adherence' : 'medication reconciliation current documented list prior records';
+      const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: retrievalQuery });
+      const active = workflow.workflow;
+      const workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
+      const guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
+      setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
       sourceStatus.textContent = (result.duplicate ? 'Existing synthetic source reused; ' : 'Synthetic source stored; ') + workflowSummary;
       const preview = document.createElement('a');
       preview.href = basePath + '/v1/source-documents/' + encodeURIComponent(result.source_document.id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken);
       preview.textContent = 'Open source preview';
       preview.target = '_blank';
       sourceStatus.append(document.createTextNode(' '), preview);
-      if (isScanFixture) {
-        const evidencePanel = document.createElement('details');
-        const evidenceHeading = document.createElement('summary');
-        evidenceHeading.textContent = 'Guideline evidence (' + guidelineEvidence.length + ')';
-        evidencePanel.append(evidenceHeading);
-        if (guidelineEvidence.length) {
-          for (const item of guidelineEvidence) {
-            const card = document.createElement('article');
-            const title = document.createElement('strong');
-            title.textContent = item.title + ' · ' + item.version;
-            const section = document.createElement('p');
-            section.textContent = item.section;
-            const quote = document.createElement('blockquote');
-            quote.textContent = item.citation.quote_or_value;
-            const location = document.createElement('small');
-            location.textContent = 'Source: ' + item.citation.page_or_section;
-            card.append(title, section, quote, location);
-            evidencePanel.append(card);
-          }
-        } else {
-          const empty = document.createElement('p');
-          empty.textContent = 'No guideline source met the retrieval threshold; the workflow stays qualified.';
-          evidencePanel.append(empty);
+      const evidencePanel = document.createElement('details');
+      const evidenceHeading = document.createElement('summary');
+      evidenceHeading.textContent = 'Guideline evidence (' + guidelineEvidence.length + ')';
+      evidencePanel.append(evidenceHeading);
+      if (guidelineEvidence.length) {
+        for (const item of guidelineEvidence) {
+          const card = document.createElement('article');
+          const title = document.createElement('strong');
+          title.textContent = item.title + ' · ' + item.version;
+          const section = document.createElement('p');
+          section.textContent = item.section;
+          const quote = document.createElement('blockquote');
+          quote.textContent = item.citation.quote_or_value;
+          const location = document.createElement('small');
+          location.textContent = 'Source: ' + item.citation.page_or_section;
+          card.append(title, section, quote, location);
+          evidencePanel.append(card);
         }
-        sourceStatus.append(document.createTextNode(' '), evidencePanel);
+      } else {
+        const empty = document.createElement('p');
+        empty.textContent = 'No guideline source met the retrieval threshold; the workflow stays qualified.';
+        evidencePanel.append(empty);
       }
+      sourceStatus.append(document.createTextNode(' '), evidencePanel);
       sourceDocumentForm.reset();
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
     finally { setBusy(false); }

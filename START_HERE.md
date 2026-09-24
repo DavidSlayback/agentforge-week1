@@ -1,9 +1,12 @@
-# AgentForge Week 1
+# AgentForge: Clinical Co-Pilot for OpenEMR
 
-Fresh private Clinical Co-Pilot effort based on the supplied Gauntlet OpenEMR source.
+**AgentForge** is an embedded document-analysis and retrieval layer for OpenEMR. Week 1 deployed a read-only chart-preparation briefing; Week 2 adds synthetic document analysis with hybrid retrieval and grounded answers.
 
-Start with [planning decisions and open questions](docs/agentforge/PLANNING.md) and the [requirements inventory](docs/agentforge/REQUIREMENTS.md).
+## Key Resources
 
-This repository is in planning. This fresh effort has not run or deployed OpenEMR, completed the required audit, or implemented the AI layer. Recommendations are not settled design decisions.
+- **Plan and progress:** [`docs/agentforge/PLAN.md`](docs/agentforge/PLAN.md)
+- **W2 architecture:** [`docs/agentforge/W2_ARCHITECTURE.md`](docs/agentforge/W2_ARCHITECTURE.md)
+- **Evaluation gate:** [`EVAL_GATE.md`](EVAL_GATE.md)
+- **W1 is frozen** at commit `84f232b` and no longer updated.
 
-The original OpenEMR README and license remain intact. Upstream baseline: `ef3d4909fadab9b3280452d08a1aa746e3fa7502` from https://github.com/Gauntlet-HQ/openemr-base-clean.
+**Original OpenEMR:** https://github.com/Gauntlet-HQ/openemr-base-clean

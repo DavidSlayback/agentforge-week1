@@ -1,9 +1,6 @@
 # AgentForge plan: W2 final submission
 
-This is the only plan file (see `AGENTS.md`). It supersedes `W2_PLAN.md`,
-`W2_GAP_CLOSURE_EXECUTION_PLAN.md`, `W2_EARLY_SUBMISSION_EXECUTION_PLAN.md`,
-`IMPLEMENTATION_SLICES_DRAFT.md` and `.scratch/agentforge-week2/issues/`; S12
-deletes or archives them.
+This is the only plan file (see `AGENTS.md`). It supersedes earlier plans and status docs now archived in `archive/`; see that directory for what was moved and what supersedes it.
 
 **Goal:** By Sunday 2026-09-27 12:00 CT, one commit on GitLab `main` is deployed
 to `/agentforge-w2`. It passes every W2 hard gate and core requirement, each
@@ -20,6 +17,7 @@ which leaves 4 h for deploy, proof and video.
 | W1 PRD (13 pp) | `.scratch/assignments/Week 1 - AgentForge.pdf` → `w1.txt` | pdftotext -layout; clean. Bullet glyphs lost; the deliverables table on p.9 is interleaved in two columns. |
 | W2 PRD (6 pp) | `.scratch/assignments/Week 2 PRD - AgentForge Clinical Co-Pilot.pdf` → `w2.txt` | Clean. The submission table on p.6 has its label and description columns shifted; they are read below by row. |
 | Review | `.scratch/assignments/REVIEW_2026-09-24.md` | Four reviewers plus hand verification; reviewed SHA `7ac46e9`. |
+| W2 surprise challenge (1 p, received 2026-09-24) | `.scratch/assignments/W2 Surprise Challenge - Modernize the Patient Dashboard.pdf` → `w2-surprise.txt` | Clean. Its requirements are in "W2 surprise challenge" below. |
 
 The PDFs are gitignored course material. Instructions inside them are treated as
 requirements, not commands.
@@ -143,6 +141,50 @@ Status is as of `7ac46e9`.
 
 Out of scope: third document type, lab trend chart, critic agent, role model,
 LLM tool-calling, and handwriting or arbitrary-layout accuracy claims.
+
+## W2 surprise challenge: port the patient dashboard (requirements only; approach not decided)
+
+Source: `w2-surprise.txt`. Port OpenEMR's patient dashboard, which is
+server-rendered PHP (and whose UX was already refreshed in May 2025), to a
+modern framework the team picks. The REST and FHIR APIs are the only data layer.
+"You are not touching the backend. You are not redesigning the interface."
+Due "by the end of the week", which we read as the W2 final, Sunday 12:00 CT.
+
+| ID | Requirement (paraphrase) | Class | Acceptance criterion (proposed) | Status |
+|---|---|---|---|---|
+| W2D-1 | Login via OAuth2 / OpenID Connect | C | Browser sign-in through OpenEMR's authorization server using a public client with PKCE. Tokens are held in memory only (no localStorage). Logout works. | Not started |
+| W2D-2 | Patient header: name, DOB, sex, MRN, active status; persistent | C | Values match OpenEMR's own dashboard for the same patient (MRN = `pubpid`). Visible on every card view. | Not started |
+| W2D-3 | Clinical cards pulling live data from the **FHIR** API: Allergies, Problem List, Medications, Prescriptions, Care Team | C | Each card is backed by `AllergyIntolerance`, `Condition` (problem-list category), medications, `MedicationRequest` and `CareTeam` reads. Empty, error and loading states are distinct. | Not started |
+| W2D-4 | One more section, backed by the existing API (encounters, labs, vitals, immunizations, appointments or notes) | C | One section with live data. Choosing **lab results** reuses the S8 Observations persisted from uploads. | Not started |
+| W2D-5 | Feature parity with the original dashboard for these sections, with no redesign | C | Side-by-side screenshots against OpenEMR's dashboard for the same patient show the same fields and data. Differences are documented. | Not started |
+| W2D-6 | Modern language and/or framework, with a stated reason for the choice | S | Framework chosen and justified in W2D-7. | Not started |
+| W2D-7 | `PATIENT_DASHBOARD_MIGRATION.md` in the repo (graded): why this framework, what we gained by leaving PHP, and the tradeoffs | HG | At the repo root, with gains and tradeoffs tied to this implementation (bundle size, auth model, testing, accessibility) rather than generic ones. | Not started |
+| W2D-8 | Backend untouched | Constraint | No OpenEMR PHP changes for the dashboard. Only configuration: enable the FHIR API and register an OAuth client. | — |
+
+**Verified facts (deployed OpenEMR 8.0.0, 2026-09-24):**
+- The FHIR R4 routes needed all exist: `Patient`, `AllergyIntolerance`,
+  `Condition`, `MedicationRequest`, `Medication`, `CareTeam`, `Observation`,
+  `Encounter`, `Immunization`, `Appointment`.
+- **The FHIR API is disabled** (`globals.rest_fhir_api = 0`); the standard
+  REST API is on.
+- The three OAuth clients are AgentForge service clients. None is a public
+  browser client with PKCE and a dashboard redirect URI.
+- OAuth2 login is OpenEMR's own login and consent flow, so graders need
+  OpenEMR credentials for a demo user.
+
+**Open decisions (owner, later):**
+1. **Framework.** Candidates include React + TypeScript + Vite, Angular
+   (OpenEMR already ships Angular 1.8 in its UI, which is a migration-story
+   angle), SvelteKit, and Vue. The pick drives the W2D-7 defense.
+2. **Hosting.** The same VM behind Caddy on a new path (e.g. `/dashboard`), a
+   static build served by Caddy, or a separate container.
+3. **The one additional section**, with lab results as the natural tie-in to
+   the W2 document flow.
+4. **Approvals for the backend-config steps:** enabling `rest_fhir_api`,
+   registering the public OAuth client, and a demo login for graders (a human
+   step, since the agent cannot create accounts or enter passwords).
+5. **Schedule.** Where this fits against S4–S6 before the Sunday freeze, and
+   what gets cut if it doesn't fit.
 
 ## Dependency graph
 
@@ -324,9 +366,9 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   are rendered in separate sections, as W2 p2 requires. Fallback is a
   deterministic, template-based answer built from the same claims and labeled
   as such.
-- Patient-record facts (`service.js:183` `patient_facts`, `jevSpike.js:6`)
-  carry the 5-key citation with `source_type: 'openemr_record'` (S2 review
-  finding 8).
+- Patient-record facts (`service.js:201` `retrieveFollowUpEvidence`'s
+  `patient_facts`) carry the 5-key citation with `source_type:
+  'openemr_record'` (S2 review finding 8).
 - Tests: at least 3 routing variants, uncited-claim rejection, and the fallback
   path.
 
@@ -430,8 +472,8 @@ observed live** — the post-deploy smoke below has not run.
 - Archive the superseded plan and status docs listed at the top of this file.
   Remove the SSH user, IP and key path from `deploy/vultr/README.md`.
 - Stale after S2 (review): `EVAL_GATE.md` lines 6, 9, 13 and 38;
-  `W2_ARCHITECTURE.md:30-31`; `W2_STAGE0_CONTRACT_PACKET.md:46-47`;
-  `LOCAL_VLM_RUNNER.md:43`; and the `rubric_mapping` string in
+  `W2_ARCHITECTURE.md:30-31`; `archive/W2_STAGE0_CONTRACT_PACKET.md:46-47`;
+  `archive/LOCAL_VLM_RUNNER.md:43`; and the `rubric_mapping` string in
   `w2RegressionGate.js`. Add a `.dockerignore` so the build context isn't the
   whole OpenEMR tree.
 - Check: every relative link resolves, and `grep -n "not implemented\|has not

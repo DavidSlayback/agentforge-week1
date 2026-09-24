@@ -1,0 +1,17 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "scan-text-intake-a",
+  "written_from": "agentforge/test/fixtures/golden/text/scan-text-intake-a.scan.txt (a hand-authored .scan.txt envelope, the accepted non-PDF upload format after R2)",
+  "document_kind": "intake_form",
+  "patient_ref": "fixture-patient-001",
+  "header": { "patient_name": "Test Patient One", "dob": "1980-04-12" },
+  "intake_form": {
+    "name": "Test Patient One",
+    "dob": "1980-04-12",
+    "phone": "555-0100",
+    "chief_concern": "Fatigue for two weeks",
+    "current_medications": ["Metformin 500 mg daily"],
+    "allergies": ["Penicillin"],
+    "family_history": ["Mother has type 2 diabetes"]
+  }
+}
