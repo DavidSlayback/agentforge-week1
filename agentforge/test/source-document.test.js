@@ -221,8 +221,8 @@ test('the retired legacy lab-evidence, intake-evidence and supervisor routes now
   try {
     const patient = 'fixture-patient-001';
     const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
-    const content = 'LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40';
-    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'synthetic-lab.pdf', content_base64: Buffer.from(content).toString('base64') }) }).then((response) => response.json());
+    const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
+    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'synthetic-lab.scan.txt', content_base64: content.toString('base64') }) }).then((response) => response.json());
     assert.ok(upload.source_document?.id);
 
     // These two URLs now fall through to the generic
@@ -334,7 +334,7 @@ test('source document API rejects malformed input and live-mode writeback', asyn
   const failureChild = await startServer(failurePort, { AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE: 'true' });
   try {
     const writeContext = await fetch(`http://127.0.0.1:${failurePort}/v1/source-document-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
-    const response = await fetch(`http://127.0.0.1:${failurePort}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: 'aGVsbG8=' }) });
+    const response = await fetch(`http://127.0.0.1:${failurePort}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('%PDF-1.7 synthetic').toString('base64') }) });
     assert.equal(response.status, 500);
     assert.equal((await response.json()).error, 'SOURCE_DOCUMENT_PERSISTENCE_FAILED');
   } finally {

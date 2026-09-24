@@ -219,6 +219,11 @@ export function validateSourceDocumentRequest(value) {
     try {
       const content = Buffer.from(value.content_base64, 'base64');
       if (!content.length || content.toString('base64').replace(/=+$/, '') !== value.content_base64.replace(/=+$/, '')) issues.push('content_base64_invalid');
+      // Only a PDF or a `.scan.txt` envelope is an accepted upload format
+      // (R2, issue #4: the legacy plain-text/LAB|/INTAKE| format is retired).
+      // Checked on the decoded bytes, not the filename, so a mislabeled
+      // upload cannot slip past this boundary.
+      else if (!content.subarray(0, 5).equals(Buffer.from('%PDF-')) && !content.subarray(0, 20).toString('utf8').startsWith('SYNTHETIC_SCAN_FORM|')) issues.push('unsupported_upload_format');
     } catch {
       issues.push('content_base64_invalid');
     }

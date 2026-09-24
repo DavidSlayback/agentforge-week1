@@ -103,9 +103,14 @@ test('openemr-module persistence: upload stores the source in OpenEMR, extractio
     assert.equal(blocked.upload.status, 403);
     assert.equal(blocked.uploaded.error, 'OPENEMR_DEMO_PATIENT_NOT_ALLOWED');
 
+    // PNG bytes are rejected at the contract boundary (neither a PDF nor a
+    // .scan.txt envelope) before the request ever reaches the OpenEMR module
+    // writeback's own type check.
     const binary = await post(base, '/v1/source-documents', { patient_uuid: 'fixture-patient-001', clinician_uuid: ctx.clinician, demo_token: ctx.write, document_type: 'lab_pdf', filename: 'lab.png', content_base64: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1]).toString('base64') });
     assert.equal(binary.status, 400);
-    assert.equal((await binary.json()).error, 'SOURCE_DOCUMENT_TYPE_UNSUPPORTED_FOR_OPENEMR');
+    const binaryBody = await binary.json();
+    assert.equal(binaryBody.error, 'invalid_source_document_request');
+    assert.ok(binaryBody.issues.includes('unsupported_upload_format'));
   } finally {
     child.kill();
     await fake.close();

@@ -53,10 +53,23 @@ test('opaque correlation IDs remain stable across stale refreshes', () => {
 });
 
 test('source document contract requires a supported type, filename, and base64 content', () => {
-  assert.equal(validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: 'aGVsbG8=' }).valid, true);
+  assert.equal(validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('%PDF-1.7 synthetic').toString('base64') }).valid, true);
   const invalid = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'diagnosis', filename: 'lab.pdf', content_base64: 'not base64!' });
   assert.equal(invalid.valid, false);
   assert.ok(invalid.issues.includes('document_type_invalid'));
   assert.ok(invalid.issues.includes('content_base64_invalid'));
+});
+
+test('source document contract rejects content that is not a PDF or a .scan.txt envelope', () => {
+  const pdf = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('%PDF-1.7 synthetic').toString('base64') });
+  assert.equal(pdf.valid, true);
+  const scanTxt = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.scan.txt', content_base64: Buffer.from('SYNTHETIC_SCAN_FORM|layout=lab-a|page_count=1|document_type=lab_pdf').toString('base64') });
+  assert.equal(scanTxt.valid, true);
+  const legacyText = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('LAB|test=Hemoglobin|value=13.2').toString('base64') });
+  assert.equal(legacyText.valid, false);
+  assert.ok(legacyText.issues.includes('unsupported_upload_format'));
+  const arbitraryText = validateSourceDocumentRequest({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: 'signed.context', document_type: 'lab_pdf', filename: 'lab.txt', content_base64: Buffer.from('plain text, not an envelope').toString('base64') });
+  assert.equal(arbitraryText.valid, false);
+  assert.ok(arbitraryText.issues.includes('unsupported_upload_format'));
 });
 
