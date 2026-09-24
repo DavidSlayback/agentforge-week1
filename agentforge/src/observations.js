@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 
+/** Persist extracted synthetic facts as deduplicated, cited observation records. */
 export class SyntheticObservationStore {
   constructor() {
     this.records = new Map();

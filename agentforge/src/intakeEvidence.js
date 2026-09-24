@@ -1,9 +1,6 @@
-const ALLOWED_FIELDS = new Set(['demographics', 'chief_concern', 'medication', 'allergy', 'family_history']);
+import { parseBoundingBox, parseSourceFields } from './sourceEvidenceParsing.js';
 
-function parseBoundingBox(value) {
-  const parts = String(value || '').split(',').map(Number);
-  return parts.length === 4 && parts.every((part) => Number.isFinite(part) && part >= 0) ? parts : null;
-}
+const ALLOWED_FIELDS = new Set(['demographics', 'chief_concern', 'medication', 'allergy', 'family_history']);
 
 /** Parse the bounded synthetic intake-form representation used by local tests. */
 export function extractIntakeEvidence({ sourceDocumentId, content }) {
@@ -14,10 +11,7 @@ export function extractIntakeEvidence({ sourceDocumentId, content }) {
   const facts = [];
   const issues = [];
   for (const { line, lineNumber } of candidates) {
-    const values = Object.fromEntries(line.slice(7).split('|').map((part) => {
-      const separator = part.indexOf('=');
-      return separator < 0 ? [part, ''] : [part.slice(0, separator), part.slice(separator + 1)];
-    }));
+    const values = parseSourceFields(line, 'INTAKE|');
     const missing = ['field', 'value', 'section', 'page', 'field_id', 'quote', 'bounding_box'].filter((field) => !String(values[field] || '').trim());
     const root = String(values.field || '').split('.')[0];
     const page = Number(values.page);

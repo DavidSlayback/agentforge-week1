@@ -8,6 +8,7 @@ import { executeSupervisorWorkflow, runActiveSupervisor } from './supervisor.js'
 import { extractScanForm } from './scanFormAdapter.js';
 import { extractPdfScanFixture } from './pdfScanAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
+import { recordBelongsToPatient } from './recordScope.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
@@ -269,10 +270,6 @@ function recordIsCovered(record, coverage) {
   const group = coverageGroupForField(record.field);
   const status = coverage.find((item) => item.group === group);
   return Boolean(status && status.status === 'success' && status.records > 0);
-}
-
-function recordBelongsToPatient(record, patientRef) {
-  return !record?.patient_ref || String(record.patient_ref) === String(patientRef);
 }
 
 export function defaultFixturePath() { return fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url)); }

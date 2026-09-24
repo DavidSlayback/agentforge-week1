@@ -20,6 +20,7 @@ function normalizeContent(value) {
   return Buffer.from(value);
 }
 
+/** Validate patient scope, supported type, filename, size, and uploader before persistence. */
 export function validateSourceDocumentInput({ patientRef, documentType, filename, content, uploadedBy }) {
   requireString(patientRef, 'SOURCE_DOCUMENT_PATIENT_REQUIRED');
   if (!SOURCE_DOCUMENT_TYPES.has(documentType)) throw new Error('SOURCE_DOCUMENT_TYPE_INVALID');
