@@ -309,7 +309,9 @@ test('synthetic scan-form evidence API and source preview preserve page-region c
     const workflowBody = await workflow.json();
     assert.equal(workflowBody.workflow.handoffs[0].worker, 'scan-form-extraction-worker');
     assert.equal(workflowBody.workflow.handoffs[1].worker, 'evidence-retrieval-worker');
-    assert.equal(workflowBody.workflow.final_state, 'READY');
+    // The untypeable flat fixture ids make the extraction `qualified`, so the workflow is QUALIFIED, not READY.
+    assert.equal(workflowBody.workflow.final_state, 'QUALIFIED');
+    assert.ok(workflowBody.workflow.qualification.reasons.includes('extraction_incomplete'));
   } finally {
     child.kill();
   }

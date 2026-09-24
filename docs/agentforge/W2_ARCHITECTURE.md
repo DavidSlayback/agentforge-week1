@@ -28,20 +28,26 @@ requires explicit clinician confirmation and remains synthetic-only.
 ## Evidence and retrieval
 
 Observed fields carry a `w2-scan-v1` citation with source document, page, field,
-quote, layout, and bounding box. Missing, unreadable, low-confidence, and
-conflicting values are represented as qualification metadata and are not
-promoted to facts. Guideline evidence is returned separately from patient
+quote, layout, and bounding box. Missing, unreadable, and conflicting values are
+represented as qualification metadata and are not promoted to facts;
+low-confidence values stay facts but carry an `uncertainty` marker and are
+listed for review. Guideline evidence is returned separately from patient
 facts. The local retrieval choice is the existing deterministic sparse plus
 dense-proxy index because the fixed synthetic benchmark is replayable, cited,
 and zero-cost; `dense_score` is not a true embedding score.
 
 ## Evaluation and observability
 
-The 50-case gate retains its seven behavioral labels and now emits an explicit
-mapping to `schema_valid`, `citation_present`, `factually_consistent`,
-`safe_refusal`, and `no_phi_in_logs`. Worker handoffs expose step decisions and
-redacted metrics only. Source preview shows page/region citation metadata in a
-reviewable HTML table.
+The 50-case gate runs the deployed scan path on 10 golden PDFs, replaying OCR
+recorded from the real Tesseract image, and asserts `schema_valid`,
+`citation_present`, `factually_consistent`, `safe_refusal`, and
+`no_phi_in_logs` (10 cases each) against hand-written truth files; see the root
+`EVAL_GATE.md`. Zero extracted fields or an intake form whose demographics
+contradict the chart is BLOCKED. A declared type contradicted by the document's
+text, an unverified intake identity, or an incomplete extraction is QUALIFIED
+(`documentSafety.js`). Traces record allowlisted handoff summaries
+(`traceSafeHandoff`), not extraction payloads. Source preview lists
+low-confidence values in a separate "not verified" section.
 
 ## Boundaries and residuals
 

@@ -5,6 +5,7 @@ import { extractLabEvidence } from './labEvidence.js';
 import { extractIntakeEvidence } from './intakeEvidence.js';
 import { retrieveGuidelineEvidence } from './guidelineEvidence.js';
 import { executeSupervisorWorkflow, runActiveSupervisor } from './supervisor.js';
+import { traceSafeHandoff } from './activeWorkers.js';
 import { extractScanForm } from './scanFormAdapter.js';
 import { extractPdfScanFixture } from './pdfScanAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
@@ -12,8 +13,12 @@ import { recordBelongsToPatient } from './recordScope.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, scanProvider = null, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
     this.adapter = chartAdapter;
+    // null keeps the pdfScanAdapter default (real pdftoppm + Tesseract).
+    this.ocrEngine = ocrEngine;
+    // PatientDemographicsSource: any object with getPatientDemographics(patientRef) → {name, dob} | null.
+    this.patientDemographics = patientDemographics;
     this.chartAdapter = chartAdapter;
     this.writeback = writeback;
     this.guidelineRetriever = guidelineRetriever || { name: 'local-lexical-proxy', retrieve: (query, options) => retrieveGuidelineEvidence(query, options) };
@@ -125,7 +130,13 @@ export class AgentForgeService {
   }
 
   async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    let source;
+    try {
+      source = this.readSourceDocument(id, request, { verifiedContext });
+    } catch (error) {
+      if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return { status: 'blocked', reason: 'document_scope_mismatch' };
+      throw error;
+    }
     if (source.status !== 'read') return source;
     const trace = this.traceSink?.start?.({ correlationId: `w2-scan-${randomUUID()}`, operation: 'w2-scan-supervisor', interactionType: 'scan_form', scope: { patientRef: request.patient_uuid } });
     try {
@@ -143,9 +154,10 @@ export class AgentForgeService {
       const contentText = content.toString('utf8');
       const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
       const pageCountMatch = contentText.match(/page_count=(\d+)/);
-      const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace });
+      const targetPatient = await this.patientDemographics?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
+      const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace, documentText: pdf ? prepared.ocrText : contentText, targetPatient });
       if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
-      for (const handoff of workflow.handoffs || []) trace?.recordHandoff(handoff);
+      for (const handoff of workflow.handoffs || []) trace?.recordHandoff(traceSafeHandoff(handoff));
       trace?.setEvaluation({ status: 'not_run', reason: 'the golden-set gate runs separately from an individual document workflow' });
       trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
       return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
@@ -161,7 +173,7 @@ export class AgentForgeService {
     if (cached) return cached;
     const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
     const prepared = Promise.resolve().then(async () => pdf
-      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider })), pdf: true }
+      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
       : { content: source.content, pageCount: 1, pdf: false });
     if (this.scanPreparations.size >= 50) this.scanPreparations.delete(this.scanPreparations.keys().next().value);
     this.scanPreparations.set(id, prepared);

@@ -44,6 +44,7 @@ test('PDF lab schema captures name, value, unit, range, date, and abnormal statu
   assert.equal(extraction.lab_results.length, 2);
   assert.deepEqual(extraction.lab_results.map((result) => result.test_name).sort(), ['A1C', 'Hemoglobin']);
   assert.equal(extraction.lab_results.find((result) => result.test_name === 'Hemoglobin').abnormal_flag, 'normal');
+  assert.deepEqual(extraction.lab_results.map((result) => result.unit).sort(), ['%', 'g/dL']);
   assert.equal(extraction.typed_issues.length, 0);
 });
 

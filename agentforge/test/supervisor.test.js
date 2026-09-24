@@ -5,7 +5,7 @@ import { executeSupervisorWorkflow, runDeterministicSupervisor, SUPERVISOR_STATE
 const evidence = (overrides = {}) => ({ status: 'ready', patient_facts: [{ source_type: 'patient_record', patient_ref: 'fixture-patient-001', source_id: 'problem-1', field: 'problem.diabetes.status', value: 'active' }], guideline_evidence: [{ title: 'Synthetic guideline', version: '2026.1', section: 'Review', snippet: 'Review documented evidence.', sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: ['review'], citation: { source_type: 'guideline', source_id: 'guideline-1', page_or_section: 'Review', field_or_chunk_id: 'guideline-1', quote_or_value: 'Review documented evidence.' } }], retrieval: { guideline_status: 'complete', guideline_issues: [], failed_patient_groups: [] }, qualification: { required: false, reasons: [] }, ...overrides });
 
 test('deterministic supervisor records typed worker handoffs and readiness', () => {
-  const result = runDeterministicSupervisor({ intakeResult: { status: 'complete', facts: [] }, evidenceResult: evidence() });
+  const result = runDeterministicSupervisor({ intakeResult: { status: 'complete', facts: [{ field_id: 'lab.hgb.value' }] }, evidenceResult: evidence() });
   assert.equal(result.final_state, SUPERVISOR_STATES.READY);
   assert.equal(result.readiness, 'ready');
   assert.deepEqual(result.handoffs.map((handoff) => handoff.worker), ['intake-extractor', 'evidence-retriever', 'deterministic-verifier']);

@@ -9,6 +9,25 @@ const redactedMetrics = (value) => ({
   conflict_count: Number(value?.conflicts?.length || 0),
 });
 
+/**
+ * Allowlisted, PHI-free view of a worker handoff for traces.
+ *
+ * Handoffs carry typed extraction output (lab values, dates, quotes). Trace
+ * redaction is key-name based and misses keys such as `collection_date` or
+ * `test_name`, so only these operational fields may reach a trace.
+ */
+export function traceSafeHandoff(handoff) {
+  return {
+    worker: handoff?.worker,
+    input_type: handoff?.input_type,
+    output_status: handoff?.output_status,
+    retry_count: handoff?.retry_count,
+    step_names: (handoff?.steps || []).map((step) => step.name),
+    citation_count: handoff?.citations?.length || 0,
+    redacted_metrics: handoff?.redacted_metrics,
+  };
+}
+
 /** Independently testable extraction workflow with explicit inspect/act/qualify steps. */
 export function runExtractionWorker({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', maxRetries = 1, adapter = extractScanForm }) {
   const steps = [{ name: 'inspect', decision: `accepted ${sourceClass} scan-form envelope` }];

@@ -1,0 +1,12 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "gen-corrupt",
+ "pdf": "agentforge/test/fixtures/golden/pdf/gen-corrupt.pdf",
+ "pdf_sha256": "1e8a92a10644450e1b333de16c02d1d01106fa62db6048d6306f2dcad88a6f6f",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "error": "PDF_OCR_COMMAND_FAILED"
+}

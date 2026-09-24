@@ -1,0 +1,16 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "intake-b",
+  "written_from": "docs/agentforge/fixtures/scan-forms/pdf-samples/intake-b.svg (rasterized into the PDF)",
+  "document_kind": "intake_form",
+  "patient_ref": "fixture-patient-001",
+  "intake_form": {
+    "name": "Test Patient One",
+    "dob": "1980-04-12",
+    "phone": "555-0198",
+    "chief_concern": "Dizziness after standing",
+    "current_medications": ["Lisinopril 10 mg daily"],
+    "allergies": ["Sulfa antibiotics"],
+    "family_history": ["Mother has diabetes"]
+  }
+}

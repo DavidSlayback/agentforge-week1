@@ -455,3 +455,16 @@ on the freeze SHA.
 
 _Not started. Next action: S0 on branch `agentforge/w2-final`, after H3
 confirms the grading remote._
+
+- S1 + S3, branch `agentforge/s1-gate` (not merged, not deployed; "wired,
+  untested" on the public URL until S11). The gate runs the scan path on 10
+  golden PDFs with recorded Tesseract OCR and catches 16/16 review regressions
+  on its own (`docs/agentforge/evidence/W2_REGRESSION_MATRIX.md`,
+  `node agentforge/scripts/run-regression-matrix.mjs`). Fail-loud:
+  - BLOCKED: `no_fields_extracted`, `patient_mismatch`;
+  - QUALIFIED: `doc_type_mismatch`, `patient_identity_unverified`,
+    `extraction_incomplete`;
+  - a cross-patient scan read returns 403.
+  Patient demographics come from `FixtureAdapter.getPatientDemographics`; S8
+  must add the same method to the OpenEMR adapter, or intake documents stay
+  QUALIFIED `patient_identity_unverified` in live mode.

@@ -1,0 +1,8 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "gen-corrupt",
+  "written_from": "agentforge/scripts/generate-golden-pdfs.mjs (gen-corrupt.pdf: a %PDF- header followed by garbage)",
+  "document_kind": "corrupt",
+  "patient_ref": "fixture-patient-001",
+  "embedded_text": ["synthetic corrupt upload"]
+}

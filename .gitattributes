@@ -53,3 +53,9 @@ Documentation/EHI_Export/schemaspy/schemas/openemr.meta.xml -export-ignore
 
 # AgentForge: git archive stamps the deployed commit into this file.
 agentforge/BUILD_SHA export-subst
+
+# AgentForge golden fixtures: the gate hashes PDFs byte for byte and hashes the
+# JSON/text inputs, so keep PDFs binary and the rest LF on every platform.
+agentforge/test/fixtures/golden/pdf/*.pdf binary
+agentforge/test/fixtures/golden/**/*.json text eol=lf
+agentforge/test/fixtures/golden/text/*.txt text eol=lf

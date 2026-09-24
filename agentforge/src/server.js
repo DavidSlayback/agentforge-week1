@@ -225,8 +225,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/evals/deployed-service-results.json') return json(res, 200, readEvidence('deployed-service-results.json'));
     if (req.method === 'GET' && req.url === '/evals/error-analysis.json') return json(res, 200, readEvidence('error-analysis.json'));
     if (req.method === 'GET' && req.url === '/evals/active-service-results.json') return json(res, 200, readGoldenEvidence());
-    if (req.method === 'GET' && req.url === '/evals/w2-baseline.json') return json(res, 200, runW2RegressionGate());
-    if (req.method === 'GET' && req.url === '/evals') { const golden = readGoldenEvidence(); const errorAnalysis = readEvidence('error-analysis.json'); const w2Gate = runW2RegressionGate(); return html(res, renderEvaluatorPage({ golden, errorAnalysis, w2Gate, basePath: publicBasePath, localReport: Boolean(process.env.AGENTFORGE_EVAL_REPORT_PATH) })); }
+    if (req.method === 'GET' && req.url === '/evals/w2-baseline.json') return json(res, 200, await runW2RegressionGate());
+    if (req.method === 'GET' && req.url === '/evals') { const golden = readGoldenEvidence(); const errorAnalysis = readEvidence('error-analysis.json'); const w2Gate = await runW2RegressionGate(); return html(res, renderEvaluatorPage({ golden, errorAnalysis, w2Gate, basePath: publicBasePath, localReport: Boolean(process.env.AGENTFORGE_EVAL_REPORT_PATH) })); }
     const labEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/lab-evidence(?:\?(.*))?$/);
     if (req.method === 'GET' && labEvidenceMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });

@@ -1,0 +1,364 @@
+$ git commit -m 'test: R3 regression (abnormal flag always normal)'   # tree = agentforge/s1-gate staged changes + R3
+AgentForge gate: unit suites...
+✔ signed synthetic context verifies and expires (1.5044ms)
+✔ authorization uses server context rather than browser-selected identity (0.2324ms)
+✔ live authorization requires the OpenEMR module issuer and session authentication (0.1537ms)
+✔ signed context TTL cannot exceed five minutes (0.2891ms)
+✔ signed requests do not require a duplicate body authorization object (0.1672ms)
+✔ authorization rechecks signed context expiry and context objects are immutable (0.1369ms)
+✔ chart retrieval and synthetic writeback are separate collaborators (0.9328ms)
+✔ a read-only chart service has no synthetic writeback capability (0.7729ms)
+✔ stamped BUILD_SHA from git archive wins (2.168ms)
+✔ unstamped placeholder falls back to a valid env SHA (1.7846ms)
+✔ never reports a guessed or malformed SHA (1.477ms)
+✔ the committed BUILD_SHA is an export-subst placeholder (0.3077ms)
+✔ clinical action drafts are structured, explicit-source, and uncommitted (1.0897ms)
+✔ clinical action confirmation requires explicit clinician event and is idempotent (0.3103ms)
+✔ service requires the action write context and surfaces persistence failure (1.8832ms)
+✔ clinical action API drafts, confirms, reads back, cancels, and blocks unsafe routes (286.6572ms)
+✔ clinical action API reports writeback failure and live mode stays write-disabled (383.6506ms)
+✔ canonical request contracts reject body authorization and malformed input (0.6722ms)
+✔ canonical follow-up and briefing responses reject missing contract fields (0.2741ms)
+✔ follow-up contract permits only the signed demo context token as an extension (0.0881ms)
+✔ follow-up contract rejects empty required strings (0.0731ms)
+✔ follow-up contract represents bounded deadline outcomes without patient content (0.249ms)
+✔ opaque correlation IDs remain stable across stale refreshes (0.617ms)
+✔ source document contract requires a supported type, filename, and base64 content (0.2334ms)
+✔ lab evidence contract requires source-linked citation boxes (2.2365ms)
+✔ intake evidence contract requires source-linked section citations (0.2554ms)
+✔ serves a conversation surface with safe follow-up prompts (198.2663ms)
+✔ observability records W2 operational fields while redacting document content and prompts (1.7214ms)
+✔ synthetic W2 evaluation labels and results are reproducible (0.583ms)
+✖ evaluator panel exposes operational routes and saved evidence (272.2234ms)
+✔ document type is detected from keyword vocabulary, and a weak signal stays undetermined (1.0283ms)
+✔ patient identity check matches, mismatches and refuses to guess (0.8115ms)
+✔ zero extracted facts is BLOCKED no_fields_extracted before retrieval, on both supervisors (1.6398ms)
+✔ a declared type contradicted by the document text is QUALIFIED doc_type_mismatch, never READY (4.2568ms)
+✔ intake demographics that contradict the chart are BLOCKED patient_mismatch (0.5686ms)
+✔ service scan path on recorded golden OCR: table lab BLOCKED, other-patient intake BLOCKED, lab-as-intake QUALIFIED (10.1454ms)
+✔ the scan workflow refuses another patient's document instead of throwing (0.6129ms)
+✔ scan traces carry allowlisted handoff summaries, not typed lab values or dates (1.2908ms)
+✔ source preview never lists a low-confidence field as verified (0.4853ms)
+✔ HTTP scan-supervisor answers 403 for a document owned by another patient (284.2771ms)
+✔ guideline retrieval ranks relevant synthetic evidence with provenance (0.7905ms)
+✔ guideline retrieval qualifies empty or irrelevant questions (0.562ms)
+✔ Cohere retriever embeds synthetic corpus and query, reranks, and preserves provenance (6.8435ms)
+✔ Cohere retriever requires a server-side key and sanitizes provider failures (0.4546ms)
+✔ Cohere retriever does not transmit free-form unsupported user text (0.5307ms)
+✔ follow-up evidence API separates patient facts from guideline evidence (178.1429ms)
+✔ Jev spike uses a reproducible labeled corpus and keeps standard routing available (2.2964ms)
+✔ Jev adapter preserves typed output, applies the safety guard, and records service cost (15.3957ms)
+✔ Jev adapter stays disabled by default and rejects untrusted endpoints before sending the key (0.4929ms)
+✔ Jev spike separates adapter failures from service failures (1.4933ms)
+✔ mock-only shadow seam is off by default and cannot replace deterministic state (0.2258ms)
+✔ synthetic shadow captures redacted comparison metadata and omits raw errors (0.2164ms)
+✔ mock Jev READY cannot upgrade deterministic missing-evidence state (0.1161ms)
+✔ live OpenEMR mode disables fixture context and fixture UI paths (198.1784ms)
+✔ every golden PDF has an OCR recording made from exactly these bytes (2.7903ms)
+﹣ live Tesseract OCR matches the committed recordings line for line (0.0853ms) # pdftoppm/tesseract/pdfinfo are not on PATH; live OCR parity runs only where they are installed (the Docker image built from the repo Dockerfile)
+✔ recorded OCR replay feeds the same post-OCR mapping and refuses PDFs it has no recording for (2.1714ms)
+✔ the production default OCR engine is the real pdftoppm + Tesseract binaries (0.4145ms)
+✔ simulated OpenEMR seam accepts matching signed identity and scope (1.1677ms)
+✔ simulated OpenEMR seam blocks missing, mismatched, and non-read contexts (0.2098ms)
+✔ fixture parity preserves coverage semantics at the OpenEMR seam (0.1773ms)
+✔ coverage-scoped retrieval excludes records from failed and timed-out groups (0.4932ms)
+✔ service requires the verified synthetic session when the seam is strict (8.1328ms)
+✔ OpenEMR REST adapter uses only GET allowlisted routes and normalizes records (1.9735ms)
+✔ OpenEMR REST adapter fails closed without an access token (0.1226ms)
+✔ OpenEMR REST adapter requires the OpenEMR session issuer by default (0.7291ms)
+✔ OpenEMR REST adapter filters overbroad patient-history responses by patient identity (1.2377ms)
+✔ OpenEMR REST adapter rejects a patient endpoint response for another patient (0.4164ms)
+✔ OpenEMR REST adapter rejects a patient endpoint response without identity proof (0.1496ms)
+✔ OpenEMR refresh provider rotates and persists refresh tokens without exposing them to callers (19.5667ms)
+✔ Tesseract word rows group into a cited synthetic intake field (1.316ms)
+✔ PDF OCR adapter rejects non-PDF content before invoking system tools (0.4209ms)
+✔ PDF lab schema captures name, value, unit, range, date, and abnormal status for two tests (4.1286ms)
+✔ PDF intake schema captures demographics, concern, medications, allergies, and family history (2.4077ms)
+✔ abnormal-flag tokens map to the strict AbnormalFlag enum, case-insensitively (0.134ms)
+✖ PDF lab schema maps "Yes"/"No" abnormal tokens onto the typed LabResult per test (1.1942ms)
+✔ citation quote_or_value carries the verbatim OCR line, not the canonical field label (0.5813ms)
+✔ PreVisitPreparation owns the briefing lifecycle and cache opening (9.2159ms)
+✔ PreVisitPreparation stops before synthesis and cache write when verification fails (0.3164ms)
+✔ provider failure retries twice then falls back deterministically (0.794ms)
+✔ configured primary outage makes readiness not ready even when fallback can serve (0.1296ms)
+✔ unsafe or ungrounded live output is rejected before display and falls back (0.4988ms)
+✔ DashScope multimodal provider uses a text content part and normalizes response usage (0.7802ms)
+✔ OpenAI Responses provider uses Bailian-compatible input and output shape (0.2946ms)
+✔ OpenAI Responses readiness probe checks the provider without patient content (0.2049ms)
+✔ redacted traces survive a service restart through the configured store (403.231ms)
+✔ renders partial qualification and exposes a cross-patient block probe (208.2526ms)
+✔ scan-form adapter extracts cited complete lab fields under the frozen contract (3.6943ms)
+✔ intake fixture per-item medication/allergy ids are mapped into the typed IntakeForm, not silently dropped (2.2324ms)
+✔ scan-form adapter qualifies missing, unreadable, and conflicting values (0.9774ms)
+✔ active workers expose inspect-act-qualify handoffs and never promote empty evidence (0.8136ms)
+✔ active supervisor keeps worker handoffs inspectable and qualifies incomplete evidence (1.4477ms)
+✔ retrieval benchmark records a defended deterministic local choice (0.6186ms)
+✔ local VLM adapter normalizes visual candidates without weakening the deterministic contract (0.5743ms)
+✔ local VLM adapter fails closed when no local model runner is configured (0.138ms)
+✔ local VLM adapter parses strict JSON and abstains on unlabeled raw text (0.3891ms)
+✔ local VLM adapter requires cited labels and withholds duplicate field candidates (0.3028ms)
+✔ active workers can run the local VLM lane as a bounded second agent path (0.2479ms)
+✔ Citation requires exactly the five W2 keys and rejects the old key names (2.8942ms)
+✔ LabResult requires every listed field (1.1935ms)
+✔ IntakeForm requires every listed section, present even when empty (2.0482ms)
+✔ GuidelineEvidence requires a nested five-key citation and the score/snippet fields (0.7105ms)
+✔ text-fixture lab and intake extraction produce citations that validate against the Citation schema (0.9887ms)
+﹣ real scan path on a sample lab PDF produces schema-valid typed LabResult objects matching the manifest (0.0617ms) # pdftoppm/tesseract are not on PATH on this machine; the PDF-OCR path is untested here (verify in CI or the container, which install poppler-utils/tesseract-ocr).
+✔ committed JSON Schema docs match what schemas.js generates today (4.1207ms)
+✔ prepares a grounded complete briefing (9.5841ms)
+✔ blocks missing signed context without patient data (0.1681ms)
+✔ qualifies partial retrieval and withholds dependent claims (0.8948ms)
+✔ service cannot expose records returned from failed or timed-out coverage groups (0.4172ms)
+✔ service never relabels an explicitly cross-patient source record (0.5218ms)
+✔ failed verification prevents synthesis, display, and cache writes (0.3553ms)
+✔ isolates follow-up conversations by patient (0.5976ms)
+✔ answers follow-up topics from the patient-scoped evidence boundary (1.4134ms)
+✔ answers documented plan follow-through without inventing completion (1.0296ms)
+✔ does not invent a discrepancy when the verified evidence has none (0.5738ms)
+✔ withholds same-date conflicts and explains them in follow-up (0.443ms)
+✔ does not treat same-timestamp values as a resolved change (0.3431ms)
+✔ blocks external providers by default for live OpenEMR adapters (0.1467ms)
+✔ records the request lifecycle with opaque trace correlation and verification/display outcomes (1.8708ms)
+✔ uses a server-owned preparation cache and records interaction latency (1.8836ms)
+✔ bounds preparation cache entries and removes expired state (0.1195ms)
+✔ stale preparation cache refreshes through a bounded fresh retrieval (0.9038ms)
+✔ stale preparation is discarded before a failed refresh (0.4745ms)
+✔ fresh retrieval returns an explicit deadline outcome without patient content (44.616ms)
+✔ fresh retrieval deadline includes patient lookup (45.73ms)
+✔ model generation uses the remaining response deadline and completes a timeout trace (31.9644ms)
+✔ retrieval failures complete a redacted failure trace before rethrowing (1.2034ms)
+✔ calendar prewarm prepares once and opens a bound cache hit (1.723ms)
+✔ calendar prewarm fails closed for mismatched authorization and provider failure (0.3566ms)
+✔ calendar prewarm rejects work above the configured concurrency bound (0.8385ms)
+✔ simulated synthetic source documents persist, read back, and deduplicate (2.1141ms)
+✔ simulated synthetic source documents fail closed across patient scope (1.1232ms)
+✔ synthetic source upload still requires a verified signed context at the adapter seam (0.4011ms)
+✔ synthetic source persistence reports failures and the service exposes the workflow result (1.147ms)
+✔ AgentForge UI exposes the two synthetic source-document types and upload route (0.7075ms)
+✔ synthetic scan demo fixture route serves only the tracked sample with an explicit synthetic marker (166.2831ms)
+✔ synthetic PDF sample route serves only the four fixed completed form samples (206.5958ms)
+✔ AgentForge UI keeps the isolated W2 public path for links and API calls (0.4039ms)
+✔ synthetic lab extraction preserves citations, qualifies gaps, and detects conflicts (3.2028ms)
+✔ synthetic intake extraction preserves sections and qualifies contradictions (0.3747ms)
+✔ synthetic source document API uploads, deduplicates, reads back, and scopes records (260.5626ms)
+✔ synthetic lab evidence API links derived observations to the source and deduplicates readback (233.2572ms)
+✔ synthetic intake evidence API links derived observations to the source (219.2646ms)
+✔ synthetic scan-form evidence API and source preview preserve page-region citations (248.7031ms)
+✔ scan extraction responses are re-validated at the HTTP boundary and never sent unvalidated (231.6291ms)
+✔ source document API rejects malformed input and live-mode writeback (558.6368ms)
+✔ deterministic supervisor records typed worker handoffs and readiness (1.0928ms)
+✔ deterministic supervisor qualifies incomplete evidence and blocks unsafe or uncited output (0.141ms)
+✔ supervisor executes both workers and passes their typed outputs through verification (0.2439ms)
+✔ supervisor blocks when a requested worker fails (0.1164ms)
+✔ supervisor API returns an inspectable synthetic workflow (210.6986ms)
+✔ complete verification fails when any coverage group is unavailable (0.6567ms)
+✔ verification rejects read operations outside the canonical allowlist (0.108ms)
+✔ successful empty coverage is distinct from unavailable coverage (0.0964ms)
+✔ complete verification fails when canonical coverage groups are missing (0.0855ms)
+✔ W2 gate has 50 distinct cases, 10 per category, each documenting its failure mode (1.118ms)
+✖ W2 gate passes the committed baseline with per-category thresholds (61.8669ms)
+✔ W2 gate blocks an injected defect instead of warning (32.9456ms)
+✖ W2 gate blocks case-set drift against the committed baseline (31.0254ms)
+✖ W2 gate fails a category that drops by more than 5 points against the baseline (31.0571ms)
+✔ W2 gate report carries only codes, never the synthetic identifiers it checks for (34.1481ms)
+ℹ tests 161
+ℹ suites 0
+ℹ pass 154
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 8009.7209
+
+✖ failing tests:
+
+test at test\evaluator-surface.test.js:23:1
+✖ evaluator panel exposes operational routes and saved evidence (272.2234ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///<repo>/agentforge/test/evaluator-surface.test.js:48:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\pdf-scan.test.js:85:1
+✖ PDF lab schema maps "Yes"/"No" abnormal tokens onto the typed LabResult per test (1.1942ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'normal'
+  - 'abnormal'
+  
+      at TestContext.<anonymous> (file:///<repo>/agentforge/test/pdf-scan.test.js:91:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'normal',
+    expected: 'abnormal',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\w2-regression-gate.test.js:21:1
+✖ W2 gate passes the committed baseline with per-category thresholds (61.8669ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   {
+  +     critical: false,
+  +     id: 'fc-01-lab-a-values',
+  +     issues: [
+  +       'lab_abnormal_flag_mismatch:A1C'
+  +     ],
+  +     label: 'factually_consistent'
+  +   },
+  +   {
+  +     critical: false,
+  +     id: 'fc-02-lab-b-values',
+  +     issues: [
+  +       'lab_abnormal_flag_mismatch:Hemoglobin',
+  +       'lab_abnormal_flag_mismatch:A1C'
+  +     ],
+  +     label: 'factually_consistent'
+  +   },
+  +   {
+  +     critical: false,
+  +     id: 'fc-03-lab-d-high-low',
+  +     issues: [
+  +       'lab_abnormal_flag_mismatch:Hemoglobin',
+  +       'lab_abnormal_flag_mismatch:A1C'
+  +     ],
+  +     label: 'factually_consistent'
+  +   }
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///<repo>/agentforge/test/w2-regression-gate.test.js:23:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { id: 'fc-01-lab-a-values', label: 'factually_consistent', critical: false, issues: [Array] }, { id: 'fc-02-lab-b-values', label: 'factually_consistent', critical: false, issues: [Array] }, { id: 'fc-03-lab-d-high-low', label: 'factually_consistent', critical: false, issues: [Array] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test\w2-regression-gate.test.js:38:1
+✖ W2 gate blocks case-set drift against the committed baseline (31.0254ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///<repo>/agentforge/test/w2-regression-gate.test.js:43:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\w2-regression-gate.test.js:47:1
+✖ W2 gate fails a category that drops by more than 5 points against the baseline (31.0571ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0.7 !== 0.9
+  
+      at TestContext.<anonymous> (file:///<repo>/agentforge/test/w2-regression-gate.test.js:53:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0.7,
+    expected: 0.9,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[git commit exit code: 1]
+
+$ node agentforge/scripts/run-w2-gate.mjs   # same tree (R3 applied), the gate alone
+{
+  "passed": false,
+  "thresholds_passed": false,
+  "by_label": {
+    "schema_valid": {
+      "cases": 10,
+      "passed": 10,
+      "rate": 1
+    },
+    "citation_present": {
+      "cases": 10,
+      "passed": 10,
+      "rate": 1
+    },
+    "factually_consistent": {
+      "cases": 10,
+      "passed": 7,
+      "rate": 0.7
+    },
+    "safe_refusal": {
+      "cases": 10,
+      "passed": 10,
+      "rate": 1
+    },
+    "no_phi_in_logs": {
+      "cases": 10,
+      "passed": 10,
+      "rate": 1
+    }
+  },
+  "regressions": {
+    "schema_valid": 0,
+    "citation_present": 0,
+    "factually_consistent": 0.3,
+    "safe_refusal": 0,
+    "no_phi_in_logs": 0
+  },
+  "failed_cases": [
+    {
+      "id": "fc-01-lab-a-values",
+      "label": "factually_consistent",
+      "critical": false,
+      "issues": [
+        "lab_abnormal_flag_mismatch:A1C"
+      ]
+    },
+    {
+      "id": "fc-02-lab-b-values",
+      "label": "factually_consistent",
+      "critical": false,
+      "issues": [
+        "lab_abnormal_flag_mismatch:Hemoglobin",
+        "lab_abnormal_flag_mismatch:A1C"
+      ]
+    },
+    {
+      "id": "fc-03-lab-d-high-low",
+      "label": "factually_consistent",
+      "critical": false,
+      "issues": [
+        "lab_abnormal_flag_mismatch:Hemoglobin",
+        "lab_abnormal_flag_mismatch:A1C"
+      ]
+    }
+  ]
+}
+[gate exit code: 1]

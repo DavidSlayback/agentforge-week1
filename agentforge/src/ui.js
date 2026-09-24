@@ -258,7 +258,7 @@ button:disabled{opacity:.6;cursor:wait}
         const retrievalQuery = documentType === 'lab_pdf' ? 'documented glycemic values medication adherence' : 'medication reconciliation current documented list prior records';
         const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: readToken, source_document_id: result.source_document.id, message: retrievalQuery });
         const active = workflow.workflow;
-        workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
+        workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
         guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
         setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
       } else {
@@ -367,17 +367,23 @@ export function renderEvaluatorPage({ golden, errorAnalysis, w2Gate = null, base
 }
 
 export function renderScanSourcePreview({ sourceDocument, extraction, basePath = '' }) {
-  const facts = extraction?.facts || [];
+  const allFacts = extraction?.facts || [];
+  // A fact carrying an uncertainty (for example low OCR confidence) is shown
+  // for review but never counted or labelled as verified.
+  const facts = allFacts.filter((fact) => !fact.uncertainty);
+  const lowConfidenceFacts = allFacts.filter((fact) => fact.uncertainty);
   const missing = extraction?.missing_fields || [];
   const uncertain = extraction?.uncertain_fields || [];
   const conflicts = extraction?.conflicts || [];
   const reviewCount = missing.length + uncertain.length + conflicts.length;
   const status = ['complete', 'partial', 'qualified', 'blocked'].includes(extraction?.status) ? extraction.status : 'unknown';
-  const factRows = facts.map((fact) => {
+  const evidenceRow = (fact) => {
     const box = fact.citation.bounding_box.join(',');
     const coordinateSpace = fact.citation.coordinate_space === 'raster_pixels_200dpi' ? '200 DPI raster pixels' : 'fixture coordinates';
     return `<article class="evidence-row" data-field-id="${escapeHtml(fact.field_id)}"><div class="evidence-value"><span class="field-id">${escapeHtml(fact.field_id)}</span><strong>${escapeHtml(fact.value)}</strong></div><div class="citation" data-bounding-box="${escapeHtml(box)}"><div class="citation-meta"><span>${escapeHtml(fact.citation.page_or_section)}</span><span>Region <code>[${escapeHtml(box)}]</code></span><span>${coordinateSpace}</span></div><p>${escapeHtml(fact.citation.quote_or_value)}</p></div></article>`;
-  }).join('');
+  };
+  const factRows = facts.map(evidenceRow).join('');
+  const lowConfidenceRows = lowConfidenceFacts.map(evidenceRow).join('');
   const reviewGroups = [
     ['Missing fields', missing],
     ['Needs a closer look', uncertain],
@@ -417,6 +423,7 @@ export function renderScanSourcePreview({ sourceDocument, extraction, basePath =
     <section class="summary" aria-label="Extraction summary"><div class="summary-item"><strong>${facts.length}</strong><span>verified fields</span></div><div class="summary-item"><strong>${extraction?.metrics?.pages ?? '—'}</strong><span>pages processed</span></div><div class="summary-item"><strong>${reviewCount}</strong><span>items needing review</span></div></section>
     ${reviewCount ? `<aside class="notice" aria-labelledby="review-heading"><strong id="review-heading">Human review required</strong><span>Values listed here are incomplete, uncertain, or conflicting. They are not promoted as verified facts.</span><div class="review-groups">${reviewGroups}</div></aside>` : ''}
     <section aria-labelledby="evidence-heading"><h2 class="section-title" id="evidence-heading">Verified field evidence</h2><p class="section-intro">Each accepted value includes its page, captured region, and source text.</p>${factRows ? `<div class="evidence-list">${factRows}</div>` : '<p class="empty">No verified fields were extracted from this document.</p>'}</section>
+    ${lowConfidenceRows ? `<section aria-labelledby="low-confidence-heading" data-section="low-confidence"><h2 class="section-title" id="low-confidence-heading">Low-confidence values (not verified)</h2><p class="section-intro">These values were read with low confidence and need human review before use.</p><div class="evidence-list">${lowConfidenceRows}</div></section>` : ''}
     <footer><a href="${escapeHtml(basePath)}/">← Return to visit workspace</a></footer>
   </main>
 </body>
