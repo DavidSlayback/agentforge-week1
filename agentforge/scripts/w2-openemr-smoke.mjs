@@ -7,7 +7,8 @@
  * Public mode (from any machine):
  *   node agentforge/scripts/w2-openemr-smoke.mjs --base https://<host>/agentforge-w2
  *   Uploads the synthetic lab-a and intake-a PDFs for fixture-patient-001
- *   through the public W2 API, requires OpenEMR ids in the responses, repeats
+ *   through the public W2 API, requires OpenEMR ids in the responses (the first
+ *   pass may already be a duplicate when the smoke was run before), repeats
  *   the upload and requires the same ids with duplicate=true, reads the lab
  *   values back through OpenEMR's FHIR Observation service, checks the stored
  *   bytes, and checks that the module endpoint is 404 on the public host.
@@ -60,12 +61,12 @@ async function publicSmoke(base) {
     for (const pass of [1, 2]) {
       const upload = await postJson('/v1/source-documents', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.write, document_type: entry.document_type, filename: entry.filename, content_base64: content.toString('base64') });
       const sourceId = upload.body.source_document?.id;
-      record(`${sample}_upload_pass${pass}`, upload.status === 200 && upload.body.source_document?.persistence_boundary === 'openemr-module' && Number.isInteger(upload.body.openemr?.document_id) && upload.body.duplicate === (pass === 2), { status: upload.status, error: upload.body.error, document_id: upload.body.openemr?.document_id, duplicate: upload.body.duplicate });
+      record(`${sample}_upload_pass${pass}`, upload.status === 200 && upload.body.source_document?.persistence_boundary === 'openemr-module' && Number.isInteger(upload.body.openemr?.document_id) && (pass === 2 ? upload.body.duplicate === true : typeof upload.body.duplicate === 'boolean'), { status: upload.status, error: upload.body.error, document_id: upload.body.openemr?.document_id, duplicate: upload.body.duplicate });
       if (upload.status !== 200) return;
       const scan = await postJson('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.write, source_document_id: sourceId, message: 'documented values' });
       const openemr = scan.body.openemr || {};
       const labOk = entry.document_type !== 'lab_pdf' || (Number.isInteger(openemr.procedure_order_id) && openemr.observation_ids?.length === 2 && openemr.read_path === 'openemr-fhir-service-in-process' && openemr.read_back?.verified === true);
-      record(`${sample}_extract_persist_pass${pass}`, scan.status === 200 && openemr.status === 'persisted' && Number.isInteger(openemr.derived_document_id) && labOk && openemr.duplicate === (pass === 2), { status: scan.status, error: scan.body.error, document_id: openemr.document_id, derived_document_id: openemr.derived_document_id, procedure_order_id: openemr.procedure_order_id, observation_ids: openemr.observation_ids, read_path: openemr.read_path, duplicate: openemr.duplicate, unmapped: openemr.unmapped_lab_results });
+      record(`${sample}_extract_persist_pass${pass}`, scan.status === 200 && openemr.status === 'persisted' && Number.isInteger(openemr.derived_document_id) && labOk && (pass === 2 ? openemr.duplicate === true : typeof openemr.duplicate === 'boolean'), { status: scan.status, error: scan.body.error, document_id: openemr.document_id, derived_document_id: openemr.derived_document_id, procedure_order_id: openemr.procedure_order_id, observation_ids: openemr.observation_ids, read_path: openemr.read_path, duplicate: openemr.duplicate, unmapped: openemr.unmapped_lab_results });
       passes.push({ sourceId, document_id: openemr.document_id, derived_document_id: openemr.derived_document_id, procedure_order_id: openemr.procedure_order_id, observation_ids: JSON.stringify(openemr.observation_ids || []) });
     }
     record(`${sample}_reupload_same_ids`, JSON.stringify(passes[0]) === JSON.stringify(passes[1]), { first: passes[0], second: passes[1] });
