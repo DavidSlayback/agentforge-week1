@@ -58,9 +58,10 @@ test('W2 gate fails a category that drops by more than 5 points against the base
   const index = cases.findIndex((item) => item.id === 'fc-01-lab-a-values');
   cases[index] = { ...cases[index], expect: { lab_facts: {}, workflow: { final_state: 'BLOCKED' } } };
   const result = await runW2RegressionGate({ cases, baseline: { ...baseline, corpus_sha256: 'ignored' } });
+  const factuallyConsistentCaseCount = cases.filter((item) => item.category === 'factually_consistent').length;
   assert.equal(result.passed, false);
-  assert.equal(result.by_label.factually_consistent.rate, 0.9);
-  assert.equal(result.regressions.factually_consistent, 0.1);
+  assert.equal(result.by_label.factually_consistent.rate, (factuallyConsistentCaseCount - 1) / factuallyConsistentCaseCount);
+  assert.ok(result.regressions.factually_consistent > 0.05);
 });
 
 test('W2 gate report carries only codes, never the synthetic identifiers it checks for', async () => {

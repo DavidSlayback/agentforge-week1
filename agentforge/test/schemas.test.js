@@ -76,6 +76,7 @@ test('GuidelineEvidence requires a nested five-key citation and the score/snippe
   assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, citation: { ...validGuidelineEvidence.citation, location: 'synthetic://x' } }).ok, false);
   // degraded is nullable but must be present, and can only be null or 'sparse_only' — never any other string a retriever might invent.
   assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, degraded: 'sparse_only' }).ok, true);
+  assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, degraded: 'stub' }).ok, true);
   assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, degraded: 'hybrid' }).ok, false);
 });
 

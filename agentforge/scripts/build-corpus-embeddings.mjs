@@ -35,7 +35,7 @@ let totalInputTokens = 0;
 let totalCostUsd = 0;
 for (const [index, chunk] of corpus.entries()) {
   const text = `${chunk.title}\n${chunk.section}\n${chunk.text}`;
-  const { values, usage } = await client.embed(text, 'RETRIEVAL_DOCUMENT');
+  const { values, usage } = await client.embed(text, 'RETRIEVAL_DOCUMENT', { title: chunk.title });
   vectors[chunk.source_id] = values;
   totalInputTokens += usage.inputTokens || 0;
   totalCostUsd += usage.estimatedCostUsd || 0;

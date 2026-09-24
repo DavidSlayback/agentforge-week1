@@ -110,10 +110,15 @@ export function validateWorkerHandoff(value) {
   return { valid: issues.length === 0, issues: [...new Set(issues)] };
 }
 
+// `message` is an optional clinician question (activeWorkers.js formulates
+// the actual retrieval query from the document's own typed findings and
+// appends this only as a refinement) — absent or an empty string are both
+// valid; a non-string value is still rejected.
 export function validateActiveSupervisorRequest(value) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
-  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id', 'message']) if (!nonEmpty(value[field])) issues.push(`${field}_required`);
+  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id']) if (!nonEmpty(value[field])) issues.push(`${field}_required`);
+  if ('message' in value && typeof value.message !== 'string') issues.push('message_must_be_string');
   const allowed = new Set(['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id', 'message']);
   for (const field of Object.keys(value)) if (!allowed.has(field)) issues.push(`${field}_not_allowed`);
   return { valid: issues.length === 0, issues };

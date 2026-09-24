@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildBm25Index } from './bm25.js';
+import { buildBm25Index, tokenize } from './bm25.js';
 
 const CORPUS_PATH = fileURLToPath(new URL('../corpus/guidelines/corpus.json', import.meta.url));
 const EMBEDDINGS_PATH = fileURLToPath(new URL('../corpus/embeddings.json', import.meta.url));
@@ -96,10 +96,19 @@ const SPARSE_ONLY_PROVIDER = 'bm25-sparse-only';
  * it came from an explicit sparse-only configuration or from a hybrid
  * pipeline that could not reach Gemini.
  */
-export function retrieveGuidelineEvidence(query, { topK = 3, corpus = loadGuidelineCorpus() } = {}) {
+export function retrieveGuidelineEvidence(query, { topK = 3, corpus } = {}) {
   const trimmed = String(query || '').trim();
   if (!trimmed) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: '', evidence: [], issues: ['empty_query'], degraded: 'sparse_only' };
-  const index = buildBm25Index(corpus, { getText: chunkText });
+  // Loaded here (not as a default parameter) so a missing/unreadable corpus
+  // file surfaces as a qualified result with a loud, specific issue code —
+  // never an uncaught exception that would crash the request (or, worse, the
+  // whole process if a caller evaluates this at module load — see
+  // createGeminiHybridGuidelineRetriever below for the same guard).
+  let resolvedCorpus = corpus;
+  if (!resolvedCorpus) {
+    try { resolvedCorpus = loadGuidelineCorpus(); } catch { return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence: [], issues: ['guideline_corpus_unavailable'], degraded: 'sparse_only' }; }
+  }
+  const index = buildBm25Index(resolvedCorpus, { getText: chunkText });
   const ranked = index.search(trimmed, { topK: Math.max(topK, 1) });
   if (!ranked.length) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: 'sparse_only' };
   const evidence = ranked.slice(0, topK).map(({ document, score, matchedTerms }) => guidelineEvidenceItem(document, { sparseScore: score, denseScore: 0, rerankScore: score, matchedTerms, degraded: 'sparse_only' }));
@@ -113,6 +122,46 @@ export function retrieveGuidelineEvidence(query, { topK = 3, corpus = loadGuidel
  * when a caller omits `guidelineRetriever`/`retrievalAdapter` entirely).
  */
 export const localLexicalGuidelineRetriever = Object.freeze({ name: SPARSE_ONLY_PROVIDER, retrieve: retrieveGuidelineEvidence });
+
+// Query-scaffolding words `formulateEvidenceQuery` (activeWorkers.js) itself
+// introduces around the patient-derived text ("Abnormal findings:", "Chief
+// concern:", "test result", flag words) — allowed even though a given
+// corpus edit might not happen to contain every one of them verbatim,
+// since these come from our own code, never from patient or clinician text.
+const QUERY_SCAFFOLD_VOCABULARY = ['abnormal', 'findings', 'chief', 'concern', 'test', 'result', 'results', 'high', 'low', 'normal', 'unknown'];
+
+/**
+ * Build the allowlist of words safe to send to an external Gemini call: the
+ * corpus's own vocabulary (every word appearing in a real guideline chunk)
+ * plus a short list of query-scaffolding words. Anything else — a patient
+ * or clinician's own free text, which may contain a name, a date of birth,
+ * a phone number, or any other identifier — is not on this list by
+ * construction, since a corpus of U.S. government guideline text does not
+ * contain patient identifiers.
+ */
+function buildGeminiVocabulary(corpus) {
+  const vocabulary = new Set(QUERY_SCAFFOLD_VOCABULARY);
+  for (const chunk of corpus) for (const token of tokenize(chunkText(chunk))) vocabulary.add(token);
+  return vocabulary;
+}
+
+/**
+ * Sanitize text before it leaves this process for a Gemini call: keep only
+ * whole words present in `vocabulary`, dropping everything else — digits,
+ * dates, names, addresses, phone numbers, or any other free text the
+ * vocabulary doesn't recognize as clinical/guideline vocabulary. This runs
+ * only on the query sent to Gemini's embed/rerank calls; the local BM25
+ * search (which never leaves this process) still searches the original,
+ * unsanitized query for the best local retrieval quality.
+ */
+export function sanitizeForGemini(text, vocabulary) {
+  // Must start with a letter (so a bare number, a date like "1980-04-12", or
+  // a phone number never matches at all) but may contain digits after (so a
+  // real test name like "A1C" or "HbA1c" survives as one token rather than
+  // splitting into single letters at the digit).
+  const words = String(text || '').match(/[A-Za-z][A-Za-z0-9'-]*/g) || [];
+  return words.filter((word) => vocabulary.has(word.toLowerCase())).join(' ');
+}
 
 /**
  * Build the real hybrid retriever: BM25 top-K ∪ Gemini dense cosine top-K →
@@ -139,16 +188,32 @@ export const localLexicalGuidelineRetriever = Object.freeze({ name: SPARSE_ONLY_
  */
 export function createGeminiHybridGuidelineRetriever({
   geminiClient = null,
-  corpus = loadGuidelineCorpus(),
-  embeddings = loadCorpusEmbeddings(),
+  corpus,
+  embeddings,
   candidateCount = 20,
   rerankThreshold = 0.5,
 } = {}) {
-  const bm25 = buildBm25Index(corpus, { getText: chunkText });
-  const embeddingsUsable = Boolean(embeddings?.vectors && Object.keys(embeddings.vectors).length);
+  // Resolved here, inside the factory body, rather than as a default
+  // parameter: a default parameter expression runs eagerly as part of the
+  // call, so a caller invoking this factory at module load (server.js does,
+  // for the deployed retriever) would have a missing/unreadable corpus file
+  // crash the whole process at boot. Falling back to `[]` here instead makes
+  // it a loud but recoverable "guideline_corpus_unavailable" result on every
+  // call — visible in /ready and in traces — never an unhandled boot crash.
+  let corpusError = null;
+  let resolvedCorpus = corpus;
+  if (!resolvedCorpus) {
+    try { resolvedCorpus = loadGuidelineCorpus(); } catch (error) { corpusError = error?.message || 'GUIDELINE_CORPUS_UNAVAILABLE'; resolvedCorpus = []; }
+  }
+  const resolvedEmbeddings = embeddings !== undefined ? embeddings : (corpusError ? null : loadCorpusEmbeddings());
+  const bm25 = buildBm25Index(resolvedCorpus, { getText: chunkText });
+  const embeddingsUsable = Boolean(resolvedEmbeddings?.vectors && Object.keys(resolvedEmbeddings.vectors).length);
   const hybridProvider = `gemini-hybrid:${geminiClient?.name || 'unconfigured'}`;
+  // Built once, from the corpus that is actually loaded — so the allowlist
+  // never depends on the query itself and can't be widened by patient text.
+  const geminiVocabulary = buildGeminiVocabulary(resolvedCorpus);
 
-  function sparseOnly(query, topK, issue) {
+  function sparseOnly(query, topK, issue, extraUsage = []) {
     const ranked = bm25.search(query, { topK: Math.max(topK, 1) });
     const evidence = ranked.slice(0, topK).map(({ document, score, matchedTerms }) => guidelineEvidenceItem(document, { sparseScore: score, denseScore: 0, rerankScore: score, matchedTerms, degraded: 'sparse_only' }));
     return {
@@ -156,24 +221,53 @@ export function createGeminiHybridGuidelineRetriever({
       provider: SPARSE_ONLY_PROVIDER,
       query,
       evidence,
-      issues: evidence.length ? [] : ['insufficient_guideline_evidence'],
+      issues: evidence.length ? [] : [corpusError ? 'guideline_corpus_unavailable' : 'insufficient_guideline_evidence'],
       degraded: 'sparse_only',
       degraded_reason: issue,
-      usage: [],
+      // A Gemini call already made (and billed) before the failure — e.g. the
+      // embed succeeded but the rerank call then failed — is still real
+      // usage and must still reach the trace, even though the response
+      // itself degraded to sparse-only.
+      usage: extraUsage.filter(Boolean),
     };
   }
 
   async function retrieve(query, { topK = 3 } = {}) {
     const trimmed = String(query || '').trim();
-    if (!trimmed) return { status: 'qualified', provider: geminiClient ? hybridProvider : SPARSE_ONLY_PROVIDER, query: '', evidence: [], issues: ['empty_query'], degraded: geminiClient ? null : 'sparse_only', usage: [] };
+    // No retrieval work of any kind ran (not even a BM25 search), so this is
+    // never labeled hybrid, even when a geminiClient is configured.
+    if (!trimmed) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: '', evidence: [], issues: ['empty_query'], degraded: 'sparse_only', usage: [] };
     if (!geminiClient) return sparseOnly(trimmed, topK, 'gemini_client_not_configured');
     if (!embeddingsUsable) return sparseOnly(trimmed, topK, 'corpus_embeddings_missing');
+    // Never send the client's own text to Gemini: only the words this
+    // corpus's own vocabulary recognizes leave this process (MEDIUM review
+    // item 7). The unsanitized `trimmed` query is still used for the local
+    // BM25 search below, which never leaves this process.
+    const sanitizedQuery = sanitizeForGemini(trimmed, geminiVocabulary);
+    if (!sanitizedQuery) return sparseOnly(trimmed, topK, 'no_sanitizable_query_terms');
 
+    // Captured outside the try block so a failure after a successful embed
+    // call (e.g. the rerank request fails) still reports the embed cost that
+    // was actually incurred, instead of silently dropping it when falling
+    // back to sparse-only.
+    let embedUsage = null;
     try {
       const sparseCandidates = bm25.search(trimmed, { topK: candidateCount });
-      const { values: queryVector, usage: embedUsage } = await geminiClient.embed(trimmed, 'RETRIEVAL_QUERY');
-      const denseScored = corpus
-        .map((document) => ({ document, score: cosineSimilarity(queryVector, embeddings.vectors[document.source_id]) }))
+      const embedResult = await geminiClient.embed(sanitizedQuery, 'RETRIEVAL_QUERY');
+      const queryVector = embedResult.values;
+      embedUsage = embedResult.usage;
+      if (!Array.isArray(queryVector) || !queryVector.length) throw new Error('GEMINI_EMBED_RESPONSE_INVALID');
+      const denseScored = resolvedCorpus
+        .map((document) => {
+          const vector = resolvedEmbeddings.vectors[document.source_id];
+          // A dimension mismatch is a real configuration error (query and
+          // corpus embeddings came from different models/output sizes), not
+          // "no similarity" — treat it as a hybrid failure so the whole
+          // request degrades to sparse-only rather than silently scoring
+          // every chunk 0 and calling that a successful hybrid rank.
+          if (Array.isArray(vector) && vector.length && vector.length !== queryVector.length) throw new Error('GEMINI_EMBED_DIMENSION_MISMATCH');
+          return { document, score: cosineSimilarity(queryVector, vector) };
+        })
         .filter((candidate) => candidate.score > 0)
         .sort((left, right) => right.score - left.score);
       const denseCandidates = denseScored.slice(0, candidateCount);
@@ -186,9 +280,9 @@ export function createGeminiHybridGuidelineRetriever({
         else byId.set(candidate.document.source_id, { document: candidate.document, sparseScore: 0, denseScore: candidate.score, matchedTerms: [] });
       }
       const candidates = [...byId.values()];
-      if (!candidates.length) return { status: 'qualified', provider: hybridProvider, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: null, usage: [embedUsage] };
+      if (!candidates.length) return { status: 'qualified', provider: hybridProvider, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: embedUsage?.source === 'stub' ? 'stub' : null, usage: [embedUsage] };
 
-      const { results, usage: rerankUsage } = await geminiClient.rerank(trimmed, candidates.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
+      const { results, usage: rerankUsage } = await geminiClient.rerank(sanitizedQuery, candidates.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
       const scoreById = new Map(results.map((result) => [result.chunk_id, result.relevance_score]));
       const ranked = candidates
         .filter((candidate) => scoreById.has(candidate.document.source_id))
@@ -197,21 +291,28 @@ export function createGeminiHybridGuidelineRetriever({
         .filter((candidate) => candidate.rerankScore >= rerankThreshold)
         .slice(0, topK);
 
-      const evidence = ranked.map((candidate) => guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: candidate.rerankScore, matchedTerms: candidate.matchedTerms, degraded: null }));
+      // The pipeline ran its full hybrid shape, but if either call fell back
+      // to the deterministic stand-in (no recorded fixture for this exact
+      // request), the result is not a genuine hybrid rank and must say so —
+      // `degraded: 'stub'`, never `null` under a `gemini-hybrid:` name
+      // (AGENTS.md: never present a simulation as the real thing).
+      const usedStub = embedUsage?.source === 'stub' || rerankUsage?.source === 'stub';
+      const itemDegraded = usedStub ? 'stub' : null;
+      const evidence = ranked.map((candidate) => guidelineEvidenceItem(candidate.document, { sparseScore: candidate.sparseScore, denseScore: candidate.denseScore, rerankScore: candidate.rerankScore, matchedTerms: candidate.matchedTerms, degraded: itemDegraded }));
       return {
         status: evidence.length ? 'complete' : 'qualified',
         provider: hybridProvider,
         query: trimmed,
         evidence,
         issues: evidence.length ? [] : ['insufficient_guideline_evidence'],
-        degraded: null,
+        degraded: itemDegraded,
         usage: [embedUsage, rerankUsage],
       };
     } catch {
       // A fixed code only, never the caught error's message: it may carry
       // upstream HTTP/network detail that must not reach a trace or an API
       // response (matches service.js's retrieveFollowUpEvidence).
-      return sparseOnly(trimmed, topK, 'gemini_hybrid_failed');
+      return sparseOnly(trimmed, topK, 'gemini_hybrid_failed', [embedUsage]);
     }
   }
 

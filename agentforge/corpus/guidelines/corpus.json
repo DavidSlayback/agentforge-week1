@@ -66,8 +66,8 @@
     "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening",
     "section": "Practice Considerations - Screening Interval",
     "version_or_date": "2021",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Screening for hypertension every year in adults 40 years or older and in adults at increased risk. Screening less frequently (ie, every 3 to 5 years) as appropriate for adults aged 18 to 39 years not at increased risk for hypertension and with a prior normal blood pressure reading."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "The USPSTF suggests annual screening for hypertension in adults 40 years or older and for adults at increased risk for hypertension (such as Black persons, persons with high-normal blood pressure, or persons who are overweight or obese). Screening less frequently (ie, every 3 to 5 years) is appropriate for adults aged 18 to 39 years not at increased risk for hypertension and with a prior normal blood pressure reading."
   },
   {
     "source_id": "cdc-a1c-test-definition",
@@ -96,8 +96,8 @@
     "url": "https://www.cdc.gov/diabetes/diabetes-testing/prediabetes-a1c-test.html",
     "section": "Who Should Get Tested",
     "version_or_date": "May 15, 2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Get an A1C test if you're over age 45. A1C testing is also recommended if you're younger, have overweight, and any other risk factor for prediabetes and type 2 diabetes."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Get an A1C test if you're over age 45. A1C testing is also recommended if you're younger, have overweight, and any other risk factor for prediabetes and type 2 diabetes"
   },
   {
     "source_id": "cdc-prediabetes-definition",
@@ -116,18 +116,18 @@
     "url": "https://www.cdc.gov/diabetes/prevention-type-2/truth-about-prediabetes.html",
     "section": "Symptoms and Risk Factors",
     "version_or_date": "May 15, 2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "You can have prediabetes for years without symptoms. Talk to your doctor about getting your blood sugar tested if you have any risk factors, including: Having overweight. Being 45 years or older. Having a parent, brother, or sister with type 2 diabetes."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "You can have prediabetes for years without symptoms. This means you likely won't know you have prediabetes until serious health problems show up. Talk to your doctor about getting your blood sugar tested if you have any risk factors, including: Having overweight. Being 45 years or older. Having a parent, brother, or sister with type 2 diabetes."
   },
   {
     "source_id": "cdc-hypertension-definition",
     "title": "About High Blood Pressure",
     "publisher": "CDC",
     "url": "https://www.cdc.gov/high-blood-pressure/about/index.html",
-    "section": "What Is High Blood Pressure?",
+    "section": "What Is Blood Pressure?",
     "version_or_date": "Jan. 28, 2026",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "High blood pressure, also called hypertension, is blood pressure that is higher than normal. High blood pressure is consistently at or above 130/80 mm Hg."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Blood pressure is the pressure that occurs when blood pushes against the walls of your arteries. Arteries carry blood from your heart to other parts of your body."
   },
   {
     "source_id": "cdc-hypertension-symptoms",
@@ -144,10 +144,10 @@
     "title": "Medication Safety and Your Health",
     "publisher": "CDC",
     "url": "https://www.cdc.gov/medication-safety/about/index.html",
-    "section": "Adverse Drug Events and Safe Use",
+    "section": "Key Points",
     "version_or_date": "November 18, 2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "An adverse drug event (ADE) is when a medication causes harm to someone. Medicines are safe when used as prescribed or as directed on the label."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Medicines are safe when used as prescribed or as directed on the label. There are risks in taking any medicine, vitamin or other supplement. An adverse drug event (ADE) is when a medication causes harm to someone."
   },
   {
     "source_id": "cdc-medication-list-tell-doctor",
@@ -166,18 +166,8 @@
     "url": "https://www.niddk.nih.gov/health-information/diabetes/overview/tests-diagnosis",
     "section": "How Is Diabetes Diagnosed?",
     "version_or_date": "July 2022",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Your doctor can diagnose diabetes, prediabetes, and gestational diabetes using blood tests. The A1C test is a blood test that provides your average levels of blood glucose over the last 3 months."
-  },
-  {
-    "source_id": "niddk-diabetes-diagnostic-ranges-table",
-    "title": "Diabetes Tests & Diagnosis",
-    "publisher": "NIDDK",
-    "url": "https://www.niddk.nih.gov/health-information/diabetes/overview/tests-diagnosis",
-    "section": "Diagnostic Test Result Table",
-    "version_or_date": "July 2022",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Diagnosis / A1C / Fasting Plasma Glucose / Oral Glucose Tolerance Test\nNormal: below 5.7% / 99 mg/dL or below / 139 mg/dL or below\nPrediabetes: 5.7% to 6.4% / 100 to 125 mg/dL / 140 to 199 mg/dL\nDiabetes: 6.5% or above / 126 mg/dL or above / 200 mg/dL or above\nSource: American Diabetes Association"
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Your doctor can diagnose diabetes , prediabetes , and gestational diabetes using blood tests. The blood tests show if your blood glucose level , also called blood sugar, is higher than the range that is healthy for you."
   },
   {
     "source_id": "niddk-a1c-test-uses",
@@ -186,8 +176,8 @@
     "url": "https://www.niddk.nih.gov/health-information/diagnostic-tests/a1c-test",
     "section": "What Is the A1C Test Used For?",
     "version_or_date": "April 2018",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "The A1C test can be used to diagnose type 2 diabetes and prediabetes. The A1C test is also the primary test used for diabetes management."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "The A1C test can be used to diagnose type 2 diabetes and prediabetes . 1 The A1C test is also the primary test used for diabetes management"
   },
   {
     "source_id": "niddk-a1c-testing-frequency",
@@ -226,8 +216,8 @@
     "url": "https://www.nhlbi.nih.gov/health/blood-cholesterol",
     "section": "Why High Cholesterol Matters",
     "version_or_date": "April 17, 2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "High levels of \"bad\" LDL cholesterol may create a buildup of plaque (fatty deposits) in your arteries. This buildup can lead to a heart attack, stroke, or other health problems."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "High levels of \"bad\" LDL cholesterol may create a buildup of plaque"
   },
   {
     "source_id": "nhlbi-cholesterol-diagnosis-method",
@@ -246,28 +236,18 @@
     "url": "https://www.nhlbi.nih.gov/health/blood-cholesterol/diagnosis",
     "section": "Lipoprotein Panel",
     "version_or_date": "April 18, 2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "A lipoprotein panel, also called a lipid panel or lipid profile, measures the levels of LDL and HDL cholesterol and triglycerides in your blood."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "A lipoprotein panel, also called a lipid panel or lipid profile, measures the levels of LDL and HDL cholesterol and triglycerides"
   },
   {
     "source_id": "nhlbi-hypertension-symptoms-crisis",
     "title": "High Blood Pressure - Symptoms",
     "publisher": "NHLBI",
     "url": "https://www.nhlbi.nih.gov/health/high-blood-pressure/symptoms",
-    "section": "Symptoms",
+    "section": "Hypertensive Crisis: What to Do",
     "version_or_date": "April 25, 2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "High blood pressure usually does not cause symptoms until it has also caused serious problems. Blood pressure above 180/120 mm HG is too high and requires medical attention, especially if you have symptoms."
-  },
-  {
-    "source_id": "nhlbi-hypertension-categories-table",
-    "title": "High Blood Pressure - Diagnosis",
-    "publisher": "NHLBI",
-    "url": "https://www.nhlbi.nih.gov/health/high-blood-pressure/diagnosis",
-    "section": "Blood Pressure Categories Table",
-    "version_or_date": "June 26, 2025",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Normal: Less than 120 systolic pressure AND Less than 80 diastolic pressure. Elevated: 120 to 129 systolic pressure AND Less than 80 diastolic pressure. High Blood Pressure Stage 1: 130 to 139 systolic pressure OR 80 to 89 diastolic pressure. High Blood Pressure Stage 2: 140 or higher systolic pressure OR 90 or higher diastolic pressure."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Blood pressure this high can damage your organs. If your blood pressure is 180/120 but you don't have symptoms, wait 5 minutes and check your blood pressure again. If it is still high, call your healthcare provider who may recommend starting a medicine or changing your dose."
   },
   {
     "source_id": "medlineplus-prediabetes-definition",
@@ -276,8 +256,8 @@
     "url": "https://medlineplus.gov/prediabetes.html",
     "section": "Summary",
     "version_or_date": "September 28, 2025",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Prediabetes means that your blood glucose, or blood sugar, levels are higher than normal but not high enough to be called diabetes."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Prediabetes means that your blood glucose, or blood sugar , levels are higher than normal but not high enough to be called diabetes"
   },
   {
     "source_id": "medlineplus-a1c-what-it-is",
@@ -286,8 +266,8 @@
     "url": "https://medlineplus.gov/lab-tests/hemoglobin-a1c-hba1c-test/",
     "section": "What Is It?",
     "version_or_date": "May 20, 2025",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "A hemoglobin A1C (HbA1C) test is a blood test that shows your average level of blood glucose, also called blood sugar, over the past two to three months."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "A hemoglobin A1C (HbA1C) test is a blood test that shows your average level of blood glucose , also called blood sugar, over the past two to three months"
   },
   {
     "source_id": "medlineplus-a1c-results-meaning",
@@ -330,34 +310,14 @@
     "text": "Blood pressure is the force of your blood pushing against the walls of your arteries."
   },
   {
-    "source_id": "medlineplus-anemia-fatigue-symptoms",
-    "title": "Iron Deficiency Anemia",
-    "publisher": "MedlinePlus",
-    "url": "https://medlineplus.gov/ency/article/000584.htm",
-    "section": "Symptoms",
-    "version_or_date": "4/1/2025",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Feeling weak or tired more often than usual, or with exercise. Shortness of breath."
-  },
-  {
-    "source_id": "medlineplus-anemia-causes",
-    "title": "Iron Deficiency Anemia",
-    "publisher": "MedlinePlus",
-    "url": "https://medlineplus.gov/ency/article/000584.htm",
-    "section": "Causes",
-    "version_or_date": "4/1/2025",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "You lose more blood cells and iron than your body can replace. Your body does not absorb iron well."
-  },
-  {
     "source_id": "medlineplus-cbc-hemoglobin-anemia",
     "title": "Complete Blood Count (CBC)",
     "publisher": "MedlinePlus",
     "url": "https://medlineplus.gov/lab-tests/complete-blood-count-cbc/",
-    "section": "Hemoglobin and Abnormal Results",
+    "section": "What Do the Results Mean?",
     "version_or_date": "October 15, 2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Hemoglobin, an iron-rich protein in red blood cells that carries oxygen from your lungs to the rest of your body. Abnormal levels of red blood cells, hemoglobin, or hematocrit may be a sign of dehydration, anemia, heart disease, or too little iron in your body."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Abnormal levels of red blood cells, hemoglobin, or hematocrit may be a sign of dehydration , anemia, heart disease , or too little iron in your body"
   },
   {
     "source_id": "medlineplus-kidney-tests-overview",
@@ -366,8 +326,8 @@
     "url": "https://medlineplus.gov/kidneytests.html",
     "section": "Summary",
     "version_or_date": "June 11, 2025",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Kidney tests check to see how well your kidneys are working. They include blood, urine, and imaging tests."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Kidney tests check to see how well your kidneys are working. They include blood, urine , and imaging tests"
   },
   {
     "source_id": "medlineplus-kidney-early-disease-no-symptoms",
@@ -396,8 +356,8 @@
     "url": "https://medlineplus.gov/lab-tests/creatinine-test/",
     "section": "What It Measures",
     "version_or_date": "December 5, 2023",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "This test measures creatinine levels in a sample of your blood and/or urine (pee). Normally, your kidneys filter creatinine from your blood and remove it from your body in your urine."
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "This test measures creatinine levels in a sample of your blood and/or urine (pee). Creatinine is a normal waste product in your body. It's made when you use your muscles and some of the muscle tissue breaks down. Normally, your kidneys filter creatinine from your blood and remove it from your body in your urine"
   },
   {
     "source_id": "medlineplus-gfr-test-definition",
@@ -420,53 +380,43 @@
     "text": "A normal eGFR means that you probably don't have kidney disease. An eGFR that's below normal or low may mean that you may have kidney disease. A very low eGFR means that you may have kidney failure."
   },
   {
-    "source_id": "medlineplus-medication-list-contents",
-    "title": "Keeping Your Medicines Organized",
-    "publisher": "MedlinePlus",
-    "url": "https://medlineplus.gov/ency/patientinstructions/000600.htm",
-    "section": "Making a Medicine List",
-    "version_or_date": "9/4/2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Put on the list any prescription medicines, over-the-counter medicines, and vitamins, herbs, and supplements that you take."
+    "source_id": "nhlbi-anemia-definition",
+    "title": "Iron-Deficiency Anemia",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/anemia/iron-deficiency-anemia",
+    "section": "What It Is",
+    "version_or_date": "undated",
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Iron-deficiency anemia is a type of anemia that develops if you do not have enough iron in your body. It is the most common type of anemia."
   },
   {
-    "source_id": "medlineplus-medication-bring-list-appointments",
-    "title": "Keeping Your Medicines Organized",
-    "publisher": "MedlinePlus",
-    "url": "https://medlineplus.gov/ency/patientinstructions/000600.htm",
-    "section": "Using Your Medicine List",
-    "version_or_date": "9/4/2024",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Bring the list and your medicines in their bottles to your health care provider appointments and when you go to the pharmacy. Review your medicine list with your provider or pharmacist."
+    "source_id": "nhlbi-anemia-fatigue-symptoms",
+    "title": "Iron-Deficiency Anemia",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/anemia/iron-deficiency-anemia",
+    "section": "Symptoms",
+    "version_or_date": "undated",
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "People with mild or moderate iron-deficiency anemia may not have any symptoms. More serious iron-deficiency anemia may cause common symptoms of anemia, such as tiredness, shortness of breath, or chest pain. Other symptoms include: Fatigue Dizziness or lightheadedness Cold hands and feet Pale skin"
   },
   {
-    "source_id": "medlineplus-medicine-tell-providers",
-    "title": "Medicine Safety - Filling Your Prescription",
-    "publisher": "MedlinePlus",
-    "url": "https://medlineplus.gov/ency/patientinstructions/000766.htm",
-    "section": "Getting a Prescription",
-    "version_or_date": "April 10, 2026",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Tell all your providers about all the medicines, supplements, and herbs you take."
+    "source_id": "nhlbi-anemia-causes",
+    "title": "Anemia",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/anemia/causes",
+    "section": "Causes and Risk Factors",
+    "version_or_date": "undated",
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Some types of anemias are caused by factors you can't change, like your family history or your age. Other anemias are caused by factors you can manage, like eating habits or other health conditions that control how your body makes red blood cells."
   },
   {
-    "source_id": "medlineplus-medicine-same-pharmacy",
-    "title": "Medicine Safety - Filling Your Prescription",
+    "source_id": "medlineplus-medicines-overview",
+    "title": "Medicines",
     "publisher": "MedlinePlus",
-    "url": "https://medlineplus.gov/ency/patientinstructions/000766.htm",
-    "section": "Local Pharmacies",
-    "version_or_date": "April 10, 2026",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "It is best to fill all your prescriptions with the same pharmacy. That way, the pharmacy has a record of all the medicines you are taking."
-  },
-  {
-    "source_id": "medlineplus-medicine-check-label",
-    "title": "Medicine Safety - Filling Your Prescription",
-    "publisher": "MedlinePlus",
-    "url": "https://medlineplus.gov/ency/patientinstructions/000766.htm",
-    "section": "Tips to Stay Safe",
-    "version_or_date": "April 10, 2026",
-    "retrieved_at": "2026-09-24T00:00:00Z",
-    "text": "Check the label. Look for your name, the name of the medicine, the dose, and how often you should take it."
+    "url": "https://medlineplus.gov/medicines.html",
+    "section": "Summary",
+    "version_or_date": "undated",
+    "retrieved_at": "2026-09-25T00:00:00Z",
+    "text": "Medicines can treat diseases and improve your health. If you are like most people, you need to take medicine at some point in your life."
   }
 ]

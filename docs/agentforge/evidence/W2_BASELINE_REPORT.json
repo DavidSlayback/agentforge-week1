@@ -5,8 +5,8 @@
   "thresholds_passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "4c3b2dd6bc790932c6f0cf4ba122aaae8a5ed62eb263f39f087f49b761b4db80",
-  "baseline_corpus_sha256": "4c3b2dd6bc790932c6f0cf4ba122aaae8a5ed62eb263f39f087f49b761b4db80",
+  "corpus_sha256": "42a361795d3046e5e1b54c4cde4a4da516cf6d05729cf27d125ee04ad1cbbde7",
+  "baseline_corpus_sha256": "42a361795d3046e5e1b54c4cde4a4da516cf6d05729cf27d125ee04ad1cbbde7",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -27,13 +27,13 @@
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 10,
-      "passed": 10,
+      "cases": 11,
+      "passed": 11,
       "rate": 1
     },
     "safe_refusal": {
-      "cases": 13,
-      "passed": 13,
+      "cases": 12,
+      "passed": 12,
       "rate": 1
     },
     "no_phi_in_logs": {
@@ -228,6 +228,12 @@
       "passed": true
     },
     {
+      "id": "fc-11-retrieval-empty-clinician-question",
+      "label": "factually_consistent",
+      "guards_against": "Query formulation stops building the query from the document's own typed abnormal lab findings (e.g. the abnormal-findings phrase is dropped), so a request with no clinician message at all finds no evidence even though the document has a real abnormal A1C.",
+      "passed": true
+    },
+    {
       "id": "sr-01-table-lab-zero-fields",
       "label": "safe_refusal",
       "guards_against": "A lab layout the OCR label map cannot read is reported READY (or guessed) instead of BLOCKED no_fields_extracted.",
@@ -291,12 +297,6 @@
       "id": "sr-13-lab-header-other-patient",
       "label": "safe_refusal",
       "guards_against": "A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.",
-      "passed": true
-    },
-    {
-      "id": "sr-14-scan-text-unsupported-query",
-      "label": "safe_refusal",
-      "guards_against": "An off-topic clinical question against a `.scan.txt` text-envelope upload gets guideline evidence or a READY state — the refusal defect the retired /v1/supervisor text path could hide.",
       "passed": true
     },
     {

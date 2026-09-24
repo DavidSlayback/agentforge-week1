@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { estimateCostUsd } from './pricing.js';
-import { tokenize as bm25Tokenize } from './bm25.js';
+import { buildBm25Index, tokenize as bm25Tokenize } from './bm25.js';
 
 /**
  * Shared Gemini HTTP plumbing (embeddings + generation) plus the
@@ -90,20 +90,39 @@ export async function fetchWithGeminiRetry({ fetchImpl, url, headers, body, time
   return response;
 }
 
-/** Extract the text payload from an `interactions` response body (shared with `geminiScanAdapter.js`). */
+/**
+ * Extract the text payload from an `interactions` response body (shared
+ * with `geminiScanAdapter.js`).
+ *
+ * The documented shape (https://ai.google.dev/gemini-api/docs/interactions/*)
+ * is a `steps[]` array — each element the assembled result of one
+ * `step.start` -> `step.delta`(s) -> `step.stop` cycle, with generated text
+ * carried as `{type: 'text', text}` parts (the same shape the streaming
+ * delta events use). This is checked first; the flatter `output_text`/
+ * `output[].content[]` shape some earlier interactions responses used is
+ * kept as a fallback so a response in either shape is handled.
+ */
 export function responseText(body) {
   if (typeof body?.output_text === 'string') return body.output_text;
+  const stepParts = (body?.steps || []).flatMap((step) => (Array.isArray(step?.content) ? step.content : step?.type === 'text' ? [step] : []));
+  const fromSteps = stepParts.find((part) => part.type === 'text' && typeof part.text === 'string')?.text;
+  if (fromSteps) return fromSteps;
   const parts = body?.output?.flatMap((item) => item.content || []) || [];
   return parts.find((part) => part.type === 'text' && typeof part.text === 'string')?.text || '';
 }
 
-// Real Gemini usage metadata field names are not consistent across every
-// endpoint version this codebase has observed; check the documented shapes
-// in order and fall back to a word-count-based estimate (~0.75 tokens per
-// word) when the response carries none. The fallback is only ever an
-// approximation and is marked as such on the returned usage record.
+// The documented interactions usage shape is `usage.total_input_tokens` /
+// `usage.total_output_tokens` (https://ai.google.dev/gemini-api/docs/
+// interactions/tokens). Older `usageMetadata`-style shapes are kept as a
+// fallback, and a word-count-based estimate (~0.75 tokens per word) applies
+// only when the response carries no usage information at all — always
+// marked `estimated: true` so a trace never presents a guess as measured.
 function extractTokenUsage(body, { fallbackInputText = '', fallbackOutputText = '' } = {}) {
-  const meta = body?.usageMetadata || body?.usage_metadata || body?.usage;
+  const usage = body?.usage;
+  if (usage && (Number.isFinite(usage.total_input_tokens) || Number.isFinite(usage.total_output_tokens))) {
+    return { inputTokens: usage.total_input_tokens ?? 0, outputTokens: usage.total_output_tokens ?? 0, estimated: false };
+  }
+  const meta = body?.usageMetadata || body?.usage_metadata;
   if (meta && (Number.isFinite(meta.promptTokenCount) || Number.isFinite(meta.prompt_tokens) || Number.isFinite(meta.input_tokens))) {
     return {
       inputTokens: meta.promptTokenCount ?? meta.prompt_tokens ?? meta.input_tokens ?? 0,
@@ -132,20 +151,40 @@ function usageRecord({ stage, model, tokenUsage }) {
  * A live embed+rerank Gemini client, backed by real HTTP calls against a
  * server-only API key.
  */
+// gemini-embedding-2 ignores the `taskType` request field entirely (it was
+// deprecated for this model — the older gemini-embedding-001 still honors
+// it). The documented replacement is an in-text instruction prefix, applied
+// to the content itself before embedding:
+// https://developers.googleblog.com/building-with-gemini-embedding-2/
+//   query:    "task: search result | query: {content}"
+//   document: "title: {title} | text: {content}"
+// A `taskType` this codebase doesn't recognize (or none) is sent verbatim,
+// unprefixed, rather than guessing a prefix.
+function embedInputText(text, taskType, title) {
+  if (taskType === 'RETRIEVAL_QUERY') return `task: search result | query: ${text}`;
+  if (taskType === 'RETRIEVAL_DOCUMENT') return `title: ${title || 'none'} | text: ${text}`;
+  return text;
+}
+
 export function createLiveGeminiClient({ apiKey, fetchImpl = globalThis.fetch, embedModel = GEMINI_EMBED_MODEL, rerankModel = GEMINI_RERANK_MODEL, outputDimensionality = GEMINI_EMBED_DIMENSIONS, embedTimeoutMs = 10000, rerankTimeoutMs = 20000 } = {}) {
   if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('GEMINI_API_KEY_REQUIRED');
   if (typeof fetchImpl !== 'function') throw new Error('FETCH_UNAVAILABLE');
 
-  async function embed(text, taskType) {
+  async function embed(text, taskType, { title } = {}) {
     const response = await fetchWithGeminiRetry({
       fetchImpl,
       url: EMBED_ENDPOINT(embedModel),
       headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({ model: `models/${embedModel}`, content: { parts: [{ text }] }, taskType, outputDimensionality }),
+      body: JSON.stringify({ model: `models/${embedModel}`, content: { parts: [{ text: embedInputText(text, taskType, title) }] }, outputDimensionality }),
       timeoutMs: embedTimeoutMs,
     });
     const body = await response.json();
-    const values = body?.embedding?.values;
+    // Handle both the singular `embedding.values` shape (gemini-embedding-001)
+    // and the `embeddings[].values` array shape documented for
+    // gemini-embedding-2 — Google's own docs are inconsistent about which
+    // applies per model/endpoint version, so both are accepted rather than
+    // assuming one and failing closed on the other.
+    const values = body?.embedding?.values || body?.embeddings?.[0]?.values;
     if (!Array.isArray(values) || !values.length || !values.every(Number.isFinite)) throw new Error('GEMINI_EMBED_RESPONSE_INVALID');
     return { values, usage: usageRecord({ stage: 'embed', model: embedModel, tokenUsage: extractTokenUsage(body, { fallbackInputText: text }) }) };
   }
@@ -157,7 +196,10 @@ export function createLiveGeminiClient({ apiKey, fetchImpl = globalThis.fetch, e
       fetchImpl,
       url: GENERATION_ENDPOINT,
       headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({ model: rerankModel, input: [{ type: 'text', text: prompt }], response_format: { type: 'text', mime_type: 'application/json', schema }, generation_config: { thinking_level: 'low', max_output_tokens: 1024 } }),
+      // store: false — this is a per-request rerank call over guideline text,
+      // not a user-facing conversation; it must not be retained server-side
+      // as interaction history.
+      body: JSON.stringify({ model: rerankModel, input: [{ type: 'text', text: prompt }], response_format: { type: 'text', mime_type: 'application/json', schema }, generation_config: { thinking_level: 'low', max_output_tokens: 1024 }, store: false }),
       timeoutMs: rerankTimeoutMs,
     });
     const body = await response.json();
@@ -219,8 +261,12 @@ export function defaultRetrievalFixturesDir() {
 // `scripts/record-retrieval-fixtures.mjs` (write) so a fixture recorded for
 // one exact request is found by the other — the hash key is a single
 // source of truth, never duplicated at each call site.
-export const embedFixtureHash = ({ model, taskType, text }) => geminiRequestHash({ op: 'embed', model, taskType, text });
-export const rerankFixtureHash = ({ model, query, candidates }) => geminiRequestHash({ op: 'rerank', model, query, candidates: candidates.map((candidate) => ({ id: candidate.id, text: candidate.text })) });
+export const embedFixtureHash = ({ model, taskType, text, title }) => geminiRequestHash({ op: 'embed', model, taskType, text, title: title || null });
+// Sorted by id so the hash is stable regardless of the candidate set's
+// incidental ordering (e.g. a Map iteration order that depends on which of
+// sparse/dense contributed a given id first) — only the query and the exact
+// set of candidate {id, text} pairs define the request.
+export const rerankFixtureHash = ({ model, query, candidates }) => geminiRequestHash({ op: 'rerank', model, query, candidates: [...candidates].map((candidate) => ({ id: candidate.id, text: candidate.text })).sort((left, right) => left.id.localeCompare(right.id)) });
 
 function readFixture(fixturesDir, hash) {
   const file = path.join(fixturesDir, `${hash}.json`);
@@ -252,14 +298,23 @@ export function stubEmbedding(text, dimensions = STUB_EMBED_DIMENSIONS) {
   return vector;
 }
 
-/** Deterministic keyword-overlap relevance score in [0, 1] — an honest stand-in for an LLM rerank, not a model judgment. */
-function stubRelevanceScore(query, text) {
-  const queryTokens = new Set(bm25Tokenize(query));
-  if (!queryTokens.size) return 0;
-  const textTokens = new Set(bm25Tokenize(text));
-  let overlap = 0;
-  for (const token of queryTokens) if (textTokens.has(token)) overlap += 1;
-  return Number((overlap / queryTokens.size).toFixed(6));
+/**
+ * Deterministic BM25-over-the-candidate-set relevance scores in [0, 1] — an
+ * honest stand-in for an LLM listwise rerank, not a model judgment. Scored
+ * with a fresh BM25 index over just this request's candidates (so the
+ * IDF reflects what's actually distinctive within them) and min-max
+ * normalized against the top score, so the threshold in
+ * `createGeminiHybridGuidelineRetriever` (relative to a 0-1 scale) behaves
+ * sensibly regardless of the candidate set's absolute BM25 magnitudes. A
+ * query with no lexical overlap with any candidate scores everything 0.
+ */
+function stubRerankResults(query, candidates) {
+  if (!candidates.length) return [];
+  const index = buildBm25Index(candidates, { getText: (candidate) => candidate.text });
+  const ranked = index.search(query, { topK: candidates.length });
+  const topScore = ranked[0]?.score || 0;
+  const scoreById = new Map(ranked.map(({ document, score }) => [document.id, topScore ? score / topScore : 0]));
+  return candidates.map((candidate) => ({ chunk_id: candidate.id, relevance_score: Number((scoreById.get(candidate.id) || 0).toFixed(6)) }));
 }
 
 /**
@@ -274,19 +329,22 @@ function stubRelevanceScore(query, text) {
  * or `source: 'stub'` so a trace can tell which one actually ran.
  */
 export function createRecordedOrStubGeminiClient({ fixturesDir = defaultRetrievalFixturesDir(), embedModel = GEMINI_EMBED_MODEL, rerankModel = GEMINI_RERANK_MODEL } = {}) {
-  async function embed(text, taskType) {
-    const hash = embedFixtureHash({ model: embedModel, taskType, text });
+  async function embed(text, taskType, { title } = {}) {
+    const hash = embedFixtureHash({ model: embedModel, taskType, text, title });
     const recorded = readFixture(fixturesDir, hash);
     if (recorded?.values) return { values: recorded.values, usage: { ...usageRecord({ stage: 'embed', model: embedModel, tokenUsage: recorded.tokenUsage || { inputTokens: 0, outputTokens: 0, estimated: true } }), source: 'recorded' } };
-    return { values: stubEmbedding(text), usage: { stage: 'embed', provider: 'google', model: embedModel, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, tokens_estimated: true, source: 'stub' } };
+    // Honest stub usage: provider/model name the local hashing stand-in,
+    // never `google`/the real model name — this never called Gemini, cost
+    // nothing, and must not be presented in a trace as if it had.
+    return { values: stubEmbedding(text), usage: { stage: 'embed', provider: 'stub', model: 'hashing-trick-embedding-stub', inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, tokens_estimated: false, source: 'stub' } };
   }
 
   async function rerank(query, candidates) {
     const hash = rerankFixtureHash({ model: rerankModel, query, candidates });
     const recorded = readFixture(fixturesDir, hash);
     if (recorded?.results) return { results: validateRerankResults({ results: recorded.results }, candidates), usage: { ...usageRecord({ stage: 'rerank', model: rerankModel, tokenUsage: recorded.tokenUsage || { inputTokens: 0, outputTokens: 0, estimated: true } }), source: 'recorded' } };
-    const results = candidates.map((candidate) => ({ chunk_id: candidate.id, relevance_score: stubRelevanceScore(query, candidate.text) }));
-    return { results, usage: { stage: 'rerank', provider: 'google', model: rerankModel, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, tokens_estimated: true, source: 'stub' } };
+    const results = stubRerankResults(query, candidates);
+    return { results, usage: { stage: 'rerank', provider: 'stub', model: 'bm25-rerank-stub', inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, tokens_estimated: false, source: 'stub' } };
   }
 
   return Object.freeze({ name: 'recorded-or-stub', mode: 'recorded-or-stub', embed, rerank });
@@ -299,9 +357,9 @@ export function createRecordedOrStubGeminiClient({ fixturesDir = defaultRetrieva
  * the deployed server.
  */
 export function createRecordingGeminiClient({ liveClient, fixturesDir = defaultRetrievalFixturesDir(), embedModel = GEMINI_EMBED_MODEL, rerankModel = GEMINI_RERANK_MODEL }) {
-  async function embed(text, taskType) {
-    const result = await liveClient.embed(text, taskType);
-    const hash = embedFixtureHash({ model: embedModel, taskType, text });
+  async function embed(text, taskType, options = {}) {
+    const result = await liveClient.embed(text, taskType, options);
+    const hash = embedFixtureHash({ model: embedModel, taskType, text, title: options.title });
     writeFixture(fixturesDir, hash, { values: result.values, tokenUsage: { inputTokens: result.usage?.inputTokens || 0, outputTokens: result.usage?.outputTokens || 0, estimated: Boolean(result.usage?.tokens_estimated) } });
     return result;
   }

@@ -15,7 +15,7 @@ import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } fr
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
-import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever } from './guidelineEvidence.js';
+import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, loadGuidelineCorpus } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
 import { createLiveGeminiClient } from './geminiClient.js';
@@ -134,6 +134,12 @@ const readiness = createReadinessChecker({
   retrieval: chartAdapter,
   model: modelReadiness,
   trace: { checkReady: async () => traceSink.health().status === 'ok' },
+  // A missing/unreadable corpus/guidelines/corpus.json no longer crashes the
+  // process (guidelineEvidence.js resolves it lazily and degrades to
+  // sparse-only per request); this surfaces the same condition loudly
+  // instead, in /ready, for local-lexical and gemini-hybrid modes (cohere
+  // uses its own in-memory synthetic corpus and never reads this file).
+  ...(ragProviderMode === 'cohere' ? {} : { guidelineCorpus: { checkReady: async () => { try { loadGuidelineCorpus(); return true; } catch { return false; } } } }),
 });
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const evalsRoot = path.join(projectRoot, 'evals');

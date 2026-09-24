@@ -127,10 +127,14 @@ export const IntakeForm = z.object({
  *
  * `url`/`publisher` are the chunk's source-page metadata (from the corpus
  * file, not invented at retrieval time). `degraded` is `null` when this item
- * came from the full sparse+dense+rerank pipeline, or `'sparse_only'` when
- * it came from a BM25-only fallback (no corpus embeddings, no Gemini key, or
- * a failed Gemini call) — required, not optional, so a sparse-only result
- * can never be silently presented as hybrid (AGENTS.md).
+ * came from the full sparse+dense+rerank pipeline using a real Gemini
+ * client; `'sparse_only'` when it came from a BM25-only fallback (no corpus
+ * embeddings, no Gemini key, or a failed Gemini call); or `'stub'` when the
+ * hybrid pipeline ran its full shape but one or more steps were answered by
+ * the deterministic test/gate stand-in (`recorded-or-stub` with no matching
+ * recorded fixture) rather than a real or recorded Gemini response — never
+ * optional, so neither case can be silently presented as a genuine hybrid
+ * result (AGENTS.md).
  */
 export const GuidelineEvidence = z.object({
   title: z.string().min(1),
@@ -143,7 +147,7 @@ export const GuidelineEvidence = z.object({
   dense_score: z.number(),
   rerank_score: z.number(),
   matched_terms: z.array(z.string()),
-  degraded: z.enum(['sparse_only']).nullable(),
+  degraded: z.enum(['sparse_only', 'stub']).nullable(),
   citation: Citation,
 }).strict();
 

@@ -46,7 +46,8 @@
         {
           "type": "string",
           "enum": [
-            "sparse_only"
+            "sparse_only",
+            "stub"
           ]
         },
         {

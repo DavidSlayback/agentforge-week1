@@ -70,7 +70,7 @@ const NON_ABNORMAL_FLAGS = new Set(['normal', 'unknown']);
 function abnormalLabPhrase(labResults) {
   const abnormal = (labResults || []).filter((result) => result?.test_name && result.abnormal_flag && !NON_ABNORMAL_FLAGS.has(result.abnormal_flag));
   if (!abnormal.length) return '';
-  return `Abnormal findings: ${abnormal.map((result) => `${result.test_name} ${result.abnormal_flag}`).join(', ')}.`;
+  return `Abnormal findings: ${abnormal.map((result) => `${result.test_name} test result ${result.abnormal_flag}`).join(', ')}.`;
 }
 
 /** Describe the intake form's chief concern for the retrieval query, or '' when it was never observed on the form. */

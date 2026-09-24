@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, loadGuidelineCorpus, retrieveGuidelineEvidence } from '../src/guidelineEvidence.js';
+import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, loadGuidelineCorpus, retrieveGuidelineEvidence, sanitizeForGemini } from '../src/guidelineEvidence.js';
 import { createRecordedOrStubGeminiClient, stubEmbedding } from '../src/geminiClient.js';
 import { GuidelineEvidence, parseOrIssues } from '../src/schemas.js';
 import { startTestServer } from './helpers/testServer.js';
@@ -45,18 +45,67 @@ function stubEmbeddingsFor(corpus) {
   return { vectors: Object.fromEntries(corpus.map((chunk) => [chunk.source_id, stubEmbedding(`${chunk.title}\n${chunk.section}\n${chunk.text}`)])) };
 }
 
-test('the Gemini hybrid retriever unions sparse+dense candidates, reranks, and reports the real mode used', async () => {
+test('sanitizeForGemini strips a name, a date of birth, and a phone number, keeping only clinical vocabulary words', () => {
+  const corpus = loadGuidelineCorpus();
+  const vocabulary = new Set(corpus.flatMap((chunk) => `${chunk.title} ${chunk.section} ${chunk.text}`.toLowerCase().match(/[a-z0-9]+/g) || []));
+  for (const word of ['abnormal', 'test', 'result', 'a1c']) vocabulary.add(word);
+  const withPhi = "Patient David Smith, DOB 04/12/1980, phone 555-0100, A1C test result abnormal";
+  const sanitized = sanitizeForGemini(withPhi, vocabulary);
+  assert.equal(/david/i.test(sanitized), false);
+  assert.equal(/smith/i.test(sanitized), false);
+  assert.equal(/04|12|1980|0100|555/.test(sanitized), false);
+  assert.match(sanitized, /\ba1c\b/i);
+  assert.match(sanitized, /abnormal/i);
+});
+
+test('the Gemini hybrid retriever never sends the raw client message to Gemini: a name/DOB/phone-bearing clinician question is stripped before the embed/rerank calls', async () => {
+  const corpus = loadGuidelineCorpus();
+  const embedCalls = [];
+  const rerankCalls = [];
+  const capturingClient = {
+    name: 'capturing-fake',
+    async embed(text) { embedCalls.push(text); return { values: stubEmbedding(text), usage: { stage: 'embed', provider: 'google', model: 'fake', inputTokens: 1, outputTokens: 0, estimatedCostUsd: 0 } }; },
+    async rerank(query, candidates) { rerankCalls.push(query); return { results: candidates.map((candidate) => ({ chunk_id: candidate.id, relevance_score: 0.9 })), usage: { stage: 'rerank', provider: 'google', model: 'fake', inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 } }; },
+  };
+  const retriever = createGeminiHybridGuidelineRetriever({ geminiClient: capturingClient, corpus, embeddings: stubEmbeddingsFor(corpus) });
+  const phiBearingQuestion = 'Abnormal findings: A1C test result abnormal. Please call patient David Smith at 555-0100, DOB 04/12/1980, about the A1C result.';
+  await retriever.retrieve(phiBearingQuestion, { topK: 3 });
+  assert.ok(embedCalls.length > 0 && rerankCalls.length > 0, 'the capturing client must actually have been called');
+  for (const sentText of [...embedCalls, ...rerankCalls]) {
+    assert.equal(/david/i.test(sentText), false, `sent text still contains a name: ${sentText}`);
+    assert.equal(/smith/i.test(sentText), false, `sent text still contains a name: ${sentText}`);
+    assert.equal(/555.0100/.test(sentText), false, `sent text still contains a phone number: ${sentText}`);
+    assert.equal(/04.12.1980/.test(sentText), false, `sent text still contains a date of birth: ${sentText}`);
+    assert.match(sentText, /a1c/i, 'sanitization must not drop real clinical vocabulary along with PHI');
+  }
+});
+
+test('the Gemini hybrid retriever degrades to sparse-only, not a fabricated empty embed call, when nothing in the query survives sanitization', async () => {
+  const corpus = loadGuidelineCorpus();
+  let called = false;
+  const client = { name: 'should-not-be-called', embed: async () => { called = true; return { values: [], usage: {} }; }, rerank: async () => { called = true; return { results: [], usage: {} }; } };
+  const retriever = createGeminiHybridGuidelineRetriever({ geminiClient: client, corpus, embeddings: stubEmbeddingsFor(corpus) });
+  const result = await retriever.retrieve('David Smith 555-0100', { topK: 3 });
+  assert.equal(called, false);
+  assert.equal(result.degraded, 'sparse_only');
+});
+
+test('the Gemini hybrid retriever unions sparse+dense candidates, reranks, and honestly labels a stub-backed run', async () => {
   const corpus = loadGuidelineCorpus();
   const geminiClient = createRecordedOrStubGeminiClient();
   const retriever = createGeminiHybridGuidelineRetriever({ geminiClient, corpus, embeddings: stubEmbeddingsFor(corpus) });
   const result = await retriever.retrieve('A1C blood sugar diabetes diagnosis threshold', { topK: 3 });
   assert.equal(result.status, 'complete');
-  assert.equal(result.degraded, null);
   assert.ok(result.provider.startsWith('gemini-hybrid:'));
   assert.ok(result.evidence.length > 0 && result.evidence.length <= 3);
+  // No fixture has been recorded for this exact request, so `recorded-or-stub`
+  // fell back to its deterministic stand-in for both calls — the result ran
+  // the full hybrid shape, but must say `stub`, never `null`, under a
+  // `gemini-hybrid:` name (never present a simulation as the real thing).
+  assert.equal(result.degraded, 'stub');
   for (const item of result.evidence) {
     assert.equal(parseOrIssues(GuidelineEvidence, item).ok, true);
-    assert.equal(item.degraded, null);
+    assert.equal(item.degraded, 'stub');
     assert.equal(item.citation.source_type, 'guideline');
   }
   // The rerank step must actually rank, not just pass candidates through:
@@ -65,6 +114,23 @@ test('the Gemini hybrid retriever unions sparse+dense candidates, reranks, and r
   for (let index = 1; index < result.evidence.length; index += 1) assert.ok(result.evidence[index].rerank_score <= result.evidence[index - 1].rerank_score);
   assert.ok(Array.isArray(result.usage) && result.usage.length === 2);
   assert.deepEqual(result.usage.map((usage) => usage.stage), ['embed', 'rerank']);
+  assert.ok(result.usage.every((usage) => usage.provider === 'stub'), 'stub usage must never claim provider google');
+});
+
+test('the Gemini hybrid retriever reports degraded: null only for a genuinely non-stub (real or recorded) client', async () => {
+  const corpus = loadGuidelineCorpus();
+  // A fake "real" client: same interface, but its usage carries no
+  // `source: 'stub'` tag (as createLiveGeminiClient's and a populated
+  // recorded-fixture hit both would not).
+  const realish = {
+    name: 'google-fake-embed+fake-rerank',
+    async embed(text) { return { values: stubEmbedding(text), usage: { stage: 'embed', provider: 'google', model: 'fake', inputTokens: 10, outputTokens: 0, estimatedCostUsd: 0.00001 } }; },
+    async rerank(query, candidates) { return { results: candidates.map((candidate, index) => ({ chunk_id: candidate.id, relevance_score: index === 0 ? 0.9 : 0.1 })), usage: { stage: 'rerank', provider: 'google', model: 'fake', inputTokens: 20, outputTokens: 5, estimatedCostUsd: 0.00002 } }; },
+  };
+  const retriever = createGeminiHybridGuidelineRetriever({ geminiClient: realish, corpus, embeddings: stubEmbeddingsFor(corpus) });
+  const result = await retriever.retrieve('A1C blood sugar diabetes diagnosis threshold', { topK: 3 });
+  assert.equal(result.degraded, null);
+  assert.ok(result.evidence.every((item) => item.degraded === null));
 });
 
 test('the hybrid retriever degrades to sparse-only, never labeled hybrid, when embeddings are missing', async () => {
@@ -91,6 +157,31 @@ test('the hybrid retriever degrades to sparse-only, without leaking the failure 
   assert.equal(result.degraded, 'sparse_only');
   assert.equal(result.provider, 'bm25-sparse-only');
   assert.equal(JSON.stringify(result).includes('internal host detail'), false);
+});
+
+test('a query/corpus embedding dimension mismatch degrades to sparse-only instead of silently scoring every chunk 0 and calling it hybrid', async () => {
+  const corpus = loadGuidelineCorpus();
+  // Corpus embeddings are 64-dimensional (stubEmbeddingsFor's default); the
+  // client's query embedding here is a different size, as if the query and
+  // the precomputed corpus file came from two different embedding
+  // models/configurations. rerank still succeeds normally (it does not
+  // depend on embedding dimensions) — the mismatch must be caught at the
+  // cosine-similarity step itself, not masked by a downstream failure.
+  const mismatchedClient = {
+    name: 'mismatched-dimension-fake',
+    async embed() { return { values: [0.1, 0.2, 0.3], usage: { stage: 'embed', provider: 'google', model: 'fake', inputTokens: 1, outputTokens: 0, estimatedCostUsd: 0 } }; },
+    async rerank(query, candidates) { return { results: candidates.map((candidate, index) => ({ chunk_id: candidate.id, relevance_score: index === 0 ? 0.9 : 0.6 })), usage: { stage: 'rerank', provider: 'google', model: 'fake', inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 } }; },
+  };
+  const retriever = createGeminiHybridGuidelineRetriever({ geminiClient: mismatchedClient, corpus, embeddings: stubEmbeddingsFor(corpus) });
+  const result = await retriever.retrieve('A1C blood sugar diabetes diagnosis threshold', { topK: 3 });
+  // Without the dimension-mismatch guard, cosineSimilarity's own defensive
+  // length check would silently score every dense candidate 0 (not throw),
+  // so the pipeline would "successfully" complete a rerank over sparse-only
+  // candidates and report a plain, ungrounded `null` (not degraded) result —
+  // dense_score: 0 everywhere, never actually compared against the corpus.
+  assert.equal(result.degraded, 'sparse_only');
+  assert.equal(result.provider, 'bm25-sparse-only');
+  assert.ok(result.evidence.every((item) => item.degraded === 'sparse_only'));
 });
 
 test('Cohere retriever embeds synthetic corpus and query, reranks, and preserves provenance', async () => {

@@ -207,11 +207,27 @@ degrade to sparse-only:
 If `GEMINI_API_KEY` is unset, `embeddings.json` is missing, or any Gemini
 call fails, the retriever degrades itself to BM25-only and marks every
 response `degraded: "sparse_only"` — it never reports a degraded response as
-hybrid. The evidence-retrieval query is formulated server-side from the
-uploaded document's own typed abnormal lab results and the intake chief
-concern (`agentforge/src/activeWorkers.js`); a client-supplied `message` is
-only ever appended as an optional clinician question, never sent verbatim as
-the query.
+hybrid. A dimension mismatch between the query embedding and the precomputed
+corpus vectors (e.g. `embeddings.json` was built with a different model or
+`outputDimensionality`) is treated the same way, not as "no similarity".
+
+The evidence-retrieval query is formulated server-side from the uploaded
+document's own typed abnormal lab results and the intake chief concern
+(`agentforge/src/activeWorkers.js`); a client-supplied `message` is only ever
+appended as an optional clinician question, never sent verbatim as the
+query. Before anything reaches Gemini's embed/rerank calls, it is further
+reduced to only the words this corpus's own vocabulary recognizes
+(`sanitizeForGemini`, `agentforge/src/guidelineEvidence.js`) — a name, date
+of birth, phone number, or any other free text a clinician or patient typed
+is dropped rather than sent to Google. The local BM25 search (which never
+leaves this process) still runs on the original, unsanitized query.
+
+Re-verify the corpus is still an exact, contiguous excerpt of its live
+sources (network access required, not part of the pre-commit hook) with:
+
+```bash
+node agentforge/scripts/verify-corpus.mjs
+```
 
 To record deterministic Gemini fixtures for the test suite and the eval gate
 (so they need no key), after building the corpus embeddings above:

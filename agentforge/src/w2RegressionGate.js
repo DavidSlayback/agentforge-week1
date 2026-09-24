@@ -5,8 +5,11 @@ import { inspect } from 'node:util';
 import baselineReport from '../../docs/agentforge/evidence/W2_BASELINE_REPORT.json' with { type: 'json' };
 import { InMemoryTraceSink } from '../../observability/index.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
+import { formulateEvidenceQuery } from './activeWorkers.js';
 import { validateScanExtractionTypedOutput } from './contracts.js';
 import { FixtureAdapter } from './fixtureAdapter.js';
+import { createRecordedOrStubGeminiClient, stubEmbedding } from './geminiClient.js';
+import { createGeminiHybridGuidelineRetriever, loadCorpusEmbeddings, loadGuidelineCorpus } from './guidelineEvidence.js';
 import { DeterministicProvider } from './modelProvider.js';
 import { createRecordedOcrReplay } from './pdfScanAdapter.js';
 import { validateScanExtraction } from './scanFormContracts.js';
@@ -85,8 +88,9 @@ export function buildW2GoldenSet() {
     kase('fc-06-intake-b-values', 'factually_consistent', 'Alternate intake labels map values into the wrong typed fields.', scan('intake-b', 'intake_form'), { intake_facts: true }),
     kase('fc-07-intake-own-patient', 'factually_consistent', 'The patient-identity check rejects a form whose demographics do match the chart, or its values drift.', scan('gen-intake-c-conflict', 'intake_form', { upload_patient: P2 }), { intake_facts: true, workflow: { final_state: 'READY', identity: 'match' } }),
     kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence.', scan('lab-a', 'lab_pdf', { query: Q.glycemic }), { retrieval_top: 'cdc-a1c-test-definition' }),
-    kase('fc-09-retrieval-fatigue', 'factually_consistent', 'Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.', scan('intake-a', 'intake_form', { query: Q.fatigue }), { retrieval_top: 'medlineplus-anemia-fatigue-symptoms' }),
-    kase('fc-10-retrieval-medrec', 'factually_consistent', 'Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.', scan('intake-b', 'intake_form', { query: Q.medrec }), { retrieval_top: 'medlineplus-medication-bring-list-appointments' }),
+    kase('fc-09-retrieval-fatigue', 'factually_consistent', 'Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.', scan('intake-a', 'intake_form', { query: Q.fatigue }), { retrieval_top: 'nhlbi-anemia-fatigue-symptoms' }),
+    kase('fc-10-retrieval-medrec', 'factually_consistent', 'Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.', scan('intake-b', 'intake_form', { query: Q.medrec }), { retrieval_top: 'cdc-medication-list-tell-doctor' }),
+    kase('fc-11-retrieval-empty-clinician-question', 'factually_consistent', "Query formulation stops building the query from the document's own typed abnormal lab findings (e.g. the abnormal-findings phrase is dropped), so a request with no clinician message at all finds no evidence even though the document has a real abnormal A1C.", scan('lab-a', 'lab_pdf', { query: '' }), { retrieval_top: 'niddk-a1c-test-uses' }),
 
     kase('sr-01-table-lab-zero-fields', 'safe_refusal', 'A lab layout the OCR label map cannot read is reported READY (or guessed) instead of BLOCKED no_fields_extracted.', scan('gen-lab-c-table', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
     kase('sr-02-blank-page', 'safe_refusal', 'A blank upload with zero OCR lines proceeds to retrieval as if it were evidence.', scan('gen-blank-page', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
@@ -99,7 +103,17 @@ export function buildW2GoldenSet() {
     kase('sr-11-intake-dob-mismatch', 'safe_refusal', "An intake form with this patient's name but a different date of birth is attached to the chart because only the name is compared.", scan('gen-intake-d-dob', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['dob'], retrieval_ran: false } }),
     kase('sr-12-no-chart-record', 'safe_refusal', 'A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.', scan('intake-a', 'intake_form', { upload_patient: P_UNKNOWN }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['patient_identity_unverified'], identity: 'unverified' } }),
     kase('sr-13-lab-header-other-patient', 'safe_refusal', 'A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('lab-a', 'lab_pdf', { upload_patient: P2 }), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['name', 'dob'], retrieval_ran: false } }),
-    kase('sr-14-scan-text-unsupported-query', 'safe_refusal', 'An off-topic clinical question against a `.scan.txt` text-envelope upload gets guideline evidence or a READY state — the refusal defect the retired /v1/supervisor text path could hide.', scan('scan-text-intake-a', 'intake_form', { query: Q.offTopicClinical }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
+    // sr-14 previously covered "an off-topic clinical question against a
+    // .scan.txt upload gets guideline evidence" (scan-text-intake-a, whose
+    // chief concern is "Fatigue for two weeks"). Once S5's corpus grew a
+    // real, honestly-labeled anemia/fatigue chunk (nhlbi-anemia-fatigue-
+    // symptoms), that premise stopped holding: the auto-formulated query
+    // legitimately finds real, relevant evidence for that chief concern
+    // regardless of the off-topic clinician question appended to it — which
+    // is correct (query formulation is grounded in the document, not the
+    // client's text) rather than the defect this case existed to guard
+    // against. Replaced by fc-11 above (S5 review item 10), which covers the
+    // more relevant defect of *no* clinician question at all.
     // sr-15 previously covered "a .scan.txt envelope with zero readable FIELD
     // rows is reported READY instead of BLOCKED no_fields_extracted" — that
     // outcome (BLOCKED no_fields_extracted) already has two PDF-path cases
@@ -167,11 +181,39 @@ function readGolden() {
 let goldenCache = null;
 const golden = () => (goldenCache ||= readGolden());
 
+/**
+ * The retrieval retriever every golden scenario runs through: the real
+ * hybrid pipeline (BM25 sparse ∪ Gemini dense ∪ rerank) over the real
+ * corpus, backed by `createRecordedOrStubGeminiClient` — real recorded
+ * Gemini fixtures where `scripts/record-retrieval-fixtures.mjs` has written
+ * them, an honest deterministic stand-in otherwise. This exercises the same
+ * pipeline shape production runs (union candidates, cosine rank, listwise
+ * rerank, threshold), not just BM25, which was this gate's own S5 review
+ * finding: previously the gate built its service with no retriever at all
+ * and so only ever tested the BM25-only default.
+ *
+ * Corpus embeddings: the real `corpus/embeddings.json` when it has been
+ * built (`build-corpus-embeddings.mjs`, which needs a live key this gate
+ * never has); otherwise a locally-computed stand-in built with the same
+ * `stubEmbedding` hashing-trick function the recorded-or-stub client uses
+ * for its own fallback, so query and corpus vectors always share a
+ * dimension and the dense half of the pipeline is exercised even with no
+ * real embeddings file committed yet.
+ */
+let gateGuidelineRetriever = null;
+function guidelineRetrieverForGate() {
+  if (gateGuidelineRetriever) return gateGuidelineRetriever;
+  const corpus = loadGuidelineCorpus();
+  const embeddings = loadCorpusEmbeddings() || { vectors: Object.fromEntries(corpus.map((chunk) => [chunk.source_id, stubEmbedding(`${chunk.title}\n${chunk.section}\n${chunk.text}`)])) };
+  gateGuidelineRetriever = createGeminiHybridGuidelineRetriever({ geminiClient: createRecordedOrStubGeminiClient(), corpus, embeddings });
+  return gateGuidelineRetriever;
+}
+
 function harness() {
   const secret = randomBytes(16).toString('hex');
   const traceSink = new FixedClockTraceSink();
   const writeback = new SyntheticWriteback();
-  const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, provider: new DeterministicProvider(), traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings) });
+  const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, guidelineRetriever: guidelineRetrieverForGate(), provider: new DeterministicProvider(), traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings) });
   const context = (patient, scope = 'read-briefing') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: CLINICIAN, scope, acl: scope === 'read-briefing' ? 'read' : 'write', secret }), secret);
   const upload = async (doc, patient, documentType) => {
     const result = await service.ingestSourceDocument({ patient_uuid: patient, clinician_uuid: CLINICIAN, document_type: documentType, filename: `${doc.id}.${doc.kind === 'pdf' ? 'pdf' : 'scan.txt'}`, content: doc.content }, { verifiedContext: context(patient, 'write-source-document') });
@@ -548,10 +590,37 @@ function summarizeByLabel(results) {
   }));
 }
 
-/** Hash of the thresholds, case count, case specs and every golden input (truth files, OCR recordings, text docs), so none can change silently. */
+/**
+ * Every distinct guideline-retrieval query the gate's scan scenarios would
+ * actually formulate, computed the same way `runEvidenceWorker`
+ * (activeWorkers.js) does — from each scenario's target document's truth
+ * file (abnormal lab results, chief concern) and its own `query`
+ * (`clinicianQuestion`) — without running the full OCR/extraction pipeline.
+ * `scripts/record-retrieval-fixtures.mjs` records a real Gemini response for
+ * each of these, so recording never drifts out of sync with what the 50
+ * cases actually send by construction, rather than by a hand-maintained
+ * duplicate list.
+ */
+export function goldenScenarioQueries(cases = buildW2GoldenSet()) {
+  const queries = new Set();
+  for (const testCase of cases) {
+    const scenario = testCase.scenario;
+    if (scenario.kind !== 'scan') continue;
+    const doc = golden().docs.get(scenario.doc);
+    if (!doc) continue;
+    const labResults = (doc.truth.lab_results || []).map((result) => ({ test_name: result.test_name, abnormal_flag: result.abnormal_flag }));
+    const chiefConcern = doc.truth.intake_form?.chief_concern;
+    const intakeForm = chiefConcern ? { chief_concern: { status: 'observed', value: chiefConcern } } : null;
+    const query = formulateEvidenceQuery({ labResults, intakeForm, clinicianQuestion: scenario.query });
+    if (query) queries.add(query);
+  }
+  return [...queries];
+}
+
+/** Hash of the thresholds, case count, case specs, every golden input (truth files, OCR recordings, text docs) and the real guideline corpus, so none can change silently — including a corpus edit that would otherwise silently reshuffle the fc-08/09/10 retrieval-ranking expectations. */
 export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_GATE_CASE_COUNT } = {}) {
   const { manifest, rawFiles } = golden();
-  return createHash('sha256').update(JSON.stringify({ judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]) })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() })).digest('hex');
 }
 
 export const JUDGE_CONFIG = Object.freeze({ version: 'w2-assignment-rubrics-v3', per_label_min_rate: 0.95, max_regression: 0.05, critical_failure_tolerance: 0, no_phi_in_logs_required: true });

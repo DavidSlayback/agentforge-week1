@@ -1,4 +1,4 @@
-import { retryDelayMs } from './geminiClient.js';
+import { responseText, retryDelayMs } from './geminiClient.js';
 
 const MODEL_DEFAULT = 'gemini-3.8-flash';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -63,12 +63,6 @@ function locateQuote(field, pages) {
   };
 }
 
-function responseText(body) {
-  if (typeof body?.output_text === 'string') return body.output_text;
-  const parts = body?.output?.flatMap((item) => item.content || []) || [];
-  return parts.find((part) => part.type === 'text' && typeof part.text === 'string')?.text || '';
-}
-
 export function createGeminiScanAdapter({ apiKey, model = MODEL_DEFAULT, timeoutMs = 45000, dailyLimit = 12, fetchImpl = fetch } = {}) {
   if (!apiKey) throw new Error('GEMINI_SCAN_API_KEY_REQUIRED');
   const requestLimit = Number.isFinite(dailyLimit) ? Math.max(1, Math.min(50, Math.floor(dailyLimit))) : 12;
@@ -88,6 +82,9 @@ export function createGeminiScanAdapter({ apiKey, model = MODEL_DEFAULT, timeout
         input,
         response_format: { type: 'text', mime_type: 'application/json', schema: schema(documentType) },
         generation_config: { thinking_level: 'low', max_output_tokens: 2048 },
+        // Never retained server-side as interaction history: these images
+        // are synthetic-PHI-adjacent scan content.
+        store: false,
       });
       let response;
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {

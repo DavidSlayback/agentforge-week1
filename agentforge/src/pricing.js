@@ -18,9 +18,15 @@ export const PRICE_TABLE = Object.freeze({
   'google/gemini-3.8-flash': {
     input_per_million_usd: 0.75,
     output_per_million_usd: 3.75,
-    source: 'https://ai.google.dev/gemini-api/docs/pricing (Gemini 3.8 Flash, standard tier, through 2026-12-31)',
+    source: 'https://ai.google.dev/gemini-api/docs/pricing (Gemini 3.8 Flash, standard tier)',
     retrieved_at: '2026-09-24',
     estimate: false,
+    // Confirmed on the same pricing page: both rates double to $1.50/$7.50
+    // per 1M tokens starting this date. `estimateCostUsd` always uses the
+    // current (pre-increase) rate above; callers projecting cost past this
+    // date must account for the increase themselves.
+    price_increases_after: '2027-01-01',
+    price_after_increase: { input_per_million_usd: 1.50, output_per_million_usd: 7.50 },
   },
   // The deployed Qwen synthesis lane and the OpenRouter-hosted conversation
   // lane route through OpenRouter, whose per-model price varies by route and
