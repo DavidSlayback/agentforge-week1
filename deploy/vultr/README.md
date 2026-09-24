@@ -178,33 +178,6 @@ longer delays are returned as failures for a later user retry. The daily limit
 counts every outbound attempt, including retries. Timeouts and malformed
 responses are not retried.
 
-## Prepared Jev shadow lane
-
-The Jev seam is prepared as an optional, server-only typed-evidence review
-lane. It is downstream of OCR/VLM extraction and evidence retrieval; it is not
-the image reader and it does not receive raw documents or images. The
-application-owned deterministic supervisor and safety guard remain
-authoritative. The current release leaves the lane off:
-
-```dotenv
-AGENTFORGE_JEV_MODE=off
-JEV_ENDPOINT=https://www.jevai.org/api/v1/decisions
-JEV_MODEL=typesafe-ai/jev
-JEV_API_KEY=<server-only-jev-key>
-```
-
-These values belong only in the server-side `/opt/agentforge-week1/.env` file.
-The repository contains no Jev credential, and adding `JEV_API_KEY` does not
-activate a call. `AGENTFORGE_JEV_MODE` is currently a reserved deployment
-setting; the public AgentForge service does not yet read it or invoke the Jev
-adapter. The local Jev adapter source rejects requests unless the mode is
-explicitly `shadow` and accepts only the documented Jev HTTPS endpoint before
-attaching the bearer key; that adapter is not part of the current public
-container path. A future shadow run requires explicit owner authorization,
-the same synthetic labeled corpus as the deterministic baseline, redacted
-readback, and an outcome report covering quality, safety, traceability,
-latency, and cost. Do not send PHI, raw scans, or live OpenEMR data to Jev.
-
 ## Active split provider lanes
 
 For the current synthetic deployment, keep the synthesis lane on Qwen and use
