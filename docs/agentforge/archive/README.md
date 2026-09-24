@@ -42,7 +42,6 @@ These documents were superseded by `../PLAN.md` (the only active plan file per `
 | `PRE_VISIT_PREPARATION_PLAN.md` | Pre-visit preparation feature plan | `../PLAN.md` |
 | `READ_WRITE_SEAM_PLAN.md` | Read-write seam feature plan | `../PLAN.md` |
 | `PRD_SYNTHETIC_E2E_OBSERVABILITY.md` | E2E observability PRD | `../PLAN.md` |
-| `REQUIREMENTS_MATRIX.md` | Requirements tracking matrix | `../PLAN.md` |
 
 ## Archived Issue Tracking
 
