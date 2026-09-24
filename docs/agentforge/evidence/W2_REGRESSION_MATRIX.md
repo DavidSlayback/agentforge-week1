@@ -17,6 +17,8 @@
     edits copied verbatim.
   - I1 and U1: the behaviour added in response to that review.
   - L0: the trace-leak control.
+  - X1: added in an independent review of this R2 refactor itself — see
+    "sr-16 and the extraction_contract_invalid stop (X1)" below.
 
 The checks are the pre-commit hook's four checks plus one diagnostic:
 
@@ -28,9 +30,9 @@ The checks are the pre-commit hook's four checks plus one diagnostic:
 | **obs** | `node --test observability/test/*.test.js` | |
 | **GATE** | `node agentforge/scripts/run-w2-gate.mjs` | Exit 1 = blocked. |
 
-**Result: the gate alone fails for all 27 regression rows and the L0 control
-(R2–R16, N1–N10, I1, U1, L0). The no-edit control R0 passes every check.** The
-hook blocks every row, because `npm test` includes the gate test.
+**Result: the gate alone fails for all 28 regression rows and the L0 control
+(R2–R16, N1–N10, I1, U1, X1, and L0). The no-edit control R0 passes every
+check.** The hook blocks every row, because `npm test` includes the gate test.
 
 **R1 retired (R2, issue #4).** R1 ("Empty `quote_or_value` on a text-path lab
 citation") targeted `agentforge/src/labEvidence.js`, deleted along with the
@@ -78,7 +80,8 @@ The earlier gate (commit `1c10893`) missed N3, N6, N7, N8 and N9.
 | N10 | `extraction_incomplete` rule removed | `documentSafety.js`: delete `if (factCount && extraction?.status !== 'complete') qualifying.push('extraction_incomplete');` | FAIL | FAIL | pass | pass | **FAIL** | factually_consistent (fc-04) |
 | I1 | Lab reports skip the patient-header identity check | `documentSafety.js`: `: { ...compareIdentity(readHeaderIdentity(documentText), targetPatient), source: 'lab_report_header' };` → `: { status: 'not_applicable', mismatched_fields: [], source: 'lab_report_header' };` | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-13) |
 | U1 | Unreadable PDFs no longer refused (errors propagate as HTTP 500) | `service.js`: body of `isUnreadableDocumentError` → `return false;` | FAIL | FAIL | pass | pass | **FAIL** | safe_refusal (sr-09), no_phi_in_logs (np-09) |
-| L0 | Control: the pre-fix trace behaviour (raw handoffs recorded in the scan trace) | `service.js`: `trace?.recordHandoff(traceSafeHandoff(handoff));` → `trace?.recordHandoff(handoff);` | FAIL | FAIL | pass | pass | **FAIL** | no_phi_in_logs (np-01, 06, 07) |
+| L0 | Control: the pre-fix trace behaviour (raw handoffs recorded in the scan trace) | `service.js`: `trace?.recordHandoff(traceSafeHandoff(handoff));` → `trace?.recordHandoff(handoff);` | FAIL | FAIL | pass | pass | **FAIL** | no_phi_in_logs (np-01, 06, 07, 11) |
+| X1 | Remove the `extraction_contract_invalid` BLOCKED stop | `supervisor.js`: delete the line `if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null);` | FAIL | pass | pass | pass | **FAIL** | safe_refusal (sr-16) |
 
 ## Notes
 
@@ -93,9 +96,9 @@ The earlier gate (commit `1c10893`) missed N3, N6, N7, N8 and N9.
   | N8 | sr-12 | An intake uploaded to a patient with no chart record must be QUALIFIED `patient_identity_unverified`. |
   | N9 | cp | A fact from an OCR line below 0.85 must carry the review flag, and one at or above 0.85 must not. |
 
-- **Single-case rows.** Six rows are caught by exactly one gate case: R11,
-  R12, R14, N8, N10 and I1. (R9 was a single-case row before R2; adding the
-  `.scan.txt` off-topic-query case `sr-14` alongside the existing PDF case
+- **Single-case rows.** Seven rows are caught by exactly one gate case: R11,
+  R12, R14, N8, N10, I1 and X1. (R9 was a single-case row before R2; adding
+  the `.scan.txt` off-topic-query case `sr-14` alongside the existing PDF case
   `sr-07` means the evidence-worker regression it guards now trips two
   cases, `sr-07` and `sr-14`.)
   - Every category has 9 to 13 cases, so one failure drops it below 95%, and
@@ -106,9 +109,11 @@ The earlier gate (commit `1c10893`) missed N3, N6, N7, N8 and N9.
   carries value- or quote-keyed data, so the redactor is a second layer. np-10
   records the workflow's real raw handoffs through the real redactor to keep
   that layer tested, and the observability suite has a unit test for it.
-- **Unit tests alone.** The unit-only column catches every row except N1, N2
-  and N5. Those three are caught only by the gate, which checks against the OCR
-  recordings, the truth files and the retrieval ranking.
+- **Unit tests alone.** The unit-only column catches every row except N1, N2,
+  N5 and X1. Those four are caught only by the gate: N1/N2/N5 check against the
+  OCR recordings, the truth files and the retrieval ranking; X1's sr-16 is a
+  gate-only case (its assertions run through `runW2RegressionGate`, not a
+  standalone unit test).
 - **Rows affected by the `.scan.txt` case replacement (R2, issue #4).** R8's
   failing-case list is an ID swap only (`sr-08` → `sr-14`; `sr-08` targeted the
   legacy off-topic-on-text-path case, now retired): still 2 cases, same
@@ -127,6 +132,13 @@ The earlier gate (commit `1c10893`) missed N3, N6, N7, N8 and N9.
   replacement cases are exercised by the same production code paths the
   legacy-path cases they replaced were guarding, not a renamed duplicate that
   happens to pass.
+- **L0 gained np-11 for a different reason: np-11 was pointed at the wrong
+  document.** np-11 originally ran only the `.scan.txt` intake upload
+  (scan-text-intake-a). The L0 leak is specific to typed `LabResult` field
+  names (see "Leak found and fixed (L0)" below) — `IntakeForm`'s generically
+  named `value`/`status` leaf fields were never affected — so an intake-only
+  np-11 could not have caught it. Switched np-11 to the `.scan.txt` lab
+  upload (scan-text-lab-a); L0 now fails it alongside np-01/06/07.
 - **Evals-check flakiness observed and ruled out as a regression signal.**
   Two full runs of this matrix agreed on every `tests`/`unit-only`/`obs`/
   `GATE` result and every failing-case list, but the `evals` column flipped
@@ -136,8 +148,13 @@ The earlier gate (commit `1c10893`) missed N3, N6, N7, N8 and N9.
   same "FAIL" once and "pass" once, this is pre-existing intermittency in
   spawning the evals test server repeatedly in one process (consistent with
   Windows port/TIME_WAIT reuse across ~29 sequential scratch runs), not a
-  behavior this refactor introduced. The table above reports the second,
-  fully clean run (`evals` pass on every row).
+  behavior this refactor introduced. **Root-caused and fixed** (independent
+  review of this R2 refactor): `evals/test/service-runner.test.js` killed its
+  fixed-port-18788 server without waiting for the `exit` event, so the port
+  could still be held when the next spawn tried to bind it. Now waits for
+  exit before returning; `npm test --prefix evals` run 5 times in a row, all
+  green. The 30-row run reflected in the table below (which includes the two
+  fixes above plus row X1) shows `evals` passing on every row.
 - **Scratch copy for this run.** The scratch copy for this run was taken before
   `evals/test/service-runner.test.js` switched to the shared `waitForServer`
   helper. That change touches no gate input, and the evals column passes either
@@ -155,4 +172,34 @@ collection dates, reference ranges, units, test names and flags reached
 The fix is an allowlist, not a longer denylist. `traceSafeHandoff`
 (`activeWorkers.js`) keeps only `worker`, `input_type`, `output_status`,
 `retry_count`, `step_names`, `citation_count` and `redacted_metrics`. Reverting
-it (row L0) fails the gate's `no_phi_in_logs` cases.
+it (row L0) fails the gate's `no_phi_in_logs` cases — np-01, np-06 and np-07
+(all lab uploads) directly, plus np-11 once it was pointed at a lab `.scan.txt`
+upload instead of an intake one (see the Notes above). No intake-only case can
+catch this leak, because it lives entirely in `LabResult`'s field names.
+
+## sr-16 and the extraction_contract_invalid stop (X1)
+
+sr-16-scan-text-lab-declared-intake (added alongside this matrix's np-11 fix,
+in independent review of R2) uploads a `.scan.txt` lab envelope
+(scan-text-lab-a) declared as `intake_form`. `scanFormAdapter.js`'s
+`extractScanForm` parses `scan-text-lab-a`'s granular `lab.hgb.*`/`lab.a1c.*`
+fields fine, but then runs its own `validateScanExtraction` against the
+*declared* type's allowed field set (`chief_concern`, `medication.metformin`,
+`allergy.penicillin` for `intake_form`) — none of those ids qualify, so every
+fact is `unexpected_field`, and `extractScanForm` returns `blockedResult(...)`:
+`status: 'blocked'`, `facts: []`. `runExtractionWorker` sees that blocked
+extraction and reports `output_status: 'blocked'`; `runActiveSupervisor`
+stops at BLOCKED `extraction_contract_invalid` — before the zero-facts/
+`no_fields_extracted` check further down ever runs (verified directly:
+temporarily removing that stop still leaves `extraction.facts` empty, because
+`blockedResult` already discarded them upstream inside `extractScanForm`).
+
+Row X1 deletes exactly that BLOCKED stop. With it gone, the same
+(already-empty) extraction reaches `assessDocumentSafety`, which sees zero
+facts and blocks with `no_fields_extracted` instead — still BLOCKED, but the
+wrong reason, which sr-16's `stop_reason: 'extraction_contract_invalid'`
+assertion catches — the case's issue reads
+`stop_reason_no_fields_extracted_expected_extraction_contract_invalid`
+(confirmed by inspecting it directly). X1 fails only sr-16, confirming the
+case actually depends on that stop existing rather than passing by
+coincidence.
