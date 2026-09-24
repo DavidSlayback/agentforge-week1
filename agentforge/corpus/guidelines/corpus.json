@@ -1,0 +1,472 @@
+[
+  {
+    "source_id": "uspstf-prediabetes-t2dm-screening-recommendation",
+    "title": "Screening for Prediabetes and Type 2 Diabetes",
+    "publisher": "USPSTF",
+    "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes",
+    "section": "Recommendation Summary (Grade B)",
+    "version_or_date": "2021",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The USPSTF recommends screening for prediabetes and type 2 diabetes in adults aged 35 to 70 years who have overweight or obesity. Clinicians should offer or refer patients with prediabetes to effective preventive interventions."
+  },
+  {
+    "source_id": "uspstf-prediabetes-t2dm-screening-interval",
+    "title": "Screening for Prediabetes and Type 2 Diabetes",
+    "publisher": "USPSTF",
+    "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/screening-for-prediabetes-and-type-2-diabetes",
+    "section": "Practice Considerations - Screening Interval",
+    "version_or_date": "2021",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Screening every 3 years may be a reasonable approach for adults with normal blood glucose levels."
+  },
+  {
+    "source_id": "uspstf-statin-primary-prevention-high-risk",
+    "title": "Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication",
+    "publisher": "USPSTF",
+    "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication",
+    "section": "Recommendation Summary - Adults 40-75y, 10-year risk >=10% (Grade B)",
+    "version_or_date": "2022",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The USPSTF recommends that clinicians prescribe a statin for the primary prevention of CVD for adults aged 40 to 75 years who have 1 or more CVD risk factors (i.e. dyslipidemia, diabetes, hypertension, or smoking) and an estimated 10-year risk of a cardiovascular event of 10% or greater."
+  },
+  {
+    "source_id": "uspstf-statin-primary-prevention-moderate-risk",
+    "title": "Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication",
+    "publisher": "USPSTF",
+    "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication",
+    "section": "Recommendation Summary - Adults 40-75y, 10-year risk 7.5% to <10% (Grade C)",
+    "version_or_date": "2022",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The USPSTF recommends that clinicians selectively offer a statin for the primary prevention of CVD for adults aged 40 to 75 years who have 1 or more CVD risk factors (i.e dyslipidemia, diabetes, hypertension, or smoking) and an estimated 10-year risk of a cardiovascular event of 7.5% to less than 10%. The likelihood of benefit is smaller in this group than in persons with a 10-year risk of 10% or greater."
+  },
+  {
+    "source_id": "uspstf-statin-age76-insufficient-evidence",
+    "title": "Statin Use for the Primary Prevention of Cardiovascular Disease in Adults: Preventive Medication",
+    "publisher": "USPSTF",
+    "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/statin-use-in-adults-preventive-medication",
+    "section": "Recommendation Summary - Adults 76 years or older (Grade I)",
+    "version_or_date": "2022",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The USPSTF concludes that the current evidence is insufficient to assess the balance of benefits and harms of initiating a statin for the primary prevention of CVD events and mortality in adults 76 years or older."
+  },
+  {
+    "source_id": "uspstf-hypertension-screening-recommendation",
+    "title": "Hypertension in Adults: Screening",
+    "publisher": "USPSTF",
+    "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening",
+    "section": "Recommendation Summary (Grade A)",
+    "version_or_date": "2021",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The USPSTF recommends screening for hypertension in adults 18 years or older with office blood pressure measurement (OBPM). The USPSTF recommends obtaining blood pressure measurements outside of the clinical setting for diagnostic confirmation before starting treatment."
+  },
+  {
+    "source_id": "uspstf-hypertension-screening-intervals",
+    "title": "Hypertension in Adults: Screening",
+    "publisher": "USPSTF",
+    "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/hypertension-in-adults-screening",
+    "section": "Practice Considerations - Screening Interval",
+    "version_or_date": "2021",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Screening for hypertension every year in adults 40 years or older and in adults at increased risk. Screening less frequently (ie, every 3 to 5 years) as appropriate for adults aged 18 to 39 years not at increased risk for hypertension and with a prior normal blood pressure reading."
+  },
+  {
+    "source_id": "cdc-a1c-test-definition",
+    "title": "A1C Test for Diabetes and Prediabetes",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/diabetes/diabetes-testing/prediabetes-a1c-test.html",
+    "section": "What Is the A1C Test?",
+    "version_or_date": "May 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The A1C test measures the percentage of your red blood cells that have sugar-coated hemoglobin."
+  },
+  {
+    "source_id": "cdc-a1c-diagnostic-ranges",
+    "title": "A1C Test for Diabetes and Prediabetes",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/diabetes/diabetes-testing/prediabetes-a1c-test.html",
+    "section": "A1C Ranges",
+    "version_or_date": "May 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The following ranges are used to diagnose prediabetes and diabetes:\nNormal: below 5.7%\nPrediabetes: 5.7% to 6.4%\nDiabetes: 6.5% or above"
+  },
+  {
+    "source_id": "cdc-a1c-who-should-test",
+    "title": "A1C Test for Diabetes and Prediabetes",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/diabetes/diabetes-testing/prediabetes-a1c-test.html",
+    "section": "Who Should Get Tested",
+    "version_or_date": "May 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Get an A1C test if you're over age 45. A1C testing is also recommended if you're younger, have overweight, and any other risk factor for prediabetes and type 2 diabetes."
+  },
+  {
+    "source_id": "cdc-prediabetes-definition",
+    "title": "The Surprising Truth About Prediabetes",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/diabetes/prevention-type-2/truth-about-prediabetes.html",
+    "section": "What Is Prediabetes?",
+    "version_or_date": "May 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "People with prediabetes have higher blood sugar than normal, but not high enough yet for a diabetes diagnosis."
+  },
+  {
+    "source_id": "cdc-prediabetes-symptoms-riskfactors",
+    "title": "The Surprising Truth About Prediabetes",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/diabetes/prevention-type-2/truth-about-prediabetes.html",
+    "section": "Symptoms and Risk Factors",
+    "version_or_date": "May 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "You can have prediabetes for years without symptoms. Talk to your doctor about getting your blood sugar tested if you have any risk factors, including: Having overweight. Being 45 years or older. Having a parent, brother, or sister with type 2 diabetes."
+  },
+  {
+    "source_id": "cdc-hypertension-definition",
+    "title": "About High Blood Pressure",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/high-blood-pressure/about/index.html",
+    "section": "What Is High Blood Pressure?",
+    "version_or_date": "Jan. 28, 2026",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "High blood pressure, also called hypertension, is blood pressure that is higher than normal. High blood pressure is consistently at or above 130/80 mm Hg."
+  },
+  {
+    "source_id": "cdc-hypertension-symptoms",
+    "title": "About High Blood Pressure",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/high-blood-pressure/about/index.html",
+    "section": "Symptoms",
+    "version_or_date": "Jan. 28, 2026",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "High blood pressure usually has no warning signs or symptoms, and many people do not know they have it."
+  },
+  {
+    "source_id": "cdc-medication-safety-ade-and-label",
+    "title": "Medication Safety and Your Health",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/medication-safety/about/index.html",
+    "section": "Adverse Drug Events and Safe Use",
+    "version_or_date": "November 18, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "An adverse drug event (ADE) is when a medication causes harm to someone. Medicines are safe when used as prescribed or as directed on the label."
+  },
+  {
+    "source_id": "cdc-medication-list-tell-doctor",
+    "title": "Medication Safety and Your Health",
+    "publisher": "CDC",
+    "url": "https://www.cdc.gov/medication-safety/about/index.html",
+    "section": "Managing Your Medicines",
+    "version_or_date": "November 18, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Keep a list of your medicines, vitamins, and other supplements. Make sure your doctor knows about all the medicines, vitamins and other supplements you take."
+  },
+  {
+    "source_id": "niddk-diabetes-diagnosis-blood-tests",
+    "title": "Diabetes Tests & Diagnosis",
+    "publisher": "NIDDK",
+    "url": "https://www.niddk.nih.gov/health-information/diabetes/overview/tests-diagnosis",
+    "section": "How Is Diabetes Diagnosed?",
+    "version_or_date": "July 2022",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Your doctor can diagnose diabetes, prediabetes, and gestational diabetes using blood tests. The A1C test is a blood test that provides your average levels of blood glucose over the last 3 months."
+  },
+  {
+    "source_id": "niddk-diabetes-diagnostic-ranges-table",
+    "title": "Diabetes Tests & Diagnosis",
+    "publisher": "NIDDK",
+    "url": "https://www.niddk.nih.gov/health-information/diabetes/overview/tests-diagnosis",
+    "section": "Diagnostic Test Result Table",
+    "version_or_date": "July 2022",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Diagnosis / A1C / Fasting Plasma Glucose / Oral Glucose Tolerance Test\nNormal: below 5.7% / 99 mg/dL or below / 139 mg/dL or below\nPrediabetes: 5.7% to 6.4% / 100 to 125 mg/dL / 140 to 199 mg/dL\nDiabetes: 6.5% or above / 126 mg/dL or above / 200 mg/dL or above\nSource: American Diabetes Association"
+  },
+  {
+    "source_id": "niddk-a1c-test-uses",
+    "title": "The A1C Test & Diabetes",
+    "publisher": "NIDDK",
+    "url": "https://www.niddk.nih.gov/health-information/diagnostic-tests/a1c-test",
+    "section": "What Is the A1C Test Used For?",
+    "version_or_date": "April 2018",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "The A1C test can be used to diagnose type 2 diabetes and prediabetes. The A1C test is also the primary test used for diabetes management."
+  },
+  {
+    "source_id": "niddk-a1c-testing-frequency",
+    "title": "The A1C Test & Diabetes",
+    "publisher": "NIDDK",
+    "url": "https://www.niddk.nih.gov/health-information/diagnostic-tests/a1c-test",
+    "section": "How Often Should I Get an A1C Test?",
+    "version_or_date": "April 2018",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Experts recommend that people with diabetes have an A1C test at least twice a year."
+  },
+  {
+    "source_id": "niddk-kidney-lab-evaluation-importance",
+    "title": "Laboratory Evaluation of Kidney Disease",
+    "publisher": "NIDDK",
+    "url": "https://www.niddk.nih.gov/health-information/professionals/clinical-tools-patient-management/kidney-disease/laboratory-evaluation",
+    "section": "Purpose of Laboratory Evaluation",
+    "version_or_date": "undated",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Laboratory measurement and reporting are critical to promoting early detection and management of chronic kidney disease (CKD)."
+  },
+  {
+    "source_id": "nhlbi-cholesterol-definition",
+    "title": "Blood Cholesterol",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/blood-cholesterol",
+    "section": "What Is Cholesterol?",
+    "version_or_date": "April 17, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Cholesterol is a waxy, fat-like substance that your body needs for good health, but in the right amounts."
+  },
+  {
+    "source_id": "nhlbi-cholesterol-heart-disease-risk",
+    "title": "Blood Cholesterol",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/blood-cholesterol",
+    "section": "Why High Cholesterol Matters",
+    "version_or_date": "April 17, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "High levels of \"bad\" LDL cholesterol may create a buildup of plaque (fatty deposits) in your arteries. This buildup can lead to a heart attack, stroke, or other health problems."
+  },
+  {
+    "source_id": "nhlbi-cholesterol-diagnosis-method",
+    "title": "Blood Cholesterol - Diagnosis",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/blood-cholesterol/diagnosis",
+    "section": "Diagnosis",
+    "version_or_date": "April 18, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Your healthcare provider will diagnose you with high blood cholesterol based on your medical and family history, a physical exam, and a blood test of your cholesterol levels."
+  },
+  {
+    "source_id": "nhlbi-lipoprotein-panel-definition",
+    "title": "Blood Cholesterol - Diagnosis",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/blood-cholesterol/diagnosis",
+    "section": "Lipoprotein Panel",
+    "version_or_date": "April 18, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "A lipoprotein panel, also called a lipid panel or lipid profile, measures the levels of LDL and HDL cholesterol and triglycerides in your blood."
+  },
+  {
+    "source_id": "nhlbi-hypertension-symptoms-crisis",
+    "title": "High Blood Pressure - Symptoms",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/high-blood-pressure/symptoms",
+    "section": "Symptoms",
+    "version_or_date": "April 25, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "High blood pressure usually does not cause symptoms until it has also caused serious problems. Blood pressure above 180/120 mm HG is too high and requires medical attention, especially if you have symptoms."
+  },
+  {
+    "source_id": "nhlbi-hypertension-categories-table",
+    "title": "High Blood Pressure - Diagnosis",
+    "publisher": "NHLBI",
+    "url": "https://www.nhlbi.nih.gov/health/high-blood-pressure/diagnosis",
+    "section": "Blood Pressure Categories Table",
+    "version_or_date": "June 26, 2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Normal: Less than 120 systolic pressure AND Less than 80 diastolic pressure. Elevated: 120 to 129 systolic pressure AND Less than 80 diastolic pressure. High Blood Pressure Stage 1: 130 to 139 systolic pressure OR 80 to 89 diastolic pressure. High Blood Pressure Stage 2: 140 or higher systolic pressure OR 90 or higher diastolic pressure."
+  },
+  {
+    "source_id": "medlineplus-prediabetes-definition",
+    "title": "Prediabetes",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/prediabetes.html",
+    "section": "Summary",
+    "version_or_date": "September 28, 2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Prediabetes means that your blood glucose, or blood sugar, levels are higher than normal but not high enough to be called diabetes."
+  },
+  {
+    "source_id": "medlineplus-a1c-what-it-is",
+    "title": "Hemoglobin A1C (HbA1c) Test",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/hemoglobin-a1c-hba1c-test/",
+    "section": "What Is It?",
+    "version_or_date": "May 20, 2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "A hemoglobin A1C (HbA1C) test is a blood test that shows your average level of blood glucose, also called blood sugar, over the past two to three months."
+  },
+  {
+    "source_id": "medlineplus-a1c-results-meaning",
+    "title": "Hemoglobin A1C (HbA1c) Test",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/hemoglobin-a1c-hba1c-test/",
+    "section": "What Do the Results Mean?",
+    "version_or_date": "May 20, 2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "A1C results tell you what percentage of your hemoglobin is coated with glucose."
+  },
+  {
+    "source_id": "medlineplus-cholesterol-test-definition",
+    "title": "Cholesterol Levels",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/cholesterol-levels",
+    "section": "What It Measures",
+    "version_or_date": "October 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "A cholesterol test is a blood test that measures the amount of cholesterol and triglycerides (a type of fat) in your blood."
+  },
+  {
+    "source_id": "medlineplus-cholesterol-ldl-hdl-heart-health",
+    "title": "Cholesterol Levels",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/cholesterol-levels",
+    "section": "Results",
+    "version_or_date": "October 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "In general, low LDL levels and high HDL cholesterol levels are good for heart health."
+  },
+  {
+    "source_id": "medlineplus-blood-pressure-definition",
+    "title": "High Blood Pressure",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/highbloodpressure.html",
+    "section": "Summary",
+    "version_or_date": "January 22, 2026",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Blood pressure is the force of your blood pushing against the walls of your arteries."
+  },
+  {
+    "source_id": "medlineplus-anemia-fatigue-symptoms",
+    "title": "Iron Deficiency Anemia",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/ency/article/000584.htm",
+    "section": "Symptoms",
+    "version_or_date": "4/1/2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Feeling weak or tired more often than usual, or with exercise. Shortness of breath."
+  },
+  {
+    "source_id": "medlineplus-anemia-causes",
+    "title": "Iron Deficiency Anemia",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/ency/article/000584.htm",
+    "section": "Causes",
+    "version_or_date": "4/1/2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "You lose more blood cells and iron than your body can replace. Your body does not absorb iron well."
+  },
+  {
+    "source_id": "medlineplus-cbc-hemoglobin-anemia",
+    "title": "Complete Blood Count (CBC)",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/complete-blood-count-cbc/",
+    "section": "Hemoglobin and Abnormal Results",
+    "version_or_date": "October 15, 2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Hemoglobin, an iron-rich protein in red blood cells that carries oxygen from your lungs to the rest of your body. Abnormal levels of red blood cells, hemoglobin, or hematocrit may be a sign of dehydration, anemia, heart disease, or too little iron in your body."
+  },
+  {
+    "source_id": "medlineplus-kidney-tests-overview",
+    "title": "Kidney Tests",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/kidneytests.html",
+    "section": "Summary",
+    "version_or_date": "June 11, 2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Kidney tests check to see how well your kidneys are working. They include blood, urine, and imaging tests."
+  },
+  {
+    "source_id": "medlineplus-kidney-early-disease-no-symptoms",
+    "title": "Kidney Tests",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/kidneytests.html",
+    "section": "Why Get Tested",
+    "version_or_date": "June 11, 2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Early kidney disease usually does not have signs or symptoms. Testing is the only way to know how your kidneys are doing."
+  },
+  {
+    "source_id": "medlineplus-kidney-risk-factors",
+    "title": "Kidney Tests",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/kidneytests.html",
+    "section": "Who Needs Testing",
+    "version_or_date": "June 11, 2025",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "It is important for you to get checked for kidney disease if you have the key risk factors - diabetes, high blood pressure, heart disease, or a family history of kidney failure."
+  },
+  {
+    "source_id": "medlineplus-creatinine-test-definition",
+    "title": "Creatinine Test",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/creatinine-test/",
+    "section": "What It Measures",
+    "version_or_date": "December 5, 2023",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "This test measures creatinine levels in a sample of your blood and/or urine (pee). Normally, your kidneys filter creatinine from your blood and remove it from your body in your urine."
+  },
+  {
+    "source_id": "medlineplus-gfr-test-definition",
+    "title": "Glomerular Filtration Rate (GFR) Test",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/glomerular-filtration-rate-gfr-test/",
+    "section": "What It Measures",
+    "version_or_date": "July 6, 2023",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "A GFR test checks for kidney disease by measuring how much blood your kidneys filter each minute."
+  },
+  {
+    "source_id": "medlineplus-gfr-results-meaning",
+    "title": "Glomerular Filtration Rate (GFR) Test",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/lab-tests/glomerular-filtration-rate-gfr-test/",
+    "section": "What Do the Results Mean?",
+    "version_or_date": "July 6, 2023",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "A normal eGFR means that you probably don't have kidney disease. An eGFR that's below normal or low may mean that you may have kidney disease. A very low eGFR means that you may have kidney failure."
+  },
+  {
+    "source_id": "medlineplus-medication-list-contents",
+    "title": "Keeping Your Medicines Organized",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/ency/patientinstructions/000600.htm",
+    "section": "Making a Medicine List",
+    "version_or_date": "9/4/2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Put on the list any prescription medicines, over-the-counter medicines, and vitamins, herbs, and supplements that you take."
+  },
+  {
+    "source_id": "medlineplus-medication-bring-list-appointments",
+    "title": "Keeping Your Medicines Organized",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/ency/patientinstructions/000600.htm",
+    "section": "Using Your Medicine List",
+    "version_or_date": "9/4/2024",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Bring the list and your medicines in their bottles to your health care provider appointments and when you go to the pharmacy. Review your medicine list with your provider or pharmacist."
+  },
+  {
+    "source_id": "medlineplus-medicine-tell-providers",
+    "title": "Medicine Safety - Filling Your Prescription",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/ency/patientinstructions/000766.htm",
+    "section": "Getting a Prescription",
+    "version_or_date": "April 10, 2026",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Tell all your providers about all the medicines, supplements, and herbs you take."
+  },
+  {
+    "source_id": "medlineplus-medicine-same-pharmacy",
+    "title": "Medicine Safety - Filling Your Prescription",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/ency/patientinstructions/000766.htm",
+    "section": "Local Pharmacies",
+    "version_or_date": "April 10, 2026",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "It is best to fill all your prescriptions with the same pharmacy. That way, the pharmacy has a record of all the medicines you are taking."
+  },
+  {
+    "source_id": "medlineplus-medicine-check-label",
+    "title": "Medicine Safety - Filling Your Prescription",
+    "publisher": "MedlinePlus",
+    "url": "https://medlineplus.gov/ency/patientinstructions/000766.htm",
+    "section": "Tips to Stay Safe",
+    "version_or_date": "April 10, 2026",
+    "retrieved_at": "2026-09-24T00:00:00Z",
+    "text": "Check the label. Look for your name, the name of the medicine, the dose, and how often you should take it."
+  }
+]

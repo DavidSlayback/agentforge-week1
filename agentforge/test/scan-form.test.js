@@ -63,7 +63,7 @@ test('active workers expose inspect-act-qualify handoffs and never promote empty
   assert.equal(extraction.output_status, 'qualified');
   assert.deepEqual(extraction.steps.map((step) => step.name), ['inspect', 'extract', 'validate_or_qualify']);
   assert.equal(JSON.stringify(extraction.redacted_metrics).includes('13.2'), false);
-  const evidence = await runEvidenceWorker({ query: '' });
+  const evidence = await runEvidenceWorker({ clinicianQuestion: '' });
   assert.equal(evidence.output_status, 'qualified');
   assert.equal(evidence.guideline_evidence.length, 0);
 });
@@ -75,16 +75,17 @@ test('evidence worker awaits an async retriever instead of silently qualifying i
     assert.equal(topK, 3);
     return { status: 'complete', provider: 'async-fake-retriever', evidence: [{ citation }], issues: [] };
   };
-  const evidence = await runEvidenceWorker({ query: 'async guideline lookup', retrieve: asyncRetriever });
+  const evidence = await runEvidenceWorker({ clinicianQuestion: 'async guideline lookup', retrieve: asyncRetriever });
   assert.equal(evidence.output_status, 'ready');
   assert.equal(evidence.guideline_evidence.length, 1);
   assert.deepEqual(evidence.guideline_evidence[0].citation, citation);
   assert.equal(evidence.qualification.required, false);
+  assert.equal(evidence.provider, 'async-fake-retriever');
 });
 
 test('evidence worker turns a rejecting retriever into a qualified result with an error code, not raw error text', async () => {
   const rejecting = async () => { throw new Error('boom: leaking a connection string or stack trace here would be a PHI/secret risk'); };
-  const evidence = await runEvidenceWorker({ query: 'async guideline lookup', retrieve: rejecting });
+  const evidence = await runEvidenceWorker({ clinicianQuestion: 'async guideline lookup', retrieve: rejecting });
   assert.equal(evidence.output_status, 'qualified');
   assert.equal(evidence.guideline_evidence.length, 0);
   assert.deepEqual(evidence.qualification.reasons, ['guideline_retrieval_failed']);
@@ -125,6 +126,6 @@ test('active supervisor takes the retrieval provider label from the injected ret
   assert.equal(events[0].provider, 'test-named-retriever');
   const defaulted = [];
   await runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence', observer: { startStage() {}, finishStage() {}, setExtraction() {}, recordRetrievalAttempt: (attempt) => defaulted.push(attempt) } });
-  assert.equal(defaulted[0].provider, 'local-lexical-proxy');
+  assert.equal(defaulted[0].provider, 'bm25-sparse-only');
 });
 

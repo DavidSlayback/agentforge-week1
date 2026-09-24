@@ -15,9 +15,10 @@ import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } fr
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
-import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
+import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
+import { createLiveGeminiClient } from './geminiClient.js';
 import { readBuildSha } from './buildInfo.js';
 
 const gitSha = readBuildSha();
@@ -57,12 +58,23 @@ if (scanProviderMode === 'gemini' && liveOpenEMR) throw new Error('Gemini scan e
 const scanProvider = scanProviderMode === 'gemini'
   ? createGeminiScanAdapter({ apiKey: process.env.GEMINI_API_KEY, model: process.env.AGENTFORGE_GEMINI_SCAN_MODEL || 'gemini-3.8-flash', timeoutMs: Number(process.env.AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS || 45000), dailyLimit: Number(process.env.AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT || 12) })
   : null;
+// gemini-hybrid (D2′, docs/agentforge/PLAN.md): real BM25 sparse ∪ Gemini
+// dense embeddings, reranked by a Gemini flash model. It degrades itself to
+// sparse-only (never silently relabeled as hybrid) when GEMINI_API_KEY or the
+// precomputed corpus embeddings file is missing. The default here stays
+// `local-lexical` — unset, this is shared code with the frozen W1
+// `agentforge` service (D8) — the `agentforge-w2` compose block sets
+// `AGENTFORGE_RAG_PROVIDER=gemini-hybrid` explicitly to make it the W2
+// default without touching W1's behavior.
 const ragProviderMode = process.env.AGENTFORGE_RAG_PROVIDER || 'local-lexical';
-if (!['local-lexical', 'cohere'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical or cohere');
+if (!['local-lexical', 'cohere', 'gemini-hybrid'].includes(ragProviderMode)) throw new Error('AGENTFORGE_RAG_PROVIDER must be local-lexical, cohere, or gemini-hybrid');
 if (ragProviderMode === 'cohere' && liveOpenEMR) throw new Error('Cohere RAG is restricted to the synthetic OpenEMR mode');
+if (ragProviderMode === 'gemini-hybrid' && liveOpenEMR) throw new Error('Gemini hybrid RAG is restricted to the synthetic OpenEMR mode');
 const guidelineRetriever = ragProviderMode === 'cohere'
   ? createCohereGuidelineRetriever({ apiKey: process.env.AGENTFORGE_COHERE_API_KEY })
-  : null;
+  : ragProviderMode === 'gemini-hybrid'
+    ? createGeminiHybridGuidelineRetriever({ geminiClient: process.env.GEMINI_API_KEY ? createLiveGeminiClient({ apiKey: process.env.GEMINI_API_KEY }) : null })
+    : null;
 const openEMRTokenProvider = liveOpenEMR && process.env.AGENTFORGE_OPENEMR_CLIENT_ID && process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET && process.env.AGENTFORGE_OPENEMR_TOKEN_URL && process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH
   ? new OpenEMRRefreshTokenProvider({ tokenUrl: process.env.AGENTFORGE_OPENEMR_TOKEN_URL, clientId: process.env.AGENTFORGE_OPENEMR_CLIENT_ID, clientSecret: process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET, cachePath: process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) })
   : null;

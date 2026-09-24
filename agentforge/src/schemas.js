@@ -124,16 +124,26 @@ export const IntakeForm = z.object({
  * `dense_score`, and `rerank_score` record the hybrid-retrieval signals
  * that ranked it, for the routing trace. `citation.field_or_chunk_id`
  * identifies the specific chunk within `citation.source_id`'s document.
+ *
+ * `url`/`publisher` are the chunk's source-page metadata (from the corpus
+ * file, not invented at retrieval time). `degraded` is `null` when this item
+ * came from the full sparse+dense+rerank pipeline, or `'sparse_only'` when
+ * it came from a BM25-only fallback (no corpus embeddings, no Gemini key, or
+ * a failed Gemini call) — required, not optional, so a sparse-only result
+ * can never be silently presented as hybrid (AGENTS.md).
  */
 export const GuidelineEvidence = z.object({
   title: z.string().min(1),
   section: z.string().min(1),
   version: z.string().min(1),
+  url: z.string().min(1),
+  publisher: z.string().min(1),
   snippet: z.string().min(1),
   sparse_score: z.number(),
   dense_score: z.number(),
   rerank_score: z.number(),
   matched_terms: z.array(z.string()),
+  degraded: z.enum(['sparse_only']).nullable(),
   citation: Citation,
 }).strict();
 

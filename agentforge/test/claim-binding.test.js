@@ -23,8 +23,8 @@ const metforminStarted = { field: 'medication.metformin.status', value: 'started
 const metforminStartedCitation = citation('openemr_record', 'med-900', 'medication.metformin.status', 'started', 'medication list');
 const adaSnippet = 'Metformin is the preferred initial pharmacologic agent for the treatment of type 2 diabetes when not contraindicated.';
 const ada = {
-  title: 'ADA Standards of Care', section: 'Pharmacologic therapy', version: '2026', snippet: adaSnippet,
-  sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: [],
+  title: 'ADA Standards of Care', section: 'Pharmacologic therapy', version: '2026', url: 'https://diabetesjournals.org/care/issue/49/Supplement_1', publisher: 'ADA', snippet: adaSnippet,
+  sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: [], degraded: null,
   citation: citation('guideline', 'ada-2026', 'ada-2026-chunk-9', adaSnippet, 'Pharmacologic therapy'),
 };
 const allowedValues = [hemoglobin, potassium, hba1c, metformin, metformin1000, chiefConcern, allergy, age, metforminStarted, ada];

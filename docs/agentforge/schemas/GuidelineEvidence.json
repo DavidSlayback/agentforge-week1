@@ -14,6 +14,14 @@
       "type": "string",
       "minLength": 1
     },
+    "url": {
+      "type": "string",
+      "minLength": 1
+    },
+    "publisher": {
+      "type": "string",
+      "minLength": 1
+    },
     "snippet": {
       "type": "string",
       "minLength": 1
@@ -32,6 +40,19 @@
       "items": {
         "type": "string"
       }
+    },
+    "degraded": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "sparse_only"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "citation": {
       "type": "object",
@@ -103,11 +124,14 @@
     "title",
     "section",
     "version",
+    "url",
+    "publisher",
     "snippet",
     "sparse_score",
     "dense_score",
     "rerank_score",
     "matched_terms",
+    "degraded",
     "citation"
   ],
   "additionalProperties": false,

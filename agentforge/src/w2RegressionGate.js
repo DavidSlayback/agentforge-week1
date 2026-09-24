@@ -30,10 +30,17 @@ const CITATION_KEYS = ['source_type', 'source_id', 'page_or_section', 'field_or_
 const LAB_RESULT_KEYS = ['test_name', 'value', 'unit', 'reference_range', 'collection_date', 'abnormal_flag', 'confidence', 'citation'];
 const INTAKE_KEYS = ['demographics', 'chief_concern', 'current_medications', 'allergies', 'family_history'];
 
+// These are the *clinician-question* refinement only (runEvidenceWorker
+// formulates the primary query itself from the document's typed abnormal
+// lab results and intake chief concern — activeWorkers.js). Their wording
+// is chosen to overlap with real corpus vocabulary (corpus/guidelines/
+// corpus.json) so the retrieval-ranking cases below are a meaningful check
+// against real BM25/hybrid ranking, not an artifact of a synthetic corpus
+// built to match a specific query string.
 const Q = Object.freeze({
-  glycemic: 'glycemic follow-up for an elevated A1C with medication history',
-  fatigue: 'fatigue review with sleep history and medication context',
-  medrec: 'medication reconciliation of the current list against prior records',
+  glycemic: 'A1C blood sugar diabetes diagnosis threshold',
+  fatigue: 'evaluate feeling tired and weak for possible anemia',
+  medrec: 'reconcile current medicine list against prior records pharmacy',
   offTopic: 'quasar galaxies nebula astronomy',
   offTopicClinical: 'orthopedic knee replacement rehabilitation protocol',
 });
@@ -77,9 +84,9 @@ export function buildW2GoldenSet() {
     kase('fc-05-intake-a-values', 'factually_consistent', 'Intake demographics, chief concern, medications, allergies or family history no longer match the form.', scan('intake-a', 'intake_form'), { intake_facts: true }),
     kase('fc-06-intake-b-values', 'factually_consistent', 'Alternate intake labels map values into the wrong typed fields.', scan('intake-b', 'intake_form'), { intake_facts: true }),
     kase('fc-07-intake-own-patient', 'factually_consistent', 'The patient-identity check rejects a form whose demographics do match the chart, or its values drift.', scan('gen-intake-c-conflict', 'intake_form', { upload_patient: P2 }), { intake_facts: true, workflow: { final_state: 'READY', identity: 'match' } }),
-    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence.', scan('lab-b', 'lab_pdf', { query: Q.glycemic }), { retrieval_top: 'guideline-diabetes-follow-up-1' }),
-    kase('fc-09-retrieval-fatigue', 'factually_consistent', 'Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.', scan('intake-a', 'intake_form', { query: Q.fatigue }), { retrieval_top: 'guideline-fatigue-review-1' }),
-    kase('fc-10-retrieval-medrec', 'factually_consistent', 'Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.', scan('intake-b', 'intake_form', { query: Q.medrec }), { retrieval_top: 'guideline-medication-reconciliation-1' }),
+    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence.', scan('lab-a', 'lab_pdf', { query: Q.glycemic }), { retrieval_top: 'cdc-a1c-test-definition' }),
+    kase('fc-09-retrieval-fatigue', 'factually_consistent', 'Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.', scan('intake-a', 'intake_form', { query: Q.fatigue }), { retrieval_top: 'medlineplus-anemia-fatigue-symptoms' }),
+    kase('fc-10-retrieval-medrec', 'factually_consistent', 'Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.', scan('intake-b', 'intake_form', { query: Q.medrec }), { retrieval_top: 'medlineplus-medication-bring-list-appointments' }),
 
     kase('sr-01-table-lab-zero-fields', 'safe_refusal', 'A lab layout the OCR label map cannot read is reported READY (or guessed) instead of BLOCKED no_fields_extracted.', scan('gen-lab-c-table', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
     kase('sr-02-blank-page', 'safe_refusal', 'A blank upload with zero OCR lines proceeds to retrieval as if it were evidence.', scan('gen-blank-page', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
@@ -87,7 +94,7 @@ export function buildW2GoldenSet() {
     kase('sr-04-lab-uploaded-as-intake', 'safe_refusal', 'A lab report uploaded as an intake form (header name/DOB readable) is reported READY instead of QUALIFIED doc_type_mismatch.', scan('gen-lab-c-table', 'intake_form'), { refusal: { final_state: 'QUALIFIED', reasons_include: ['doc_type_mismatch'], detected_type: 'lab_pdf' } }),
     kase('sr-05-patient-mismatch', 'safe_refusal', 'An intake form for another patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('gen-intake-c-conflict', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', retrieval_ran: false } }),
     kase('sr-06-cross-patient-read', 'safe_refusal', "A clinician scoped to one patient runs the scan workflow on another patient's document (the handler must answer 403).", scan('lab-a', 'lab_pdf', { request_patient: P2 }), { refusal: { service_status: 'blocked', reason: 'document_scope_mismatch' } }),
-    kase('sr-07-unsupported-query-scan', 'safe_refusal', 'An off-topic question gets guideline evidence or a READY state on the scan path.', scan('lab-a', 'lab_pdf', { query: Q.offTopic }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
+    kase('sr-07-unsupported-query-scan', 'safe_refusal', 'An off-topic question gets guideline evidence or a READY state on the scan path.', scan('gen-lab-e-scanned', 'lab_pdf', { query: Q.offTopic }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
     kase('sr-09-corrupt-pdf', 'safe_refusal', 'A corrupt PDF crashes the request (HTTP 500) or produces a result instead of a structured BLOCKED document_unreadable refusal (HTTP 422).', scan('gen-corrupt', 'lab_pdf'), { refusal: { service_status: 'unreadable', reason: 'document_unreadable', traced_as: 'blocked' } }),
     kase('sr-11-intake-dob-mismatch', 'safe_refusal', "An intake form with this patient's name but a different date of birth is attached to the chart because only the name is compared.", scan('gen-intake-d-dob', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['dob'], retrieval_ran: false } }),
     kase('sr-12-no-chart-record', 'safe_refusal', 'A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.', scan('intake-a', 'intake_form', { upload_patient: P_UNKNOWN }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['patient_identity_unverified'], identity: 'unverified' } }),

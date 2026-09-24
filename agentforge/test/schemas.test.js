@@ -22,7 +22,7 @@ const validIntakeForm = {
   family_history: [],
 };
 
-const validGuidelineEvidence = { title: 'Synthetic guideline', section: 'Review', version: '2026.1', snippet: 'Review documented evidence.', sparse_score: 1, dense_score: 0.5, rerank_score: 0.9, matched_terms: ['review'], citation: { source_type: 'guideline', source_id: 'guideline-1', page_or_section: 'Review', field_or_chunk_id: 'guideline-1', quote_or_value: 'Review documented evidence.' } };
+const validGuidelineEvidence = { title: 'Synthetic guideline', section: 'Review', version: '2026.1', url: 'https://example.gov/guideline', publisher: 'CDC', snippet: 'Review documented evidence.', sparse_score: 1, dense_score: 0.5, rerank_score: 0.9, matched_terms: ['review'], degraded: null, citation: { source_type: 'guideline', source_id: 'guideline-1', page_or_section: 'Review', field_or_chunk_id: 'guideline-1', quote_or_value: 'Review documented evidence.' } };
 
 test('Citation requires exactly the five W2 keys and rejects the old key names', () => {
   assert.equal(parseOrIssues(Citation, validCitation).ok, true);
@@ -69,11 +69,14 @@ test('IntakeForm requires every listed section, present even when empty', () => 
 
 test('GuidelineEvidence requires a nested five-key citation and the score/snippet fields', () => {
   assert.equal(parseOrIssues(GuidelineEvidence, validGuidelineEvidence).ok, true);
-  for (const field of ['title', 'section', 'version', 'snippet', 'matched_terms', 'citation']) {
+  for (const field of ['title', 'section', 'version', 'url', 'publisher', 'snippet', 'matched_terms', 'degraded', 'citation']) {
     const { [field]: _dropped, ...withoutField } = validGuidelineEvidence;
     assert.equal(parseOrIssues(GuidelineEvidence, withoutField).ok, false, `GuidelineEvidence must require ${field}`);
   }
   assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, citation: { ...validGuidelineEvidence.citation, location: 'synthetic://x' } }).ok, false);
+  // degraded is nullable but must be present, and can only be null or 'sparse_only' — never any other string a retriever might invent.
+  assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, degraded: 'sparse_only' }).ok, true);
+  assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, degraded: 'hybrid' }).ok, false);
 });
 
 test('.scan.txt lab and intake extraction produce citations that validate against the Citation schema', () => {
