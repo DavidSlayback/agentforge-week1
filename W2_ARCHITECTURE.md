@@ -281,6 +281,18 @@ references cut the prompt by about 45% and the expected output by about 70%
 on the golden lab + intake case. A test pins the failure mode: mapping an
 unknown label to "the first fact" must fail.
 
+The prompt states the verifier's rules instead of leaving the model to
+discover them by rejection. Each fact line ends with the exact text the
+claim must contain; the prompt lists the closed framing vocabulary and
+requires an 8-word verbatim run for guideline claims. The verifier itself is
+unchanged. Measured with the real `qwen3.8-flash` inside the deployed
+container on four golden documents, twice each: before, 31 of 59 model
+claims verified (52%), and none of the 28 rejections was an invented value;
+every one was a paraphrase or a split lab the verifier cannot bind. After,
+22 of 24 verified (92%). The model now proposes fewer claims (about 3 per
+answer instead of 7) and the deterministic top-up fills the rest, so most
+answers are labeled `model+deterministic-topup`.
+
 If the model's own claims all fail verification, the composer falls back
 to `DeterministicAnswerComposer`, which builds claims directly from the
 typed facts using a closed, pre-approved vocabulary so they are guaranteed

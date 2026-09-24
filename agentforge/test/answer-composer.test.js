@@ -364,7 +364,9 @@ test('the prompt lists facts/guideline chunks under short labels and asks the mo
   const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
   await composeGroundedAnswer({ labResults: [a1c], guidelineEvidence: [guideline()] }, { provider });
   assert.ok(capturedPrompt, 'the prompt must be built and passed to the provider');
-  assert.match(capturedPrompt, /^F1 \[lab\] A1C 6\.1 % on 2026-09-20 \(reference under 5\.7\), flagged abnormal$/m, 'the lab fact must be listed under its own short label, as a compact line');
+  assert.match(capturedPrompt, /^F1 \[lab\] A1C 6\.1 % on 2026-09-20 \(reference under 5\.7\), flagged abnormal \| must contain: "6\.1"$/m, 'the lab fact must be listed under its own short label, as a compact line naming the exact value the verifier requires');
+  assert.match(capturedPrompt, /never split a lab into separate claims/, 'the prompt must state the verifier rule that each patient_fact claim carries its cited value');
+  assert.match(capturedPrompt, /\bdocumented\b.*\bflagged\b/, 'the prompt must list the verifier\'s closed framing vocabulary');
   assert.match(capturedPrompt, /^G1 \[/m, 'the guideline chunk must be listed under its own short label');
   assert.match(capturedPrompt, /"refs":\["F1"\]/, 'the requested output shape must cite by label ("refs"), not by a citation object');
   assert.ok(!/"citations"\s*:/.test(capturedPrompt), 'the prompt must never ask the model to return a "citations" key at all');

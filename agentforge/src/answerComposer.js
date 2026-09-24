@@ -36,6 +36,7 @@
  * shortcut — it is graded by the identical rule.
  */
 import { verifyClaims } from './claimBinding.js';
+import { BINDING_VOCABULARY } from './clinicalVocabulary.js';
 import { canonicalText } from './groundingText.js';
 import { GroundedAnswer, parseOrIssues } from './schemas.js';
 // F5 review fix: one canonical `isRecordLookupQuestion`, defined in
@@ -149,18 +150,28 @@ export class DeterministicAnswerComposer {
  * embedded per fact. */
 function labFactLine(result) {
   const flagWord = ABNORMAL_FLAG_WORDS.has(result.abnormal_flag) ? result.abnormal_flag : null;
-  return `[lab] ${result.test_name} ${result.value} ${result.unit} on ${result.collection_date} (reference ${result.reference_range})${flagWord ? `, flagged ${flagWord}` : ''}`;
+  return `[lab] ${result.test_name} ${result.value} ${result.unit} on ${result.collection_date} (reference ${result.reference_range})${flagWord ? `, flagged ${flagWord}` : ''} | must contain: "${result.value}"`;
 }
+
+// Each fact line ends with the exact run `claimBinding.js#bindPatientFact`
+// requires (CITED_VALUE_MISSING otherwise). Measured live 2026-09-24: without
+// it, 40% of real-model claims failed verification -- none for an invented
+// value, all for paraphrasing a line the verifier needs verbatim.
 
 /** Compact prompt line for one intake-form leaf: the form's own verbatim
- * "<label>: <value>" quote, same text `intakeFieldClaim` echoes. */
+ * "<label>: <value>" quote, same text `intakeFieldClaim` echoes. The
+ * verifier binds on the whole quote, label included. */
 function intakeFactLine(citation) {
-  return `[intake_field] ${citation.quote_or_value}`;
+  return `[intake form] ${citation.quote_or_value} | must contain: "${citation.quote_or_value}"`;
 }
 
-/** Compact prompt line for one OpenEMR chart-record fact: its verbatim value. */
+/** Compact prompt line for one OpenEMR chart-record fact: the field it
+ * belongs to (words the verifier derives from the same `field_or_chunk_id`)
+ * and its verbatim value. A bare value ("active") gave the model nothing to
+ * say about it but invented framing. */
 function openemrFactLine(citation) {
-  return `[openemr_record] ${citation.quote_or_value}`;
+  const field = fieldWords(citation.field_or_chunk_id);
+  return `[chart record] ${field ? `${field}: ` : ''}${citation.quote_or_value} | must contain: "${citation.quote_or_value}"`;
 }
 
 /** Compact prompt line for one guideline chunk: title/section/version plus
@@ -201,13 +212,18 @@ function buildFactLabels({ verifiedLabResults, verifiedIntakeCitations, patientF
 // them into `facts` (see `collectIntakeLeaves`), so they never reach the
 // prompt or the model's own claims either; only clinical intake fields
 // (chief concern, medications, allergies, family history) do.
+// The verifier's closed framing vocabulary, stated to the model instead of
+// discovered by rejection (the same list `bindPatientFact` accepts).
+const FRAMING_WORD_LIST = [...BINDING_VOCABULARY].filter((word) => word.length > 1).join(', ');
+
 function buildPrompt({ question, facts, guidelines }) {
   const factLines = facts.map((fact) => `${fact.label} ${fact.line}`).join('\n') || '(none)';
   const guidelineLines = guidelines.map((chunk) => `${chunk.label} ${chunk.line}`).join('\n') || '(none)';
   return [
     'You are a clinical documentation assistant preparing a return-visit answer.',
     'Answer strictly from the facts and guideline evidence listed below. Never invent a value. Never recommend a treatment, diagnosis, medication change, or other clinical action -- describe only what is documented.',
-    'Rules: one claim per fact, do not combine facts. Name each lab test exactly as its own test_name (verbatim, digits and all -- e.g. "A1C", never a generic substitute). Copy every cited value, unit, date, and range verbatim. Guideline claims must quote their snippet verbatim (at least 8 words).',
+    'Rules for patient_fact claims: exactly one claim per F label, citing only that label. The claim text must contain the fact\'s "must contain" text as one unbroken, word-for-word run -- never paraphrase it or insert words inside it. Put everything about one lab (value, unit, date, reference range, flag) in that one claim; never split a lab into separate claims. Name each lab test exactly as its own test_name (e.g. "A1C"). Any other word must come from the fact line itself or from this list, or the claim is rejected (do not add words such as "prior", "another", "indicates", "includes", or a drug or condition name that is not on the line): ' + FRAMING_WORD_LIST + '.',
+    'Rules for guideline claims: the text must contain a run of at least 8 consecutive words copied word-for-word from the chunk. A short list item such as "X: 6.5% or above" alone is rejected; when the chunk is a list, copy from the sentence that introduces it through the item you need.',
     'Every patient-record fact and guideline chunk below has a short label. Cite each claim by label only, in "refs" -- never restate a fact\'s value or a guideline\'s citation fields as JSON, and never invent a label that is not listed below.',
     'Return ONLY a JSON object of this exact shape, no prose outside it:',
     '{"claims":[{"kind":"patient_fact"|"guideline","text":"...","refs":["F1"]}]}',
