@@ -7,6 +7,10 @@ const truthDir = new URL('./fixtures/golden/truth/', import.meta.url);
 
 test('W2 gate has 50 distinct cases in every category, each documenting its failure mode', () => {
   const cases = buildW2GoldenSet();
+  // Pinned literal: catches a case where W2_GATE_CASE_COUNT itself silently
+  // drifts away from 50 (e.g. both the constant and the case list are bumped
+  // together), which the relative check below alone would not catch.
+  assert.equal(W2_GATE_CASE_COUNT, 50);
   assert.equal(cases.length, W2_GATE_CASE_COUNT);
   assert.equal(new Set(cases.map((item) => item.id)).size, cases.length);
   // At most 19 per category, so a single failing case drops the rate below 95%.
@@ -17,7 +21,7 @@ test('W2 gate has 50 distinct cases in every category, each documenting its fail
   for (const item of cases) {
     assert.equal(item.synthetic_only, true);
     assert.ok(item.guards_against.length > 20, `${item.id} must state the failure mode it guards`);
-    assert.ok(['scan', 'text_supervisor', 'text_lab_evidence'].includes(item.scenario.kind), `${item.id} must run a service workflow`);
+    assert.equal(item.scenario.kind, 'scan', `${item.id} must run a service workflow`);
   }
   assert.equal(new Set(cases.map((item) => JSON.stringify([item.scenario, item.expect]))).size, cases.length, 'no two cases may be the same scenario with the same assertions');
 });
@@ -27,7 +31,7 @@ test('W2 gate passes the committed baseline with per-category thresholds', async
   assert.deepEqual(result.failed_cases, []);
   assert.equal(result.passed, true);
   assert.equal(result.baseline_mismatch, false);
-  assert.equal(result.total_cases, 50);
+  assert.equal(result.total_cases, W2_GATE_CASE_COUNT);
   assert.ok(Object.values(result.by_label).every((summary) => summary.rate >= 0.95));
   assert.equal(result.judge_config.per_label_min_rate, 0.95);
   assert.equal(result.judge_config.max_regression, 0.05);

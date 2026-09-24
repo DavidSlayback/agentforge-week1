@@ -32,7 +32,15 @@ test('golden suite can evaluate the running AgentForge service', async () => {
     assert.ok(dashboard.includes('AgentForge observability'));
     assert.ok(dashboard.includes("basePath+'/v1/metrics'"));
   } finally {
-    child.kill();
+    // Wait for the child to actually exit (and release port 18788) before
+    // this test returns, so a back-to-back run of this suite — or the
+    // regression matrix running it many times in one process — can never
+    // race a still-live server on the same fixed port.
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 5000);
+      child.once('exit', () => { clearTimeout(timer); resolve(); });
+      child.kill();
+    });
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

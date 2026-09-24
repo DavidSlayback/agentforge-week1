@@ -7,8 +7,6 @@ import { z } from 'zod';
 import { Citation, GuidelineEvidence, IntakeForm, LabResult, parseOrIssues } from '../src/schemas.js';
 import { extractScanForm } from '../src/scanFormAdapter.js';
 import { extractPdfScanFixture } from '../src/pdfScanAdapter.js';
-import { extractLabEvidence } from '../src/labEvidence.js';
-import { extractIntakeEvidence } from '../src/intakeEvidence.js';
 
 const validCitation = { source_type: 'document', source_id: 'src-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: 'Hemoglobin 13.2 g/dL' };
 
@@ -78,15 +76,21 @@ test('GuidelineEvidence requires a nested five-key citation and the score/snippe
   assert.equal(parseOrIssues(GuidelineEvidence, { ...validGuidelineEvidence, citation: { ...validGuidelineEvidence.citation, location: 'synthetic://x' } }).ok, false);
 });
 
-test('text-fixture lab and intake extraction produce citations that validate against the Citation schema', () => {
-  const labExtraction = extractLabEvidence({ sourceDocumentId: 'src-lab-1', content: Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40') });
+test('.scan.txt lab and intake extraction produce citations that validate against the Citation schema', () => {
+  // These are the same hand-authored `.scan.txt` envelopes the W2 gate
+  // uses (the only non-PDF upload format after the legacy LAB|/INTAKE|
+  // path and its extractors were retired).
+  const labContent = fs.readFileSync(fileURLToPath(new URL('./fixtures/golden/text/scan-text-lab-a.scan.txt', import.meta.url)));
+  const labExtraction = extractScanForm({ sourceDocumentId: 'src-lab-1', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', pageCount: 1, content: labContent });
   assert.equal(labExtraction.status, 'complete');
   assert.equal(parseOrIssues(Citation, labExtraction.facts[0].citation).ok, true);
   assert.equal(parseOrIssues(LabResult, labExtraction.lab_results[0]).ok, true);
 
-  const intakeExtraction = extractIntakeEvidence({ sourceDocumentId: 'src-intake-1', content: Buffer.from('INTAKE|field=chief_concern|value=Fatigue for two weeks|section=Reason for visit|page=1|field_id=intake.concern|quote=Fatigue for two weeks|bounding_box=10,20,100,40') });
+  const intakeContent = fs.readFileSync(fileURLToPath(new URL('./fixtures/golden/text/scan-text-intake-a.scan.txt', import.meta.url)));
+  const intakeExtraction = extractScanForm({ sourceDocumentId: 'src-intake-1', documentType: 'intake_form', layoutId: 'pdf-ocr-intake_form', pageCount: 1, content: intakeContent });
   assert.equal(intakeExtraction.status, 'complete');
   assert.equal(parseOrIssues(Citation, intakeExtraction.facts[0].citation).ok, true);
+  assert.equal(parseOrIssues(IntakeForm, intakeExtraction.intake_form).ok, true);
 
   // grep-style guard, in-process: no legacy citation key survives in either extraction.
   const serialized = JSON.stringify([labExtraction.facts[0].citation, intakeExtraction.facts[0].citation]);

@@ -366,9 +366,9 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   are rendered in separate sections, as W2 p2 requires. Fallback is a
   deterministic, template-based answer built from the same claims and labeled
   as such.
-- Patient-record facts (`service.js:183` `patient_facts`, `jevSpike.js:6`)
-  carry the 5-key citation with `source_type: 'openemr_record'` (S2 review
-  finding 8).
+- Patient-record facts (`service.js:201` `retrieveFollowUpEvidence`'s
+  `patient_facts`) carry the 5-key citation with `source_type:
+  'openemr_record'` (S2 review finding 8).
 - Tests: at least 3 routing variants, uncited-claim rejection, and the fallback
   path.
 

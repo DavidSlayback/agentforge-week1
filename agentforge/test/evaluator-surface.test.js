@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { renderEvaluatorPage } from '../src/ui.js';
+import { W2_GATE_CASE_COUNT } from '../src/w2RegressionGate.js';
 import { startTestServer } from './helpers/testServer.js';
 
 const port = 18795;
@@ -21,7 +22,7 @@ test('evaluator panel exposes operational routes and saved evidence', async () =
   assert.match(page, /Week 1 baseline evidence/);
   assert.match(page, /Mutation\/error analysis/);
   assert.match(page, /W2 regression gate/);
-  assert.match(page, /50/);
+  assert.match(page, new RegExp(String(W2_GATE_CASE_COUNT)));
   assert.match(page, /synthetic fixture and harness results/i);
 
   const dashboard = await fetch(`http://127.0.0.1:${port}/observability`).then((response) => response.text());
@@ -39,7 +40,7 @@ test('evaluator panel exposes operational routes and saved evidence', async () =
   assert.equal(errorAnalysis.gate_passed, true);
   assert.equal(golden.total_cases, 7);
   assert.equal(errorAnalysis.total_mutations, 6);
-  assert.equal(w2Baseline.total_cases, 50);
+  assert.equal(w2Baseline.total_cases, W2_GATE_CASE_COUNT);
   assert.equal(w2Baseline.passed, true);
 
   const prefixed = renderEvaluatorPage({ golden: {}, errorAnalysis: {}, basePath: '/agentforge' });

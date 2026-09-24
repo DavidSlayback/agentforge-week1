@@ -17,8 +17,11 @@ source form (synthetic fixture or approved public blank form)
   -> cited READY or qualified/blocked result
 ```
 
-The existing standard supervisor and deterministic extraction/tool path remain
-the safety baseline for the clinical co-pilot. The active path is a bounded
+The W1 deterministic briefing path (`PreVisitPreparation`/`verifyClaims`)
+remains the safety baseline for the clinical co-pilot. The legacy LAB|/INTAKE|
+text-path supervisor this section used to describe alongside it was retired in
+R2 (issue #4): it could not persist under the deployed OpenEMR module
+writeback and did not refuse loudly. The active path is a bounded
 multi-worker document/evidence seam and does not write clinical actions. The
 local VLM adapter is opt-in, typed, crop-bounded, and fail-closed when no local
 model runner is configured or measured. The eventual API/managed provider can
