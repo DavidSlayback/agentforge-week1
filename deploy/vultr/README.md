@@ -10,6 +10,12 @@ that root and is not part of the repository. The Compose file is under
 `deploy/vultr/`; when running Compose from that directory, pass the root env
 file explicitly with `--env-file /opt/agentforge-week1/.env`.
 
+The Week 1 `agentforge` service is frozen (PLAN D8). It runs the VM-local image
+tag `agentforge-w1:84f232b`, taken from the running W1 container, and has no
+`build:` section, so no `docker compose build` or `up --build` can rebuild it
+from Week 2 sources. `deploy.sh` ships only `agentforge-w2` by default. To
+change W1 deliberately, build and tag a new image and update the `image:` line.
+
 ## Required secrets
 
 Create a server-only `.env` at `/opt/agentforge-week1/.env`:

@@ -61,9 +61,10 @@ services:
 
   agentforge:
     restart: always
-    build:
-      context: ../..
-      dockerfile: Dockerfile
+    # Week 1 is frozen (PLAN D8). This local tag was taken from the running W1
+    # container (built from 84f232b, image sha256:fa4a6543a80a...). No build:
+    # section, so no compose rebuild can replace W1 with W2 code.
+    image: agentforge-w1:84f232b
     environment:
       PORT: 8787
       AGENTFORGE_FIXTURES: /app/docs/agentforge/fixtures/clinical-cases.json
