@@ -52,8 +52,12 @@ const liveClient = createLiveGeminiClient({ apiKey });
 const recordingClient = createRecordingGeminiClient({ liveClient });
 const retriever = createGeminiHybridGuidelineRetriever({ geminiClient: recordingClient, corpus: loadGuidelineCorpus(), embeddings });
 
+// Free-tier Gemini keys allow ~5 rerank requests/minute; set e.g.
+// AGENTFORGE_RECORD_DELAY_MS=13000 to stay under it.
+const delayMs = Number(process.env.AGENTFORGE_RECORD_DELAY_MS || 0);
 const degraded = [];
-for (const query of queries) {
+for (const [index, query] of queries.entries()) {
+  if (index && delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
   console.log(`Recording: ${query}`);
   const result = await retriever.retrieve(query, { topK: 3 });
   console.log(`  status=${result.status} degraded=${result.degraded} top=${result.evidence[0]?.citation.source_id || '(none)'}`);
