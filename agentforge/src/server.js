@@ -14,7 +14,6 @@ import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } fr
 import { renderObservabilityPage } from './observabilityPage.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
-import { runW2RegressionGate } from './w2RegressionGate.js';
 import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
@@ -122,6 +121,9 @@ const readiness = createReadinessChecker({
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const evalsRoot = path.join(projectRoot, 'evals');
 const readEvidence = (name) => JSON.parse(fs.readFileSync(path.join(evalsRoot, name), 'utf8'));
+// The W2 gate runs in the pre-commit hook, not per request: it swaps process-wide
+// console/stdout capture and takes seconds. The server serves the committed report.
+const readW2Baseline = () => ({ ...JSON.parse(fs.readFileSync(path.join(projectRoot, 'docs/agentforge/evidence/W2_BASELINE_REPORT.json'), 'utf8')), served_from: 'committed_baseline_report' });
 const readGoldenEvidence = () => process.env.AGENTFORGE_EVAL_REPORT_PATH ? JSON.parse(fs.readFileSync(process.env.AGENTFORGE_EVAL_REPORT_PATH, 'utf8')) : readEvidence('deployed-service-results.json');
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
@@ -225,8 +227,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/evals/deployed-service-results.json') return json(res, 200, readEvidence('deployed-service-results.json'));
     if (req.method === 'GET' && req.url === '/evals/error-analysis.json') return json(res, 200, readEvidence('error-analysis.json'));
     if (req.method === 'GET' && req.url === '/evals/active-service-results.json') return json(res, 200, readGoldenEvidence());
-    if (req.method === 'GET' && req.url === '/evals/w2-baseline.json') return json(res, 200, await runW2RegressionGate());
-    if (req.method === 'GET' && req.url === '/evals') { const golden = readGoldenEvidence(); const errorAnalysis = readEvidence('error-analysis.json'); const w2Gate = await runW2RegressionGate(); return html(res, renderEvaluatorPage({ golden, errorAnalysis, w2Gate, basePath: publicBasePath, localReport: Boolean(process.env.AGENTFORGE_EVAL_REPORT_PATH) })); }
+    if (req.method === 'GET' && req.url === '/evals/w2-baseline.json') return json(res, 200, readW2Baseline());
+    if (req.method === 'GET' && req.url === '/evals') { const golden = readGoldenEvidence(); const errorAnalysis = readEvidence('error-analysis.json'); const w2Gate = readW2Baseline(); return html(res, renderEvaluatorPage({ golden, errorAnalysis, w2Gate, basePath: publicBasePath, localReport: Boolean(process.env.AGENTFORGE_EVAL_REPORT_PATH) })); }
     const labEvidenceMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/lab-evidence(?:\?(.*))?$/);
     if (req.method === 'GET' && labEvidenceMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -353,6 +355,7 @@ const server = http.createServer(async (req, res) => {
       if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       const result = await service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
+      if (result.status === 'unreadable') return json(res, 422, { error: result.reason, final_state: result.final_state, synthetic_only: true });
       const extraction = injectTestScanExtractionFault(result.workflow.typed_outputs.extraction);
       const responseBody = { ...result, workflow: { ...result.workflow, typed_outputs: { ...result.workflow.typed_outputs, extraction } } };
       return sendValidatedScanExtraction(res, 200, responseBody, extraction);

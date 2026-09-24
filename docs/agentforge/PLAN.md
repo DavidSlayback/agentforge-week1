@@ -468,3 +468,12 @@ confirms the grading remote._
   Patient demographics come from `FixtureAdapter.getPatientDemographics`; S8
   must add the same method to the OpenEMR adapter, or intake documents stay
   QUALIFIED `patient_identity_unverified` in live mode.
+- S1/S3 review fixes (same branch).
+  - The gate now also catches the reviewer's N1–N10 plus the new
+    lab-identity and unreadable-PDF rows (see the matrix).
+  - Lab-report header identity check; intake DOB mismatch; no chart record
+    is `unverified`.
+  - An unreadable PDF is a BLOCKED `document_unreadable` refusal (HTTP 422).
+  - `/evals` serves the committed report.
+  - Thresholds are hashed into the case set.
+  - Server-spawning tests use one `waitForServer` helper.

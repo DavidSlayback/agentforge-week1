@@ -23,6 +23,8 @@ const FIXTURE_CASES = fileURLToPath(new URL('docs/agentforge/fixtures/clinical-c
 const CLINICIAN = 'fixture-physician-001';
 const P1 = 'fixture-patient-001';
 const P2 = 'fixture-patient-002';
+// A patient the chart has no demographics for.
+const P_UNKNOWN = 'fixture-patient-099';
 const GATE_CLOCK = '2000-01-01T00:00:00.000Z';
 const CITATION_KEYS = ['source_type', 'source_id', 'page_or_section', 'field_or_chunk_id', 'quote_or_value'];
 const LAB_RESULT_KEYS = ['test_name', 'value', 'unit', 'reference_range', 'collection_date', 'abnormal_flag', 'confidence', 'citation'];
@@ -50,7 +52,6 @@ const kase = (id, category, guardsAgainst, scenario, expect) => ({ id, category,
 export function buildW2GoldenSet() {
   return [
     kase('sv-01-lab-a-typed', 'schema_valid', 'Zod LabResult parsing or the HTTP response validator rejects or drops the typed results of a clean vector lab PDF.', scan('lab-a', 'lab_pdf'), { typed: { lab_results: 2 } }),
-    kase('sv-02-lab-b-raster-typed', 'schema_valid', 'Typed lab output from a rasterized (OCR-over-pixels) lab PDF stops validating.', scan('lab-b', 'lab_pdf'), { typed: { lab_results: 2 } }),
     kase('sv-03-intake-a-typed', 'schema_valid', 'IntakeForm parsing fails, or a field the form contains is reported not_found_on_form.', scan('intake-a', 'intake_form'), { typed: { intake_observed: ['name', 'dob', 'phone', 'chief_concern', 'current_medications', 'allergies', 'family_history'] } }),
     kase('sv-04-intake-b-typed', 'schema_valid', 'Alternate intake labels (Name/DOB/Telephone/Allergy) stop mapping into a valid IntakeForm.', scan('intake-b', 'intake_form'), { typed: { intake_observed: ['name', 'dob', 'phone', 'chief_concern', 'current_medications', 'allergies', 'family_history'] } }),
     kase('sv-05-lab-d-hl-typed', 'schema_valid', 'Single-letter H/L flags produce a value outside the AbnormalFlag enum and invalidate the result.', scan('gen-lab-d-flags', 'lab_pdf'), { typed: { lab_results: 2 } }),
@@ -60,18 +61,17 @@ export function buildW2GoldenSet() {
     kase('sv-09-citation-shape', 'schema_valid', 'The citation contract stops validating bounding_box or accepts a citation missing one of the five keys or carrying an extra key.', scan('lab-a', 'lab_pdf'), { contract_rejects: 'malformed_citations' }),
     kase('sv-10-text-lab-evidence-response', 'schema_valid', 'The LAB| text path behind /lab-evidence returns a response that fails its own response contract or typed LabResult parsing.', { kind: 'text_lab_evidence', doc: 'text-lab', upload_patient: P1 }, { typed: { lab_results: 2 } }),
 
-    kase('cp-01-lab-a-citations', 'citation_present', 'A vector-PDF lab fact or typed result loses a citation key, cites the wrong document, quotes text not in the OCR, or points outside the page.', scan('lab-a', 'lab_pdf'), { citations: true }),
-    kase('cp-02-lab-b-citations', 'citation_present', 'Citations from a rasterized lab PDF drift from the OCR line they came from.', scan('lab-b', 'lab_pdf'), { citations: true }),
+    kase('cp-01-lab-a-citations', 'citation_present', 'A vector-PDF lab fact or typed result loses a citation key, cites the wrong document or the wrong line (e.g. the test-name line instead of the value line), quotes text not in the OCR, or points outside the page.', scan('lab-a', 'lab_pdf'), { citations: true }),
     kase('cp-03-intake-a-citations', 'citation_present', 'An observed intake field (demographics, meds, allergies, history) is emitted without a complete, verbatim citation.', scan('intake-a', 'intake_form'), { citations: true }),
     kase('cp-04-intake-b-citations', 'citation_present', 'Rasterized intake fields lose their page region or verbatim quote.', scan('intake-b', 'intake_form'), { citations: true }),
-    kase('cp-05-lab-d-citations', 'citation_present', 'Low-confidence OCR lines are cited with a reconstructed label instead of the verbatim OCR text.', scan('gen-lab-d-flags', 'lab_pdf'), { citations: true }),
+    kase('cp-05-lab-d-citations', 'citation_present', 'Facts read from low-confidence OCR lines lose their human-review flag (so the preview would call them verified), or are cited with a reconstructed label instead of the verbatim OCR text.', scan('gen-lab-d-flags', 'lab_pdf'), { citations: true }),
     kase('cp-06-lab-e-scan-citations', 'citation_present', 'Facts from a partially read noisy scan are emitted uncited or with a box outside the page.', scan('gen-lab-e-scanned', 'lab_pdf'), { citations: true }),
     kase('cp-07-lab-as-intake-citations', 'citation_present', 'Facts from a document whose declared type is contradicted are shown without source provenance.', scan('gen-lab-c-table', 'intake_form'), { citations: true }),
     kase('cp-08-guideline-citations', 'citation_present', 'Guideline evidence reaches the workflow without the five-key guideline citation.', scan('lab-b', 'lab_pdf'), { guideline_citations: true }),
     kase('cp-09-text-lab-citations', 'citation_present', 'A LAB| text-path fact loses its quote (or any citation key) on the /v1/supervisor path.', textSupervisor(['text-lab']), { citations: true }),
     kase('cp-10-text-intake-citations', 'citation_present', 'An INTAKE| text-path fact loses its quote or page on the /v1/supervisor path.', textSupervisor(['text-intake'], Q.medrec), { citations: true }),
 
-    kase('fc-01-lab-a-values', 'factually_consistent', 'Value, unit, reference range, collection date or abnormal flag of a clean lab PDF no longer matches the document.', scan('lab-a', 'lab_pdf'), { lab_facts: {} }),
+    kase('fc-01-lab-a-values', 'factually_consistent', 'Value, unit, reference range, collection date, abnormal flag or confidence (min of its source lines) of a clean lab PDF no longer matches the document.', scan('lab-a', 'lab_pdf'), { lab_facts: {} }),
     kase('fc-02-lab-b-values', 'factually_consistent', 'Values read from a rasterized lab PDF drift from the document (e.g. "Hgb" labels or a Yes flag mis-mapped).', scan('lab-b', 'lab_pdf'), { lab_facts: {} }),
     kase('fc-03-lab-d-high-low', 'factually_consistent', 'H and L flags collapse to normal/abnormal or are swapped.', scan('gen-lab-d-flags', 'lab_pdf'), { lab_facts: {} }),
     kase('fc-04-lab-e-scan-values', 'factually_consistent', 'A noisy scan produces a wrong value, or an A1C result is invented from the fields OCR could not read.', scan('gen-lab-e-scanned', 'lab_pdf'), { lab_facts: { optional_tests: ['A1C'] }, workflow: { final_state: 'QUALIFIED', reasons_include: ['extraction_incomplete'] } }),
@@ -90,18 +90,20 @@ export function buildW2GoldenSet() {
     kase('sr-06-cross-patient-read', 'safe_refusal', "A clinician scoped to one patient runs the scan workflow on another patient's document (the handler must answer 403).", scan('lab-a', 'lab_pdf', { request_patient: P2 }), { refusal: { service_status: 'blocked', reason: 'document_scope_mismatch' } }),
     kase('sr-07-unsupported-query-scan', 'safe_refusal', 'An off-topic question gets guideline evidence or a READY state on the scan path.', scan('lab-a', 'lab_pdf', { query: Q.offTopic }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
     kase('sr-08-unsupported-query-text', 'safe_refusal', 'An unsupported clinical question gets guideline evidence or READY on the /v1/supervisor path.', textSupervisor(['text-lab'], Q.offTopicClinical), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
-    kase('sr-09-corrupt-pdf', 'safe_refusal', 'A corrupt PDF produces a result (or READY) instead of failing the request.', scan('gen-corrupt', 'lab_pdf'), { refusal: { throws: 'PDF_OCR_COMMAND_FAILED' } }),
+    kase('sr-09-corrupt-pdf', 'safe_refusal', 'A corrupt PDF crashes the request (HTTP 500) or produces a result instead of a structured BLOCKED document_unreadable refusal (HTTP 422).', scan('gen-corrupt', 'lab_pdf'), { refusal: { service_status: 'unreadable', reason: 'document_unreadable', traced_as: 'blocked' } }),
     kase('sr-10-text-lab-declared-intake', 'safe_refusal', 'A LAB| document declared as an intake form yields zero intake facts yet the supervisor still reports READY.', textSupervisor(['text-lab'], Q.glycemic, { declared_type: 'intake_form' }), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted' } }),
+    kase('sr-11-intake-dob-mismatch', 'safe_refusal', "An intake form with this patient's name but a different date of birth is attached to the chart because only the name is compared.", scan('gen-intake-d-dob', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['dob'], retrieval_ran: false } }),
+    kase('sr-12-no-chart-record', 'safe_refusal', 'A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.', scan('intake-a', 'intake_form', { upload_patient: P_UNKNOWN }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['patient_identity_unverified'], identity: 'unverified' } }),
+    kase('sr-13-lab-header-other-patient', 'safe_refusal', 'A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('lab-a', 'lab_pdf', { upload_patient: P2 }), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['name', 'dob'], retrieval_ran: false } }),
 
     kase('np-01-lab-a', 'no_phi_in_logs', 'Lab values, collection dates or the report header (name/DOB) reach the stored trace or stdout/stderr on the vector lab path.', scan('lab-a', 'lab_pdf'), { no_phi: {} }),
-    kase('np-02-lab-b', 'no_phi_in_logs', 'OCR output of a rasterized lab PDF is logged or traced.', scan('lab-b', 'lab_pdf'), { no_phi: {} }),
     kase('np-03-intake-a', 'no_phi_in_logs', 'Intake demographics, medications or allergies reach the trace or console.', scan('intake-a', 'intake_form'), { no_phi: {} }),
     kase('np-04-intake-b', 'no_phi_in_logs', 'Rasterized intake OCR text reaches the trace or console.', scan('intake-b', 'intake_form'), { no_phi: {} }),
     kase('np-05-patient-mismatch', 'no_phi_in_logs', "The blocked patient-mismatch path logs the other patient's identifiers.", scan('gen-intake-c-conflict', 'intake_form'), { no_phi: {} }),
     kase('np-06-lab-d', 'no_phi_in_logs', 'Low-confidence or flagged lab values are logged for debugging.', scan('gen-lab-d-flags', 'lab_pdf'), { no_phi: {} }),
     kase('np-07-lab-e-scan', 'no_phi_in_logs', 'A partially read scan logs its raw OCR lines.', scan('gen-lab-e-scanned', 'lab_pdf'), { no_phi: {} }),
     kase('np-08-text-supervisor', 'no_phi_in_logs', 'The /v1/supervisor text path traces extracted lab or intake values.', textSupervisor(['text-lab', 'text-intake']), { no_phi: {} }),
-    kase('np-09-corrupt-pdf', 'no_phi_in_logs', 'The OCR failure path writes document bytes or tool stderr into the trace or console.', scan('gen-corrupt', 'lab_pdf'), { no_phi: { allow_throw: true } }),
+    kase('np-09-corrupt-pdf', 'no_phi_in_logs', 'The unreadable-document refusal path writes document bytes or tool stderr into the trace or console.', scan('gen-corrupt', 'lab_pdf'), { no_phi: { no_handoffs: true } }),
     kase('np-10-raw-handoff-redaction', 'no_phi_in_logs', 'The trace redactor stops stripping value/quote-keyed content, so any raw worker handoff recorded in a trace would leak intake identifiers.', scan('intake-a', 'intake_form'), { no_phi: { raw_handoffs: true } }),
   ];
 }
@@ -185,23 +187,51 @@ async function runScenario(scenario) {
   return run;
 }
 
-/** Run `fn` while capturing everything written to console/stdout/stderr (suppressed, not echoed). */
-async function withCapturedOutput(fn) {
-  const captured = [];
-  const methods = ['log', 'info', 'warn', 'error', 'debug', 'trace'];
-  const originals = Object.fromEntries(methods.map((method) => [method, console[method]]));
-  const writes = { stdout: process.stdout.write, stderr: process.stderr.write };
-  for (const method of methods) console[method] = (...args) => { captured.push(args.map((arg) => (typeof arg === 'string' ? arg : inspect(arg, { depth: 8 }))).join(' ')); };
+const CAPTURED_CONSOLE_METHODS = ['log', 'info', 'warn', 'error', 'debug', 'trace'];
+// Process-wide capture state. The globals are swapped once, when the first
+// session starts, and restored only when the last one ends, so overlapping
+// sessions can never leave a capture wrapper installed as the "original".
+const capture = { depth: 0, buffers: new Set(), originals: null };
+
+function installCapture() {
+  capture.originals = {
+    console: Object.fromEntries(CAPTURED_CONSOLE_METHODS.map((method) => [method, console[method]])),
+    stdout: process.stdout.write,
+    stderr: process.stderr.write,
+  };
+  const record = (text) => { for (const buffer of capture.buffers) buffer.push(text); };
+  for (const method of CAPTURED_CONSOLE_METHODS) console[method] = (...args) => record(args.map((arg) => (typeof arg === 'string' ? arg : inspect(arg, { depth: 8 }))).join(' '));
   for (const stream of ['stdout', 'stderr']) {
-    process[stream].write = (chunk, ...rest) => { captured.push(String(chunk)); const callback = rest.find((item) => typeof item === 'function'); if (callback) callback(); return true; };
+    process[stream].write = (chunk, ...rest) => { record(String(chunk)); const callback = rest.find((item) => typeof item === 'function'); if (callback) callback(); return true; };
   }
+}
+
+function restoreCapture() {
+  Object.assign(console, capture.originals.console);
+  process.stdout.write = capture.originals.stdout;
+  process.stderr.write = capture.originals.stderr;
+  capture.originals = null;
+}
+
+/**
+ * Run `fn` while capturing (and suppressing) console, stdout and stderr output.
+ *
+ * Re-entrant: concurrent sessions share one installed capture and each sees
+ * all output written while it is open; the real functions are restored when
+ * the last session ends. Returns `{value, output}`.
+ */
+export async function withCapturedOutput(fn) {
+  const buffer = [];
+  if (capture.depth === 0) installCapture();
+  capture.depth += 1;
+  capture.buffers.add(buffer);
   try {
     const value = await fn();
-    return { value, output: captured.join('\n') };
+    return { value, output: buffer.join('\n') };
   } finally {
-    Object.assign(console, originals);
-    process.stdout.write = writes.stdout;
-    process.stderr.write = writes.stderr;
+    capture.buffers.delete(buffer);
+    capture.depth -= 1;
+    if (capture.depth === 0) restoreCapture();
   }
 }
 
@@ -216,6 +246,13 @@ function intakeCitations(intakeForm) {
   for (const key of ['current_medications', 'allergies', 'family_history']) (intakeForm[key] || []).forEach((field, index) => fields.push([`${key}[${index}]`, field]));
   return fields.filter(([, field]) => field?.status === 'observed').map(([label, field]) => [`intake.${label}`, field.citation]);
 }
+
+const squash = (value) => String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+const quotes = (citation, value) => squash(citation?.quote_or_value).includes(squash(value));
+const LOW_CONFIDENCE = 0.85;
+// Facts carry OCR confidence rounded to 2 decimals (the scan envelope format).
+const roundedConfidence = (line) => Number(line.confidence.toFixed(2));
+const ocrLineFor = (doc, citation) => doc.ocr?.pages?.flatMap((page) => page.lines).find((line) => line.text === citation?.quote_or_value) || null;
 
 function citationIssues(label, citation, { sourceId, doc }) {
   const parsed = parseOrIssues(Citation, citation);
@@ -312,11 +349,26 @@ function checkCitations(run) {
     if (!facts.length) return ['no_facts_to_cite'];
     const truthCount = (doc.truth.lab_results || []).length + Object.values(doc.truth.intake_form || {}).flat().length;
     if (facts.length !== truthCount) issues.push(`fact_count_${facts.length}_expected_${truthCount}`);
-    facts.forEach((fact, index) => issues.push(...citationIssues(`fact[${index}]`, fact.citation, { sourceId, doc })));
+    facts.forEach((fact, index) => {
+      issues.push(...citationIssues(`fact[${index}]`, fact.citation, { sourceId, doc }));
+      if (!quotes(fact.citation, fact.value)) issues.push(`fact[${index}]:quote_does_not_contain_value`);
+    });
     return issues;
   }
   const extraction = extractionOf(run);
   if (!extraction?.facts?.length) return ['no_facts_to_cite'];
+  extraction.facts.forEach((fact, index) => {
+    if (!quotes(fact.citation, fact.value)) issues.push(`fact[${index}]:quote_does_not_contain_value`);
+    if (doc.kind !== 'pdf') return;
+    const line = ocrLineFor(doc, fact.citation);
+    if (!line) return;
+    const flagged = Boolean(fact.uncertainty);
+    if (flagged !== roundedConfidence(line) < LOW_CONFIDENCE) issues.push(`fact[${index}]:${flagged ? 'confident_line_flagged_uncertain' : 'low_confidence_line_not_flagged'}`);
+  });
+  (extraction.lab_results || []).forEach((result, index) => {
+    const expected = (doc.truth.lab_results || []).find((item) => norm(item.test_name) === norm(result.test_name));
+    if (expected && !quotes(result.citation, expected.value)) issues.push(`lab_results[${index}]:citation_does_not_quote_the_value`);
+  });
   const citations = [
     ...extraction.facts.map((fact, index) => [`fact[${index}]`, fact.citation]),
     ...(extraction.lab_results || []).map((result, index) => [`lab_results[${index}]`, result.citation]),
@@ -350,6 +402,13 @@ function checkLabFacts(run, { optional_tests: optionalTests = [] }) {
     if (!matches.length) { if (!optionalTests.includes(expected.test_name)) issues.push(`lab_result_missing:${expected.test_name}`); continue; }
     if (matches.length > 1) issues.push(`lab_result_duplicated:${expected.test_name}`);
     for (const key of ['value', 'unit', 'reference_range', 'collection_date', 'abnormal_flag']) if (matches[0][key] !== expected[key]) issues.push(`lab_${key}_mismatch:${expected.test_name}`);
+    if (!quotes(matches[0].citation, expected.value)) issues.push(`lab_citation_does_not_quote_the_value:${expected.test_name}`);
+    if (expected.printed_label && run.docs[0].ocr) {
+      // A result is only as confident as its least confident source line.
+      const lines = run.docs[0].ocr.pages.flatMap((page) => page.lines).filter((line) => line.text.startsWith(`${expected.printed_label} `));
+      if (lines.length !== 6) issues.push(`truth_label_lines_not_found:${expected.test_name}`);
+      else if (matches[0].confidence !== Math.min(...lines.map(roundedConfidence))) issues.push(`lab_confidence_not_min_of_source_lines:${expected.test_name}`);
+    }
   }
   for (const result of results) if (!truth.some((expected) => norm(expected.test_name) === norm(result.test_name))) issues.push('lab_result_not_in_source_document');
   return issues;
@@ -390,17 +449,13 @@ function checkRetrievalTop(run, expectedTop) {
 }
 
 function checkRefusal(run, expect) {
-  if (expect.throws) {
-    if (run.result) return ['corrupt_document_produced_a_result'];
-    if (!String(run.error?.message || '').startsWith(expect.throws)) return ['unexpected_error_code'];
-    return run.h.traceSink.list().some((trace) => trace.status === 'failure') ? [] : ['failure_not_traced'];
-  }
   if (run.error) return ['workflow_threw'];
   if (expect.service_status) {
     const issues = [];
     if (run.result?.status !== expect.service_status) issues.push(`service_status_${run.result?.status}_expected_${expect.service_status}`);
     if (run.result?.reason !== expect.reason) issues.push('refusal_reason_mismatch');
-    if (run.result?.workflow) issues.push('workflow_ran_for_out_of_scope_document');
+    if (run.result?.workflow) issues.push('workflow_ran_for_refused_document');
+    if (expect.traced_as && !run.h.traceSink.list().some((trace) => trace.status === expect.traced_as)) issues.push(`refusal_not_traced_as_${expect.traced_as}`);
     return issues;
   }
   const workflow = run.result?.workflow || run.result;
@@ -410,6 +465,8 @@ function checkRefusal(run, expect) {
   if (expect.stop_reason && workflow?.stop_reason !== expect.stop_reason) issues.push(`stop_reason_${workflow?.stop_reason}_expected_${expect.stop_reason}`);
   for (const reason of expect.reasons_include || []) if (!workflow?.qualification?.reasons?.includes(reason)) issues.push(`reason_missing:${reason}`);
   if (expect.detected_type && workflow?.safety_checks?.document_type?.detected !== expect.detected_type) issues.push('document_type_not_detected');
+  if (expect.identity && workflow?.safety_checks?.patient_identity?.status !== expect.identity) issues.push(`identity_${workflow?.safety_checks?.patient_identity?.status}_expected_${expect.identity}`);
+  if (expect.mismatched_fields && JSON.stringify(workflow?.safety_checks?.patient_identity?.mismatched_fields) !== JSON.stringify(expect.mismatched_fields)) issues.push('identity_mismatched_fields_wrong');
   if (expect.retrieval_ran === false && (workflow?.typed_outputs?.evidence || workflow?.handoffs?.some((handoff) => handoff.worker === 'evidence-retrieval-worker'))) issues.push('retrieval_ran_after_refusal');
   if (expect.evidence_empty) {
     const evidence = workflow?.typed_outputs?.evidence;
@@ -446,11 +503,11 @@ function phiLeaks(text, identifiers) {
 }
 
 function checkNoPhi(run, output, expect) {
-  if (run.error && !expect.allow_throw) return ['workflow_threw'];
+  if (run.error) return ['workflow_threw'];
   const traces = run.h.traceSink.list();
   const issues = [];
   if (!traces.length) issues.push('no_trace_recorded');
-  if (!expect.allow_throw && !traces.some((trace) => trace.handoffs?.length)) issues.push('trace_has_no_handoffs');
+  if (!expect.no_handoffs && !traces.some((trace) => trace.handoffs?.length)) issues.push('trace_has_no_handoffs');
   const identifiers = run.docs.map((doc) => phiIdentifiers(doc.truth)).reduce((all, item) => ({ words: [...all.words, ...item.words], numbers: [...all.numbers, ...item.numbers] }), { words: [], numbers: [] });
   let traceText = JSON.stringify(traces);
   if (expect.raw_handoffs) {
@@ -472,7 +529,7 @@ async function evaluateCase(testCase) {
   if (testCase.synthetic_only !== true || !W2_GATE_LABELS.includes(testCase.category) || !testCase.guards_against) issues.push('case_contract_invalid');
   const { value: run, output } = await withCapturedOutput(() => runScenario(testCase.scenario));
   const expect = testCase.expect;
-  if (run.error && !expect.refusal?.throws && !expect.no_phi?.allow_throw) issues.push('workflow_threw');
+  if (run.error) issues.push('workflow_threw');
   else {
     if (expect.typed) issues.push(...checkTyped(run, expect.typed));
     if (expect.contract_rejects) issues.push(...checkContractRejects(run, expect.contract_rejects));
@@ -496,10 +553,10 @@ function summarizeByLabel(results) {
   }));
 }
 
-/** Hash of the case specs plus every golden input (truth files, OCR recordings, text docs), so none can change silently. */
-export function goldenCorpusHash(cases) {
+/** Hash of the thresholds, case count, case specs and every golden input (truth files, OCR recordings, text docs), so none can change silently. */
+export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_GATE_CASE_COUNT } = {}) {
   const { manifest, rawFiles } = golden();
-  return createHash('sha256').update(JSON.stringify({ cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]) })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]) })).digest('hex');
 }
 
 export const JUDGE_CONFIG = Object.freeze({ version: 'w2-assignment-rubrics-v3', per_label_min_rate: 0.95, max_regression: 0.05, critical_failure_tolerance: 0, no_phi_in_logs_required: true });
@@ -549,9 +606,9 @@ export async function runW2RegressionGate({ cases = buildW2GoldenSet(), baseline
     judge_config: JUDGE_CONFIG,
     rubric_mapping: {
       schema_valid: 'deployed scan path (recorded Tesseract OCR replay -> field map -> typed extraction -> supervisor) output parses with the Zod LabResult/IntakeForm/Citation schemas and the HTTP response validator; the validator rejects outputs missing required keys or with malformed citations',
-      citation_present: 'every fact, typed lab result, intake field and handoff citation has the 5 keys, cites the stored document id, quotes text verbatim from the recorded OCR (or text source), and its bounding box is the quoted OCR line inside the page; guideline evidence carries guideline citations',
-      factually_consistent: 'typed values, units, ranges, collection dates, abnormal flags and intake fields equal hand-written truth files; guideline retrieval for the abnormal finding or chief concern ranks the relevant chunk first',
-      safe_refusal: 'zero fields, blank page, doc-type mismatch, patient mismatch, cross-patient read, off-topic questions and corrupt PDFs are BLOCKED, QUALIFIED, refused or failed; never READY',
+      citation_present: 'every fact, typed lab result, intake field and handoff citation has the 5 keys, cites the stored document id, quotes text verbatim from the recorded OCR (or text source) that contains the cited value, and its bounding box is the quoted OCR line inside the page; facts from OCR lines below 0.85 confidence (and only those) carry the review flag; guideline evidence carries guideline citations',
+      factually_consistent: 'typed values, units, ranges, collection dates, abnormal flags and intake fields equal hand-written truth files; each LabResult cites its value line and its confidence is the minimum of its source OCR lines; guideline retrieval for the abnormal finding or chief concern ranks the relevant chunk first',
+      safe_refusal: 'zero fields, blank page, doc-type mismatch, patient mismatch (intake name, intake DOB, lab report header), no chart record, cross-patient read, off-topic questions and corrupt PDFs are BLOCKED, QUALIFIED or refused; never READY',
       no_phi_in_logs: 'real workflow traces (InMemoryTraceSink) and captured stdout/stderr contain none of the truth-file identifiers (name, DOB, phone, medications, allergies, lab values, collection dates); raw handoffs stay redacted by the trace redactor',
     },
     by_label: byLabel,

@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { startTestServer } from './helpers/testServer.js';
 import { InMemoryTraceSink } from '../../observability/index.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 import { traceSafeHandoff } from '../src/activeWorkers.js';
-import { assessDocumentSafety, checkPatientIdentity, detectDocumentType, normalizeDob } from '../src/documentSafety.js';
+import { assessDocumentSafety, checkPatientIdentity, compareIdentity, detectDocumentType, normalizeDob, readHeaderIdentity } from '../src/documentSafety.js';
 import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
 import { createRecordedOcrReplay } from '../src/pdfScanAdapter.js';
@@ -132,23 +132,76 @@ test('source preview never lists a low-confidence field as verified', () => {
   assert.match(html.slice(html.indexOf('Low-confidence values')), /data-field-id="lab\.hgb\.value"/);
 });
 
-test('HTTP scan-supervisor answers 403 for a document owned by another patient', async () => {
+test('lab reports are identity-checked on their printed patient header', () => {
+  const chart = { name: 'Test Patient One', dob: '1980-04-12' };
+  assert.deepEqual(readHeaderIdentity('Patient: Test Patient One - DOB: 1980-04-12'), { name: 'Test Patient One', dob: '1980-04-12' });
+  assert.deepEqual(readHeaderIdentity('~ Patient: Test Patient One -DOB: 1980-04-12'), { name: 'Test Patient One', dob: '1980-04-12' });
+  assert.deepEqual(readHeaderIdentity('Name: Test Patient One\nDOB: 1980-04-12'), { name: 'Test Patient One', dob: '1980-04-12' });
+  assert.deepEqual(readHeaderIdentity('Fictional values. Not a real patient record.'), { name: null, dob: null });
+  assert.equal(compareIdentity(readHeaderIdentity('Patient: Test Patient One - DOB: 1980-04-12'), chart).status, 'match');
+  assert.deepEqual(compareIdentity(readHeaderIdentity('Patient: Test Conflict - DOB: 1968-07-21'), chart).mismatched_fields, ['name', 'dob']);
+  const lab = runActiveSupervisor({ sourceDocumentId: 'doc-lab', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope('lab_pdf', [['lab.hgb.value', '13.2']]), query: 'glycemic follow-up', documentText: `Patient: Test Conflict DOB: 1968-07-21\n${LAB_OCR}`, targetPatient: chart });
+  assert.equal(lab.stop_reason, 'patient_mismatch');
+  assert.equal(lab.safety_checks.patient_identity.source, 'lab_report_header');
+});
+
+test('a missing chart record is never an identity match', () => {
+  const form = { demographics: { name: { status: 'observed', value: 'Test Patient One' }, dob: { status: 'observed', value: '1980-04-12' } } };
+  assert.equal(checkPatientIdentity(form, null).status, 'unverified');
+  assert.equal(compareIdentity({ name: 'Test Patient One', dob: '1980-04-12' }, null).status, 'unverified');
+});
+
+test('service scan path: same name with a different DOB, unknown chart patient, and another patient\'s lab header', async () => {
+  const { run } = serviceWithReplay();
+  const dob = await run('gen-intake-d-dob', 'intake_form');
+  assert.equal(dob.workflow.stop_reason, 'patient_mismatch');
+  assert.deepEqual(dob.workflow.safety_checks.patient_identity.mismatched_fields, ['dob']);
+  const unknown = await run('intake-a', 'intake_form', { uploadPatient: 'fixture-patient-099' });
+  assert.equal(unknown.workflow.final_state, 'QUALIFIED');
+  assert.ok(unknown.workflow.qualification.reasons.includes('patient_identity_unverified'));
+  const labOther = await run('lab-a', 'lab_pdf', { uploadPatient: 'fixture-patient-002' });
+  assert.equal(labOther.workflow.stop_reason, 'patient_mismatch');
+});
+
+test('a corrupt PDF is a structured document_unreadable refusal, traced as blocked, without tool stderr', async () => {
+  const { run, traceSink } = serviceWithReplay();
+  const result = await run('gen-corrupt', 'lab_pdf');
+  assert.equal(result.status, 'unreadable');
+  assert.equal(result.reason, 'document_unreadable');
+  assert.equal(result.final_state, 'BLOCKED');
+  const [trace] = traceSink.list();
+  assert.equal(trace.status, 'blocked');
+  assert.equal(trace.stages[0].errorCode, 'PDF_OCR_COMMAND_FAILED');
+  const source = fs.readFileSync(new URL('../src/pdfScanAdapter.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /PDF_OCR_COMMAND_FAILED:\$\{/, 'tool stderr must not be embedded in error messages');
+});
+
+test('HTTP scan-supervisor answers 403 for another patient\'s document and 422 for an unreadable PDF', async () => {
   const port = 18821;
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: fileURLToPath(new URL('../../', import.meta.url)), env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_PROVIDER_MODE: 'deterministic' }, stdio: 'ignore' });
+  const child = await startTestServer(port, { AGENTFORGE_PROVIDER_MODE: 'deterministic' }, { path: '/health' });
   try {
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      try { if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) break; } catch { /* server still starting */ }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
     const base = `http://127.0.0.1:${port}`;
     const write = await fetch(`${base}/v1/source-document-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
-    const content = fs.readFileSync(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url));
-    const upload = await fetch(`${base}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: write.demo_token, document_type: 'lab_pdf', filename: 'lab.txt', content_base64: content.toString('base64') }) }).then((response) => response.json());
+    const upload = (content, filename) => fetch(`${base}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: write.demo_token, document_type: 'lab_pdf', filename, content_base64: content.toString('base64') }) }).then((response) => response.json());
+    const scanSupervisor = (patient, token, sourceId) => fetch(`${base}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: token, source_document_id: sourceId, message: 'glycemic follow-up' }) });
+    const lab = await upload(fs.readFileSync(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)), 'lab.txt');
     const other = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-002`).then((response) => response.json());
-    const response = await fetch(`${base}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-002', clinician_uuid: 'fixture-physician-001', demo_token: other.demo_token, source_document_id: upload.source_document.id, message: 'glycemic follow-up' }) });
-    assert.equal(response.status, 403);
-    assert.deepEqual(await response.json(), { error: 'document_scope_mismatch' });
+    const crossPatient = await scanSupervisor('fixture-patient-002', other.demo_token, lab.source_document.id);
+    assert.equal(crossPatient.status, 403);
+    assert.deepEqual(await crossPatient.json(), { error: 'document_scope_mismatch' });
+    // A truncated "%PDF-" upload fails PDF validation before any OCR binary runs.
+    const truncated = await upload(Buffer.from('%PDF-1'), 'truncated.pdf');
+    const own = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const unreadable = await scanSupervisor('fixture-patient-001', own.demo_token, truncated.source_document.id);
+    assert.equal(unreadable.status, 422);
+    assert.deepEqual(await unreadable.json(), { error: 'document_unreadable', final_state: 'BLOCKED', synthetic_only: true });
   } finally {
     child.kill();
   }
+});
+
+test('the server serves the committed W2 baseline instead of running the gate per request', () => {
+  const source = fs.readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /runW2RegressionGate/);
+  assert.match(source, /W2_BASELINE_REPORT\.json/);
 });

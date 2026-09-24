@@ -1,4 +1,4 @@
-// Re-runs the 16 review-G2 regressions against a scratch copy of the repo and
+// Re-runs the 16 review-G2 regressions, the reviewer's N1–N10 and later rows against a scratch copy of the repo and
 // reports which of the pre-commit hook's checks fail for each. The working tree
 // is never modified: every edit is applied to a copy under the OS temp dir and
 // reverted (and hash-checked) before the next one.
@@ -30,6 +30,20 @@ export const REGRESSIONS = [
   { id: 'R14', title: 'Citation schema stops validating bounding_box', file: 'agentforge/src/schemas.js', find: '  bounding_box: z.tuple([\n    z.number().nonnegative(),\n    z.number().nonnegative(),\n    z.number().nonnegative(),\n    z.number().nonnegative(),\n  ]).optional(),\n', replace: '  bounding_box: z.any().optional(),\n' },
   { id: 'R15', title: 'Intake extractor drops allergies', file: 'agentforge/src/typedExtraction.js', find: "  allergies: ['allergies'],\n", replace: '' },
   { id: 'R16', title: 'OCR label map routes "hemoglobin value" into the unit field', file: 'agentforge/src/pdfScanAdapter.js', find: "['hemoglobin value', ['lab.hgb.value', 'Hemoglobin value']]", replace: "['hemoglobin value', ['lab.hgb.unit', 'Hemoglobin value']]" },
+  // N1–N10: the independent reviewer's regressions for 1c10893, verbatim.
+  { id: 'N1', title: 'bbox off-by-one (top+1) in PDF fixture writer', file: 'agentforge/src/pdfScanAdapter.js', find: 'const box = field.box || [line?.left, line?.top, line?.right, line?.bottom];', replace: 'const box = field.box || [line?.left, line?.top + 1, line?.right, line?.bottom];' },
+  { id: 'N2', title: 'collection_date day/month swapped', file: 'agentforge/src/typedExtraction.js', find: 'collection_date: fields.collection_date.value,', replace: "collection_date: fields.collection_date.value.split('-').map((p, i, a) => i === 1 ? a[2] : i === 2 ? a[1] : p).join('-')," },
+  { id: 'N3', title: 'patient identity ignores DOB', file: 'agentforge/src/documentSafety.js', find: "else if (formDob !== chartDob) mismatched.push('dob');", replace: "else if (false) mismatched.push('dob');" },
+  { id: 'N4', title: 'doc-type detector always consistent', file: 'agentforge/src/documentSafety.js', find: "const typeStatus = typeDetection.detected === 'undetermined' ? 'undetermined' : typeDetection.detected === documentType ? 'consistent' : 'mismatch';", replace: "const typeStatus = 'consistent';" },
+  { id: 'N5', title: 'evidence worker query replaced with constant', file: 'agentforge/src/supervisor.js', find: 'evidenceWorker = runEvidenceWorker({ query, patientFacts,', replace: "evidenceWorker = runEvidenceWorker({ query: 'glycemic follow-up for an elevated A1C', patientFacts," },
+  { id: 'N6', title: 'LabResult confidence uses max instead of min', file: 'agentforge/src/typedExtraction.js', find: 'confidence: Math.min(...LAB_SUFFIXES', replace: 'confidence: Math.max(...LAB_SUFFIXES' },
+  { id: 'N7', title: 'typed lab citation points at the test-name line, not the value line', file: 'agentforge/src/typedExtraction.js', find: 'citation: fields.value.citation,', replace: 'citation: fields.test_name.citation,' },
+  { id: 'N8', title: 'missing chart demographics treated as identity match', file: 'agentforge/src/documentSafety.js', find: "if (!targetPatient) return { status: 'unverified', mismatched_fields: [] };", replace: "if (!targetPatient) return { status: 'match', mismatched_fields: [] };" },
+  { id: 'N9', title: 'low-confidence threshold 0.85 -> 0.3 (uncertain facts shown as verified)', file: 'agentforge/src/scanFormAdapter.js', find: 'field.confidence < 0.85 ?', replace: 'field.confidence < 0.3 ?' },
+  { id: 'N10', title: 'extraction_incomplete rule removed', file: 'agentforge/src/documentSafety.js', find: "if (factCount && extraction?.status !== 'complete') qualifying.push('extraction_incomplete');", replace: '' },
+  // Rows for behaviour added in response to that review.
+  { id: 'I1', title: 'Lab reports skip the patient-header identity check', file: 'agentforge/src/documentSafety.js', find: ": { ...compareIdentity(readHeaderIdentity(documentText), targetPatient), source: 'lab_report_header' };", replace: ": { status: 'not_applicable', mismatched_fields: [], source: 'lab_report_header' };" },
+  { id: 'U1', title: 'Unreadable PDFs are no longer refused (errors propagate as HTTP 500)', file: 'agentforge/src/service.js', find: "  return ['SOURCE_DOCUMENT_PDF_INVALID', 'PDF_PAGE_LIMIT_EXCEEDED', 'PDF_OCR_COMMAND_FAILED', 'PDF_OCR_COMMAND_TIMEOUT', 'PDF_OCR_OUTPUT_LIMIT_EXCEEDED'].includes(code);", replace: '  return false;' },
   { id: 'L0', title: 'Control: pre-fix trace behaviour (raw handoffs recorded in the scan trace)', file: 'agentforge/src/service.js', find: 'trace?.recordHandoff(traceSafeHandoff(handoff));', replace: 'trace?.recordHandoff(handoff);' },
 ];
 
@@ -47,7 +61,7 @@ const CHECKS = [
 const sha = (text) => createHash('sha256').update(text).digest('hex');
 
 function runCheck(cwd, command) {
-  const result = spawnSync(command, { cwd, encoding: 'utf8', shell: true, maxBuffer: 64 * 1024 * 1024 });
+  const result = spawnSync(command, { cwd, encoding: 'utf8', shell: true, maxBuffer: 64 * 1024 * 1024, timeout: 300_000 });
   return { exit: result.status, stdout: result.stdout || '' };
 }
 

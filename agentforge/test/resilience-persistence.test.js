@@ -1,29 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startTestServer } from './helpers/testServer.js';
 
 const agentforgeRoot = fileURLToPath(new URL('..', import.meta.url));
 const port = 18796;
 
-async function startServer(tracePath) {
-  const child = spawn(process.execPath, ['src/server.js'], {
-    cwd: agentforgeRoot,
-    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_TRACE_PATH: tracePath },
-    stdio: ['ignore', 'ignore', 'pipe'],
-  });
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    try {
-      if ((await fetch(`http://127.0.0.1:${port}/ready`)).ok) return child;
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  child.kill();
-  throw new Error('AgentForge persistence test server did not become ready');
-}
+const startServer = (tracePath) => startTestServer(port, { AGENTFORGE_TRACE_PATH: tracePath });
 
 async function stopServer(child) {
   if (child.exitCode !== null) return;

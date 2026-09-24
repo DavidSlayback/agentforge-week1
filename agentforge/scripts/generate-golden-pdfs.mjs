@@ -170,6 +170,14 @@ const DOCUMENTS = {
     ], { y: 130, step: 40 }),
     footer,
   ], 'Synthetic intake form for fixture-patient-002', font),
+  'gen-intake-d-dob.pdf': (font) => vectorPdf([
+    { text: 'PATIENT INTAKE QUESTIONNAIRE', x: 72, y: 72, size: 16 },
+    ...lines([
+      'Patient name: Test Patient One', 'Date of birth: 1980-12-04', 'Telephone: 555-0177', 'Chief concern: Shortness of breath on stairs',
+      'Current medications: Albuterol inhaler as needed', 'Allergies: Aspirin', 'Family history: Brother has asthma',
+    ], { y: 130, step: 40 }),
+    footer,
+  ], 'Synthetic intake form: fixture-patient-001 name with a different DOB', font),
   'gen-lab-e-scanned.pdf': async (font) => scannedFrom(vectorPdf([
     { text: 'SYNTHETIC LAB REPORT - SCANNED COPY', x: 72, y: 72, size: 15 },
     { text: 'Patient: Test Patient One   DOB: 1980-04-12', x: 72, y: 104, size: 12 },

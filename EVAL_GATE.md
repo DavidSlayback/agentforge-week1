@@ -2,8 +2,8 @@
 
 ## What the gate runs
 
-`npm run eval:gate --prefix agentforge` runs 50 golden cases (10 per rubric
-category) through the same code the deployed `/v1/scan-supervisor` route runs:
+`npm run eval:gate --prefix agentforge` runs 50 golden cases (9 to 13 per
+rubric category) through the same code the deployed `/v1/scan-supervisor` route runs:
 
 upload (`AgentForgeService.ingestSourceDocument`) → PDF OCR lines → OCR label
 map (`pdfScanAdapter.js`) → scan envelope and typed extraction
@@ -37,7 +37,7 @@ off-topic question) so they survive the S5 retriever replacement.
 | --- | --- |
 | Case specs (id, category, `guards_against`, scenario, expectations) | `buildW2GoldenSet()` in [`agentforge/src/w2RegressionGate.js`](agentforge/src/w2RegressionGate.js) |
 | Golden document list | [`agentforge/test/fixtures/golden/manifest.json`](agentforge/test/fixtures/golden/manifest.json) |
-| Golden PDFs | the 4 samples in [`docs/agentforge/fixtures/scan-forms/pdf-samples/`](docs/agentforge/fixtures/scan-forms/pdf-samples/), plus 6 generated ones in [`agentforge/test/fixtures/golden/pdf/`](agentforge/test/fixtures/golden/pdf/) |
+| Golden PDFs | the 4 samples in [`docs/agentforge/fixtures/scan-forms/pdf-samples/`](docs/agentforge/fixtures/scan-forms/pdf-samples/), plus 7 generated ones in [`agentforge/test/fixtures/golden/pdf/`](agentforge/test/fixtures/golden/pdf/) |
 | OCR recordings (lines, boxes, confidences, page sizes, tool versions) | [`agentforge/test/fixtures/golden/ocr/`](agentforge/test/fixtures/golden/ocr/) |
 | Hand-written truth files (test names, values, units, ranges, dates, abnormal flags, intake fields) | [`agentforge/test/fixtures/golden/truth/`](agentforge/test/fixtures/golden/truth/) |
 | Text-path documents | [`agentforge/test/fixtures/golden/text/`](agentforge/test/fixtures/golden/text/) |
@@ -49,6 +49,8 @@ The generated PDFs are:
 - `gen-lab-c-table`: a table layout that the label map cannot read.
 - `gen-lab-d-flags`: H and L abnormal flags.
 - `gen-intake-c-conflict`: demographics that belong to `fixture-patient-002`.
+- `gen-intake-d-dob`: `fixture-patient-001`'s name with a different date of
+  birth.
 - `gen-lab-e-scanned`: an image-only page with seeded speckle noise.
 - `gen-blank-page`: a blank page.
 - `gen-corrupt`: a `%PDF-` header followed by garbage.
@@ -103,11 +105,11 @@ npm run eval:gate --prefix agentforge -- --update-baseline    # explicit rebasel
 
 | Category | Cases | What the cases check, and what they guard against |
 | --- | --- | --- |
-| `schema_valid` | 10 | Typed `lab_results[]` and `intake_form` from four sample PDFs, the H/L-flag PDF and the noisy image-only scan parse with the Zod `LabResult`/`IntakeForm` schemas and pass the HTTP response validator. The noisy scan types only its complete test and reports the rest as a typed issue. Three contract cases take the real output and remove each required `LabResult` key, each required `IntakeForm` key, and each of the 5 citation keys, or malform `bounding_box`; the validator must reject every variant. One case checks the text-path `/lab-evidence` response contract. |
-| `citation_present` | 10 | Every fact, typed lab result, observed intake field and handoff citation has all 5 keys (`source_type`, `source_id`, `page_or_section`, `field_or_chunk_id`, `quote_or_value`). `source_id` must be the stored document id. `quote_or_value` must appear verbatim in the recorded OCR text, or in the text document's body for text-path facts. `bounding_box` must lie inside the page and equal the box of the quoted OCR line. Guideline evidence must carry `source_type: guideline` citations quoting its chunk. Covers both text-path documents. |
-| `factually_consistent` | 10 | Value, unit, reference range, collection date and abnormal flag of every typed lab result equal the truth file. No test may be missing or invented. Intake demographics, chief concern, medications, allergies and family history equal the truth file. The other-patient intake, uploaded to its own patient, must be READY with identity `match`. Three retrieval cases (abnormal A1C, fatigue chief concern, medication reconciliation) require a ready evidence worker, a descending ranking and the relevant top source. |
-| `safe_refusal` | 10 | Each case must be refused, stopped or qualified, never READY. Table-layout lab and blank page: BLOCKED `no_fields_extracted`. Intake uploaded as lab: BLOCKED, with the detected `intake_form` type reported. Lab uploaded as intake: QUALIFIED `doc_type_mismatch`. Other patient's intake: BLOCKED `patient_mismatch`, with no retrieval. Cross-patient document read: the service answers `blocked: document_scope_mismatch`, which the handler maps to 403. Off-topic questions on the scan path and on the `/v1/supervisor` path: QUALIFIED with no evidence. Corrupt PDF: the request fails and is traced as a failure. `LAB|` document declared as intake: BLOCKED `no_fields_extracted`. |
-| `no_phi_in_logs` | 10 | Runs real workflows with an `InMemoryTraceSink` while capturing console, stdout and stderr, including the patient-mismatch, noisy-scan, text-path and corrupt-PDF failure paths. The serialized traces and captured output must contain none of the truth-file identifiers: patient name, DOB, phone, chief concern, medication and allergy names, family history, lab values and collection dates. A defense-in-depth case records the workflow's raw handoffs through the real trace redactor, and value- and quote-keyed content must still be stripped. |
+| `schema_valid` | 9 | Typed `lab_results[]` and `intake_form` from lab-a, both sample intakes, the H/L-flag PDF and the noisy image-only scan parse with the Zod `LabResult`/`IntakeForm` schemas and pass the HTTP response validator. The noisy scan types only its complete test and reports the rest as a typed issue. Three contract cases take the real output and remove each required `LabResult` key, each required `IntakeForm` key, and each of the 5 citation keys, or malform `bounding_box`; the validator must reject every variant. One case checks the text-path `/lab-evidence` response contract. |
+| `citation_present` | 9 | Every fact, typed lab result, observed intake field and handoff citation has all 5 keys (`source_type`, `source_id`, `page_or_section`, `field_or_chunk_id`, `quote_or_value`). `source_id` must be the stored document id. `quote_or_value` must appear verbatim in the recorded OCR text (or the text document's body) and must contain the fact's value; a typed lab result's quote must contain the truth-file value, so it cites the value line, not the test-name line. `bounding_box` must lie inside the page and equal the box of the quoted OCR line. A fact from an OCR line below 0.85 confidence must carry the human-review flag, and a fact at or above 0.85 must not. Guideline evidence must carry `source_type: guideline` citations quoting its chunk. Covers both text-path documents. |
+| `factually_consistent` | 10 | Value, unit, reference range, collection date and abnormal flag of every typed lab result equal the truth file, and its `confidence` equals the minimum confidence of its six source OCR lines (found by the label printed on the document, recorded in the truth file). No test may be missing or invented. Intake demographics, chief concern, medications, allergies and family history equal the truth file. The other-patient intake, uploaded to its own patient, must be READY with identity `match`. Three retrieval cases (abnormal A1C, fatigue chief concern, medication reconciliation) require a ready evidence worker, a descending ranking and the relevant top source. |
+| `safe_refusal` | 13 | Each case must be refused, stopped or qualified, never READY. Table-layout lab and blank page: BLOCKED `no_fields_extracted`. Intake uploaded as lab: BLOCKED, with the detected `intake_form` type reported. Lab uploaded as intake: QUALIFIED `doc_type_mismatch`. Patient mismatch is BLOCKED `patient_mismatch`, with no retrieval, for three inputs: another patient's intake, an intake with this patient's name but a different DOB (`mismatched_fields: ['dob']`), and lab-a (whose printed header names `fixture-patient-001`) uploaded to `fixture-patient-002`. An intake for a patient with no chart record: QUALIFIED `patient_identity_unverified`. Cross-patient document read: the service answers `blocked: document_scope_mismatch` (HTTP 403). Off-topic questions on the scan path and on the `/v1/supervisor` path: QUALIFIED with no evidence. Corrupt PDF: `unreadable` / BLOCKED `document_unreadable` (HTTP 422), traced as `blocked`. `LAB|` document declared as intake: BLOCKED `no_fields_extracted`. |
+| `no_phi_in_logs` | 9 | Runs real workflows with an `InMemoryTraceSink` while capturing console, stdout and stderr, including the patient-mismatch, noisy-scan, text-path and unreadable-PDF refusal paths. The serialized traces and captured output must contain none of the truth-file identifiers: patient name, DOB, phone, chief concern, medication and allergy names, family history, lab values and collection dates. A defense-in-depth case records the workflow's raw handoffs through the real trace redactor, and value- and quote-keyed content must still be stripped. |
 
 Each case's `guards_against` string names the failure mode it protects against
 (W1 engineering requirement). The report prints it for failing cases.
@@ -115,24 +117,48 @@ Each case's `guards_against` string names the failure mode it protects against
 The gate fails if any of these holds:
 
 - the run does not have exactly 50 cases;
-- any category is below 95% (with 10 cases, one failure is 90%);
+- any category is below 95%;
 - any category drops more than 5 percentage points from the baseline;
 - any `no_phi_in_logs` case fails;
 - the case-set hash differs from the baseline.
 
-The hash covers the case specs, the manifest, every truth file, every OCR
-recording and the text documents. Editing a truth file or re-recording OCR
-therefore fails the gate until someone runs `--update-baseline`, and that
-rewrites `W2_BASELINE_REPORT.json`, so the change is visible in the diff.
+Every category has between 9 and 13 cases, so a single failing case drops it
+below 95% (12/13 is 92.3%). A unit test enforces at most 19 cases per category.
+At 20 or more, one failure (95%) would pass both the rate rule and the 5-point
+rule.
+
+The hash covers the judge thresholds (`JUDGE_CONFIG`), the required case count,
+the case specs, the manifest, every truth file, every OCR recording and the text
+documents. Loosening a threshold, editing a truth file or re-recording OCR
+therefore fails the gate until someone runs `--update-baseline`. That rewrites
+`W2_BASELINE_REPORT.json`, so the change is visible in the diff.
 `--update-baseline` refuses to write a baseline from a run that misses any
 per-category threshold or has a `no_phi` failure.
+
+The gate runs only from the command line and the pre-commit hook. The deployed
+server's `/evals` page and `/evals/w2-baseline.json` serve the committed
+`W2_BASELINE_REPORT.json`, marked `served_from: committed_baseline_report`.
+They do not run the gate per request, because the gate's output capture swaps
+process-wide `console` and `stdout`/`stderr`. The capture is re-entrant: the
+real functions are restored when the last concurrent session ends.
+
+## Low-confidence facts on READY documents
+
+A document can be READY and still contain facts read from OCR lines below 0.85
+confidence; the golden `lab-a` has several. Those facts carry
+`uncertainty: 'low_confidence_requires_human_review'`. The source preview lists
+them under "Low-confidence values (not verified)" and leaves them out of the
+verified count. The W2 answer must exclude them or explicitly qualify them. The
+answer composer (slice S6) will enforce that; until then, nothing in the answer
+path enforces it.
 
 ## Regression matrix
 
 [`docs/agentforge/evidence/W2_REGRESSION_MATRIX.md`](docs/agentforge/evidence/W2_REGRESSION_MATRIX.md)
-records the 16 review regressions. For each one it gives the exact edit, which
-hook checks fail, and which gate categories fail. Reproduce it on a scratch
-copy, which never touches the working tree:
+records the 16 review regressions, the independent reviewer's N1–N10, and rows
+for the behavior added since. For each one it gives the exact edit, which hook
+checks fail, and which gate categories fail. Reproduce it on a scratch copy,
+which never touches the working tree:
 
 ```sh
 node agentforge/scripts/run-regression-matrix.mjs
@@ -140,19 +166,48 @@ node agentforge/scripts/run-regression-matrix.mjs
 
 ## Known limits
 
-- The gate replays recorded OCR. Live OCR is covered only by the parity test,
-  which runs where the OCR tools are installed (the Docker image), not on a
-  Windows host.
-- The golden PDFs are clean or lightly noised synthetic pages. They say nothing
-  about accuracy on real scans, handwriting or arbitrary layouts. The label map
-  reads only `Label: value` lines, which is why the table-layout lab is a refusal
-  case and not an extraction case. In the noisy scan, Tesseract misreads the A1C
-  labels (`AlCvalue`, `Al1C abnormal`), so only its hemoglobin result is typed,
-  and the gate asserts that A1C is not invented.
-- The corrupt-PDF case asserts that the service rejects the request. Over HTTP
-  that is currently a 500 `internal_error`, not a structured refusal.
-- The gate uses the local lexical retriever and never calls Cohere, Gemini or a
-  model.
+What the gate does not cover, after the review fixes:
+
+- **Live OCR.** The gate replays recorded OCR. Live Tesseract output is compared
+  with the recordings only by the parity test, which runs where the OCR tools
+  are installed (the Docker image), not on a Windows host. A change in Tesseract
+  or poppler versions is caught there, not by the gate.
+- **Real-world documents.** The golden PDFs are clean or lightly noised synthetic
+  pages. They say nothing about accuracy on real scans, handwriting or other
+  layouts.
+  - The label map reads only `Label: value` lines, so the table-layout lab is a
+    refusal case, not an extraction case.
+  - In the noisy scan, Tesseract misreads the A1C labels, so only its hemoglobin
+    result is typed. The gate asserts that A1C is not invented.
+- **Values the pipeline cannot see.** A wrong value that OCR reads consistently
+  from a wrong line is caught only where the truth file differs. The truth files
+  cover 10 PDFs and 2 text documents.
+- **Retrieval.** The gate uses the local lexical retriever and never calls
+  Cohere, Gemini or a model. Retrieval assertions are interface-level (top
+  source, ordering, empty for off-topic), not relevance judgments.
+- **Answers.** The W2 answer (S6) and the W1 verifier (S7) are not exercised.
+  Nothing yet checks that low-confidence facts are kept out of the answer.
+- **Identity.**
+  - Patient identity uses the synthetic fixture demographics
+    (`FixtureAdapter.getPatientDemographics`). Live OpenEMR demographics arrive
+    with S8.
+  - Lab identity relies on a readable `Patient:`/`Name:` and `DOB:` header. A
+    lab report without one is QUALIFIED `patient_identity_unverified`, not
+    blocked.
+  - Name matching ignores word order and case, but not nicknames or
+    transliteration.
+- **Unreadable documents on other routes.** The unreadable-document refusal
+  (HTTP 422) is on `/v1/scan-supervisor` only. `scan-form-evidence` and
+  `source-preview` still answer 500 for a corrupt PDF. A missing OCR binary
+  (`PDF_OCR_RUNTIME_UNAVAILABLE`) is an operational fault and stays a 500.
+- **Protections unit tests enforce, not gate cases.** These have no gate case:
+  - the re-entrancy of output capture;
+  - the hash's coverage of `JUDGE_CONFIG`;
+  - the server not running the gate per request;
+  - the `waitForServer` helper.
+- **Traces outside the gate.** `no_phi_in_logs` checks the traces of the
+  workflows the gate runs. The W1 briefing path's traces are covered only by
+  the W1 and observability suites.
 
 ## Regression-blocked commit evidence
 
@@ -160,5 +215,5 @@ node agentforge/scripts/run-regression-matrix.mjs
 its [raw transcript](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK.txt) come from
 the superseded v2 gate: its text-fixture cases, with `0.1` added to extracted lab
 values. [`W2_PRECOMMIT_BLOCK_V3.txt`](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK_V3.txt)
-is the hook transcript for this gate, rejecting a commit that carries regression
-R3 (the abnormal flag is always `normal`).
+is the hook transcript for this gate (as of commit 1c10893), rejecting a commit
+that carries regression R3 (the abnormal flag is always `normal`).

@@ -30,7 +30,7 @@ export function detectDocumentType(text) {
   return { detected, lab_hits: labHits, intake_hits: intakeHits };
 }
 
-const nameTokens = (value) => String(value || '').toLowerCase().replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
+const nameTokens = (value) => String(value || '').toLowerCase().replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter((token) => /[a-z]/.test(token)).sort().join(' ');
 
 /** Normalize `YYYY-MM-DD`, `YYYY/MM/DD` or `MM/DD/YYYY` to ISO `YYYY-MM-DD`; `null` when unparseable. */
 export function normalizeDob(value) {
@@ -42,25 +42,41 @@ export function normalizeDob(value) {
   return null;
 }
 
+const HEADER_NAME = /\b(?:patient(?:\s+name)?|name)\s*:\s*([^:]+?)\s*(?:[-–·•~|,]\s*)*(?=\bdob\b|\bdate of birth\b|$)/i;
+const HEADER_DOB = /\b(?:dob|date of birth)\s*:\s*(\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4})/i;
+
 /**
- * Compare an intake form's observed demographics with the target patient's
- * known demographics.
+ * Read the patient name and DOB printed in a lab report's header lines (for
+ * example `Patient: Test Patient One - DOB: 1980-04-12`, or separate `Name:`
+ * and `DOB:` lines). The first readable value of each wins; absent values are
+ * `null`.
+ */
+export function readHeaderIdentity(text) {
+  let name = null;
+  let dob = null;
+  for (const line of String(text || '').split(/\r?\n/)) {
+    name ??= HEADER_NAME.exec(line)?.[1]?.trim() || null;
+    dob ??= HEADER_DOB.exec(line)?.[1] || null;
+  }
+  return { name, dob };
+}
+
+/**
+ * Compare observed `{name, dob}` (either may be `null`) with the target
+ * patient's known demographics.
  *
  * Args:
- *   intakeForm: Typed `IntakeForm` or `null`.
+ *   observed: Name/DOB read from the document.
  *   targetPatient: `{name, dob}` from a `PatientDemographicsSource`, or `null`
  *     when the chart cannot supply them.
  *
  * Returns:
  *   `{status: 'match'|'mismatch'|'unverified', mismatched_fields}`. Any observed
- *   field that contradicts the chart is a mismatch; an unreadable DOB or a
- *   missing chart record is `unverified`, never a match.
+ *   field that contradicts the chart is a mismatch. Nothing observed, an
+ *   unreadable DOB, a missing name or DOB, or a missing chart record is
+ *   `unverified`, never a match.
  */
-export function checkPatientIdentity(intakeForm, targetPatient) {
-  const name = intakeForm?.demographics?.name;
-  const dob = intakeForm?.demographics?.dob;
-  const observedName = name?.status === 'observed' ? name.value : null;
-  const observedDob = dob?.status === 'observed' ? dob.value : null;
+export function compareIdentity({ name: observedName = null, dob: observedDob = null } = {}, targetPatient) {
   if (!observedName && !observedDob) return { status: 'unverified', mismatched_fields: [] };
   if (!targetPatient) return { status: 'unverified', mismatched_fields: [] };
   const mismatched = [];
@@ -74,6 +90,12 @@ export function checkPatientIdentity(intakeForm, targetPatient) {
   }
   if (mismatched.length) return { status: 'mismatch', mismatched_fields: mismatched };
   return { status: unverified || !observedName || !observedDob ? 'unverified' : 'match', mismatched_fields: [] };
+}
+
+/** Compare a typed `IntakeForm`'s observed demographics with the target patient (see `compareIdentity`). */
+export function checkPatientIdentity(intakeForm, targetPatient) {
+  const observed = (field) => (field?.status === 'observed' ? field.value : null);
+  return compareIdentity({ name: observed(intakeForm?.demographics?.name), dob: observed(intakeForm?.demographics?.dob) }, targetPatient);
 }
 
 /**
@@ -91,7 +113,11 @@ export function assessDocumentSafety({ documentType, documentText, extraction, t
   const factCount = extraction?.facts?.length || 0;
   const typeDetection = detectDocumentType(documentText);
   const typeStatus = typeDetection.detected === 'undetermined' ? 'undetermined' : typeDetection.detected === documentType ? 'consistent' : 'mismatch';
-  const identity = documentType === 'intake_form' ? checkPatientIdentity(extraction?.intake_form, targetPatient) : { status: 'not_applicable', mismatched_fields: [] };
+  // Intake forms are checked on their typed demographics, lab reports on the
+  // patient header printed on the page.
+  const identity = documentType === 'intake_form'
+    ? { ...checkPatientIdentity(extraction?.intake_form, targetPatient), source: 'intake_form_demographics' }
+    : { ...compareIdentity(readHeaderIdentity(documentText), targetPatient), source: 'lab_report_header' };
   const blocking = [];
   const qualifying = [];
   if (identity.status === 'mismatch') blocking.push('patient_mismatch');

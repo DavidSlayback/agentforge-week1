@@ -146,7 +146,12 @@ export class AgentForgeService {
         prepared = await this.prepareScanSource(source);
         trace?.finishStage('source_preparation', { status: 'complete' });
       } catch (error) {
-        trace?.finishStage('source_preparation', { status: 'failed', errorCode: error.code || 'source_preparation_failed' });
+        const errorCode = error.code || String(error.message || '').split(':')[0];
+        trace?.finishStage('source_preparation', { status: 'failed', errorCode: errorCode || 'source_preparation_failed' });
+        if (isUnreadableDocumentError(errorCode)) {
+          trace?.complete({ status: 'blocked' });
+          return { status: 'unreadable', synthetic_only: true, reason: 'document_unreadable', final_state: 'BLOCKED', source_document: source.source_document };
+        }
         throw error;
       }
       const pdf = Boolean(prepared.pdf);
@@ -276,6 +281,12 @@ export class AgentForgeService {
       ? this.writeback.authorize(request, verifiedContext, options)
       : { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
   }
+}
+
+// Faults of the uploaded file itself. PDF_OCR_RUNTIME_UNAVAILABLE (missing
+// binaries) is an operational failure and still surfaces as a 500.
+function isUnreadableDocumentError(code) {
+  return ['SOURCE_DOCUMENT_PDF_INVALID', 'PDF_PAGE_LIMIT_EXCEEDED', 'PDF_OCR_COMMAND_FAILED', 'PDF_OCR_COMMAND_TIMEOUT', 'PDF_OCR_OUTPUT_LIMIT_EXCEEDED'].includes(code);
 }
 
 function recordIsCovered(record, coverage) {

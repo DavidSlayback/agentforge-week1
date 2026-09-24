@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -10,6 +9,7 @@ import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
 import { extractLabEvidence } from '../src/labEvidence.js';
 import { extractIntakeEvidence } from '../src/intakeEvidence.js';
+import { startTestServer } from './helpers/testServer.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const signedContext = (patient_uuid, clinician_uuid = 'fixture-physician-001') => ({
@@ -177,21 +177,7 @@ test('synthetic intake extraction preserves sections and qualifies contradiction
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-async function startServer(port, extraEnv = {}, waitPath = '/ready') {
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], {
-    cwd: root,
-    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...extraEnv },
-    stdio: ['ignore', 'ignore', 'ignore'],
-  });
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    try {
-      if ((await fetch(`http://127.0.0.1:${port}${waitPath}`)).ok) return child;
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  child.kill();
-  throw new Error('AgentForge test server did not become ready');
-}
+const startServer = (port, extraEnv = {}, waitPath = '/ready') => startTestServer(port, extraEnv, { path: waitPath });
 
 test('synthetic source document API uploads, deduplicates, reads back, and scopes records', async () => {
   const port = 18801;

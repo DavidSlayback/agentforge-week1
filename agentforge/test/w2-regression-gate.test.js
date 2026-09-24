@@ -1,15 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { buildW2GoldenSet, phiIdentifiers, runW2RegressionGate, W2_GATE_CASE_COUNT, W2_GATE_LABELS } from '../src/w2RegressionGate.js';
+import { buildW2GoldenSet, phiIdentifiers, runW2RegressionGate, W2_GATE_CASE_COUNT, W2_GATE_LABELS, withCapturedOutput, goldenCorpusHash, JUDGE_CONFIG } from '../src/w2RegressionGate.js';
 
 const truthDir = new URL('./fixtures/golden/truth/', import.meta.url);
 
-test('W2 gate has 50 distinct cases, 10 per category, each documenting its failure mode', () => {
+test('W2 gate has 50 distinct cases in every category, each documenting its failure mode', () => {
   const cases = buildW2GoldenSet();
   assert.equal(cases.length, W2_GATE_CASE_COUNT);
   assert.equal(new Set(cases.map((item) => item.id)).size, cases.length);
-  for (const label of W2_GATE_LABELS) assert.equal(cases.filter((item) => item.category === label).length, 10, label);
+  // At most 19 per category, so a single failing case drops the rate below 95%.
+  for (const label of W2_GATE_LABELS) {
+    const count = cases.filter((item) => item.category === label).length;
+    assert.ok(count >= 5 && count <= 19, `${label} has ${count} cases`);
+  }
   for (const item of cases) {
     assert.equal(item.synthetic_only, true);
     assert.ok(item.guards_against.length > 20, `${item.id} must state the failure mode it guards`);
@@ -47,7 +51,8 @@ test('W2 gate blocks case-set drift against the committed baseline', async () =>
 test('W2 gate fails a category that drops by more than 5 points against the baseline', async () => {
   const baseline = JSON.parse(fs.readFileSync(new URL('../../docs/agentforge/evidence/W2_BASELINE_REPORT.json', import.meta.url), 'utf8'));
   const cases = buildW2GoldenSet();
-  cases[20] = { ...cases[20], expect: { lab_facts: {}, workflow: { final_state: 'BLOCKED' } } };
+  const index = cases.findIndex((item) => item.id === 'fc-01-lab-a-values');
+  cases[index] = { ...cases[index], expect: { lab_facts: {}, workflow: { final_state: 'BLOCKED' } } };
   const result = await runW2RegressionGate({ cases, baseline: { ...baseline, corpus_sha256: 'ignored' } });
   assert.equal(result.passed, false);
   assert.equal(result.by_label.factually_consistent.rate, 0.9);
@@ -61,4 +66,31 @@ test('W2 gate report carries only codes, never the synthetic identifiers it chec
     const { words } = phiIdentifiers(JSON.parse(fs.readFileSync(new URL(name, truthDir), 'utf8')));
     for (const word of words) assert.ok(!serialized.toLowerCase().includes(word.toLowerCase()), `${name} identifier leaked into the gate report`);
   }
+});
+
+test('overlapping output-capture sessions restore the real console and stdout', async () => {
+  const originals = { log: console.log, error: console.error, stdout: process.stdout.write, stderr: process.stderr.write };
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const first = withCapturedOutput(async () => { console.log('first-session'); await gate; return 1; });
+  const second = withCapturedOutput(async () => { console.log('second-session'); return 2; });
+  const secondResult = await second;
+  assert.equal(console.log === originals.log, false, 'capture must stay installed while the first session is open');
+  release();
+  const firstResult = await first;
+  assert.equal(console.log, originals.log);
+  assert.equal(console.error, originals.error);
+  assert.equal(process.stdout.write, originals.stdout);
+  assert.equal(process.stderr.write, originals.stderr);
+  assert.match(firstResult.output, /first-session/);
+  assert.match(firstResult.output, /second-session/);
+  assert.equal(secondResult.value, 2);
+});
+
+test('loosening a threshold or the case count changes the case-set hash', () => {
+  const cases = buildW2GoldenSet();
+  const base = goldenCorpusHash(cases);
+  assert.notEqual(goldenCorpusHash(cases, { judge: { ...JUDGE_CONFIG, per_label_min_rate: 0.9 } }), base);
+  assert.notEqual(goldenCorpusHash(cases, { judge: { ...JUDGE_CONFIG, max_regression: 0.2 } }), base);
+  assert.notEqual(goldenCorpusHash(cases, { caseCount: 40 }), base);
 });

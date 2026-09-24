@@ -42,12 +42,27 @@ The 50-case gate runs the deployed scan path on 10 golden PDFs, replaying OCR
 recorded from the real Tesseract image, and asserts `schema_valid`,
 `citation_present`, `factually_consistent`, `safe_refusal`, and
 `no_phi_in_logs` (10 cases each) against hand-written truth files; see the root
-`EVAL_GATE.md`. Zero extracted fields or an intake form whose demographics
-contradict the chart is BLOCKED. A declared type contradicted by the document's
-text, an unverified intake identity, or an incomplete extraction is QUALIFIED
-(`documentSafety.js`). Traces record allowlisted handoff summaries
-(`traceSafeHandoff`), not extraction payloads. Source preview lists
-low-confidence values in a separate "not verified" section.
+`EVAL_GATE.md`. The fail-loud rules live in `documentSafety.js`:
+
+- BLOCKED: zero extracted fields, or patient demographics that contradict the
+  chart. For intake forms that means the typed name or DOB; for lab reports, the
+  printed `Patient:`/`DOB:` header.
+- QUALIFIED:
+  - a declared type contradicted by the document's text;
+  - an identity that cannot be verified (nothing readable, or no chart record);
+  - an incomplete extraction.
+- An unreadable PDF on `/v1/scan-supervisor` is a BLOCKED
+  `document_unreadable` refusal (HTTP 422).
+
+Traces record allowlisted handoff summaries (`traceSafeHandoff`), not
+extraction payloads. The server serves the committed gate report on `/evals`
+and does not run the gate per request.
+
+Facts read from OCR lines below 0.85 confidence carry
+`low_confidence_requires_human_review`. They do not by themselves stop a
+document from being READY. The source preview lists them in a separate "not
+verified" section, and the W2 answer must exclude them or explicitly qualify
+them. The S6 answer composer will enforce that; nothing enforces it yet.
 
 ## Boundaries and residuals
 

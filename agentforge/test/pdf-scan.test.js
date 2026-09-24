@@ -102,3 +102,15 @@ test('citation quote_or_value carries the verbatim OCR line, not the canonical f
   const extraction = extractScanForm({ sourceDocumentId: 'pdf-verbatim-quote', documentType: 'intake_form', layoutId: 'pdf-ocr-intake_form', content: asFixture(fields, 'intake_form') });
   assert.equal(extraction.facts[0].citation.quote_or_value, 'PATIENT NAME:   Alex Morgan');
 });
+
+test('a typed LabResult cites its value line and is only as confident as its least confident field', () => {
+  const labels = ['Hemoglobin test name', 'Hemoglobin value', 'Hemoglobin unit', 'Hemoglobin reference range', 'Hemoglobin collection date', 'Hemoglobin abnormal'];
+  const values = ['Hemoglobin', '13.2', 'g/dL', '12.0-16.0', '2026-09-20', 'No'];
+  const confidences = [0.95, 0.78, 0.9, 0.91, 0.92, 0.93];
+  const lines = labels.map((label, i) => ({ text: `${label}: ${values[i]}`, page: 1, left: 10, top: i * 20, right: 250, bottom: i * 20 + 15, confidence: confidences[i] }));
+  const extraction = extractScanForm({ sourceDocumentId: 'pdf-lab-confidence', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: asFixture(fieldRows(lines, 'lab_pdf', 'pdf-ocr-lab_pdf'), 'lab_pdf') });
+  const [result] = extraction.lab_results;
+  assert.equal(result.confidence, 0.78);
+  assert.equal(result.citation.quote_or_value, 'Hemoglobin value: 13.2');
+  assert.deepEqual(extraction.facts.filter((fact) => fact.uncertainty).map((fact) => fact.field_id), ['lab.hgb.value']);
+});

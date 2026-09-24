@@ -41,7 +41,8 @@ function run(command, args) {
       if (settled) return;
       settled = true; clearTimeout(timer);
       if (code === 0) resolve(Buffer.concat(stdout).toString('utf8'));
-      else reject(new Error(`PDF_OCR_COMMAND_FAILED:${Buffer.concat(stderr).toString('utf8').slice(0, 300)}`));
+      // Tool stderr can echo document content or paths, so only the code leaves this function.
+      else reject(new Error('PDF_OCR_COMMAND_FAILED'));
     });
   });
 }
