@@ -55,11 +55,11 @@ import { GEMINI_RERANK_MODEL, createLiveGeminiClient, defaultRetrievalFixturesDi
 
 function buildListwiseRerankPrompt(query, candidates) {
   const listed = candidates.map((candidate, index) => `${index + 1}. id=${candidate.id}\n${candidate.text}`).join('\n\n');
-  return `You are ranking clinical guideline excerpts by relevance to a clinician's question. Question: "${query}"\n\nCandidates:\n${listed}\n\nRespond with strict JSON only, no markdown fences and no other text: {"results": [{"id": "<candidate id>", "score": <0 to 1 relevance>}, ...]}. Include every candidate id exactly once. Use only the ids listed above.`;
+  return `You are ranking clinical guideline excerpts by relevance to a clinician's question. Question: "${query}"\n\nCandidates:\n${listed}\n\nRespond with strict JSON only, no markdown fences and no other text: {"results": [{"n": <candidate number>, "score": <0 to 1 relevance>}, ...]}. Include every candidate number exactly once. Use only the numbers listed above.`;
 }
 
 const ListwiseRerankResponseShape = z.object({
-  results: z.array(z.object({ id: z.string().min(1), score: z.number().min(0).max(1) }).strict()),
+  results: z.array(z.object({ n: z.number().int().min(1), score: z.number().min(0).max(1) }).strict()),
 }).strict();
 
 /**
@@ -85,8 +85,13 @@ function parseListwiseRerankResponse(rawText, candidates) {
   }
   const validated = ListwiseRerankResponseShape.safeParse(parsed);
   if (!validated.success) throw new Error('RERANK_SCHEMA_INVALID');
-  const candidateIds = new Set(candidates.map((candidate) => candidate.id));
-  return validated.data.results.filter((result) => candidateIds.has(result.id));
+  // Candidates are numbered 1..n in the prompt; the model answers with those
+  // short numbers because long hyphenated ids cost ~50 output tokens each and
+  // truncated the JSON live (2026-09-24). Numbers outside 1..n are dropped,
+  // exactly like an id outside the candidate set.
+  return validated.data.results
+    .filter((result) => result.n >= 1 && result.n <= candidates.length)
+    .map((result) => ({ id: candidates[result.n - 1].id, score: result.score }));
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +159,9 @@ export function createQwenReranker({ endpoint, apiKey, model = DEFAULT_QWEN_RERA
     const prompt = buildListwiseRerankPrompt(query, candidates);
     let generated;
     try {
-      generated = await provider.generate({ prompt, maxTokens: maxOutputTokens, signal });
+      // Each {"id","score"} entry costs roughly 15-20 tokens; a fixed budget
+      // truncated the JSON for longer candidate lists.
+      generated = await provider.generate({ prompt, maxTokens: Math.max(maxOutputTokens, 40 + 12 * candidates.length), signal });
     } catch {
       // Never the underlying error's message: it may carry endpoint/host
       // detail that must not reach a trace or an API response (matches

@@ -1,0 +1,57 @@
+{
+  "results": [
+    {
+      "id": "nhlbi-anemia-fatigue-symptoms",
+      "score": 1
+    },
+    {
+      "id": "nhlbi-anemia-definition",
+      "score": 0.6
+    },
+    {
+      "id": "medlineplus-cbc-hemoglobin-anemia",
+      "score": 0.5
+    },
+    {
+      "id": "nhlbi-anemia-causes",
+      "score": 0.4
+    },
+    {
+      "id": "medlineplus-a1c-what-it-is",
+      "score": 0
+    },
+    {
+      "id": "uspstf-statin-primary-prevention-high-risk",
+      "score": 0
+    },
+    {
+      "id": "cdc-a1c-who-should-test",
+      "score": 0
+    },
+    {
+      "id": "nhlbi-cholesterol-heart-disease-risk",
+      "score": 0
+    },
+    {
+      "id": "nhlbi-cholesterol-diagnosis-method",
+      "score": 0
+    },
+    {
+      "id": "cdc-a1c-test-definition",
+      "score": 0
+    },
+    {
+      "id": "medlineplus-blood-pressure-definition",
+      "score": 0
+    },
+    {
+      "id": "uspstf-statin-primary-prevention-moderate-risk",
+      "score": 0
+    }
+  ],
+  "tokenUsage": {
+    "inputTokens": 1068,
+    "outputTokens": 175,
+    "estimated": false
+  }
+}

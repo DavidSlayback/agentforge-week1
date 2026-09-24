@@ -194,6 +194,8 @@ export const sanitizeForGemini = sanitizeForExternalModel;
  * score does — it exists only to give a better-than-BM25-alone ordering
  * while a real reranker is unavailable, honestly labeled as such.
  */
+export const RERANK_CANDIDATE_LIMIT = 12;
+
 function reciprocalRankFusion(candidates, k = 60) {
   const bySparse = [...candidates].sort((left, right) => right.sparseScore - left.sparseScore);
   const byDense = [...candidates].sort((left, right) => right.denseScore - left.denseScore);
@@ -357,7 +359,11 @@ export function createGeminiHybridGuidelineRetriever({
     let rerankResults;
     let rerankUsage = null;
     try {
-      const rerankOutcome = await reranker.rerank(sanitizedQuery, candidates.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
+      // Rerank only the RERANK_CANDIDATE_LIMIT best by fused sparse+dense rank:
+      // a listwise LLM reranker handles long lists poorly, and 23 candidates
+      // overflowed Qwen's output budget live (RERANK_JSON_INVALID, 2026-09-24).
+      const rerankPool = reciprocalRankFusion(candidates).sort((left, right) => right.fusedScore - left.fusedScore).slice(0, RERANK_CANDIDATE_LIMIT);
+      const rerankOutcome = await reranker.rerank(sanitizedQuery, rerankPool.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
       rerankResults = rerankOutcome.results;
       rerankUsage = rerankOutcome.usage;
     } catch {

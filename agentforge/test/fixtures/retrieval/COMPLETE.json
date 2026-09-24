@@ -1,0 +1,8 @@
+{
+  "embeddings_fingerprint": "2f32d573dfeb35457e4a87b94aa82e90d662b1c438080b7267b249fbeadcb064",
+  "embed_model": "gemini-embedding-2",
+  "rerank_provider": "alibaba-qwen",
+  "rerank_model": "qwen3.8-flash",
+  "queries": 15,
+  "recorded_at": "2026-09-24T22:36:45.196Z"
+}

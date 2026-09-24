@@ -1,0 +1,57 @@
+{
+  "results": [
+    {
+      "id": "cdc-medication-list-tell-doctor",
+      "score": 0.95
+    },
+    {
+      "id": "cdc-medication-safety-ade-and-label",
+      "score": 0.85
+    },
+    {
+      "id": "medlineplus-medicines-overview",
+      "score": 0.4
+    },
+    {
+      "id": "nhlbi-anemia-fatigue-symptoms",
+      "score": 0.7
+    },
+    {
+      "id": "medlineplus-blood-pressure-definition",
+      "score": 0.1
+    },
+    {
+      "id": "uspstf-statin-primary-prevention-high-risk",
+      "score": 0.1
+    },
+    {
+      "id": "uspstf-statin-age76-insufficient-evidence",
+      "score": 0.1
+    },
+    {
+      "id": "uspstf-statin-primary-prevention-moderate-risk",
+      "score": 0.1
+    },
+    {
+      "id": "nhlbi-hypertension-symptoms-crisis",
+      "score": 0.2
+    },
+    {
+      "id": "uspstf-hypertension-screening-intervals",
+      "score": 0.1
+    },
+    {
+      "id": "medlineplus-prediabetes-definition",
+      "score": 0.1
+    },
+    {
+      "id": "cdc-hypertension-definition",
+      "score": 0.1
+    }
+  ],
+  "tokenUsage": {
+    "inputTokens": 1169,
+    "outputTokens": 177,
+    "estimated": false
+  }
+}

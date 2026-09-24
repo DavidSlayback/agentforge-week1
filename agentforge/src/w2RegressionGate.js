@@ -63,7 +63,13 @@ const kase = (id, category, guardsAgainst, scenario, expect) => ({ id, category,
 // of the full deterministic one), while still proving the fabricated claim
 // itself is dropped and counted, not just replaced by a legitimate one from
 // the same model call.
-const INVENTED_CLAIM_MARKER = 'gate-test invented claim: potassium was recorded at 9.9 mmol/L on 2000-01-01.';
+// Guideline chunks that interpret an A1C value. For an abnormal A1C any of
+// these is a relevant top result; anything else (blood pressure, medication
+// lists, anemia) is not. The single ids used before were fitted to the stub
+// reranker; the real recorded Qwen rerank (2026-09-24) ranks the A1C ranges
+// chunk first, which is the most useful for interpreting 6.1% or 7.2%.
+const A1C_INTERPRETATION_SOURCES = Object.freeze(['cdc-a1c-diagnostic-ranges', 'cdc-a1c-test-definition', 'medlineplus-a1c-results-meaning', 'medlineplus-a1c-what-it-is', 'niddk-a1c-test-uses']);
+const INVENTED_CLAIM_MARKER ='gate-test invented claim: potassium was recorded at 9.9 mmol/L on 2000-01-01.';
 function fakeInventingModelPrimary() {
   return {
     name: 'fake-inventing-model', model: 'gate-test-only',
@@ -114,10 +120,10 @@ export function buildW2GoldenSet() {
     kase('fc-05-intake-a-values', 'factually_consistent', 'Intake demographics, chief concern, medications, allergies or family history no longer match the form. S6: every observed intake leaf must also survive independently in the grounded answer as a cited patient_fact claim (the deterministic intake template).', scan('intake-a', 'intake_form'), { intake_facts: true, answer: { verified: true, separated: true } }),
     kase('fc-06-intake-b-values', 'factually_consistent', 'Alternate intake labels map values into the wrong typed fields.', scan('intake-b', 'intake_form'), { intake_facts: true }),
     kase('fc-07-intake-own-patient', 'factually_consistent', 'The patient-identity check rejects a form whose demographics do match the chart, or its values drift.', scan('gen-intake-c-conflict', 'intake_form', { upload_patient: P2 }), { intake_facts: true, workflow: { final_state: 'READY', identity: 'match' } }),
-    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one real claim plus one invented, uncited-in-substance claim must have the invented claim dropped and counted, never shipped.', scan('lab-a', 'lab_pdf', { query: Q.glycemic, answer_provider: fakeInventingModelProvider }), { retrieval_top: 'cdc-a1c-test-definition', answer: { fake_provider_drops_invented_claim: true } }),
+    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one real claim plus one invented, uncited-in-substance claim must have the invented claim dropped and counted, never shipped.', scan('lab-a', 'lab_pdf', { query: Q.glycemic, answer_provider: fakeInventingModelProvider }), { retrieval_top: A1C_INTERPRETATION_SOURCES, answer: { fake_provider_drops_invented_claim: true } }),
     kase('fc-09-retrieval-fatigue', 'factually_consistent', 'Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.', scan('intake-a', 'intake_form', { query: Q.fatigue }), { retrieval_top: 'nhlbi-anemia-fatigue-symptoms' }),
     kase('fc-10-retrieval-medrec', 'factually_consistent', 'Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.', scan('intake-b', 'intake_form', { query: Q.medrec }), { retrieval_top: 'cdc-medication-list-tell-doctor' }),
-    kase('fc-11-retrieval-empty-clinician-question', 'factually_consistent', "Query formulation stops building the query from the document's own typed abnormal lab findings (e.g. the abnormal-findings phrase is dropped), so a request with no clinician message at all finds no evidence even though the document has a real abnormal A1C.", scan('lab-a', 'lab_pdf', { query: '' }), { retrieval_top: 'niddk-a1c-test-uses' }),
+    kase('fc-11-retrieval-empty-clinician-question', 'factually_consistent', "Query formulation stops building the query from the document's own typed abnormal lab findings (e.g. the abnormal-findings phrase is dropped), so a request with no clinician message at all finds no evidence even though the document has a real abnormal A1C.", scan('lab-a', 'lab_pdf', { query: '' }), { retrieval_top: A1C_INTERPRETATION_SOURCES }),
 
     kase('sr-01-table-lab-zero-fields', 'safe_refusal', 'A lab layout the OCR label map cannot read is reported READY (or guessed) instead of BLOCKED no_fields_extracted.', scan('gen-lab-c-table', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
     kase('sr-02-blank-page', 'safe_refusal', 'A blank upload with zero OCR lines proceeds to retrieval as if it were evidence.', scan('gen-blank-page', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
@@ -527,7 +533,8 @@ function checkRetrievalTop(run, expectedTop) {
   const issues = [];
   if (evidence?.output_status !== 'ready') issues.push('evidence_worker_not_ready_for_relevant_query');
   if (!items.length) return [...issues, 'relevant_guideline_not_retrieved'];
-  if (items[0].citation?.source_id !== expectedTop) issues.push('top_guideline_not_relevant');
+  const acceptable = Array.isArray(expectedTop) ? expectedTop : [expectedTop];
+  if (!acceptable.includes(items[0].citation?.source_id)) issues.push('top_guideline_not_relevant');
   for (let index = 1; index < items.length; index += 1) if (items[index].rerank_score > items[index - 1].rerank_score) issues.push('guideline_ranking_not_descending');
   return issues;
 }

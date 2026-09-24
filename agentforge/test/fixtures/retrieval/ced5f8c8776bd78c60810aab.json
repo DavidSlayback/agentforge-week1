@@ -1,0 +1,57 @@
+{
+  "results": [
+    {
+      "id": "niddk-a1c-test-uses",
+      "score": 0.85
+    },
+    {
+      "id": "cdc-a1c-test-definition",
+      "score": 0.6
+    },
+    {
+      "id": "medlineplus-a1c-what-it-is",
+      "score": 0.75
+    },
+    {
+      "id": "cdc-a1c-diagnostic-ranges",
+      "score": 0.95
+    },
+    {
+      "id": "niddk-a1c-testing-frequency",
+      "score": 0.5
+    },
+    {
+      "id": "medlineplus-a1c-results-meaning",
+      "score": 0.7
+    },
+    {
+      "id": "cdc-a1c-who-should-test",
+      "score": 0.4
+    },
+    {
+      "id": "medlineplus-cbc-hemoglobin-anemia",
+      "score": 0.3
+    },
+    {
+      "id": "cdc-medication-list-tell-doctor",
+      "score": 0.9
+    },
+    {
+      "id": "medlineplus-blood-pressure-definition",
+      "score": 0.1
+    },
+    {
+      "id": "medlineplus-prediabetes-definition",
+      "score": 0.6
+    },
+    {
+      "id": "niddk-diabetes-diagnosis-blood-tests",
+      "score": 0.7
+    }
+  ],
+  "tokenUsage": {
+    "inputTokens": 875,
+    "outputTokens": 178,
+    "estimated": false
+  }
+}

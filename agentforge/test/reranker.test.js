@@ -35,7 +35,7 @@ function fakeQwenFetch({ outputText, usage = { input_tokens: 40, output_tokens: 
 // ---------------------------------------------------------------------------
 
 test('Qwen reranker: interface conformance, thinking off, and honest (unknown) cost', async () => {
-  const { bodies, fetchImpl } = fakeQwenFetch({ outputText: JSON.stringify({ results: [{ id: 'cdc-a1c-test-definition', score: 0.95 }, { id: 'niddk-a1c-test-uses', score: 0.4 }] }) });
+  const { bodies, fetchImpl } = fakeQwenFetch({ outputText: JSON.stringify({ results: [{ n: 1, score: 0.95 }, { n: 2, score: 0.4 }] }) });
   const reranker = createQwenReranker({ endpoint: 'https://example.test/v1/responses', apiKey: 'k', fetchImpl });
   assert.equal(reranker.name, `alibaba-qwen:${DEFAULT_QWEN_RERANK_MODEL}`);
   const { results, usage } = await reranker.rerank('A1C diagnosis threshold', CANDIDATES, {});
@@ -52,8 +52,8 @@ test('Qwen reranker: interface conformance, thinking off, and honest (unknown) c
   assert.equal(usage.estimatedCostUsd, null);
 });
 
-test('Qwen reranker rejects an id outside the candidate set instead of trusting the model JSON', async () => {
-  const { fetchImpl } = fakeQwenFetch({ outputText: JSON.stringify({ results: [{ id: 'cdc-a1c-test-definition', score: 0.9 }, { id: 'not-a-real-candidate-id', score: 0.99 }] }) });
+test('Qwen reranker rejects a candidate number outside the list instead of trusting the model JSON', async () => {
+  const { fetchImpl } = fakeQwenFetch({ outputText: JSON.stringify({ results: [{ n: 1, score: 0.9 }, { n: 99, score: 0.99 }] }) });
   const reranker = createQwenReranker({ endpoint: 'https://example.test/v1/responses', apiKey: 'k', fetchImpl });
   const { results } = await reranker.rerank('q', CANDIDATES, {});
   assert.equal(results.length, 1);
@@ -68,14 +68,14 @@ test('Qwen reranker throws a fixed code (never the raw text) on malformed JSON',
 });
 
 test('Qwen reranker tolerates a markdown-fenced JSON response', async () => {
-  const { fetchImpl } = fakeQwenFetch({ outputText: '```json\n{"results":[{"id":"cdc-a1c-test-definition","score":0.7}]}\n```' });
+  const { fetchImpl } = fakeQwenFetch({ outputText: '```json\n{"results":[{"n":1,"score":0.7}]}\n```' });
   const reranker = createQwenReranker({ endpoint: 'https://example.test/v1/responses', apiKey: 'k', fetchImpl });
   const { results } = await reranker.rerank('q', CANDIDATES, {});
   assert.deepEqual(results, [{ id: 'cdc-a1c-test-definition', score: 0.7 }]);
 });
 
 test('Qwen reranker throws a fixed schema-invalid code when the JSON does not match the shape', async () => {
-  const { fetchImpl } = fakeQwenFetch({ outputText: JSON.stringify({ results: [{ id: 'cdc-a1c-test-definition' }] }) });
+  const { fetchImpl } = fakeQwenFetch({ outputText: JSON.stringify({ results: [{ n: 1 }] }) });
   const reranker = createQwenReranker({ endpoint: 'https://example.test/v1/responses', apiKey: 'k', fetchImpl });
   await assert.rejects(reranker.rerank('q', CANDIDATES, {}), /RERANK_SCHEMA_INVALID/);
 });
@@ -226,4 +226,27 @@ test('createRerankerFromEnv builds the Gemini adapter when GEMINI_API_KEY is set
 test('createRerankerFromEnv builds Cohere when AGENTFORGE_COHERE_API_KEY is set', () => {
   const reranker = createRerankerFromEnv({ AGENTFORGE_RERANK_PROVIDER: 'cohere', AGENTFORGE_COHERE_API_KEY: 'k' });
   assert.equal(reranker.name, 'cohere:rerank-v4.0-fast');
+});
+
+test('Qwen reranker output budget scales with the candidate count', async () => {
+  const bodies = [];
+  const fetchImpl = async (_url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, json: async () => ({ output_text: JSON.stringify({ results: [{ n: 1, score: 0.9 }] }), usage: { input_tokens: 1, output_tokens: 1 } }) }; };
+  const { createQwenReranker } = await import('../src/reranker.js');
+  const rr = createQwenReranker({ endpoint: 'https://example.test/v1/responses', apiKey: 'k', fetchImpl });
+  await rr.rerank('a1c', Array.from({ length: 12 }, (_, i) => ({ id: `c${i}`, text: `chunk ${i}` })));
+  assert.ok(bodies[0].max_output_tokens >= 40 + 12 * 12, `budget ${bodies[0].max_output_tokens}`);
+});
+
+test('hybrid retriever reranks at most RERANK_CANDIDATE_LIMIT candidates', async () => {
+  const { createGeminiHybridGuidelineRetriever, loadGuidelineCorpus, RERANK_CANDIDATE_LIMIT } = await import('../src/guidelineEvidence.js');
+  const corpus = loadGuidelineCorpus();
+  const dims = 8;
+  const vec = (seed) => Array.from({ length: dims }, (_, i) => Math.sin(seed * (i + 1)) + 1.1);
+  const embeddings = { vectors: Object.fromEntries(corpus.map((c, i) => [c.source_id, vec(i + 1)])) };
+  const embedClient = { name: 'fake-embed', async embed() { return { values: vec(3), usage: { stage: 'embed', provider: 'stub', model: 'fake' } }; } };
+  let seen = 0;
+  const reranker = { name: 'fake-rerank', async rerank(_q, candidates) { seen = candidates.length; return { results: candidates.map((c, i) => ({ id: c.id, score: 1 - i / 100 })), usage: { stage: 'rerank', provider: 'stub', model: 'fake' } }; } };
+  const retriever = createGeminiHybridGuidelineRetriever({ embedClient, reranker, corpus, embeddings });
+  await retriever.retrieve('A1C test result blood sugar diabetes blood pressure cholesterol kidney anemia medication', { topK: 3 });
+  assert.ok(seen > 0 && seen <= RERANK_CANDIDATE_LIMIT, `reranked ${seen}`);
 });

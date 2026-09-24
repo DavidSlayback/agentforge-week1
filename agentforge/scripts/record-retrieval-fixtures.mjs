@@ -108,7 +108,9 @@ for (const [index, query] of queries.entries()) {
   console.log(`Recording: ${query}`);
   const result = await retriever.retrieve(query, { topK: 3 });
   console.log(`  status=${result.status} degraded=${result.degraded} top=${result.evidence[0]?.citation.source_id || '(none)'}`);
-  if (result.degraded) degraded.push({ query, reason: result.degraded_reason || result.degraded });
+  // The gate's off-topic control query has no allowlisted terms by design; it
+  // never reaches an external model, so there is nothing to record for it.
+  if (result.degraded && result.degraded_reason !== 'no_sanitizable_query_terms') degraded.push({ query, reason: result.degraded_reason || result.degraded });
 }
 
 if (degraded.length) {
