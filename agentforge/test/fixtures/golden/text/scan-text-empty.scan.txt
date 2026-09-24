@@ -1,0 +1,3 @@
+SYNTHETIC_SCAN_FORM|layout=scan-text-empty|page_count=1|document_type=lab_pdf
+MISSING|field_id=lab.hgb|reason=zero_readable_fields
+MISSING|field_id=lab.a1c|reason=zero_readable_fields

@@ -27,7 +27,7 @@ test('W2 gate passes the committed baseline with per-category thresholds', async
   assert.deepEqual(result.failed_cases, []);
   assert.equal(result.passed, true);
   assert.equal(result.baseline_mismatch, false);
-  assert.equal(result.total_cases, 50);
+  assert.equal(result.total_cases, W2_GATE_CASE_COUNT);
   assert.ok(Object.values(result.by_label).every((summary) => summary.rate >= 0.95));
   assert.equal(result.judge_config.per_label_min_rate, 0.95);
   assert.equal(result.judge_config.max_regression, 0.05);

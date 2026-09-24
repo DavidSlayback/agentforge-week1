@@ -15,7 +15,10 @@ import { AgentForgeService } from './service.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 
 export const W2_GATE_LABELS = Object.freeze(['schema_valid', 'citation_present', 'factually_consistent', 'safe_refusal', 'no_phi_in_logs']);
-export const W2_GATE_CASE_COUNT = 50;
+// Interim count while both the legacy LAB|/INTAKE| cases and their scan-path
+// replacements are present (R2 commit 1 of 2). Drops back to 50 once the
+// legacy cases are removed (R2 commit 2).
+export const W2_GATE_CASE_COUNT = 56;
 
 const GOLDEN_DIR = new URL('../test/fixtures/golden/', import.meta.url);
 const REPO_ROOT = new URL('../../', import.meta.url);
@@ -60,6 +63,7 @@ export function buildW2GoldenSet() {
     kase('sv-08-intakeform-required-fields', 'schema_valid', 'The IntakeForm contract stops requiring demographics, chief concern, medications, allergies or family history.', scan('intake-a', 'intake_form'), { contract_rejects: 'intake_form_without_each_required_key' }),
     kase('sv-09-citation-shape', 'schema_valid', 'The citation contract stops validating bounding_box or accepts a citation missing one of the five keys or carrying an extra key.', scan('lab-a', 'lab_pdf'), { contract_rejects: 'malformed_citations' }),
     kase('sv-10-text-lab-evidence-response', 'schema_valid', 'The LAB| text path behind /lab-evidence returns a response that fails its own response contract or typed LabResult parsing.', { kind: 'text_lab_evidence', doc: 'text-lab', upload_patient: P1 }, { typed: { lab_results: 2 } }),
+    kase('sv-11-scan-text-lab-typed', 'schema_valid', 'Zod LabResult parsing or the HTTP response validator rejects or drops the typed results extracted from a `.scan.txt` text-envelope lab upload — the only non-PDF path left once the legacy LAB| format and /lab-evidence route are retired.', scan('scan-text-lab-a', 'lab_pdf'), { typed: { lab_results: 2 } }),
 
     kase('cp-01-lab-a-citations', 'citation_present', 'A vector-PDF lab fact or typed result loses a citation key, cites the wrong document or the wrong line (e.g. the test-name line instead of the value line), quotes text not in the OCR, or points outside the page.', scan('lab-a', 'lab_pdf'), { citations: true }),
     kase('cp-03-intake-a-citations', 'citation_present', 'An observed intake field (demographics, meds, allergies, history) is emitted without a complete, verbatim citation.', scan('intake-a', 'intake_form'), { citations: true }),
@@ -70,6 +74,8 @@ export function buildW2GoldenSet() {
     kase('cp-08-guideline-citations', 'citation_present', 'Guideline evidence reaches the workflow without the five-key guideline citation.', scan('lab-b', 'lab_pdf'), { guideline_citations: true }),
     kase('cp-09-text-lab-citations', 'citation_present', 'A LAB| text-path fact loses its quote (or any citation key) on the /v1/supervisor path.', textSupervisor(['text-lab']), { citations: true }),
     kase('cp-10-text-intake-citations', 'citation_present', 'An INTAKE| text-path fact loses its quote or page on the /v1/supervisor path.', textSupervisor(['text-intake'], Q.medrec), { citations: true }),
+    kase('cp-11-scan-text-lab-citations', 'citation_present', 'A `.scan.txt` lab fact or typed result loses a citation key, quotes text not in the envelope, or points outside the page — the citation defect the retired LAB| path could hide.', scan('scan-text-lab-a', 'lab_pdf'), { citations: true }),
+    kase('cp-12-scan-text-intake-citations', 'citation_present', 'An observed `.scan.txt` intake field loses its quote or page — the citation defect the retired INTAKE| path could hide.', scan('scan-text-intake-a', 'intake_form'), { citations: true }),
 
     kase('fc-01-lab-a-values', 'factually_consistent', 'Value, unit, reference range, collection date, abnormal flag or confidence (min of its source lines) of a clean lab PDF no longer matches the document.', scan('lab-a', 'lab_pdf'), { lab_facts: {} }),
     kase('fc-02-lab-b-values', 'factually_consistent', 'Values read from a rasterized lab PDF drift from the document (e.g. "Hgb" labels or a Yes flag mis-mapped).', scan('lab-b', 'lab_pdf'), { lab_facts: {} }),
@@ -95,6 +101,8 @@ export function buildW2GoldenSet() {
     kase('sr-11-intake-dob-mismatch', 'safe_refusal', "An intake form with this patient's name but a different date of birth is attached to the chart because only the name is compared.", scan('gen-intake-d-dob', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['dob'], retrieval_ran: false } }),
     kase('sr-12-no-chart-record', 'safe_refusal', 'A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.', scan('intake-a', 'intake_form', { upload_patient: P_UNKNOWN }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['patient_identity_unverified'], identity: 'unverified' } }),
     kase('sr-13-lab-header-other-patient', 'safe_refusal', 'A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('lab-a', 'lab_pdf', { upload_patient: P2 }), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['name', 'dob'], retrieval_ran: false } }),
+    kase('sr-14-scan-text-unsupported-query', 'safe_refusal', 'An off-topic clinical question against a `.scan.txt` text-envelope upload gets guideline evidence or a READY state — the refusal defect the retired /v1/supervisor text path could hide.', scan('scan-text-intake-a', 'intake_form', { query: Q.offTopicClinical }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
+    kase('sr-15-scan-text-empty-envelope', 'safe_refusal', 'A `.scan.txt` (non-PDF) envelope with no readable FIELD rows is reported READY instead of BLOCKED no_fields_extracted — the zero-facts defect the retired LAB|/INTAKE| declared-wrong-type case guarded.', scan('scan-text-empty', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
 
     kase('np-01-lab-a', 'no_phi_in_logs', 'Lab values, collection dates or the report header (name/DOB) reach the stored trace or stdout/stderr on the vector lab path.', scan('lab-a', 'lab_pdf'), { no_phi: {} }),
     kase('np-03-intake-a', 'no_phi_in_logs', 'Intake demographics, medications or allergies reach the trace or console.', scan('intake-a', 'intake_form'), { no_phi: {} }),
@@ -105,6 +113,7 @@ export function buildW2GoldenSet() {
     kase('np-08-text-supervisor', 'no_phi_in_logs', 'The /v1/supervisor text path traces extracted lab or intake values.', textSupervisor(['text-lab', 'text-intake']), { no_phi: {} }),
     kase('np-09-corrupt-pdf', 'no_phi_in_logs', 'The unreadable-document refusal path writes document bytes or tool stderr into the trace or console.', scan('gen-corrupt', 'lab_pdf'), { no_phi: { no_handoffs: true } }),
     kase('np-10-raw-handoff-redaction', 'no_phi_in_logs', 'The trace redactor stops stripping value/quote-keyed content, so any raw worker handoff recorded in a trace would leak intake identifiers.', scan('intake-a', 'intake_form'), { no_phi: { raw_handoffs: true } }),
+    kase('np-11-scan-text-envelope', 'no_phi_in_logs', 'A `.scan.txt` text-envelope upload traces its extracted lab or intake values — the leak the retired /v1/supervisor text path could hide.', scan('scan-text-intake-a', 'intake_form'), { no_phi: {} }),
   ];
 }
 
@@ -137,9 +146,15 @@ function readGolden() {
       docs.set(entry.id, { id: entry.id, kind: 'pdf', content, truth, ocr, sourceText: (ocr.pages || []).flatMap((page) => page.lines.map((line) => line.text)).join('\n') });
     } else {
       const content = readFileSync(new URL(entry.text, REPO_ROOT));
-      rawFiles[entry.text] = normalizeEol(content.toString('utf8'));
-      const body = content.toString('utf8').split(/\r?\n/).filter((line) => !/^(LAB|INTAKE)\|/.test(line)).join('\n');
-      docs.set(entry.id, { id: entry.id, kind: 'text', content, truth, ocr: null, sourceText: body });
+      const text = content.toString('utf8');
+      rawFiles[entry.text] = normalizeEol(text);
+      // The "source text" a non-PDF upload's citations must quote verbatim is
+      // whatever the envelope's own `quote=` attributes say the document
+      // showed — the same field every citation is built from, whether the
+      // envelope is the retired LAB|/INTAKE| pipe format or the surviving
+      // `.scan.txt` SYNTHETIC_SCAN_FORM|/FIELD| format.
+      const quotedLines = [...text.matchAll(/\|quote=([^|]*)/g)].map((match) => match[1]);
+      docs.set(entry.id, { id: entry.id, kind: 'text', content, truth, ocr: null, sourceText: quotedLines.join('\n') });
     }
   }
   return { manifest, docs, recordings, rawFiles };
@@ -155,7 +170,7 @@ function harness() {
   const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, provider: new DeterministicProvider(), traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings) });
   const context = (patient, scope = 'read-briefing') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: CLINICIAN, scope, acl: scope === 'read-briefing' ? 'read' : 'write', secret }), secret);
   const upload = async (doc, patient, documentType) => {
-    const result = await service.ingestSourceDocument({ patient_uuid: patient, clinician_uuid: CLINICIAN, document_type: documentType, filename: `${doc.id}.${doc.kind === 'pdf' ? 'pdf' : 'txt'}`, content: doc.content }, { verifiedContext: context(patient, 'write-source-document') });
+    const result = await service.ingestSourceDocument({ patient_uuid: patient, clinician_uuid: CLINICIAN, document_type: documentType, filename: `${doc.id}.${doc.kind === 'pdf' ? 'pdf' : 'scan.txt'}`, content: doc.content }, { verifiedContext: context(patient, 'write-source-document') });
     if (result.status !== 'persisted') throw new Error(`GOLDEN_UPLOAD_FAILED:${result.reason}`);
     return result.source_document;
   };

@@ -15,6 +15,9 @@
     { "id": "gen-blank-page", "pdf": "agentforge/test/fixtures/golden/pdf/gen-blank-page.pdf", "truth": "truth/gen-blank-page.json" },
     { "id": "gen-corrupt", "pdf": "agentforge/test/fixtures/golden/pdf/gen-corrupt.pdf", "truth": "truth/gen-corrupt.json" },
     { "id": "text-lab", "text": "agentforge/test/fixtures/golden/text/text-lab.txt", "truth": "truth/text-lab.json" },
-    { "id": "text-intake", "text": "agentforge/test/fixtures/golden/text/text-intake.txt", "truth": "truth/text-intake.json" }
+    { "id": "text-intake", "text": "agentforge/test/fixtures/golden/text/text-intake.txt", "truth": "truth/text-intake.json" },
+    { "id": "scan-text-lab-a", "text": "agentforge/test/fixtures/golden/text/scan-text-lab-a.scan.txt", "truth": "truth/scan-text-lab-a.json" },
+    { "id": "scan-text-intake-a", "text": "agentforge/test/fixtures/golden/text/scan-text-intake-a.scan.txt", "truth": "truth/scan-text-intake-a.json" },
+    { "id": "scan-text-empty", "text": "agentforge/test/fixtures/golden/text/scan-text-empty.scan.txt", "truth": "truth/scan-text-empty.json" }
   ]
 }
