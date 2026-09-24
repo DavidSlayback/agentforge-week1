@@ -333,19 +333,24 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
 Implemented per D7 and `.scratch/agentforge-week2/S8_DESIGN.md` (which replaced
 the OAuth/REST-write plan that used to be here). Status: **wired, not yet
 observed live** — the post-deploy smoke below has not run.
-- `oe-module-agentforge/public/api.php` (internal only; Caddy answers 404
-  publicly) with HMAC scheme v1 (derived key, ±300 s skew, nonce replay table,
+- `oe-module-agentforge/public/api.php` (internal only; Caddy answers 404 for the
+  whole module directory except the W1 launcher
+  page) with HMAC scheme v1 (key derived from `AGENTFORGE_MODULE_HMAC_SECRET`,
+  held only by `openemr` and `agentforge-w2`; ±300 s skew, nonce replay table,
   signed canonical string incl. body sha256, query and context-token hash) and
   routes `documents` (POST/GET), `lab-results`, `lab-observations`,
   `clinical-list-items`, `health`. The actor comes from the module-signed
-  context token (D-D) or the allowlisted `synthetic-demo` fallback (D-E);
+  context token (D-D) or the `synthetic-demo` fallback (D-E); every issuer is
+  limited to `AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS`, writes need a write-scoped
+  token (a read token gets `persistence_not_authorized`), and
   the ledger and audit rows record the issuer.
 - Documents reuse the existing categories "Lab Report" / "Medical Record" (D-B;
   no "AgentForge Uploads" category). Derived facts are a JSON document with
   `foreign_reference` to the source. Lab rows are one
   `procedure_order`/`_code`/`_report` plus N `procedure_result` rows with
   `document_id`; idempotency keys live in `agentforge_write_ledger`
-  (`table.sql`), so a re-upload returns the same ids and adds 0 rows.
+  (`table.sql`), so a re-upload returns the same ids and adds 0 rows. Lab rows
+  are `prelim` (unreviewed AI extraction; FHIR shows `status: unknown`).
 - Read-back is OpenEMR's FHIR Observation service called in-process
   (`read_path: openemr-fhir-service-in-process`). The `/fhir` HTTP API stays
   disabled on the VM (`rest_fhir_api=0`); enabling it needs an owner decision.
@@ -354,15 +359,22 @@ observed live** — the post-deploy smoke below has not run.
   `openemr: {document_id, derived_document_id, procedure_order_id,
   observation_ids[], read_path, read_back, duplicate}`. W1 `agentforge` stays
   synthetic (frozen; owner scope, 2026-09-24). Fixture mode is labelled
-  `in-memory-synthetic` / `retrieve_synthetic_fixture_read`.
+  `in-memory-synthetic` / `retrieve_synthetic_fixture_read`. The W1 launcher
+  `public/index.php` is unchanged: F18 (ACL checked with the numeric user id)
+  stays a documented W1 known issue.
 - Not done: the Node clinical-action lane does not yet call
   `clinical-list-items` (module route and client method exist; A3 UI wiring
   open). The seed script and a REST `GET /api/patient/:pid/document/:did`
   cross-check (W2-C1 wording) are not implemented; byte identity is checked
-  through the module's `Document::get_data()` read instead.
+  through the module's `Document::get_data()` read instead. The W2 UI
+  (`ui.js`, owned by S1/S3) still calls `/v1/scan-supervisor` with the read
+  token, so UI uploads store the source but report `persistence_not_authorized`
+  for derived facts until it sends the write-scoped context.
 - Tests: `php interface/modules/custom_modules/oe-module-agentforge/tests/run.php`
   (shared vectors `agentforge/test/fixtures/hmac-vectors.json`, skew, replay,
-  idempotency with a stubbed DB, lab row plan);
+  idempotency with a stubbed DB, lab row plan, and the dispatcher with ACL,
+  cross-patient, allowlist and secret-separation cases), run by
+  `.githooks/pre-commit`;
   `agentforge/test/openemr-module-*.test.js` (vectors, client errors, server
   round-trip against a test-only fake module). PHPStan level 10 was not run
   (no dev stack; the fork's rules assume 8.2 APIs, A6).

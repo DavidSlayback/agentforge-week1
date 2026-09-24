@@ -112,13 +112,17 @@ export function verifyObservationReadBack(bundle, labResponse, rows) {
  * OpenEMR through oe-module-agentforge. Implements the SyntheticWriteback
  * surface asynchronously; it keeps no local copy of documents.
  *
- * Identity: tokens issued by the OpenEMR launcher (issuer openemr-module) are
- * forwarded unchanged and the module takes the actor from them. For the public
- * synthetic demo (issuer synthetic-demo), the fixture patient is mapped to its
- * allowlisted OpenEMR uuid and a synthetic-demo token is minted for the module.
- * This service already hands synthetic-demo write tokens to any caller for those
- * patients, so this adds no authority; the module attributes the write to its
- * configured demo actor and records the issuer.
+ * Identity: the caller's verified context must name the same patient as the
+ * request, and a write needs a write-scoped context. Tokens issued by the
+ * OpenEMR launcher (issuer openemr-module) are forwarded unchanged. For the
+ * public synthetic demo (issuer synthetic-demo) the fixture patient is mapped
+ * to its allowlisted OpenEMR uuid and a token with exactly the caller's scope
+ * and acl (never more) is minted for the module, which attributes the write to
+ * its configured demo actor and records the issuer. Every patient must be on
+ * the allowlist, whatever the issuer.
+ *
+ * `secret` is AGENTFORGE_DEMO_SECRET (context tokens only); module request
+ * signatures use the client's separate AGENTFORGE_MODULE_HMAC_SECRET.
  */
 export class OpenEMRModuleWriteback {
   constructor({ client, secret, patientMap = new Map(), demoPatientAllowlist = new Set(), clinicalActionStore = new SyntheticClinicalActionStore() }) {
@@ -139,17 +143,24 @@ export class OpenEMRModuleWriteback {
     return authorizeRequest({ request, verifiedContext, ...options });
   }
 
-  moduleContext(verifiedContext, patientRef, scope) {
+  /**
+   * The module token for one call. `requiredWriteScope` is set for writes; the
+   * caller's own context must carry exactly that scope with write acl.
+   */
+  moduleContext(verifiedContext, patientRef, requiredWriteScope = null) {
     if (!verifiedContext) throw new OpenEMRModuleError('OPENEMR_CONTEXT_REQUIRED', { httpStatus: 403 });
+    if (verifiedContext.patient_uuid !== patientRef) throw new OpenEMRModuleError('OPENEMR_CONTEXT_PATIENT_MISMATCH', { httpStatus: 403 });
+    if (requiredWriteScope && (verifiedContext.scope !== requiredWriteScope || verifiedContext.acl !== 'write')) throw new OpenEMRModuleError('OPENEMR_WRITE_CONTEXT_REQUIRED', { httpStatus: 403 });
     if (verifiedContext.issuer === 'openemr-module') {
       const token = signedTokenFor(verifiedContext);
-      if (!token || verifiedContext.patient_uuid !== patientRef) throw new OpenEMRModuleError('OPENEMR_CONTEXT_REQUIRED', { httpStatus: 403 });
-      return { patientUuid: verifiedContext.patient_uuid, contextToken: token };
+      if (!token) throw new OpenEMRModuleError('OPENEMR_CONTEXT_REQUIRED', { httpStatus: 403 });
+      if (!this.demoPatientAllowlist.has(patientRef)) throw new OpenEMRModuleError('OPENEMR_DEMO_PATIENT_NOT_ALLOWED', { httpStatus: 403 });
+      return { patientUuid: patientRef, contextToken: token };
     }
     if (verifiedContext.issuer === 'synthetic-demo') {
       const patientUuid = this.patientMap.get(patientRef) || (this.demoPatientAllowlist.has(patientRef) ? patientRef : null);
       if (!patientUuid || !this.demoPatientAllowlist.has(patientUuid)) throw new OpenEMRModuleError('OPENEMR_DEMO_PATIENT_NOT_ALLOWED', { httpStatus: 403 });
-      const contextToken = issueSignedContext({ patient_uuid: patientUuid, clinician_uuid: verifiedContext.clinician_uuid, scope, acl: scope === 'read-briefing' ? 'read' : 'write', ttlSeconds: MODULE_TOKEN_TTL_SECONDS, issuer: 'synthetic-demo', authn: 'synthetic', secret: this.secret });
+      const contextToken = issueSignedContext({ patient_uuid: patientUuid, clinician_uuid: verifiedContext.clinician_uuid, scope: verifiedContext.scope, acl: verifiedContext.acl, ttlSeconds: MODULE_TOKEN_TTL_SECONDS, issuer: 'synthetic-demo', authn: 'synthetic', secret: this.secret });
       return { patientUuid, contextToken };
     }
     throw new OpenEMRModuleError('OPENEMR_CONTEXT_ISSUER_UNSUPPORTED', { httpStatus: 403 });
@@ -179,13 +190,15 @@ export class OpenEMRModuleWriteback {
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'write-source-document');
     const module = await this.client.storeDocument({ patientUuid, contextToken, documentType, filename, mimeType: pdf ? 'application/pdf' : 'text/plain', content });
     if (module.content_sha256 !== sha256Hex(content)) throw new OpenEMRModuleError('OPENEMR_MODULE_CONTENT_HASH_MISMATCH');
-    return { duplicate: module.status === 'duplicate', document: this.publicDocument({ patientRef, patientUuid, module, documentType, filename, uploadedBy }) };
+    const document = this.publicDocument({ patientRef, patientUuid, module, documentType, filename, uploadedBy });
+    document.openemr.payload_differs = module.payload_differs === true;
+    return { duplicate: module.status === 'duplicate', document };
   }
 
   async getSourceDocument(id, { patientRef, verifiedContext = null } = {}) {
     const documentId = openemrDocumentNumber(id);
     if (!documentId) throw codedError('DOCUMENT_NOT_FOUND');
-    const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'read-briefing');
+    const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef);
     const module = await this.client.getDocument({ patientUuid, contextToken, documentId });
     if (!SOURCE_TYPES.has(module.document_type)) throw codedError('DOCUMENT_NOT_FOUND');
     return { document: this.publicDocument({ patientRef, patientUuid, module, documentType: module.document_type, filename: module.filename }), content: module.content };
@@ -204,7 +217,9 @@ export class OpenEMRModuleWriteback {
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'write-source-document');
     const derivedContent = Buffer.from(JSON.stringify(derivedFactsDocument({ sourceDocument, extraction })));
     const derived = await this.client.storeDocument({ patientUuid, contextToken, documentType: 'derived_facts', filename: `agentforge-derived-facts-${sourceId}.json`, mimeType: 'application/json', content: derivedContent, sourceDocumentId: sourceId });
-    const result = { ...base, status: 'persisted', derived_document_id: derived.document_id, unmapped_lab_results: [] };
+    // payload_differs: the key already held a different payload (e.g. a re-extraction that
+    // produced other values); the first write is kept and the difference is reported.
+    const result = { ...base, status: 'persisted', derived_document_id: derived.document_id, derived_payload_differs: derived.payload_differs === true, lab_payload_differs: false, unmapped_lab_results: [] };
     let duplicate = derived.status === 'duplicate';
     if (sourceDocument.document_type === 'lab_pdf') {
       const mapped = labResultsForModule(extraction);
@@ -215,7 +230,7 @@ export class OpenEMRModuleWriteback {
         const readBack = verifyObservationReadBack(bundle, lab, mapped.results);
         if (!readBack.verified) throw new OpenEMRModuleError('OPENEMR_OBSERVATION_READBACK_MISMATCH', { httpStatus: 502 });
         duplicate = duplicate && lab.status === 'duplicate';
-        Object.assign(result, { procedure_order_id: lab.procedure_order_id, observation_ids: lab.observation_ids, read_path: MODULE_OBSERVATION_READ_PATH, read_back: readBack });
+        Object.assign(result, { procedure_order_id: lab.procedure_order_id, observation_ids: lab.observation_ids, read_path: MODULE_OBSERVATION_READ_PATH, read_back: readBack, lab_payload_differs: lab.payload_differs === true });
       }
     }
     return { ...result, duplicate };
@@ -224,7 +239,7 @@ export class OpenEMRModuleWriteback {
   async readLabObservations(id, { patientRef, verifiedContext = null } = {}) {
     const documentId = openemrDocumentNumber(id);
     if (!documentId) throw codedError('DOCUMENT_NOT_FOUND');
-    const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'read-briefing');
+    const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef);
     return this.client.getLabObservations({ patientUuid, contextToken, sourceDocumentId: documentId });
   }
 
@@ -243,6 +258,8 @@ export class OpenEMRModuleWriteback {
 
 /** Build the module writeback from the environment; throws when required settings are missing. */
 export function createOpenEMRModuleWritebackFromEnv(env = process.env, { fetchImpl = globalThis.fetch } = {}) {
-  const client = new OpenEMRModuleClient({ baseUrl: env.AGENTFORGE_OPENEMR_MODULE_URL, secret: env.AGENTFORGE_DEMO_SECRET, timeoutMs: Number(env.AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS || 15000), fetchImpl });
+  // Request signatures use their own secret, held only by openemr and agentforge-w2.
+  if (!env.AGENTFORGE_MODULE_HMAC_SECRET || env.AGENTFORGE_MODULE_HMAC_SECRET === env.AGENTFORGE_DEMO_SECRET) throw codedError('OPENEMR_MODULE_HMAC_SECRET_REQUIRED');
+  const client = new OpenEMRModuleClient({ baseUrl: env.AGENTFORGE_OPENEMR_MODULE_URL, secret: env.AGENTFORGE_MODULE_HMAC_SECRET, timeoutMs: Number(env.AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS || 15000), fetchImpl });
   return new OpenEMRModuleWriteback({ client, secret: env.AGENTFORGE_DEMO_SECRET, patientMap: parsePatientMap(env.AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP), demoPatientAllowlist: parseUuidAllowlist(env.AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS) });
 }

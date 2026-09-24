@@ -55,15 +55,24 @@ The `agentforge-w2` service keeps the synthetic fixture chart but persists
 uploads in OpenEMR (`AGENTFORGE_PERSISTENCE_MODE=openemr-module`, set in
 Compose). It calls the module's internal endpoint
 `http://openemr/interface/modules/custom_modules/oe-module-agentforge/public/api.php`
-over the Docker network; Caddy answers 404 for that path publicly. Every call is
-HMAC-signed with a key derived from `AGENTFORGE_DEMO_SECRET` and carries a
-signed context token; the module takes the acting OpenEMR user from that token.
-The Week 1 `agentforge` service is unchanged and stays in synthetic mode.
+over the Docker network; Caddy answers 404 publicly for everything under the
+module directory except the Week 1 launcher `public/index.php`. Every call is
+HMAC-signed with a key derived from `AGENTFORGE_MODULE_HMAC_SECRET` (held only
+by `openemr` and `agentforge-w2`, never by the Week 1 `agentforge` service) and
+carries a context token signed with `AGENTFORGE_DEMO_SECRET`; the module takes
+the acting OpenEMR user from that token and accepts only allowlisted patients,
+whatever the token's issuer. Writes need a write-scoped token. Lab rows are
+stored as preliminary (`prelim`) pending clinician review. The Week 1
+`agentforge` service is unchanged and stays in synthetic mode.
 
-Add these to `/opt/agentforge-week1/.env` (Compose refuses to start without
-them):
+**Add these to `/opt/agentforge-week1/.env` before running any `docker compose`
+command** (including `ps`, `logs` or `up` for an unrelated service): Compose
+interpolates the whole file, and the `:?` guards stop every command while one
+is missing.
 
 ```dotenv
+# Long random value, different from AGENTFORGE_DEMO_SECRET (openemr + agentforge-w2)
+AGENTFORGE_MODULE_HMAC_SECRET=<long-random-value>
 # OpenEMR patient uuids the public synthetic demo may write to (openemr + agentforge-w2)
 AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS=<openemr-patient-uuid>[,<uuid>...]
 # OpenEMR username demo writes are attributed to (openemr)

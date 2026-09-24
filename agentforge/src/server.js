@@ -380,7 +380,7 @@ const server = http.createServer(async (req, res) => {
       // Derived facts are persisted only from an extraction whose typed
       // contract validates; an invalid one is answered with 500 below.
       if (validateScanExtractionTypedOutput(extraction).valid) {
-        const openemr = await service.persistDerivedEvidence(result.source_document, extraction, { patient_uuid: body.patient_uuid }, { verifiedContext: token });
+        const openemr = await service.persistDerivedEvidence(result.source_document, extraction, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
         if (openemr) responseBody.openemr = openemr;
       }
       return sendValidatedScanExtraction(res, 200, responseBody, extraction);

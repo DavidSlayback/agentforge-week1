@@ -36,6 +36,10 @@ services:
       # this OpenEMR user. Both are required for the W2 OpenEMR round-trip.
       AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: ${AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS:?AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS is required}
       AGENTFORGE_DEMO_ACTOR_USERNAME: ${AGENTFORGE_DEMO_ACTOR_USERNAME:?AGENTFORGE_DEMO_ACTOR_USERNAME is required}
+      # Signs agentforge-w2 -> module requests. Only openemr and agentforge-w2
+      # get it (never the Week 1 agentforge service); it must differ from
+      # AGENTFORGE_DEMO_SECRET, which keeps signing context tokens.
+      AGENTFORGE_MODULE_HMAC_SECRET: ${AGENTFORGE_MODULE_HMAC_SECRET:?AGENTFORGE_MODULE_HMAC_SECRET is required}
     depends_on:
       mysql:
         condition: service_healthy
@@ -156,6 +160,7 @@ services:
       AGENTFORGE_PERSISTENCE_MODE: openemr-module
       AGENTFORGE_OPENEMR_MODULE_URL: http://openemr/interface/modules/custom_modules/oe-module-agentforge/public/api.php
       AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS: ${AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS:-15000}
+      AGENTFORGE_MODULE_HMAC_SECRET: ${AGENTFORGE_MODULE_HMAC_SECRET:?AGENTFORGE_MODULE_HMAC_SECRET is required}
       AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: ${AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS:?AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS is required}
       # fixture-patient-NNN=<OpenEMR patient uuid>; every target must be allowlisted.
       AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: ${AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP:?AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP is required}

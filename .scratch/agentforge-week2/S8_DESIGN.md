@@ -281,3 +281,24 @@ explained ignore, or a small `class_exists(ServiceContainer::class)` shim. **Dec
   is `agentforge/scripts/w2-openemr-smoke.mjs` (public mode plus
   `--module-checks`). The REST `GET /api/patient/:pid/document/:did`
   cross-check (F14) is not implemented, so F14 stays **UNVERIFIED**.
+
+### Security review follow-up (second S8 commit)
+
+- The W1 launcher `public/index.php` was reverted to `84f232b`; F18 stays a
+  documented W1 known issue (W1 is frozen). There is no W2 launcher; W2 uses the
+  allowlisted `synthetic-demo` path only.
+- Request signatures now use `AGENTFORGE_MODULE_HMAC_SECRET` (only `openemr`
+  and `agentforge-w2`; it must differ from `AGENTFORGE_DEMO_SECRET`, which keeps
+  signing context tokens). The allowlist binds every issuer.
+- Writes require the caller's own write-scoped context. The service never mints
+  a module token above the caller's scope and forwards a context only for its
+  own patient. A read token on `/v1/scan-supervisor` yields
+  `openemr.status: not_persisted` (`persistence_not_authorized`).
+- Lab rows are `prelim`; 8.0.0 FHIR reports them as `status: "unknown"`.
+- List items are inserted through `QueryUtils` (no `AllergyIntoleranceService`),
+  so failures throw instead of reaching HelpfulDie.
+- The dispatcher takes an injected `AclChecker` and `ChartGateway` and re-checks
+  the pid on every ledger row it uses; PHP tests cover the ACL, cross-patient,
+  allowlist and secret-separation cases, and the pre-commit hook runs them.
+- The Caddy deny covers the whole module directory except the exact launcher
+  path.

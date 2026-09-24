@@ -69,14 +69,13 @@ final readonly class AccessPolicy
             if ($claims->authn !== 'openemr-session') {
                 throw new ApiError(401, 'context_invalid');
             }
-            return;
+        } elseif ($claims->issuer !== ContextClaims::ISSUER_SYNTHETIC_DEMO) {
+            throw new ApiError(401, 'context_invalid');
         }
-        if ($claims->issuer === ContextClaims::ISSUER_SYNTHETIC_DEMO) {
-            if (!in_array(strtolower($claims->patientUuid), $this->demoPatientAllowlist, true)) {
-                throw new ApiError(403, 'demo_patient_not_allowed');
-            }
-            return;
+        // The W2 deployment is synthetic-only: every issuer is limited to the
+        // allowlisted synthetic patients, not just the demo issuer.
+        if (!in_array(strtolower($claims->patientUuid), $this->demoPatientAllowlist, true)) {
+            throw new ApiError(403, 'demo_patient_not_allowed');
         }
-        throw new ApiError(401, 'context_invalid');
     }
 }

@@ -123,3 +123,20 @@ test('module writeback maps only allowlisted demo patients and forwards launcher
   assert.throws(() => new OpenEMRModuleWriteback({ client: {}, secret, patientMap: parsePatientMap(`fixture-patient-001=${openemrUuid}`), demoPatientAllowlist: new Set() }), /OPENEMR_DEMO_PATIENT_MAP_NOT_ALLOWLISTED/);
   assert.throws(() => parsePatientMap('fixture-patient-001=not-a-uuid'), /OPENEMR_DEMO_PATIENT_MAP_INVALID/);
 });
+
+test('N1: a context is forwarded only for its own patient, and a minted token never exceeds the caller scope', () => {
+  const secret = 'synthetic-test-secret';
+  const patientA = 'a2c37f7f-1076-4172-b17a-bee8bb8d2da6';
+  const patientB = '11111111-2222-4333-8444-555555555555';
+  const writeback = new OpenEMRModuleWriteback({ client: {}, secret, patientMap: parsePatientMap(`fixture-patient-001=${patientA},fixture-patient-002=${patientB}`), demoPatientAllowlist: new Set([patientA, patientB]) });
+  const launcherForA = verifySignedContext(issueSignedContext({ patient_uuid: patientA, clinician_uuid: 'a2c37ca7-696f-41cd-be17-ce0e5ae0a9a3', scope: 'write-source-document', acl: 'write', issuer: 'openemr-module', authn: 'openemr-session', secret }), secret);
+  assert.throws(() => writeback.moduleContext(launcherForA, patientB, 'write-source-document'), (error) => error.code === 'OPENEMR_CONTEXT_PATIENT_MISMATCH' && error.httpStatus === 403);
+  const demoForOne = verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', secret }), secret);
+  assert.throws(() => writeback.moduleContext(demoForOne, 'fixture-patient-002', 'write-source-document'), (error) => error.code === 'OPENEMR_CONTEXT_PATIENT_MISMATCH');
+  const readForOne = verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', secret }), secret);
+  assert.throws(() => writeback.moduleContext(readForOne, 'fixture-patient-001', 'write-source-document'), (error) => error.code === 'OPENEMR_WRITE_CONTEXT_REQUIRED');
+  const minted = verifySignedContext(writeback.moduleContext(readForOne, 'fixture-patient-001').contextToken, secret);
+  assert.deepEqual([minted.scope, minted.acl, minted.patient_uuid], ['read-briefing', 'read', patientA]);
+  const nonAllowlisted = new OpenEMRModuleWriteback({ client: {}, secret, demoPatientAllowlist: new Set([patientB]) });
+  assert.throws(() => nonAllowlisted.moduleContext(launcherForA, patientA, 'write-source-document'), (error) => error.code === 'OPENEMR_DEMO_PATIENT_NOT_ALLOWED');
+});

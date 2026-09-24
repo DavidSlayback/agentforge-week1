@@ -51,10 +51,17 @@ export class AgentForgeService {
     return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document, ...(result.document.openemr ? { openemr: result.document.openemr } : {}) };
   }
 
-  /** After a validated extraction: persist derived facts (and lab rows) when the writeback is OpenEMR-backed; null otherwise. */
+  /**
+   * After a validated extraction: persist derived facts (and lab rows) when the
+   * writeback is OpenEMR-backed; null otherwise. It is a write, so the caller's
+   * own context must be write-scoped; a read context gets an explicit
+   * not_persisted result, never a silent success.
+   */
   async persistDerivedEvidence(sourceDocument, extraction, request, { verifiedContext = null } = {}) {
     if (typeof this.writeback?.persistDerivedEvidence !== 'function') return null;
-    return this.writeback.persistDerivedEvidence({ patientRef: request.patient_uuid, sourceDocument, extraction, verifiedContext });
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'not_persisted', reason: 'persistence_not_authorized', authorization: authorization.reason, persistence_boundary: this.writeback.persistenceBoundary };
+    return this.writeback.persistDerivedEvidence({ patientRef: authorization.patient_uuid, sourceDocument, extraction, verifiedContext });
   }
 
   async readOpenEMRLabObservations(id, request, { verifiedContext = null } = {}) {

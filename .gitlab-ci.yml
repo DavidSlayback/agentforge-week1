@@ -28,6 +28,14 @@ agentforge-tests:
     - npm test --prefix evals
     - node --test observability/test/*.test.js
 
+# Mirrors the module PHP step of .githooks/pre-commit (always required here).
+agentforge-module-php:
+  image: php:8.4-cli-alpine
+  stage: test
+  script:
+    - find interface/modules/custom_modules/oe-module-agentforge -name '*.php' -print0 | xargs -0 -n1 php -l
+    - php interface/modules/custom_modules/oe-module-agentforge/tests/run.php
+
 w2-regression-gate:
   extends: .agentforge-node
   stage: eval

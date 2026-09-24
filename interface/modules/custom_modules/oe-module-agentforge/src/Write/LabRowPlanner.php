@@ -68,7 +68,7 @@ final readonly class LabRowPlanner
                 // separate report date, so the collection date is used.
                 'date_report' => $date,
                 'source' => $actor->userId,
-                'report_status' => 'final',
+                'report_status' => 'prelim', // unreviewed AI extraction; proc_rep_status option
                 'review_status' => 'received', // not clinician-reviewed
                 'report_notes' => sprintf('AgentForge extraction from document %d; not clinician-reviewed', $sourceId),
             ],
@@ -85,7 +85,7 @@ final readonly class LabRowPlanner
                 'abnormal' => $result->abnormal,
                 'comments' => sprintf('agentforge:v1 doc=%d page=%d field=%s', $sourceId, $result->page, $result->fieldId),
                 'document_id' => $sourceId,
-                'result_status' => 'final',
+                'result_status' => 'prelim', // proc_res_status option; 8.0.0 FHIR maps it to status "unknown"
             ], $request->results),
         ];
     }

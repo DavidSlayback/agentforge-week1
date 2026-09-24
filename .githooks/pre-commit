@@ -17,6 +17,29 @@ if [ ! -d agentforge/node_modules ] || [ agentforge/package-lock.json -nt agentf
   npm ci --silent --prefix agentforge
 fi
 
+# oe-module-agentforge PHP: lint every file and run the dependency-free tests
+# (shared HMAC vectors, replay, idempotency, dispatcher). Required when the
+# commit touches the module; otherwise run when php is available.
+module_dir=interface/modules/custom_modules/oe-module-agentforge
+if git diff --cached --name-only | grep -q "^$module_dir/"; then
+  php_required=1
+else
+  php_required=0
+fi
+if command -v php >/dev/null 2>&1; then
+  echo "AgentForge gate: module PHP lint and tests..."
+  find "$module_dir" -name '*.php' -print | while IFS= read -r php_file; do
+    lint=$(php -l "$php_file" 2>&1) || { printf '%s\n' "$lint" >&2; exit 1; }
+  done
+  php_tests=$(php "$module_dir/tests/run.php" 2>&1) || { printf '%s\n' "$php_tests" >&2; exit 1; }
+  printf '%s\n' "$php_tests" | tail -n 1
+elif [ "$php_required" = 1 ]; then
+  echo "AgentForge gate: this commit changes $module_dir; PHP 8.4 must be on PATH to lint and test it." >&2
+  exit 1
+else
+  echo "AgentForge gate: SKIP module PHP checks (php not on PATH; no staged changes under $module_dir)."
+fi
+
 echo "AgentForge gate: unit suites..."
 npm test --silent --prefix agentforge
 npm test --silent --prefix evals

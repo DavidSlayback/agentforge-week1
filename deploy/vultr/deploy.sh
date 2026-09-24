@@ -54,10 +54,20 @@ ssh_run "set -e; b=~/agentforge-week1-backups/$stamp; mkdir -p \$b; cd $root; fo
 caddy_before=$(ssh_run "sha256sum $root/deploy/vultr/Caddyfile 2>/dev/null | cut -d' ' -f1" || true)
 
 echo "Shipping $sha..."
+# core.autocrlf=false: on a Windows host git archive would otherwise ship CRLF.
 # shellcheck disable=SC2086 # paths is a deliberate word list
-git archive --format=tar "$sha" $paths | ssh_run "sudo tar -x -C $root"
+git -c core.autocrlf=false archive --format=tar "$sha" $paths | ssh_run "sudo tar -x -C $root"
 
 compose="cd $root/deploy/vultr && docker compose --env-file $root/.env"
+
+# The Caddyfile is a single-file bind mount, so a changed file is only seen
+# after the proxy is recreated. Do it first, so the new deny rules are live
+# before any module or service change below.
+caddy_after=$(ssh_run "sha256sum $root/deploy/vultr/Caddyfile | cut -d' ' -f1")
+if [ "$caddy_before" != "$caddy_after" ]; then
+  echo "Caddyfile changed; recreating proxy..."
+  ssh_run "$compose up -d --no-deps --force-recreate proxy"
+fi
 
 if [ "${AGENTFORGE_DEPLOY_APPLY_MODULE_SQL:-}" = "1" ]; then
   echo "Applying oe-module-agentforge table.sql (CREATE TABLE IF NOT EXISTS)..."
@@ -73,12 +83,6 @@ fi
 
 echo "Rebuilding: $services"
 ssh_run "$compose up -d --build --no-deps $services"
-
-caddy_after=$(ssh_run "sha256sum $root/deploy/vultr/Caddyfile | cut -d' ' -f1")
-if [ "$caddy_before" != "$caddy_after" ]; then
-  echo "Caddyfile changed; recreating proxy..."
-  ssh_run "$compose up -d --no-deps --force-recreate proxy"
-fi
 
 for route in agentforge agentforge-w2; do
   case " $services " in *" $route "*) ;; *) continue ;; esac

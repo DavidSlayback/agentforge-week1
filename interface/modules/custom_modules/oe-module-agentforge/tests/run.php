@@ -5,7 +5,10 @@
  * and verification against the vectors shared with the Node client,
  * canonicalization, clock skew, nonce replay, context tokens, access policy,
  * idempotency keys and the idempotent writer (database layer stubbed), and
- * the lab row plan. Runs on plain PHP 8.4 with only ext-hash and ext-json:
+ * the lab row plan, and the AgentForgeApi dispatcher with the OpenEMR runtime
+ * stubbed (ACL, cross-patient reads and links, allowlist for every issuer,
+ * separate signing and context secrets). Runs on plain PHP 8.4 with only
+ * ext-hash and ext-json (the enforced .githooks/pre-commit runs it):
  *
  *   php tests/run.php [path/to/hmac-vectors.json]
  *
@@ -44,6 +47,10 @@ use OpenEMR\Modules\AgentForge\Persistence\NonceStore;
 use OpenEMR\Modules\AgentForge\Persistence\WriteLedger;
 use OpenEMR\Modules\AgentForge\Persistence\WriteOutcome;
 use OpenEMR\Modules\AgentForge\Write\LabRowPlanner;
+use OpenEMR\Modules\AgentForge\Api\AclChecker;
+use OpenEMR\Modules\AgentForge\Api\AgentForgeApi;
+use OpenEMR\Modules\AgentForge\Api\ChartGateway;
+use OpenEMR\Modules\AgentForge\Domain\PatientUuid;
 
 final class InMemoryNonceStore implements NonceStore
 {
@@ -60,13 +67,15 @@ final class InMemoryNonceStore implements NonceStore
     }
 }
 
-final class InMemoryLedger implements WriteLedger
+class InMemoryLedger implements WriteLedger
 {
     /** @var array<string, LedgerEntry> */
     public array $rows = [];
     /** @var list<string> */
     public array $locks = [];
     public int $transactions = 0;
+    /** Simulates a lookup bug that ignores the patient (cross-patient mutation). */
+    public bool $ignorePid = false;
 
     public function acquireLock(string $key): void
     {
@@ -93,11 +102,21 @@ final class InMemoryLedger implements WriteLedger
 
     public function findDocument(int $pid, int $documentId): ?LedgerEntry
     {
+        foreach ($this->rows as $row) {
+            if (($this->ignorePid || $row->pid === $pid) && $row->documentId === $documentId && str_starts_with($row->operation, 'doc:')) {
+                return $row;
+            }
+        }
         return null;
     }
 
     public function findBySourceDocument(int $pid, string $operation, int $documentId): ?LedgerEntry
     {
+        foreach ($this->rows as $row) {
+            if (($this->ignorePid || $row->pid === $pid) && $row->documentId === $documentId && $row->operation === $operation) {
+                return $row;
+            }
+        }
         return null;
     }
 
@@ -433,7 +452,9 @@ check('lab row plan satisfies the 8.0.0 FHIR laboratory search join', function (
     same(1, $plan['order']['activity']);
     same(0, $plan['order']['provider_id']);
     same('AF1:' . hash('sha256', 'pdf'), $plan['order']['control_id']);
-    same('final', $plan['report']['report_status']);
+    same('prelim', $plan['report']['report_status'], 'unreviewed extraction is preliminary');
+    same('prelim', $plan['results'][0]['result_status']);
+    same('prelim', $plan['results'][1]['result_status']);
     same('received', $plan['report']['review_status']);
     same('2026-09-20 00:00:00', $plan['report']['date_report']);
     same(2, count($plan['results']));
@@ -497,5 +518,236 @@ check('document request: synthetic scan envelopes are accepted only as UTF-8 .tx
     throwsApiError(fn() => DocumentWriteRequest::fromBody($docBody(array_merge($ok, ['filename' => 'lab.html']))), 400, 'invalid_request');
 });
 
+
+// ---------------------------------------------------------------------------
+// Dispatcher (AgentForgeApi) with the OpenEMR runtime stubbed: ACL, patient
+// resolution, cross-patient document reads/links, allowlist and write scope.
+// ---------------------------------------------------------------------------
+
+final class FakeAcl implements AclChecker
+{
+    public bool $allow = true;
+    /** @var list<string> */
+    public array $checks = [];
+
+    public function allows(string $section, string $value, string $username, bool $write): bool
+    {
+        $this->checks[] = "$section/$value/" . ($write ? 'write' : 'read');
+        return $this->allow;
+    }
+}
+
+final class FakeChart implements ChartGateway
+{
+    /** @var array<string, int> */
+    public array $pids = [];
+    public int $nextDocumentId = 57;
+    /** @var list<string> */
+    public array $writes = [];
+    /** @var list<string> */
+    public array $reads = [];
+
+    public function pidFor(PatientUuid $patient): int
+    {
+        return $this->pids[$patient->value] ?? throw new ApiError(404, 'patient_not_found');
+    }
+
+    public function actorFor(ContextClaims $claims): Actor
+    {
+        return new Actor(1, 'admin', $claims->issuer);
+    }
+
+    public function categoryIdFor(DocumentType $type): int
+    {
+        return $type === DocumentType::LabPdf ? 2 : 3;
+    }
+
+    public function storeDocument(int $pid, int $categoryId, DocumentWriteRequest $request, Actor $actor): WriteOutcome
+    {
+        $id = $this->nextDocumentId++;
+        $this->writes[] = "document:$pid:$id";
+        return new WriteOutcome(['document_id' => $id, 'content_sha256' => $request->contentSha256, 'source_document_id' => $request->sourceDocumentId], $id, null, 1);
+    }
+
+    public function readDocument(int $pid, int $documentId, LedgerEntry $ledgerRow): array
+    {
+        $this->reads[] = "document:$pid:$documentId";
+        return ['document_id' => $documentId];
+    }
+
+    public function storeLabResults(int $pid, LabResultsRequest $request, Actor $actor): WriteOutcome
+    {
+        $this->writes[] = "lab:$pid:{$request->sourceDocumentId}";
+        return new WriteOutcome(['procedure_order_id' => 9, 'observation_ids' => ['o1']], $request->sourceDocumentId, 9, 4);
+    }
+
+    public function readLabObservations(PatientUuid $patient, LedgerEntry $labRow): array
+    {
+        $this->reads[] = 'observations:' . $patient->value;
+        return ['resourceType' => 'Bundle'];
+    }
+
+    public function storeListItem(int $pid, ListItemKind $kind, string $title, int $sourceDocumentId, string $confirmationEventId, Actor $actor): WriteOutcome
+    {
+        $this->writes[] = "list:$pid:{$kind->value}";
+        return new WriteOutcome(['kind' => $kind->value, 'list_id' => 31], $sourceDocumentId, null, 1);
+    }
+}
+
+const TEST_HMAC_SECRET = 'module-hmac-secret-for-tests';
+const TEST_CONTEXT_SECRET = 'demo-context-secret-for-tests';
+const PATIENT_A = 'a2c37f7f-1076-4172-b17a-bee8bb8d2da6';
+const PATIENT_B = '11111111-2222-4333-8444-555555555555'; // another allowlisted synthetic patient
+const PATIENT_C = '99999999-2222-4333-8444-555555555555'; // exists in OpenEMR, not allowlisted
+const TEST_NOW = 1790000000;
+
+/**
+ * @return array{AgentForgeApi, InMemoryLedger, FakeChart, FakeAcl}
+ */
+function makeApi(): array
+{
+    $ledger = new InMemoryLedger();
+    $chart = new FakeChart();
+    $chart->pids = [PATIENT_A => 1, PATIENT_B => 2, PATIENT_C => 3];
+    $acl = new FakeAcl();
+    $api = new AgentForgeApi(
+        new RequestAuthenticator(new HmacVerifier(TEST_HMAC_SECRET), new InMemoryNonceStore()),
+        new ContextTokenVerifier(TEST_CONTEXT_SECRET),
+        new AccessPolicy([PATIENT_A, PATIENT_B]),
+        $ledger,
+        new IdempotentWriter($ledger, new RecordingAudit()),
+        $chart,
+        $acl,
+    );
+    return [$api, $ledger, $chart, $acl];
+}
+
+function contextToken(string $patient, string $scope = 'write-source-document', string $issuer = 'synthetic-demo', string $secret = TEST_CONTEXT_SECRET): string
+{
+    $payload = ['patient_uuid' => $patient, 'clinician_uuid' => 'a2c37ca7-696f-41cd-be17-ce0e5ae0a9a3', 'scope' => $scope, 'issuer' => $issuer, 'authn' => $issuer === 'openemr-module' ? 'openemr-session' : 'synthetic', 'role' => 'clinician', 'acl' => $scope === 'read-briefing' ? 'read' : 'write', 'expires_at' => TEST_NOW + 200];
+    $encoded = HmacVerifier::base64UrlEncode(json_encode($payload, JSON_THROW_ON_ERROR));
+    return $encoded . '.' . ContextTokenVerifier::sign($encoded, $secret);
+}
+
+/**
+ * Signs and dispatches one request exactly as the Node client would.
+ *
+ * @param array<string, string>     $query
+ * @param array<string, mixed>|null $body
+ * @return array{int, array<string, mixed>}
+ */
+function call(AgentForgeApi $api, string $method, array $query, ?array $body, ?string $token, string $secret = TEST_HMAC_SECRET): array
+{
+    $query = ['site' => 'default'] + $query;
+    $raw = $body === null ? '' : json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    $nonce = bin2hex(random_bytes(16));
+    $canonical = new CanonicalRequest($method, $query['route'], 'default', $method === 'POST' ? (string) ($body['patient_uuid'] ?? '') : ($query['patient_uuid'] ?? ''), $method === 'POST' ? (string) ($body['content_sha256'] ?? '') : '', hash('sha256', $raw), (string) TEST_NOW, $nonce, $query, $token === null ? '' : hash('sha256', $token));
+    $headers = ['x-agentforge-key-id' => 'v1', 'x-agentforge-timestamp' => (string) TEST_NOW, 'x-agentforge-nonce' => $nonce, 'x-agentforge-content-sha256' => hash('sha256', $raw), 'x-agentforge-signature' => (new HmacVerifier($secret))->sign($canonical)];
+    if ($token !== null) {
+        $headers['x-agentforge-context-token'] = $token;
+    }
+    try {
+        return $api->handle($method, $query, $headers, $raw, TEST_NOW);
+    } catch (ApiError $error) {
+        return [$error->httpStatus, $error->toBody()];
+    }
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function pdfBody(string $patient, string $bytes = "%PDF-1.4\nsynthetic\n"): array
+{
+    return ['patient_uuid' => $patient, 'document_type' => 'lab_pdf', 'filename' => 'filled-lab-a.pdf', 'mime_type' => 'application/pdf', 'content_sha256' => hash('sha256', $bytes), 'content_base64' => base64_encode($bytes)];
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function derivedBody(string $patient, int $sourceId): array
+{
+    $json = '{"schema":"agentforge-derived-facts-v1"}';
+    return ['patient_uuid' => $patient, 'document_type' => 'derived_facts', 'filename' => 'derived.json', 'mime_type' => 'application/json', 'content_sha256' => hash('sha256', $json), 'content_base64' => base64_encode($json), 'source_document_id' => $sourceId];
+}
+
+check('dispatcher: store is idempotent and ACL-checked with write rights', function (): void {
+    [$api, , $chart, $acl] = makeApi();
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A));
+    same([201, 57], [$status, $body['document_id']]);
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A));
+    same([200, 'duplicate', 57], [$status, $body['status'], $body['document_id']]);
+    same(['document:1:57'], $chart->writes, 'one write');
+    same(['patients/docs/write', 'patients/docs/write'], $acl->checks);
+});
+
+check('dispatcher: ACL denial blocks the write and the read (requireAcl is enforced)', function (): void {
+    [$api, , $chart, $acl] = makeApi();
+    $acl->allow = false;
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A));
+    same([403, 'acl_denied'], [$status, $body['error']]);
+    same([], $chart->writes);
+    same(403, call($api, 'GET', ['route' => 'documents', 'patient_uuid' => PATIENT_A, 'document_id' => '57'], null, contextToken(PATIENT_A))[0]);
+    same([], $chart->reads);
+});
+
+check('dispatcher: a read-scope token cannot write', function (): void {
+    [$api, , $chart] = makeApi();
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A, 'read-briefing'));
+    same([403, 'acl_denied'], [$status, $body['error']]);
+    same([], $chart->writes);
+});
+
+check("dispatcher: another patient's document is never read, even if the lookup ignores the patient", function (): void {
+    [$api, $ledger, $chart] = makeApi();
+    same(201, call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_B), contextToken(PATIENT_B))[0]);
+    $ledger->ignorePid = true;
+    [$status, $body] = call($api, 'GET', ['route' => 'documents', 'patient_uuid' => PATIENT_A, 'document_id' => '57'], null, contextToken(PATIENT_A));
+    same([404, 'document_not_found'], [$status, $body['error']]);
+    same([], $chart->reads);
+});
+
+check("dispatcher: derived facts cannot link to another patient's source", function (): void {
+    [$api, $ledger, $chart] = makeApi();
+    same(201, call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_B), contextToken(PATIENT_B))[0]);
+    foreach ([false, true] as $ignorePid) {
+        $ledger->ignorePid = $ignorePid;
+        [$status, $body] = call($api, 'POST', ['route' => 'documents'], derivedBody(PATIENT_A, 57), contextToken(PATIENT_A));
+        same([404, 'document_not_found'], [$status, $body['error']], $ignorePid ? 'leaky lookup' : 'normal lookup');
+    }
+    same(['document:2:57'], $chart->writes);
+    $ledger->ignorePid = false;
+    same(201, call($api, 'POST', ['route' => 'documents'], derivedBody(PATIENT_B, 57), contextToken(PATIENT_B))[0]);
+});
+
+check("dispatcher: lab rows need this patient's lab source with the same hash", function (): void {
+    [$api, $ledger, $chart] = makeApi();
+    $bytes = "%PDF-1.4\nsynthetic\n";
+    call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_B, $bytes), contextToken(PATIENT_B));
+    $lab = ['patient_uuid' => PATIENT_A, 'source_document_id' => 57, 'source_sha256' => hash('sha256', $bytes), 'results' => [['field_id' => 'lab.hgb', 'loinc_code' => '718-7', 'test_name' => 'Hemoglobin', 'value' => '13.2', 'unit' => 'g/dL', 'reference_range' => '12.0-16.0', 'abnormal' => 'no', 'collection_date' => '2026-09-20', 'page' => 1]]];
+    $ledger->ignorePid = true;
+    same(404, call($api, 'POST', ['route' => 'lab-results'], $lab, contextToken(PATIENT_A))[0]);
+    $ledger->ignorePid = false;
+    same(201, call($api, 'POST', ['route' => 'lab-results'], ['patient_uuid' => PATIENT_B] + $lab, contextToken(PATIENT_B))[0]);
+    same(400, call($api, 'POST', ['route' => 'lab-results'], ['patient_uuid' => PATIENT_B, 'source_sha256' => str_repeat('0', 64)] + $lab, contextToken(PATIENT_B))[0]);
+    same(['document:2:57', 'lab:2:57'], $chart->writes);
+});
+
+check('dispatcher: the allowlist binds every issuer, including openemr-module', function (): void {
+    [$api, , $chart] = makeApi();
+    foreach (['synthetic-demo', 'openemr-module'] as $issuer) {
+        [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_C), contextToken(PATIENT_C, 'write-source-document', $issuer));
+        same([403, 'demo_patient_not_allowed'], [$status, $body['error']], $issuer);
+    }
+    same([], $chart->writes);
+});
+
+check('dispatcher: request signatures and context tokens use separate secrets', function (): void {
+    [$api, , $chart] = makeApi();
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A), TEST_CONTEXT_SECRET);
+    same([401, 'signature_invalid'], [$status, $body['error']]);
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A, 'write-source-document', 'synthetic-demo', TEST_HMAC_SECRET));
+    same([401, 'context_invalid'], [$status, $body['error']]);
+    same([], $chart->writes);
+});
 echo "\n$passes passed, $failures failed\n";
 exit($failures === 0 ? 0 : 1);

@@ -8,9 +8,11 @@ import { AgentForgeService } from '../src/service.js';
 import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
+import { createOpenEMRModuleWritebackFromEnv } from '../src/openemrModuleWriteback.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const secret = 'synthetic-test-secret';
+const moduleHmacSecret = 'synthetic-module-hmac-secret';
 const openemrPatient = 'a2c37f7f-1076-4172-b17a-bee8bb8d2da6';
 
 // The PDF-OCR tagged envelope the PDF lane produces, stored as a synthetic
@@ -43,18 +45,18 @@ async function contexts(base, patient) {
 
 const post = (base, route, body) => fetch(`${base}${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
-async function uploadAndExtract(base, ctx, patient = 'fixture-patient-001') {
+async function uploadAndExtract(base, ctx, patient = 'fixture-patient-001', { scanToken = ctx.write } = {}) {
   const upload = await post(base, '/v1/source-documents', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.write, document_type: 'lab_pdf', filename: 'lab-ocr-envelope.scan.txt', content_base64: Buffer.from(labEnvelope).toString('base64') });
   const uploaded = await upload.json();
   if (upload.status !== 200) return { upload, uploaded };
-  const scan = await post(base, '/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.read, source_document_id: uploaded.source_document.id, message: 'documented glycemic values' });
+  const scan = await post(base, '/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: scanToken, source_document_id: uploaded.source_document.id, message: 'documented glycemic values' });
   return { upload, uploaded, scan, scanned: await scan.json() };
 }
 
 test('openemr-module persistence: upload stores the source in OpenEMR, extraction persists derived facts and lab rows, re-upload is idempotent', async () => {
-  const fake = await startFakeOpenEMRModule({ secret, allowlist: [openemrPatient] });
+  const fake = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [openemrPatient] });
   const port = 18841;
-  const child = await startServer(port, { AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_OPENEMR_MODULE_URL: fake.url, AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: openemrPatient, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: `fixture-patient-001=${openemrPatient}` });
+  const child = await startServer(port, { AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_MODULE_HMAC_SECRET: moduleHmacSecret, AGENTFORGE_OPENEMR_MODULE_URL: fake.url, AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: openemrPatient, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: `fixture-patient-001=${openemrPatient}` });
   const base = `http://127.0.0.1:${port}`;
   try {
     const ctx = await contexts(base, 'fixture-patient-001');
@@ -76,6 +78,8 @@ test('openemr-module persistence: upload stores the source in OpenEMR, extractio
     assert.equal(openemr.read_path, 'openemr-fhir-service-in-process');
     assert.equal(openemr.read_back.verified, true);
     assert.deepEqual(openemr.unmapped_lab_results, []);
+    assert.equal(openemr.derived_payload_differs, false);
+    assert.equal(openemr.lab_payload_differs, false);
     const afterFirst = fake.counts();
     assert.deepEqual([afterFirst.documents, afterFirst.procedure_orders, afterFirst.procedure_results], [2, 1, 2]);
 
@@ -110,7 +114,7 @@ test('openemr-module persistence: upload stores the source in OpenEMR, extractio
 
 test('openemr-module persistence fails loudly when the module is unreachable', async () => {
   const port = 18842;
-  const child = await startServer(port, { AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_OPENEMR_MODULE_URL: 'http://127.0.0.1:9/api.php', AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: openemrPatient, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: `fixture-patient-001=${openemrPatient}` });
+  const child = await startServer(port, { AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_MODULE_HMAC_SECRET: moduleHmacSecret, AGENTFORGE_OPENEMR_MODULE_URL: 'http://127.0.0.1:9/api.php', AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: openemrPatient, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: `fixture-patient-001=${openemrPatient}` });
   const base = `http://127.0.0.1:${port}`;
   try {
     const ctx = await contexts(base, 'fixture-patient-001');
@@ -146,4 +150,65 @@ test('fixture-mode briefings label their read as the synthetic fixture, not Open
   const verifiedContext = verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', secret }), secret);
   const briefing = await service.prepare({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001' }, { verifiedContext });
   assert.deepEqual(briefing.operations, [{ type: 'read', operation: 'retrieve_synthetic_fixture_read' }]);
+});
+
+const moduleEnv = (url) => ({ AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_MODULE_HMAC_SECRET: moduleHmacSecret, AGENTFORGE_OPENEMR_MODULE_URL: url, AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: openemrPatient, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: `fixture-patient-001=${openemrPatient}` });
+
+test('a read-scope token never writes derived facts: the response says persistence was not authorized', async () => {
+  const fake = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [openemrPatient] });
+  const port = 18844;
+  const child = await startServer(port, moduleEnv(fake.url));
+  const base = `http://127.0.0.1:${port}`;
+  try {
+    const ctx = await contexts(base, 'fixture-patient-001');
+    const { scan, scanned } = await uploadAndExtract(base, ctx, 'fixture-patient-001', { scanToken: ctx.read });
+    assert.equal(scan.status, 200);
+    assert.equal(scanned.openemr.status, 'not_persisted');
+    assert.equal(scanned.openemr.reason, 'persistence_not_authorized');
+    assert.equal('derived_document_id' in scanned.openemr, false);
+    const counts = fake.counts();
+    assert.deepEqual([counts.documents, counts.procedure_orders, counts.procedure_results], [1, 0, 0], 'only the source upload (write token) was stored');
+  } finally {
+    child.kill();
+    await fake.close();
+  }
+});
+
+test('a failed OpenEMR read-back fails the request loudly (502), never a silent success', async () => {
+  const fake = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [openemrPatient] });
+  fake.settings.corruptObservationValues = true;
+  const port = 18845;
+  const child = await startServer(port, moduleEnv(fake.url));
+  const base = `http://127.0.0.1:${port}`;
+  try {
+    const ctx = await contexts(base, 'fixture-patient-001');
+    const { scan, scanned } = await uploadAndExtract(base, ctx);
+    assert.equal(scan.status, 502);
+    assert.equal(scanned.error, 'openemr_observation_readback_mismatch');
+    assert.equal('openemr' in scanned, false);
+  } finally {
+    child.kill();
+    await fake.close();
+  }
+});
+
+test('a different payload on an existing key is reported as payload_differs, not as a plain duplicate', async () => {
+  const fake = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [openemrPatient] });
+  try {
+    const writeback = createOpenEMRModuleWritebackFromEnv({ ...moduleEnv(fake.url), AGENTFORGE_DEMO_SECRET: secret });
+    const context = verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', secret }), secret);
+    const { document } = await writeback.persistSourceDocument({ patientRef: 'fixture-patient-001', documentType: 'intake_form', filename: 'intake.scan.txt', content: Buffer.from('SYNTHETIC_SCAN_FORM|layout=intake-a\n'), uploadedBy: 'fixture-physician-001', verifiedContext: context });
+    const citation = { source_type: 'document', source_id: document.id, page_or_section: 'page 1', field_or_chunk_id: 'chief_concern', quote_or_value: 'x', bounding_box: [1, 2, 3, 4] };
+    const extraction = (value) => ({ contract_version: 'w2-scan-v1', provider: 'test', status: 'complete', facts: [{ field_id: 'chief_concern', value, confidence: 0.9, citation }], lab_results: [], intake_form: null });
+    const first = await writeback.persistDerivedEvidence({ patientRef: 'fixture-patient-001', sourceDocument: document, extraction: extraction('Fatigue'), verifiedContext: context });
+    const second = await writeback.persistDerivedEvidence({ patientRef: 'fixture-patient-001', sourceDocument: document, extraction: extraction('Dizziness'), verifiedContext: context });
+    assert.equal(first.derived_payload_differs, false);
+    assert.equal(second.duplicate, true);
+    assert.equal(second.derived_document_id, first.derived_document_id);
+    assert.equal(second.derived_payload_differs, true);
+    assert.throws(() => createOpenEMRModuleWritebackFromEnv({ ...moduleEnv(fake.url), AGENTFORGE_DEMO_SECRET: secret, AGENTFORGE_MODULE_HMAC_SECRET: secret }), /OPENEMR_MODULE_HMAC_SECRET_REQUIRED/);
+    assert.throws(() => createOpenEMRModuleWritebackFromEnv({ ...moduleEnv(fake.url), AGENTFORGE_DEMO_SECRET: secret, AGENTFORGE_MODULE_HMAC_SECRET: '' }), /OPENEMR_MODULE_HMAC_SECRET_REQUIRED/);
+  } finally {
+    await fake.close();
+  }
 });

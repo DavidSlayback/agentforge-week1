@@ -3,9 +3,11 @@
 /**
  * Writes one clinician-confirmed intake medication or allergy to `lists`.
  *
- * Allergies go through AllergyIntoleranceService::insert (validated, uuid
- * assigned). ListService::insert sets no uuid for medications in 8.0.0, so
- * medications are inserted directly with a registry uuid.
+ * Inputs are validated by ClinicalListItemInput before this runs, and both
+ * kinds are inserted through QueryUtils with a registry uuid, so a database
+ * failure throws (and becomes a JSON error) instead of reaching the legacy
+ * HelpfulDie path that AllergyIntoleranceService's validator can hit, and
+ * medications get the uuid that ListService::insert omits in 8.0.0.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -22,66 +24,32 @@ use OpenEMR\Common\Database\QueryUtils;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Modules\AgentForge\Domain\Actor;
 use OpenEMR\Modules\AgentForge\Domain\ListItemKind;
-use OpenEMR\Modules\AgentForge\Domain\PatientUuid;
-use OpenEMR\Modules\AgentForge\Http\ApiError;
 use OpenEMR\Modules\AgentForge\Persistence\WriteOutcome;
-use OpenEMR\Services\AllergyIntoleranceService;
 
 final readonly class ClinicalListWriter
 {
-    public function write(int $pid, PatientUuid $patient, ListItemKind $kind, string $title, int $sourceDocumentId, string $confirmationEventId, Actor $actor): WriteOutcome
+    public function write(int $pid, ListItemKind $kind, string $title, int $sourceDocumentId, string $confirmationEventId, Actor $actor): WriteOutcome
     {
         $comments = sprintf('AgentForge intake doc %d; clinician-confirmed %s', $sourceDocumentId, $confirmationEventId);
-        [$listId, $listUuid] = match ($kind) {
-            ListItemKind::Allergy => self::insertAllergy($patient, $title, $comments, $actor),
-            ListItemKind::Medication => self::insertMedication($pid, $title, $comments, $actor),
+        $type = match ($kind) {
+            ListItemKind::Allergy => 'allergy',
+            ListItemKind::Medication => 'medication',
         };
+        // lists.verification is the allergyintolerance-verification list.
+        $verification = match ($kind) {
+            ListItemKind::Allergy => 'confirmed',
+            ListItemKind::Medication => '',
+        };
+        $uuid = (new UuidRegistry(['table_name' => 'lists']))->createUuid();
+        $id = (int) QueryUtils::sqlInsert(
+            'INSERT INTO lists (uuid, date, type, title, activity, comments, pid, user, verification) VALUES (?, NOW(), ?, ?, 1, ?, ?, ?, ?)',
+            [$uuid, $type, $title, $comments, $pid, $actor->username, $verification],
+        );
         return new WriteOutcome(
-            ['kind' => $kind->value, 'list_id' => $listId, 'list_uuid' => $listUuid, 'source_document_id' => $sourceDocumentId],
+            ['kind' => $kind->value, 'list_id' => $id, 'list_uuid' => UuidRegistry::uuidToString($uuid), 'source_document_id' => $sourceDocumentId],
             $sourceDocumentId,
             null,
             1,
         );
-    }
-
-    /**
-     * @return array{int, string}
-     */
-    private static function insertAllergy(PatientUuid $patient, string $title, string $comments, Actor $actor): array
-    {
-        $result = (new AllergyIntoleranceService())->insert([
-            'puuid' => $patient->value,
-            'title' => $title,
-            'verification' => 'confirmed',
-            'comments' => $comments,
-            'user' => $actor->username,
-        ]);
-        if (!$result->isValid()) {
-            throw ApiError::invalid(['allergy_rejected_by_openemr_validator']);
-        }
-        if ($result->hasErrors()) {
-            throw new \RuntimeException('AllergyIntoleranceService::insert failed');
-        }
-        $data = $result->getData();
-        $row = is_array($data) && isset($data[0]) && is_array($data[0]) ? $data[0] : [];
-        $id = $row['id'] ?? null;
-        $uuid = $row['uuid'] ?? null;
-        if (!is_numeric($id) || !is_string($uuid)) {
-            throw new \RuntimeException('AllergyIntoleranceService::insert returned no id');
-        }
-        return [(int) $id, $uuid];
-    }
-
-    /**
-     * @return array{int, string}
-     */
-    private static function insertMedication(int $pid, string $title, string $comments, Actor $actor): array
-    {
-        $uuid = (new UuidRegistry(['table_name' => 'lists']))->createUuid();
-        $id = (int) QueryUtils::sqlInsert(
-            "INSERT INTO lists (uuid, date, type, title, activity, comments, pid, user) VALUES (?, NOW(), 'medication', ?, 1, ?, ?, ?)",
-            [$uuid, $title, $comments, $pid, $actor->username],
-        );
-        return [$id, UuidRegistry::uuidToString($uuid)];
     }
 }

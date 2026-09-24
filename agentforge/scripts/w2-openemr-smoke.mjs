@@ -15,13 +15,17 @@
  * Module mode (inside the agentforge-w2 container, which has the secret):
  *   docker exec <agentforge-w2 container> node scripts/w2-openemr-smoke.mjs --module-checks
  *   Signed health, then unsigned / skewed / replayed / wrong-patient /
- *   non-allowlisted requests, each of which must be rejected.
+ *   non-allowlisted requests, a read-scope write and a request signed with the
+ *   context secret, each of which must be rejected. Needs
+ *   AGENTFORGE_MODULE_HMAC_SECRET and AGENTFORGE_DEMO_SECRET (container env).
  *
  * Output is one JSON line per check (ids, statuses and codes only; no names,
  * dates of birth or document text). Exit code 1 when any check fails.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { issueSignedContext } from '../src/accessContext.js';
@@ -58,13 +62,17 @@ async function publicSmoke(base) {
       const sourceId = upload.body.source_document?.id;
       record(`${sample}_upload_pass${pass}`, upload.status === 200 && upload.body.source_document?.persistence_boundary === 'openemr-module' && Number.isInteger(upload.body.openemr?.document_id) && upload.body.duplicate === (pass === 2), { status: upload.status, error: upload.body.error, document_id: upload.body.openemr?.document_id, duplicate: upload.body.duplicate });
       if (upload.status !== 200) return;
-      const scan = await postJson('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.read, source_document_id: sourceId, message: 'documented values' });
+      const scan = await postJson('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.write, source_document_id: sourceId, message: 'documented values' });
       const openemr = scan.body.openemr || {};
       const labOk = entry.document_type !== 'lab_pdf' || (Number.isInteger(openemr.procedure_order_id) && openemr.observation_ids?.length === 2 && openemr.read_path === 'openemr-fhir-service-in-process' && openemr.read_back?.verified === true);
       record(`${sample}_extract_persist_pass${pass}`, scan.status === 200 && openemr.status === 'persisted' && Number.isInteger(openemr.derived_document_id) && labOk && openemr.duplicate === (pass === 2), { status: scan.status, error: scan.body.error, document_id: openemr.document_id, derived_document_id: openemr.derived_document_id, procedure_order_id: openemr.procedure_order_id, observation_ids: openemr.observation_ids, read_path: openemr.read_path, duplicate: openemr.duplicate, unmapped: openemr.unmapped_lab_results });
       passes.push({ sourceId, document_id: openemr.document_id, derived_document_id: openemr.derived_document_id, procedure_order_id: openemr.procedure_order_id, observation_ids: JSON.stringify(openemr.observation_ids || []) });
     }
     record(`${sample}_reupload_same_ids`, JSON.stringify(passes[0]) === JSON.stringify(passes[1]), { first: passes[0], second: passes[1] });
+
+    // A read-scope token may extract but must never persist.
+    const readScan = await postJson('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.read, source_document_id: passes[0].sourceId, message: 'documented values' });
+    record(`${sample}_read_token_cannot_persist`, readScan.status === 200 && readScan.body.openemr?.status === 'not_persisted' && readScan.body.openemr?.reason === 'persistence_not_authorized' && readScan.body.openemr?.derived_document_id === undefined, { status: readScan.status, openemr_status: readScan.body.openemr?.status, reason: readScan.body.openemr?.reason });
 
     const stored = await getJson(`${base}/v1/source-documents/${encodeURIComponent(passes[0].sourceId)}?patient_uuid=${patient}&demo_token=${encodeURIComponent(ctx.read)}`);
     const storedBytes = Buffer.from(stored.body.content_base64 || '', 'base64');
@@ -74,27 +82,64 @@ async function publicSmoke(base) {
       const bundle = await getJson(`${base}/v1/source-documents/${encodeURIComponent(passes[0].sourceId)}/openemr-observations?patient_uuid=${patient}&demo_token=${encodeURIComponent(ctx.read)}`);
       const values = Object.fromEntries((bundle.body.entry || []).map(({ resource }) => [resource.code?.coding?.find((coding) => coding.system?.includes('loinc'))?.code ?? resource.code?.coding?.[0]?.code, String(resource.valueQuantity?.value ?? resource.valueString)]));
       const expected = { '718-7': entry.expected_fields['lab.hgb.value'], '4548-4': entry.expected_fields['lab.a1c.value'] };
-      record('lab_a_fhir_observation_readback', bundle.status === 200 && bundle.body.read_path === 'openemr-fhir-service-in-process' && Object.entries(expected).every(([code, value]) => Number(values[code]) === Number(value)), { status: bundle.status, read_path: bundle.body.read_path, codes: Object.keys(values) });
+      record('lab_a_fhir_observation_readback', bundle.status === 200 && bundle.body.read_path === 'openemr-fhir-service-in-process' && Object.entries(expected).every(([code, value]) => Number(values[code]) === Number(value)) && (bundle.body.entry || []).every(({ resource }) => resource.status !== 'final'), { status: bundle.status, read_path: bundle.body.read_path, codes: Object.keys(values), observation_statuses: [...new Set((bundle.body.entry || []).map(({ resource }) => resource.status))] });
     }
   }
 
+  // Raw request paths (node:http/https), so the client does not normalize
+  // "/./", "//" or percent-encoding before Caddy sees them.
+  const dir = '/interface/modules/custom_modules/oe-module-agentforge';
+  const variants = [
+    `${dir}/public/api.php?route=health&site=default`,
+    `${dir}/public/api.php/extra`,
+    `${dir}/public//api.php`,
+    `${dir}/public/./api.php`,
+    `/interface/modules/custom_modules//oe-module-agentforge/public/api.php`,
+    `${dir}/public/%61pi.php`,
+    `${dir}/public/api%2Ephp`,
+    `/interface/modules/custom_modules/%6Fe-module-agentforge/public/api.php`,
+    `/interface/modules/custom_modules/OE-MODULE-AGENTFORGE/public/API.PHP`,
+    `${dir}/table.sql`,
+    `${dir}/tests/run.php`,
+    `${dir}/src/Api/AgentForgeApi.php`,
+    `${dir}/openemr.bootstrap.php`,
+    `${dir}/public/../table.sql`,
+    `${dir}/public/api.php/x/oe-module-agentforge/public/index.php`,
+  ];
   for (const method of ['GET', 'POST']) {
-    const response = await fetch(`${origin}/interface/modules/custom_modules/oe-module-agentforge/public/api.php?route=health&site=default`, { method, ...(method === 'POST' ? { body: '{}', headers: { 'content-type': 'application/json' } } : {}) });
-    record(`module_endpoint_public_404_${method.toLowerCase()}`, response.status === 404, { status: response.status });
+    for (const rawPath of variants) {
+      const status = await rawStatus(origin, rawPath, method);
+      record(`module_path_public_404_${method.toLowerCase()}`, status === 404, { path: rawPath, status });
+    }
   }
+  // The Week 1 launcher page stays routed to OpenEMR (it answers with its own
+  // login redirect or 403 without a session, but not Caddy's 404).
+  const launcher = await rawStatus(origin, `${dir}/public/index.php`, 'GET');
+  record('w1_launcher_still_routed', launcher !== 404 && launcher !== 0, { status: launcher });
+}
+
+function rawStatus(origin, rawPath, method) {
+  const target = new URL(origin);
+  const transport = target.protocol === 'https:' ? https : http;
+  return new Promise((resolve) => {
+    const request = transport.request({ host: target.hostname, port: target.port || undefined, servername: target.hostname, method, path: rawPath, headers: { host: target.host, 'content-type': 'application/json' } }, (response) => { response.resume(); resolve(response.statusCode); });
+    request.on('error', () => resolve(0));
+    request.end(method === 'POST' ? '{}' : undefined);
+  });
 }
 
 async function moduleChecks() {
   const url = process.env.AGENTFORGE_OPENEMR_MODULE_URL;
-  const secret = process.env.AGENTFORGE_DEMO_SECRET;
+  const hmacSecret = process.env.AGENTFORGE_MODULE_HMAC_SECRET;
+  const secret = process.env.AGENTFORGE_DEMO_SECRET; // context tokens only
   const allowed = String(process.env.AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS || '').split(/[\s,]+/).filter(Boolean)[0];
-  if (!url || !secret || !allowed) { record('module_env_present', false); return; }
-  const client = new OpenEMRModuleClient({ baseUrl: url, secret });
+  if (!url || !hmacSecret || !secret || !allowed) { record('module_env_present', false); return; }
+  const client = new OpenEMRModuleClient({ baseUrl: url, secret: hmacSecret });
   const health = await client.health().then((body) => ({ ok: body.status === 'ok' }), (error) => ({ ok: false, code: error.code }));
   record('module_signed_health', health.ok, health);
 
   const send = async ({ timestamp = Math.floor(Date.now() / 1000), nonce = crypto.randomBytes(16).toString('hex'), headers = null, query = { route: 'health', site: 'default' }, contextToken = null } = {}) => {
-    const signed = headers || signRequest({ secret, method: 'GET', query, body: '', contextToken, timestamp, nonce }).headers;
+    const signed = headers || signRequest({ secret: hmacSecret, method: 'GET', query, body: '', contextToken, timestamp, nonce }).headers;
     const target = new URL(url);
     for (const [key, value] of Object.entries(query)) target.searchParams.set(key, value);
     const response = await fetch(target, { headers: signed });
@@ -115,6 +160,14 @@ async function moduleChecks() {
   record('module_wrong_patient_rejected', mismatch.status === 403 && mismatch.error === 'patient_scope_mismatch', mismatch);
   const notAllowed = await send({ query: { route: 'lab-observations', site: 'default', patient_uuid: otherPatient, source_document_id: '1' }, contextToken: issueSignedContext({ patient_uuid: otherPatient, clinician_uuid: 'smoke-check', scope: 'write-source-document', acl: 'write', ttlSeconds: 240, secret }) });
   record('module_non_allowlisted_demo_patient_rejected', notAllowed.status === 403 && notAllowed.error === 'demo_patient_not_allowed', notAllowed);
+  // A read-scope token must be refused for a write. The patient is not
+  // allowlisted either, so nothing could be written even if scope checks broke.
+  const readToken = issueSignedContext({ patient_uuid: otherPatient, clinician_uuid: 'smoke-check', scope: 'read-briefing', acl: 'read', ttlSeconds: 240, secret });
+  const readWrite = await client.storeDocument({ patientUuid: otherPatient, contextToken: readToken, documentType: 'lab_pdf', filename: 'smoke.pdf', mimeType: 'application/pdf', content: Buffer.from('%PDF-1.4\nsmoke\n') }).then(() => ({ accepted: true }), (error) => ({ status: error.status, code: error.code }));
+  record('module_read_scope_write_rejected', readWrite.status === 403 && readWrite.code === 'OPENEMR_MODULE_ACL_DENIED', readWrite);
+  // Requests signed with the context secret (the only secret the W1 service holds) must fail.
+  const wrongKey = await new OpenEMRModuleClient({ baseUrl: url, secret }).health().then(() => ({ accepted: true }), (error) => ({ status: error.status, code: error.code }));
+  record('module_context_secret_cannot_sign', wrongKey.status === 401 && wrongKey.code === 'OPENEMR_MODULE_SIGNATURE_INVALID', wrongKey);
 }
 
 if (args.includes('--module-checks')) await moduleChecks();
