@@ -1,29 +1,64 @@
-# Key metrics for AgentForge Week 2
+# Key metrics: AgentForge Week 2
 
-These measures describe whether the evidence-triage workflow helps a clinician
-review source documents efficiently while keeping each displayed fact
-traceable. They are metric definitions and acceptance targets, not claims of
-clinical benefit. Values must be tied to a release revision and labeled by
-their evidence source.
+**User:** a primary-care physician preparing a follow-up visit. They have
+structured chart data plus a newly uploaded lab PDF and a patient intake form,
+and they ask: *what changed, what should I pay attention to, and what evidence
+supports it?*
 
-| Metric | Definition | Why it matters | Target / interpretation | Evidence source |
+**What success means here:** the physician can rely on what the co-pilot says.
+Every statement it shows is traceable to its source. Nothing unsupported
+reaches the screen. It surfaces what in the new documents needs attention.
+Speed matters, but it comes second to trust.
+
+These are definitions and targets for a synthetic-data system. They are not
+claims of clinical benefit. Every measured value names its **source**
+(offline: the golden set and gate; live: deployed traces) and the **commit**
+it was measured on. Week 1's metrics are frozen in
+[`docs/agentforge/KEY_METRICS.md`](docs/agentforge/KEY_METRICS.md).
+
+## North star: trust
+
+> **Zero unsupported statements are shown, and 100% of shown statements click
+> through to their source.**
+
+| Metric | Definition | Target | Measured | Source |
 |---|---|---|---|---|
-| Field extraction correctness | Correct typed fields / expected fields on a labeled document set; report by document type and layout. | Incorrectly read values can mislead review. | At least 95% per labeled rubric before broader use; abstentions reported separately. | Versioned labeled fixtures and the W2 evaluation gate. |
-| Citation coverage | Displayed extracted fields with source quote, page/section, and location / all displayed extracted fields. | A reviewer needs to verify each value at its source. | 100%; a field without a usable citation stays withheld or qualified. | Scan extraction response, source preview, and citation rubric. |
-| Grounded retrieval rate | Queries returning at least one relevant, versioned guideline source with quote and location / eligible queries. | Retrieved support must be inspectable and distinct from patient facts. | Report coverage and clinician relevance separately; do not treat a hit as proof of relevance. | Redacted retrieval hit counts plus a reviewed query/source set. |
-| Qualification correctness | Unsupported, missing, or conflicting cases correctly marked for review / such cases in the labeled set. | The workflow should stop short when the evidence is insufficient. | At least 95%; zero tolerance for a critical unsafe pass. | W2 gate and labeled incomplete/conflict cases. |
-| Trace coverage | Successful document workflows with extraction and retrieval stages, handoffs, outcome, and duration / successful document workflows. | Operators need to see what ran and where it took time or failed. | 100% of successful W2 document workflows; traces contain redacted metadata only. | `/v1/traces`, `/v1/metrics`, and the operations dashboard. |
-| Workflow reliability and latency | Completed/failed document workflows and p50/p95/p99 end-to-end duration, by document type. | A useful review path must complete predictably. | Establish baseline on a labeled workload before setting an SLO; publish sample size and environment. | Redacted W2 traces and a repeatable workload. |
-| Sensitive-content leakage | Raw prompt, response, source text, extracted value, or patient identifier present in operational traces. | Telemetry must not expose document or patient content. | Zero; any observed leak blocks release. | Redaction checks and inspection of current candidate traces. |
+| **Adversarial block rate** | Injected unsupported answer claims blocked before display, over a fixed probe set: invented value, misquoted field, value borrowed from another field, paraphrased guideline, patient fact cited to a guideline, treatment directive, low-confidence fact, unsupported negation or interpretation, uncited claim. | 100% | *pending* | `npm run eval:trust-probes --prefix agentforge` (offline). The gate also keeps its invented-claim case. |
+| **Citation resolvability** | Displayed answer claims whose citation resolves to its exact source: a document field's bounding box on the rendered page, or a verbatim guideline chunk with its URL. | 100% | *pending* | The gate's answer checks (offline). Live: the source-preview box ids for each claim of a deployed scan. |
 
-## Current early-submission evidence boundary
+Why this is the north star: a confidently wrong clinical statement can harm a
+patient. The verifier drops unsupported claims, so "share of shown claims that
+verify" is 100% by construction and proves nothing. These two metrics can fail.
+They measure whether the verifier *catches* bad claims, and whether the claims
+it lets through really lead back to their evidence.
 
-The W2 regression gate has a saved 50-case result, but that is not an
-encounter-level quality score. Fixed synthetic PDF fixtures have a prior
-candidate benchmark; keep those results attached to the candidate that produced
-them. Runtime requests, extraction/retrieval durations, and hit counts must be
-read from the deployed candidate after the demo uploads. Local OCR and local
-guideline retrieval make no model call, so model-token and model-cost values are
-zero for those interactions. Clinical utility requires clinician review and
-has not been measured. The isolated W2 route does not establish OpenEMR
-round-trip behavior or clinical readiness.
+## Supporting metrics
+
+| Metric | Definition | Target | Measured | Source |
+|---|---|---|---|---|
+| **Abnormal-finding recall** | Of the abnormal or flagged lab results and key intake items in the truth files (chief concern, current medications, allergies), the share that appear as verified answer claims *or* are listed under **needs review**. Silently dropping one counts as a miss. | ≥ 95% | *pending* | Golden set + truth files (offline). |
+| **Extraction accuracy** | Typed lab fields matching the hand-written truth on value, unit, reference range, collection date **and** abnormal flag, plus intake fields matching the truth. Also reported: the share of fields routed to review. | ≥ 98% | *pending* | Gate `factually_consistent` cases over 10 golden PDFs (offline). |
+| **Model grounding rate** | Raw model answer claims that pass verification before anything is dropped. Reported together with the **composer fallback rate** (answers that fell back to the deterministic template). | ≥ 80% grounded; ≤ 20% fallback | *pending* | Live traces with the chosen answer model. If either target is missed, that triggers switching from Qwen to OpenRouter. |
+| **Time to grounded answer** *(optional)* | p50 and p95 from upload to grounded answer, with per-stage durations (OCR, retrieval, answer). | p95 ≤ 30 s | *defined, unmeasured until the provider is chosen* | Live traces (`/v1/traces` stage timings). |
+
+Why these: **recall** asks whether it finds what matters. **Accuracy** asks
+whether what it read is right. **Grounding rate** asks whether the model's
+answers are useful, and not mostly fallback templates. **Speed** asks whether
+it fits the minutes before the physician walks in. Cost per encounter is
+recorded in traces (`modelTotals.cost_usd`). It is reported with the latency
+numbers once the provider is chosen.
+
+## Guardrails (must hold at all times)
+
+| Guardrail | Required | Evidence |
+|---|---|---|
+| Raw PHI in logs and traces (names, DOB, phone, document text, extracted values) | 0 | Gate `no_phi_in_logs` cases run real workflow traces and captured stdout/stderr; a key allowlist governs trace contents. |
+| Fail-loud on unsafe inputs (wrong patient, wrong document type, unreadable file, zero extracted fields) | 100% refused or qualified | Gate `safe_refusal` cases; fail-loud unit tests. |
+| Cross-patient access to documents, page images and answers | 0 | Scope tests, including a cached page-image read with another patient's token; module attack checks (8/8 live). |
+| Duplicate OpenEMR writes when the same document is re-uploaded | 0 | Live OpenEMR smoke: same ids on re-upload, no new rows (48/48 checks). |
+| Injected regressions blocked by the eval gate alone | 29/29 | [`W2_REGRESSION_MATRIX.md`](docs/agentforge/evidence/W2_REGRESSION_MATRIX.md), re-run with `node agentforge/scripts/run-regression-matrix.mjs`. This is an engineering guardrail: it proves the gate works. It is not a product outcome. |
+
+## Measurement record
+
+Values are filled in only from a named command run on a named commit. This
+file is updated when the release commit is frozen.
