@@ -90,7 +90,9 @@ export async function executeSupervisorWorkflow({ request, sourceDocumentIds = [
  * `retrievalAdapter` is an injected `{name, retrieve}` guideline retriever
  * (sync or async — see `runEvidenceWorker`). It defaults to the deterministic
  * local lexical/dense proxy so behavior is unchanged when the caller does not
- * configure one (e.g. direct test calls that omit it entirely).
+ * configure one (e.g. direct test calls that omit it entirely). The
+ * retrieval provider label recorded on the observer trace always comes from
+ * `retrievalAdapter.name`, never a hardcoded constant.
  */
 export async function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null, documentText = '', targetPatient = null } = {}) {
   const retriever = retrievalAdapter || localLexicalGuidelineRetriever;
@@ -114,7 +116,7 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
   } finally {
     observer?.finishStage('retrieval', { status: evidenceWorker?.output_status || 'failed' });
   }
-  observer?.recordRetrievalAttempt({ tool: 'evidence-retriever', provider: 'local-lexical-proxy', status: evidenceWorker.output_status === 'ready' ? 'complete' : 'qualified', hit_count: evidenceWorker.guideline_evidence?.length || 0 });
+  observer?.recordRetrievalAttempt({ tool: 'evidence-retriever', provider: retriever.name || 'local-lexical-proxy', status: evidenceWorker.output_status === 'ready' ? 'complete' : 'qualified', hit_count: evidenceWorker.guideline_evidence?.length || 0 });
   transitions.push(STATES.EVIDENCE_RETRIEVER);
   const ready = evidenceWorker.output_status === 'ready' && !safety.qualifying.length;
   if (evidenceWorker.output_status === 'ready') transitions.push(STATES.VERIFY);

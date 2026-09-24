@@ -115,6 +115,21 @@ test('active supervisor retrieves through an injected retrievalAdapter instead o
   assert.equal(result.typed_outputs.evidence.output_status, 'ready');
 });
 
+test('active supervisor takes the retrieval provider label from the injected retriever, not a constant', async () => {
+  const namedRetriever = { name: 'test-named-retriever', retrieve: async () => ({ status: 'complete', evidence: [], issues: [] }) };
+  const events = [];
+  const observer = {
+    startStage() {}, finishStage() {}, setExtraction() {},
+    recordRetrievalAttempt(attempt) { events.push(attempt); },
+  };
+  await runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence', retrievalAdapter: namedRetriever, observer });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].provider, 'test-named-retriever');
+  const defaulted = [];
+  await runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence', observer: { startStage() {}, finishStage() {}, setExtraction() {}, recordRetrievalAttempt: (attempt) => defaulted.push(attempt) } });
+  assert.equal(defaulted[0].provider, 'local-lexical-proxy');
+});
+
 test('retrieval benchmark records a defended deterministic local choice', () => {
   const report = runRetrievalBenchmark();
   assert.equal(report.synthetic_only, true);
