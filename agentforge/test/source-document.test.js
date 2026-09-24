@@ -105,8 +105,17 @@ test('AgentForge UI exposes the two synthetic source-document types and upload r
   assert.match(page, /data-run-pdf-sample="lab-a"/);
   for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b']) assert.match(page, new RegExp(`/v1/demo-scan-pdf\\?sample=${sample}`));
   assert.match(page, /https:\/\/www\.fda\.gov\/media\/76299\/download/);
-  assert.match(page, /Upload a synthetic filled lab PDF or intake form/);
-  assert.match(page, /Local OCR returns cited page regions/);
+  assert.match(page, /Upload a synthetic filled lab PDF or a \.scan\.txt envelope/);
+  assert.match(page, /Local OCR \(for a PDF\) returns cited page regions/);
+});
+
+test('AgentForge UI accepts only PDF and .scan.txt uploads, not plain .txt', () => {
+  const page = renderAgentForgePage({ token: 'synthetic-token', payload: { patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001' } });
+  const inputMatch = page.match(/<input type="file" name="source_file" accept="([^"]+)"/);
+  assert.ok(inputMatch, 'source_file input must declare an accept attribute');
+  const accepted = inputMatch[1].split(',');
+  assert.deepEqual(accepted, ['.pdf', 'application/pdf', '.scan.txt']);
+  assert.doesNotMatch(page, /accept="[^"]*\.txt,text\/plain/);
 });
 
 test('synthetic scan demo fixture route serves only the tracked sample with an explicit synthetic marker', async () => {
