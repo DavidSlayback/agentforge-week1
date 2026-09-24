@@ -257,6 +257,33 @@ export const NeedsReviewItem = z.object({
  * attempt when it fell back (F2), not reset to 0. The server validates this
  * exact shape before ever sending it (S6 item 4: invalid answer -> 500,
  * never unvalidated).
+ *
+ * `model_claims_proposed`/`model_claims_verified` (KEY_METRICS "model
+ * grounding rate", 2026-09-24) count the REAL model's own raw claims only —
+ * never the deterministic composer's claims, and never an F1 top-up claim,
+ * even when `composer` ends up `model+deterministic-topup`. Both are
+ * captured once, from the model's own single successful attempt, before any
+ * later fallback or top-up can replace or extend that attempt's claims — so
+ * `model_claims_verified` can be lower than the final `patient_facts.length`
+ * + `guideline_evidence.length` (topped-up claims aren't the model's), and
+ * both are frozen even if that attempt is later judged unusable (e.g.
+ * `all_claims_unverified`) and answered deterministically instead. Both are
+ * `0` whenever the real model was never actually called, or was called but
+ * never returned anything attributable to it:
+ *   - no provider configured, or one that is effectively deterministic (F7);
+ *   - the per-request deadline had already passed before the call
+ *     (`model_rejected_reason: 'deadline'`, deadline-before-call case);
+ *   - the provider threw (timeout/network/other error) or was aborted
+ *     mid-call (`model_rejected_reason: 'provider_error'` or `'deadline'`) —
+ *     no parseable output ever reached us to count;
+ *   - the model's JSON never passed the `GroundedAnswer` schema after
+ *     retries, so `ResilientProvider` ran its own internal deterministic
+ *     fallback and `result.text` is that fallback's JSON, not the model's
+ *     (`model_rejected_reason: 'invalid_json'` or `'provider_error'`).
+ * `model_claims_verified` is `0` (with `model_claims_proposed` > 0 whenever
+ * the model proposed anything) when the model's JSON parsed and validated
+ * but every one of its own claims failed content verification
+ * (`model_rejected_reason: 'all_claims_unverified'`).
  */
 export const GroundedAnswerResult = z.object({
   composer: z.enum(['model', 'deterministic-fallback', 'model+deterministic-topup']),
@@ -265,6 +292,8 @@ export const GroundedAnswerResult = z.object({
   guideline_evidence: z.array(AnswerClaim),
   needs_review: z.array(NeedsReviewItem),
   unverified_dropped: z.number().int().nonnegative(),
+  model_claims_proposed: z.number().int().nonnegative(),
+  model_claims_verified: z.number().int().nonnegative(),
 }).strict();
 
 /**

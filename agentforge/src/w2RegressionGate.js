@@ -222,6 +222,12 @@ function readGolden() {
 let goldenCache = null;
 const golden = () => (goldenCache ||= readGolden());
 
+/** The cached golden fixture set (`{ manifest, docs, recordings, rawFiles }`)
+ * -- exported so `scripts/measure-key-metrics.mjs` can read the same truth
+ * files, OCR recordings and manifest the 50-case gate itself runs against,
+ * rather than re-reading (and risking drifting from) a second copy. */
+export function loadGoldenFixtures() { return golden(); }
+
 /**
  * The retrieval retriever every golden scenario runs through: the real
  * hybrid pipeline (BM25 sparse ∪ Gemini dense ∪ rerank) over the real
@@ -270,7 +276,7 @@ function guidelineRetrieverForGate() {
   return gateGuidelineRetriever;
 }
 
-function harness({ answerProvider = null } = {}) {
+export function harness({ answerProvider = null } = {}) {
   const secret = randomBytes(16).toString('hex');
   const traceSink = new FixedClockTraceSink();
   const writeback = new SyntheticWriteback();
@@ -284,7 +290,7 @@ function harness({ answerProvider = null } = {}) {
   return { service, traceSink, context, upload };
 }
 
-async function runScenario(scenario) {
+export async function runScenario(scenario) {
   const h = harness({ answerProvider: scenario.answer_provider ? scenario.answer_provider() : null });
   const docs = (scenario.docs || [scenario.doc]).map((id) => golden().docs.get(id));
   const run = { h, docs, sourceIds: [], result: null, error: null };
@@ -350,7 +356,7 @@ export async function withCapturedOutput(fn) {
 }
 
 const norm = (value) => String(value ?? '').trim().toLowerCase();
-const extractionOf = (run) => run.result?.workflow?.typed_outputs?.extraction || run.result?.extraction || null;
+export const extractionOf = (run) => run.result?.workflow?.typed_outputs?.extraction || run.result?.extraction || null;
 const observedValue = (field) => (field?.status === 'observed' ? field.value : null);
 const listValues = (items) => (items || []).map(observedValue);
 
@@ -368,7 +374,7 @@ const LOW_CONFIDENCE = 0.85;
 const roundedConfidence = (line) => Number(line.confidence.toFixed(2));
 const ocrLineFor = (doc, citation) => doc.ocr?.pages?.flatMap((page) => page.lines).find((line) => line.text === citation?.quote_or_value) || null;
 
-function citationIssues(label, citation, { sourceId, doc }) {
+export function citationIssues(label, citation, { sourceId, doc }) {
   const parsed = parseOrIssues(Citation, citation);
   if (!parsed.ok) return [`${label}:citation_schema_invalid`];
   const issues = [];
@@ -490,7 +496,7 @@ function checkGuidelineCitations(run) {
   });
 }
 
-function checkLabFacts(run, { optional_tests: optionalTests = [] }) {
+export function checkLabFacts(run, { optional_tests: optionalTests = [] }) {
   const extraction = extractionOf(run);
   const results = extraction?.lab_results || [];
   const truth = run.docs[0].truth.lab_results;
@@ -512,7 +518,7 @@ function checkLabFacts(run, { optional_tests: optionalTests = [] }) {
   return issues;
 }
 
-function checkIntakeFacts(run) {
+export function checkIntakeFacts(run) {
   const form = extractionOf(run)?.intake_form;
   if (!form) return ['intake_form_missing'];
   const truth = run.docs[0].truth.intake_form;
@@ -632,13 +638,13 @@ function checkNoPhi(run, output, expect) {
  * exclusion (identity data, not a clinical finding for the W2 answer) --
  * otherwise this independent check would demand they be represented in
  * `patient_facts` when the composer now deliberately never puts them there. */
-function intakeLeavesOf(intakeForm) {
+export function intakeLeavesOf(intakeForm) {
   if (!intakeForm) return [];
   const leaves = [intakeForm.chief_concern, ...(intakeForm.current_medications || []), ...(intakeForm.allergies || []), ...(intakeForm.family_history || [])];
   return leaves.filter((leaf) => leaf && leaf.status === 'observed');
 }
 
-const factCitationKey = (citation) => (citation ? `${citation.source_type}:${citation.source_id}:${citation.field_or_chunk_id}` : null);
+export const factCitationKey = (citation) => (citation ? `${citation.source_type}:${citation.source_id}:${citation.field_or_chunk_id}` : null);
 
 /** Independently reconstruct exactly what `composeGroundedAnswer` would have
  * treated as "allowed" for this run, for the F3 re-verification below. Reads

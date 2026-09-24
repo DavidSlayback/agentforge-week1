@@ -381,6 +381,13 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
   let composerLabel;
   let modelRejectedReason = null;
   let modelDroppedCount = 0;
+  // Raw counts from the REAL model's own single attempt only -- never the
+  // deterministic composer/fallback, and never an F1 top-up claim. Both stay
+  // 0 unless the branch below (the real primary succeeded and produced
+  // claims of its own) sets them; see schemas.js#GroundedAnswerResult for
+  // the exact rule per case.
+  let modelClaimsProposed = 0;
+  let modelClaimsVerified = 0;
 
   const deadlineAlreadyPassed = Boolean(signal?.aborted);
   const useRealProvider = provider && !isEffectivelyDeterministic(provider) && !deadlineAlreadyPassed;
@@ -394,7 +401,18 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
         // per-claim verification on -- its own attempts were rejected at
         // the schema/JSON stage (or the primary errored) before ever
         // reaching us, so there is no per-claim drop count to report, only why.
+        // `result.text` here is `ResilientProvider`'s own internal
+        // deterministic fallback's JSON, not the model's -- model_claims_*
+        // stay 0, never counted from someone else's claims.
         modelRejectedReason = outcome.result.provider_error_code === 'MODEL_OUTPUT_REJECTED' ? 'invalid_json' : 'provider_error';
+      } else {
+        // The real model's own attempt succeeded (schema-valid JSON) and
+        // `outcome` holds exactly its claims and verdicts right now --
+        // capture the raw counts before the "all claims unverified" fallback
+        // or the F1 top-up below can replace or extend `outcome` with claims
+        // the model never proposed.
+        modelClaimsProposed = outcome.claims.length;
+        modelClaimsVerified = outcome.verified.length;
       }
     } catch (error) {
       outcome = await runFallback();
@@ -444,7 +462,9 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
   }
 
   // F4: record exactly one model-usage entry for the answer stage, whichever
-  // provider ultimately produced the shipped claims.
+  // provider ultimately produced the shipped claims. `model_claims_proposed`/
+  // `model_claims_verified` ride along here too (counts only, no PHI) so a
+  // live trace can compute the model grounding rate without re-deriving it.
   trace?.recordModelUsage?.({
     stage: 'answer',
     provider: outcome.result.provider_name || fallback.name,
@@ -453,6 +473,8 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
     outputTokens: outcome.result.outputTokens || 0,
     estimatedCostUsd: outcome.result.estimatedCostUsd || 0,
     status: composerLabel,
+    model_claims_proposed: modelClaimsProposed,
+    model_claims_verified: modelClaimsVerified,
   });
 
   return {
@@ -462,6 +484,8 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
     guideline_evidence: outcome.verified.filter((claim) => claim.kind === 'guideline'),
     needs_review: needsReview,
     unverified_dropped: unverifiedDropped,
+    model_claims_proposed: modelClaimsProposed,
+    model_claims_verified: modelClaimsVerified,
   };
 }
 

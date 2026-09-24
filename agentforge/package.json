@@ -8,6 +8,7 @@
     "eval:gate": "node scripts/run-w2-gate.mjs",
     "eval:trust-probes": "node scripts/trust-probes.mjs",
     "eval:pdf-samples": "node scripts/benchmark-pdf-samples.mjs",
+    "eval:metrics": "node scripts/measure-key-metrics.mjs",
     "export:schemas": "node scripts/export-schemas.mjs"
   },
   "dependencies": {

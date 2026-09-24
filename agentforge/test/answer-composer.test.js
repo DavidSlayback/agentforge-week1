@@ -291,10 +291,10 @@ test('model_rejected_reason is absent when no model is configured at all', async
 
 test('GroundedAnswerResult accepts every model_rejected_reason and the topup composer label', () => {
   for (const reason of ['all_claims_unverified', 'invalid_json', 'provider_error', 'deadline']) {
-    const candidate = { composer: 'deterministic-fallback', model_rejected_reason: reason, patient_facts: [], guideline_evidence: [], needs_review: [], unverified_dropped: 1 };
+    const candidate = { composer: 'deterministic-fallback', model_rejected_reason: reason, patient_facts: [], guideline_evidence: [], needs_review: [], unverified_dropped: 1, model_claims_proposed: 0, model_claims_verified: 0 };
     assert.equal(parseOrIssues(GroundedAnswerResult, candidate).ok, true, reason);
   }
-  assert.equal(parseOrIssues(GroundedAnswerResult, { composer: 'model+deterministic-topup', patient_facts: [], guideline_evidence: [], needs_review: [], unverified_dropped: 0 }).ok, true);
+  assert.equal(parseOrIssues(GroundedAnswerResult, { composer: 'model+deterministic-topup', patient_facts: [], guideline_evidence: [], needs_review: [], unverified_dropped: 0, model_claims_proposed: 3, model_claims_verified: 2 }).ok, true);
 });
 
 // F4 review fix: exactly one model-usage entry per composed answer.
@@ -418,6 +418,98 @@ test('a claim whose ref does not name any known label is dropped: it ends up wit
 // "cite garbage, get whatever's first" laundering `materializeClaims` must
 // never allow. A ref must resolve to exactly the label it names, or not at
 // all.
+// Task 1 (KEY_METRICS "model grounding rate"): model_claims_proposed/
+// model_claims_verified count the real model's own raw claims only, captured
+// once before any later fallback or F1 top-up can replace or extend them.
+test('model_claims_proposed/verified: a fake model with 3 claims, 1 unverifiable, verifies 2 -- and the topped-up 3rd fact is not counted as the model\'s own', async () => {
+  const labA = labResult();
+  const labB = labResult({ test_name: 'Potassium', value: '5.9', unit: 'mmol/L', reference_range: '3.5-5.1', abnormal_flag: 'high', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.k.value', quote_or_value: '5.9' } });
+  const labC = labResult({ test_name: 'Sodium', value: '140', unit: 'mmol/L', reference_range: '135-145', abnormal_flag: 'normal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.na.value', quote_or_value: '140' } });
+  const fakePrimary = {
+    name: 'three-claim-model', model: 'three-v1', async checkReady() { return true; },
+    async generate(args) {
+      const refA = labelForCitation(args.factLabels, labA.citation);
+      const refB = labelForCitation(args.factLabels, labB.citation);
+      const refC = labelForCitation(args.factLabels, labC.citation);
+      return {
+        text: JSON.stringify({ claims: [
+          { kind: 'patient_fact', text: 'Hemoglobin 13.2 g/dL on 2026-01-05 (reference 12.0-15.5), flagged normal.', refs: [refA] },
+          { kind: 'patient_fact', text: 'Potassium 5.9 mmol/L on 2026-01-05 (reference 3.5-5.1), flagged high.', refs: [refB] },
+          // Cites the real Sodium label but an invented value -- fails
+          // content verification, not citation resolution.
+          { kind: 'patient_fact', text: 'Sodium was recorded at 999 mmol/L on 2026-01-05.', refs: [refC] },
+        ] }),
+        inputTokens: 20, outputTokens: 20, estimatedCostUsd: 0.001,
+      };
+    },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [labA, labB, labC] }, { provider });
+  assertValidResult(result);
+  assert.equal(result.model_claims_proposed, 3);
+  assert.equal(result.model_claims_verified, 2);
+  // The Sodium fact still reaches the answer -- via the deterministic F1
+  // top-up, not the model -- so patient_facts holds all 3 facts and the
+  // composer label reflects the top-up, but the model's own counted claims
+  // stay frozen at 3/2, unaffected by the extra topped-up claim.
+  assert.equal(result.composer, 'model+deterministic-topup');
+  assert.equal(result.patient_facts.length, 3);
+});
+
+test('model_claims_proposed/verified are 0/0 on the deterministic-only path (no provider configured at all)', async () => {
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, {});
+  assert.equal(result.composer, 'deterministic-fallback');
+  assert.equal(result.model_claims_proposed, 0);
+  assert.equal(result.model_claims_verified, 0);
+});
+
+test('model_claims_proposed/verified are 0/0 when the per-request deadline had already passed before the call', async () => {
+  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate() { throw new Error('should never be called'); } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const controller = new AbortController();
+  controller.abort();
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider, signal: controller.signal });
+  assert.equal(result.model_rejected_reason, 'deadline');
+  assert.equal(result.model_claims_proposed, 0);
+  assert.equal(result.model_claims_verified, 0);
+});
+
+test('model_claims_proposed/verified are 0/0 when the model throws (provider_error) -- no parseable output ever reached us', async () => {
+  const throwingPrimary = { name: 'down-model', model: 'down-v1', async checkReady() { return true; }, async generate() { throw new Error('MODEL_TIMEOUT'); } };
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider: new ResilientProvider({ primary: throwingPrimary, fallback: new DeterministicAnswerComposer(), maxRetries: 0 }) });
+  assert.equal(result.model_rejected_reason, 'provider_error');
+  assert.equal(result.model_claims_proposed, 0);
+  assert.equal(result.model_claims_verified, 0);
+});
+
+test('model_claims_proposed/verified are 0/0 when the model never produces schema-valid JSON -- ResilientProvider\'s own internal fallback ran, not the model', async () => {
+  const garbagePrimary = { name: 'garbage-model', model: 'garbage-v1', async checkReady() { return true; }, async generate() { return { text: 'not json at all', inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 }; } };
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider: new ResilientProvider({ primary: garbagePrimary, fallback: new DeterministicAnswerComposer(), maxRetries: 0 }) });
+  assert.equal(result.model_rejected_reason, 'invalid_json');
+  assert.equal(result.model_claims_proposed, 0);
+  assert.equal(result.model_claims_verified, 0);
+});
+
+test('model_claims_proposed/verified reflect a model whose schema-valid JSON has zero claims that verify (all_claims_unverified): proposed > 0, verified 0', async () => {
+  const fakePrimary = { name: 'bad-model', model: 'bad-v1', async checkReady() { return true; }, async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Sodium was recorded at 140 mmol/L.', refs: ['F99'] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 }; } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider });
+  assert.equal(result.model_rejected_reason, 'all_claims_unverified');
+  assert.equal(result.model_claims_proposed, 1);
+  assert.equal(result.model_claims_verified, 0);
+});
+
+test('composeGroundedAnswer records model_claims_proposed/verified on the trace answer-stage entry (counts only, no PHI)', async () => {
+  const traceStub = () => { const usage = []; return { usage, recordModelUsage: (entry) => usage.push(entry) }; };
+  const trace = traceStub();
+  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate(args) { const ref = labelForCitation(args.factLabels, labResult().citation); return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', refs: [ref] }] }), inputTokens: 10, outputTokens: 20, estimatedCostUsd: 0.002 }; } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  await composeGroundedAnswer({ labResults: [labResult()] }, { provider, trace });
+  assert.equal(trace.usage.length, 1);
+  assert.equal(trace.usage[0].model_claims_proposed, 1);
+  assert.equal(trace.usage[0].model_claims_verified, 1);
+});
+
 test('an unresolved ref never silently borrows another fact\'s citation, even one whose values happen to match the claim text', async () => {
   const first = labResult({ test_name: 'Hemoglobin', value: '13.2', unit: 'g/dL', reference_range: '12.0-15.5', collection_date: '2026-01-05', abnormal_flag: 'normal', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.hgb.value', quote_or_value: '13.2' } });
   const second = labResult({ test_name: 'Potassium', value: '5.9', unit: 'mmol/L', reference_range: '3.5-5.1', collection_date: '2026-01-05', abnormal_flag: 'high', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.k.value', quote_or_value: '5.9' } });
