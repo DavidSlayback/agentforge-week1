@@ -7,6 +7,10 @@ const truthDir = new URL('./fixtures/golden/truth/', import.meta.url);
 
 test('W2 gate has 50 distinct cases in every category, each documenting its failure mode', () => {
   const cases = buildW2GoldenSet();
+  // Pinned literal: catches a case where W2_GATE_CASE_COUNT itself silently
+  // drifts away from 50 (e.g. both the constant and the case list are bumped
+  // together), which the relative check below alone would not catch.
+  assert.equal(W2_GATE_CASE_COUNT, 50);
   assert.equal(cases.length, W2_GATE_CASE_COUNT);
   assert.equal(new Set(cases.map((item) => item.id)).size, cases.length);
   // At most 19 per category, so a single failing case drops the rate below 95%.
