@@ -540,7 +540,7 @@ adversarial review before merge.
 | S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
 | S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
 | R0–R5 refactor | **Done, live on `67b0844`** (MR !74). Full matrix on the merged tree: R0 passes, 29/29 regression rows fail the gate. Live: OpenEMR smoke 48/48, module attack checks 8/8, a legacy `LAB|` upload returns 400, `/v1/supervisor` returns 404. Workers: Sonnet (R2, R3), Haiku (R1, R4a, R4b, R5). Codex Luna headless `exec` could not run shell commands under the Windows sandbox. | Originally planned in | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
-| S4 | Implemented, not wired | `slice/s4`: 234 AgentForge tests (232 pass, 2 skip), evals 10/10, observability 25/25, 50/50 W2 gate; X/Y mutation fails. Public deployment/screenshot deferred to S11. |
+| S4 | Implemented, not wired | `slice/s4`: 239 AgentForge tests (237 pass, 2 skip with Poppler; 236 pass, 3 skip without Poppler), evals 10/10, observability 25/25, 50/50 W2 gate; X/Y and review mutations fail. Public deployment/screenshot deferred to S11. |
 | S5, S6, S9, S12, S11 | Not started | After R0–R5 |
 
 Incidents, all fixed and recorded in commits:

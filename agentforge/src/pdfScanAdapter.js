@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 const MAX_PAGES = 6;
 const COMMAND_TIMEOUT_MS = 30_000;
 const MAX_COMMAND_OUTPUT_BYTES = 16 * 1024 * 1024;
+const MAX_RENDERED_PAGE_PIXELS = 20_000_000;
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -176,6 +177,18 @@ export async function pdfToOcrLines(content, { includeImages = false } = {}) {
 }
 
 /** Render one source page in the same 200 DPI pixel space used by Tesseract. */
+export function renderedPageFilename(names, page) {
+  return names.find((name) => new RegExp(`^page-0*${page}\\.png$`).test(name)) || null;
+}
+
+function pagePixelCount(pdfInfo, page) {
+  const size = pdfInfo.match(new RegExp(`^(?:Page(?:\\s+${page})?\\s+size|size):\\s*([\\d.]+) x ([\\d.]+) pts`, 'mi'));
+  if (!size) throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+  const pixels = Math.ceil(Number(size[1]) * 200 / 72) * Math.ceil(Number(size[2]) * 200 / 72);
+  if (!Number.isSafeInteger(pixels) || pixels <= 0 || pixels > MAX_RENDERED_PAGE_PIXELS) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+  return pixels;
+}
+
 export async function renderPdfPagePng(content, page) {
   assertPdf(content);
   if (!Number.isInteger(page) || page < 1) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
@@ -183,16 +196,38 @@ export async function renderPdfPagePng(content, page) {
   try {
     const pdf = join(directory, 'source.pdf');
     await writeFile(pdf, content);
-    const info = await run('pdfinfo', [pdf]);
-    const pageCount = Number(info.match(/^Pages:\s+(\d+)/m)?.[1] || 0);
-    if (!pageCount) throw new Error('PDF_PAGE_INFO_INVALID');
+    let documentInfo;
+    try { documentInfo = await run('pdfinfo', [pdf]); }
+    catch (error) {
+      if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+      throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+    }
+    const pageCount = Number(documentInfo.match(/^Pages:\s+(\d+)/m)?.[1] || 0);
+    if (!pageCount) throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+    if (pageCount > MAX_PAGES) throw Object.assign(new Error('PDF_PAGE_LIMIT_EXCEEDED'), { code: 'PDF_PAGE_LIMIT_EXCEEDED' });
     if (page > pageCount) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
+    let pageInfo = documentInfo;
+    if (page > 1) {
+      try { pageInfo = await run('pdfinfo', ['-f', String(page), '-l', String(page), pdf]); }
+      catch (error) {
+        if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+        throw Object.assign(new Error('PDF_PAGE_INFO_INVALID'), { code: 'PDF_PAGE_INFO_INVALID' });
+      }
+    }
+    pagePixelCount(pageInfo, page);
     const prefix = join(directory, 'page');
-    await run('pdftoppm', ['-r', '200', '-f', String(page), '-l', String(page), '-png', pdf, prefix]);
-    const imageName = (await readdir(directory)).find((name) => new RegExp(`^page-${page}\\.png$`).test(name));
-    if (!imageName) throw new Error('PDF_PAGE_RENDER_FAILED');
-    const image = await readFile(join(directory, imageName));
-    if (image.length < 8 || image.length > MAX_COMMAND_OUTPUT_BYTES || image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error('PDF_PAGE_RENDER_FAILED');
+    try { await run('pdftoppm', ['-r', '200', '-f', String(page), '-l', String(page), '-png', pdf, prefix]); }
+    catch (error) {
+      if (error.code === 'PDF_OCR_RUNTIME_UNAVAILABLE') throw error;
+      throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    }
+    const imageName = renderedPageFilename(await readdir(directory), page);
+    if (!imageName) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    const imagePath = join(directory, imageName);
+    const imageStats = await stat(imagePath);
+    if (imageStats.size < 8 || imageStats.size > MAX_COMMAND_OUTPUT_BYTES) throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
+    const image = await readFile(imagePath);
+    if (image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw Object.assign(new Error('PDF_PAGE_RENDER_FAILED'), { code: 'PDF_PAGE_RENDER_FAILED' });
     return image;
   } finally { await rm(directory, { recursive: true, force: true }); }
 }

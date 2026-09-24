@@ -23,6 +23,52 @@ import { renderPdfPagePng } from './pdfScanAdapter.js';
 
 const gitSha = readBuildSha();
 const renderedPageCache = new Map();
+const PAGE_IMAGE_CACHE_BUDGET_BYTES = 64 * 1024 * 1024;
+const MAX_CONCURRENT_PAGE_RENDERS = 2;
+let renderedPageCacheBytes = 0;
+let activePageRenders = 0;
+const waitingPageRenders = [];
+
+async function withPageRenderLimit(render) {
+  if (activePageRenders >= MAX_CONCURRENT_PAGE_RENDERS) await new Promise((resolve) => waitingPageRenders.push(resolve));
+  activePageRenders += 1;
+  try { return await render(); }
+  finally {
+    activePageRenders -= 1;
+    waitingPageRenders.shift()?.();
+  }
+}
+
+function cachedPageImage(key, render) {
+  let entry = renderedPageCache.get(key);
+  if (entry) {
+    renderedPageCache.delete(key);
+    renderedPageCache.set(key, entry);
+    return entry.promise;
+  }
+  entry = { bytes: 0, promise: null };
+  entry.promise = withPageRenderLimit(render).then((image) => {
+    if (renderedPageCache.get(key) !== entry) return image;
+    if (image.length > PAGE_IMAGE_CACHE_BUDGET_BYTES) {
+      renderedPageCache.delete(key);
+      return image;
+    }
+    entry.bytes = image.length;
+    renderedPageCacheBytes += entry.bytes;
+    while (renderedPageCacheBytes > PAGE_IMAGE_CACHE_BUDGET_BYTES) {
+      const oldest = [...renderedPageCache.entries()].find(([, candidate]) => candidate.bytes > 0);
+      if (!oldest) break;
+      renderedPageCache.delete(oldest[0]);
+      renderedPageCacheBytes -= oldest[1].bytes;
+    }
+    return image;
+  }).catch((error) => {
+    if (renderedPageCache.get(key) === entry) renderedPageCache.delete(key);
+    throw error;
+  });
+  renderedPageCache.set(key, entry);
+  return entry.promise;
+}
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -279,27 +325,23 @@ const server = http.createServer(async (req, res) => {
       const patient_uuid = query.get('patient_uuid') || '';
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      const id = decodeURIComponent(sourcePageMatch[1]);
       const page = Number(sourcePageMatch[2]);
       try {
+        const id = decodeURIComponent(sourcePageMatch[1]);
         const result = await service.readSourceDocument(id, { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
         if (result.status !== 'read') return json(res, 403, { error: result.reason });
         if (result.content.subarray(0, 5).toString() !== '%PDF-') return json(res, 404, { error: 'source_page_not_found' });
         const cacheKey = `${id}:${page}`;
-        let image = renderedPageCache.get(cacheKey);
-        if (!image) {
-          image = renderPdfPagePng(result.content, page);
-          renderedPageCache.set(cacheKey, image);
-          image.catch(() => { if (renderedPageCache.get(cacheKey) === image) renderedPageCache.delete(cacheKey); });
-          while (renderedPageCache.size > 100) renderedPageCache.delete(renderedPageCache.keys().next().value);
-        }
-        const png = await image;
+        const png = await cachedPageImage(cacheKey, () => renderPdfPagePng(result.content, page));
         res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'private, max-age=300' });
         return res.end(png);
       } catch (error) {
-        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
-        if ((error.code || error.message) === 'DOCUMENT_NOT_FOUND' || (error.code || error.message) === 'PDF_PAGE_NOT_FOUND') return json(res, 404, { error: 'source_page_not_found' });
-        return json(res, 422, { error: 'pdf_page_render_failed' });
+        if (error instanceof URIError) return json(res, 400, { error: 'invalid_source_document_id' });
+        const code = error.code || error.message;
+        if (code === 'PDF_OCR_RUNTIME_UNAVAILABLE') return json(res, 503, { error: 'ocr_runtime_unavailable' });
+        if (code === 'PDF_PAGE_RENDER_FAILED' || code === 'PDF_PAGE_INFO_INVALID') return json(res, 422, { error: 'pdf_page_render_failed' });
+        if (code === 'PDF_PAGE_NOT_FOUND') return json(res, 404, { error: 'source_page_not_found' });
+        return json(res, sourceDocumentErrorStatus(error), { error: code });
       }
     }
     const scanSourcePreviewMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/source-preview(?:\?(.*))?$/);
