@@ -1,0 +1,20 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "gen-blank-page",
+ "pdf": "agentforge/test/fixtures/golden/pdf/gen-blank-page.pdf",
+ "pdf_sha256": "0261d56535f7f59721387194ccccf01ae3184c90cbc416df7f25fe736cc56af5",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": []
+  }
+ ]
+}

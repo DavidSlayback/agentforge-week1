@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { FixtureAdapter } from '../src/fixtureAdapter.js';
-import { DeterministicProvider } from '../src/modelProvider.js';
+import { DeterministicProvider, ResilientProvider } from '../src/modelProvider.js';
 import { PreVisitPreparation } from '../src/preVisitPreparation.js';
 import { PreparationCache } from '../src/preparationCache.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
@@ -38,4 +38,19 @@ test('PreVisitPreparation stops before synthesis and cache write when verificati
   assert.equal(result.verification.status, 'blocked');
   assert.equal(providerCalled, false);
   assert.equal(cache.get(value.correlation_id).status, 'miss');
+});
+
+// Guards: the per-sentence verifier must accept the service's own caveats. The
+// deterministic fallback names the withheld conflicting drug; if the verifier
+// only knew the displayed claims, the deployed ResilientProvider would reject
+// its own fallback and the briefing would fail.
+test('verified fallback still serves every fixture case when the model is unavailable', async () => {
+  const unavailable = { name: 'unavailable-model', model: 'probe', async checkReady() { return true; }, async generate() { throw new Error('MODEL_TIMEOUT'); } };
+  for (const item of adapter.cases) {
+    const preparation = new PreVisitPreparation({ adapter, provider: new ResilientProvider({ primary: unavailable, fallback: new DeterministicProvider(), maxRetries: 0 }) });
+    const value = request(item.patient.patient_ref, { case_id: item.id, correlation_id: `fallback-${item.id}` });
+    const result = await preparation.prepare(value, { verifiedContext: contextFor(value) });
+    assert.equal(result.model.provider, 'deterministic', item.id);
+    assert.notEqual(result.disposition, 'blocked', item.id);
+  }
 });

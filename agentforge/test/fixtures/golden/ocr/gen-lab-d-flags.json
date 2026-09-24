@@ -1,0 +1,250 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "gen-lab-d-flags",
+ "pdf": "agentforge/test/fixtures/golden/pdf/gen-lab-d-flags.pdf",
+ "pdf_sha256": "81e5f0d846f3144c5dffb0735587728a0aa9256d2861b9027b896b2a22875025",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "SYNTHETIC",
+      "LABORATORY",
+      "REPORT",
+      "-",
+      "FOLLOW-UP",
+      "PANEL"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 172,
+     "right": 1180,
+     "bottom": 201,
+     "confidence": 0.87287392,
+     "text": "SYNTHETIC LABORATORY REPORT - FOLLOW-UP PANEL"
+    },
+    {
+     "words": [
+      "Patient:",
+      "Test",
+      "Patient",
+      "One",
+      "DOB:",
+      "1980-04-12"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 264,
+     "right": 814,
+     "bottom": 288,
+     "confidence": 0.90282089,
+     "text": "Patient: Test Patient One DOB: 1980-04-12"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "test",
+      "name:",
+      "Hemoglobin"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 392,
+     "right": 715,
+     "bottom": 423,
+     "confidence": 0.90878693,
+     "text": "Hemoglobin test name: Hemoglobin"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "value:",
+      "10.4"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 481,
+     "right": 537,
+     "bottom": 512,
+     "confidence": 0.9150309799999999,
+     "text": "Hemoglobin value: 10.4"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "unit:",
+      "g/dL"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 570,
+     "right": 520,
+     "bottom": 601,
+     "confidence": 0.9113250700000001,
+     "text": "Hemoglobin unit: g/dL"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "reference",
+      "range:",
+      "12.0-16.0"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 659,
+     "right": 755,
+     "bottom": 690,
+     "confidence": 0.90326958,
+     "text": "Hemoglobin reference range: 12.0-16.0"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "collection",
+      "date:",
+      "2026-08-14"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 748,
+     "right": 770,
+     "bottom": 779,
+     "confidence": 0.9019077299999999,
+     "text": "Hemoglobin collection date: 2026-08-14"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "abnormal:",
+      "L"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 837,
+     "right": 554,
+     "bottom": 868,
+     "confidence": 0.89739563,
+     "text": "Hemoglobin abnormal: L"
+    },
+    {
+     "words": [
+      "A1C",
+      "test",
+      "name:",
+      "A1C"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 928,
+     "right": 474,
+     "bottom": 950,
+     "confidence": 0.67295113,
+     "text": "A1C test name: A1C"
+    },
+    {
+     "words": [
+      "A1C",
+      "value:",
+      "8.3"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 1014,
+     "right": 404,
+     "bottom": 1038,
+     "confidence": 0.66968643,
+     "text": "A1C value: 8.3"
+    },
+    {
+     "words": [
+      "A1C",
+      "unit:",
+      "%"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 1103,
+     "right": 362,
+     "bottom": 1127,
+     "confidence": 0.79527039,
+     "text": "A1C unit: %"
+    },
+    {
+     "words": [
+      "A1C",
+      "reference",
+      "range:",
+      "4.0-5.6"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 1192,
+     "right": 600,
+     "bottom": 1223,
+     "confidence": 0.80868622,
+     "text": "A1C reference range: 4.0-5.6"
+    },
+    {
+     "words": [
+      "A1C",
+      "collection",
+      "date:",
+      "2026-08-14"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 1281,
+     "right": 648,
+     "bottom": 1305,
+     "confidence": 0.8043941499999999,
+     "text": "A1C collection date: 2026-08-14"
+    },
+    {
+     "words": [
+      "A1C",
+      "abnormal:",
+      "H"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 1370,
+     "right": 436,
+     "bottom": 1394,
+     "confidence": 0.7454991099999999,
+     "text": "A1C abnormal: H"
+    },
+    {
+     "words": [
+      "Fictional",
+      "values",
+      "for",
+      "software",
+      "demonstration.",
+      "Not",
+      "a",
+      "real",
+      "patient",
+      "record."
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 2037,
+     "right": 950,
+     "bottom": 2060,
+     "confidence": 0.91981972,
+     "text": "Fictional values for software demonstration. Not a real patient record."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "gen-lab-c-table",
+  "written_from": "agentforge/scripts/generate-golden-pdfs.mjs (gen-lab-c-table.pdf)",
+  "document_kind": "lab_pdf",
+  "layout_note": "Table layout with no 'Label: value' result lines. The deployed OCR label map cannot read the results, so as a lab_pdf it must yield zero fields and be BLOCKED rather than guessed. Its 'Name:' and 'DOB:' header lines are readable as intake fields.",
+  "patient_ref": "fixture-patient-001",
+  "header": { "patient_name": "Test Patient One", "dob": "1980-04-12" },
+  "lab_results": [
+    { "test_name": "Hemoglobin", "value": "12.6", "unit": "g/dL", "reference_range": "12.0-16.0", "collection_date": "2026-09-18", "flag_text": "", "abnormal_flag": "normal" },
+    { "test_name": "Hemoglobin A1C", "value": "6.4", "unit": "%", "reference_range": "4.0-5.6", "collection_date": "2026-09-18", "flag_text": "H", "abnormal_flag": "high" }
+  ]
+}

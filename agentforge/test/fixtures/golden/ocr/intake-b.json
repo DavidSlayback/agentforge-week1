@@ -1,0 +1,158 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "intake-b",
+ "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-b.pdf",
+ "pdf_sha256": "e6271d5ea1fe49a943ca57d7ae39bc9d5e790233f167658480fc9807cb370fb5",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "Patient",
+      "information",
+      "sheet"
+     ],
+     "page": 1,
+     "left": 160,
+     "top": 229,
+     "right": 809,
+     "bottom": 268,
+     "confidence": 0.9097689800000001,
+     "text": "Patient information sheet"
+    },
+    {
+     "words": [
+      "Name:",
+      "Test",
+      "Patient",
+      "One"
+     ],
+     "page": 1,
+     "left": 155,
+     "top": 447,
+     "right": 584,
+     "bottom": 476,
+     "confidence": 0.9177677900000001,
+     "text": "Name: Test Patient One"
+    },
+    {
+     "words": [
+      "DOB:",
+      "1980-04-12"
+     ],
+     "page": 1,
+     "left": 155,
+     "top": 562,
+     "right": 471,
+     "bottom": 591,
+     "confidence": 0.8721347,
+     "text": "DOB: 1980-04-12"
+    },
+    {
+     "words": [
+      "Telephone:",
+      "555-0198"
+     ],
+     "page": 1,
+     "left": 153,
+     "top": 678,
+     "right": 535,
+     "bottom": 716,
+     "confidence": 0.8337398500000001,
+     "text": "Telephone: 555-0198"
+    },
+    {
+     "words": [
+      "Chief",
+      "concern:",
+      "Dizziness",
+      "after",
+      "standing"
+     ],
+     "page": 1,
+     "left": 154,
+     "top": 862,
+     "right": 858,
+     "bottom": 899,
+     "confidence": 0.9103822300000001,
+     "text": "Chief concern: Dizziness after standing"
+    },
+    {
+     "words": [
+      "Medications:",
+      "Lisinopril",
+      "10",
+      "mg",
+      "daily"
+     ],
+     "page": 1,
+     "left": 155,
+     "top": 1045,
+     "right": 774,
+     "bottom": 1083,
+     "confidence": 0.90710594,
+     "text": "Medications: Lisinopril 10 mg daily"
+    },
+    {
+     "words": [
+      "Allergy:",
+      "Sulfa",
+      "antibiotics"
+     ],
+     "page": 1,
+     "left": 152,
+     "top": 1229,
+     "right": 585,
+     "bottom": 1266,
+     "confidence": 0.91249985,
+     "text": "Allergy: Sulfa antibiotics"
+    },
+    {
+     "words": [
+      "Family",
+      "history:",
+      "Mother",
+      "has",
+      "diabetes"
+     ],
+     "page": 1,
+     "left": 156,
+     "top": 1412,
+     "right": 795,
+     "bottom": 1450,
+     "confidence": 0.90987602,
+     "text": "Family history: Mother has diabetes"
+    },
+    {
+     "words": [
+      "All",
+      "information",
+      "is",
+      "fictional",
+      "and",
+      "for",
+      "software",
+      "demonstration",
+      "only."
+     ],
+     "page": 1,
+     "left": 153,
+     "top": 1933,
+     "right": 989,
+     "bottom": 1961,
+     "confidence": 0.8679348,
+     "text": "All information is fictional and for software demonstration only."
+    }
+   ]
+  }
+ ]
+}

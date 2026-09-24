@@ -35,7 +35,7 @@ function publicDocument(record) {
   return { ...document };
 }
 
-/** Synthetic-only source-document roundtrip with deterministic deduplication. */
+/** In-memory synthetic source-document store (never OpenEMR) with deterministic deduplication. */
 export class SyntheticSourceDocumentStore {
   constructor({ now = () => new Date().toISOString() } = {}) {
     this.now = now;
@@ -62,8 +62,8 @@ export class SyntheticSourceDocumentStore {
       uploaded_at: now(),
       ingestion_revision: 1,
       synthetic_only: true,
-      source_system: 'synthetic-roundtrip',
-      persistence_boundary: 'simulated-openemr-adapter',
+      source_system: 'agentforge-in-memory',
+      persistence_boundary: 'in-memory-synthetic',
       content: normalizedContent,
     };
     this.documents.set(id, record);

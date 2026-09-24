@@ -1,20 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startTestServer } from './helpers/testServer.js';
 
 const base = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-async function startServer(port) {
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: base, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true' }, stdio: ['ignore', 'ignore', 'ignore'] });
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    try { if ((await fetch(`http://127.0.0.1:${port}/ready`)).ok) return child; } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  child.kill();
-  throw new Error('AgentForge test server did not become ready');
-}
+const startServer = (port) => startTestServer(port);
 
 const authorized = (patient_uuid, demo_token, extra = {}) => ({ patient_uuid, clinician_uuid: 'fixture-physician-001', demo_token, ...extra });
 

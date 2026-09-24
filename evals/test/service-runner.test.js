@@ -4,29 +4,16 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+// Shared startup helper (ESM, loaded through require(esm) on Node 24).
+const { startTestServer } = require('../../agentforge/test/helpers/testServer.js');
 
 const base = path.resolve(__dirname, '../..');
 
 test('golden suite can evaluate the running AgentForge service', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentforge-evals-'));
   const tracePath = path.join(root, 'traces.json');
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], {
-    cwd: base,
-    env: { ...process.env, PORT: '18788', AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_TRACE_PATH: tracePath },
-    stdio: ['ignore', 'ignore', 'ignore'],
-  });
+  const child = await startTestServer(18788, { AGENTFORGE_TRACE_PATH: tracePath });
   try {
-    let ready = false;
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      try {
-        if ((await fetch('http://127.0.0.1:18788/ready')).ok) {
-          ready = true;
-          break;
-        }
-      } catch {}
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    assert.equal(ready, true);
     const result = await new Promise((resolve, reject) => {
       const runner = spawn(process.execPath, ['evals/lib/runner.js', '--service', 'http://127.0.0.1:18788'], { cwd: base });
       let output = '';

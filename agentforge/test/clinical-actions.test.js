@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { SyntheticClinicalActionStore } from '../src/clinicalActions.js';
 import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
 import { AgentForgeService } from '../src/service.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
+import { startTestServer } from './helpers/testServer.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -62,15 +62,7 @@ test('service requires the action write context and surfaces persistence failure
   assert.throws(() => service.confirmClinicalAction(draft.action.id, { ...actionRequest('diagnosis', 'Add hypertension as a diagnosis'), confirmation_event: { confirmed: true, event_id: 'evt-failure', actor: 'clinician' } }, { verifiedContext: actionContext('fixture-patient-001') }), /CLINICAL_ACTION_PERSISTENCE_FAILED/);
 });
 
-async function startServer(port, extraEnv = {}, waitPath = '/ready') {
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: root, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...extraEnv }, stdio: ['ignore', 'ignore', 'ignore'] });
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    try { if ((await fetch(`http://127.0.0.1:${port}${waitPath}`)).ok) return child; } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  child.kill();
-  throw new Error('AgentForge test server did not become ready');
-}
+const startServer = (port, extraEnv = {}, waitPath = '/ready') => startTestServer(port, extraEnv, { path: waitPath });
 
 test('clinical action API drafts, confirms, reads back, cancels, and blocks unsafe routes', async () => {
   const port = 18808;

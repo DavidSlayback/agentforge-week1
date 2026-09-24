@@ -5,6 +5,7 @@ import { extractLabEvidence } from './labEvidence.js';
 import { extractIntakeEvidence } from './intakeEvidence.js';
 import { retrieveGuidelineEvidence } from './guidelineEvidence.js';
 import { executeSupervisorWorkflow, runActiveSupervisor } from './supervisor.js';
+import { traceSafeHandoff } from './activeWorkers.js';
 import { extractScanForm } from './scanFormAdapter.js';
 import { extractPdfScanFixture } from './pdfScanAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
@@ -12,8 +13,12 @@ import { recordBelongsToPatient } from './recordScope.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, scanProvider = null, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
     this.adapter = chartAdapter;
+    // null keeps the pdfScanAdapter default (real pdftoppm + Tesseract).
+    this.ocrEngine = ocrEngine;
+    // PatientDemographicsSource: any object with getPatientDemographics(patientRef) → {name, dob} | null.
+    this.patientDemographics = patientDemographics;
     this.chartAdapter = chartAdapter;
     this.writeback = writeback;
     this.guidelineRetriever = guidelineRetriever || { name: 'local-lexical-proxy', retrieve: (query, options) => retrieveGuidelineEvidence(query, options) };
@@ -35,28 +40,49 @@ export class AgentForgeService {
     this.preparation.conversationProvider = value;
   }
 
-  /** W2 synthetic-only ingestion seam. */
-  ingestSourceDocument(request, { verifiedContext = null } = {}) {
+  /** W2 source-document ingestion; the writeback decides where it persists (in-memory synthetic store or the OpenEMR module). */
+  async ingestSourceDocument(request, { verifiedContext = null } = {}) {
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.persistSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
-    const result = this.writeback.persistSourceDocument({
+    const result = await this.writeback.persistSourceDocument({
       patientRef: authorization.patient_uuid,
       documentType: request.document_type,
       filename: request.filename,
       content: request.content,
       uploadedBy: authorization.clinician_uuid,
+      verifiedContext,
     });
-    return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document };
+    return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document, ...(result.document.openemr ? { openemr: result.document.openemr } : {}) };
   }
 
-  readSourceDocument(id, request, { verifiedContext = null } = {}) {
+  /**
+   * After a validated extraction: persist derived facts (and lab rows) when the
+   * writeback is OpenEMR-backed; null otherwise. It is a write, so the caller's
+   * own context must be write-scoped; a read context gets an explicit
+   * not_persisted result, never a silent success.
+   */
+  async persistDerivedEvidence(sourceDocument, extraction, request, { verifiedContext = null } = {}) {
+    if (typeof this.writeback?.persistDerivedEvidence !== 'function') return null;
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'not_persisted', reason: 'persistence_not_authorized', authorization: authorization.reason, persistence_boundary: this.writeback.persistenceBoundary };
+    return this.writeback.persistDerivedEvidence({ patientRef: authorization.patient_uuid, sourceDocument, extraction, verifiedContext });
+  }
+
+  async readOpenEMRLabObservations(id, request, { verifiedContext = null } = {}) {
+    const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.readLabObservations !== 'function') return { status: 'blocked', reason: 'openemr_persistence_not_configured' };
+    return { status: 'read', bundle: await this.writeback.readLabObservations(id, { patientRef: authorization.patient_uuid, verifiedContext }) };
+  }
+
+  async readSourceDocument(id, request, { verifiedContext = null } = {}) {
     const authorization = verifiedContext?.scope === 'write-source-document'
       ? this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' })
       : this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.getSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
-    const result = this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid });
+    const result = await this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid, verifiedContext });
     return { status: 'read', synthetic_only: true, source_document: result.document, content: result.content };
   }
 
@@ -84,10 +110,10 @@ export class AgentForgeService {
     return { status: 'read', synthetic_only: true, action: result.action };
   }
 
-  extractLabEvidence(id, request, { verifiedContext = null } = {}) {
+  async extractLabEvidence(id, request, { verifiedContext = null } = {}) {
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    const source = await this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     if (source.source_document.document_type !== 'lab_pdf') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
     const extraction = extractLabEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
@@ -97,10 +123,10 @@ export class AgentForgeService {
     return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations };
   }
 
-  extractIntakeEvidence(id, request, { verifiedContext = null } = {}) {
+  async extractIntakeEvidence(id, request, { verifiedContext = null } = {}) {
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    const source = await this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     if (source.source_document.document_type !== 'intake_form') return { status: 'blocked', reason: 'SOURCE_DOCUMENT_TYPE_MISMATCH' };
     const extraction = extractIntakeEvidence({ sourceDocumentId: source.source_document.id, content: source.content });
@@ -111,7 +137,7 @@ export class AgentForgeService {
   }
 
   async extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    const source = await this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
     const prepared = await this.prepareScanSource(source);
     const pdf = Boolean(prepared.pdf);
@@ -125,7 +151,13 @@ export class AgentForgeService {
   }
 
   async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
-    const source = this.readSourceDocument(id, request, { verifiedContext });
+    let source;
+    try {
+      source = await this.readSourceDocument(id, request, { verifiedContext });
+    } catch (error) {
+      if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return { status: 'blocked', reason: 'document_scope_mismatch' };
+      throw error;
+    }
     if (source.status !== 'read') return source;
     const trace = this.traceSink?.start?.({ correlationId: `w2-scan-${randomUUID()}`, operation: 'w2-scan-supervisor', interactionType: 'scan_form', scope: { patientRef: request.patient_uuid } });
     try {
@@ -135,7 +167,12 @@ export class AgentForgeService {
         prepared = await this.prepareScanSource(source);
         trace?.finishStage('source_preparation', { status: 'complete' });
       } catch (error) {
-        trace?.finishStage('source_preparation', { status: 'failed', errorCode: error.code || 'source_preparation_failed' });
+        const errorCode = error.code || String(error.message || '').split(':')[0];
+        trace?.finishStage('source_preparation', { status: 'failed', errorCode: errorCode || 'source_preparation_failed' });
+        if (isUnreadableDocumentError(errorCode)) {
+          trace?.complete({ status: 'blocked' });
+          return { status: 'unreadable', synthetic_only: true, reason: 'document_unreadable', final_state: 'BLOCKED', source_document: source.source_document };
+        }
         throw error;
       }
       const pdf = Boolean(prepared.pdf);
@@ -143,9 +180,10 @@ export class AgentForgeService {
       const contentText = content.toString('utf8');
       const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
       const pageCountMatch = contentText.match(/page_count=(\d+)/);
-      const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace });
+      const targetPatient = await this.patientDemographics?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
+      const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace, documentText: pdf ? prepared.ocrText : contentText, targetPatient });
       if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
-      for (const handoff of workflow.handoffs || []) trace?.recordHandoff(handoff);
+      for (const handoff of workflow.handoffs || []) trace?.recordHandoff(traceSafeHandoff(handoff));
       trace?.setEvaluation({ status: 'not_run', reason: 'the golden-set gate runs separately from an individual document workflow' });
       trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
       return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
@@ -161,7 +199,7 @@ export class AgentForgeService {
     if (cached) return cached;
     const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
     const prepared = Promise.resolve().then(async () => pdf
-      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider })), pdf: true }
+      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
       : { content: source.content, pageCount: 1, pdf: false });
     if (this.scanPreparations.size >= 50) this.scanPreparations.delete(this.scanPreparations.keys().next().value);
     this.scanPreparations.set(id, prepared);
@@ -208,16 +246,16 @@ export class AgentForgeService {
             const facts = [];
             const issues = [];
             for (const id of ids) {
-              const source = this.readSourceDocument(id, workflowRequest, { verifiedContext: sourceDocumentContext });
+              const source = await this.readSourceDocument(id, workflowRequest, { verifiedContext: sourceDocumentContext });
               if (source.status !== 'read') {
                 documents.push({ source_document_id: id, status: 'blocked', issue: 'source_read_blocked' });
                 issues.push('source_read_blocked');
                 continue;
               }
               const extracted = source.source_document.document_type === 'lab_pdf'
-                ? this.extractLabEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
+                ? await this.extractLabEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
                 : source.source_document.document_type === 'intake_form'
-                  ? this.extractIntakeEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
+                  ? await this.extractIntakeEvidence(id, workflowRequest, { verifiedContext: sourceDocumentContext })
                   : { status: 'blocked', reason: 'source_type_unsupported' };
               const extraction = extracted.extraction;
               documents.push({ source_document_id: id, document_type: source.source_document.document_type, status: extracted.status, fact_count: extraction?.facts?.length || 0, issue_count: extraction?.issues?.length || 0 });
@@ -264,6 +302,12 @@ export class AgentForgeService {
       ? this.writeback.authorize(request, verifiedContext, options)
       : { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
   }
+}
+
+// Faults of the uploaded file itself. PDF_OCR_RUNTIME_UNAVAILABLE (missing
+// binaries) is an operational failure and still surfaces as a 500.
+function isUnreadableDocumentError(code) {
+  return ['SOURCE_DOCUMENT_PDF_INVALID', 'PDF_PAGE_LIMIT_EXCEEDED', 'PDF_OCR_COMMAND_FAILED', 'PDF_OCR_COMMAND_TIMEOUT', 'PDF_OCR_OUTPUT_LIMIT_EXCEEDED'].includes(code);
 }
 
 function recordIsCovered(record, coverage) {

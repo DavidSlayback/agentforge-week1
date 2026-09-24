@@ -1,30 +1,53 @@
 {
-  "schema_version": "w2-regression-gate-v2",
+  "schema_version": "w2-regression-gate-v3",
   "synthetic_only": true,
   "passed": true,
+  "thresholds_passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "238fbacb3fb4a1e5971cc85ad579b8cbf4f9bccbdd92ac538c5f89d9b3039a17",
+  "corpus_sha256": "53832baed92652d6ac487592593dfdfc2422e655eddb68526b69737380711c50",
+  "baseline_corpus_sha256": "53832baed92652d6ac487592593dfdfc2422e655eddb68526b69737380711c50",
+  "baseline_mismatch": false,
   "judge_config": {
-    "version": "w2-assignment-rubrics-v2",
+    "version": "w2-assignment-rubrics-v3",
     "per_label_min_rate": 0.95,
     "max_regression": 0.05,
     "critical_failure_tolerance": 0,
     "no_phi_in_logs_required": true
   },
-  "rubric_mapping": {
-    "schema_valid": "strict schema validators",
-    "citation_present": "source/page/field/quote/bounding-box contract",
-    "factually_consistent": "known extraction values plus expected guideline provenance",
-    "safe_refusal": "unreadable document and unsupported query are qualified/withheld",
-    "no_phi_in_logs": "sentinel content is absent after trace redaction"
-  },
   "by_label": {
-    "schema_valid": { "cases": 10, "passed": 10, "rate": 1 },
-    "citation_present": { "cases": 10, "passed": 10, "rate": 1 },
-    "factually_consistent": { "cases": 10, "passed": 10, "rate": 1 },
-    "safe_refusal": { "cases": 10, "passed": 10, "rate": 1 },
-    "no_phi_in_logs": { "cases": 10, "passed": 10, "rate": 1 }
+    "schema_valid": {
+      "cases": 9,
+      "passed": 9,
+      "rate": 1
+    },
+    "citation_present": {
+      "cases": 9,
+      "passed": 9,
+      "rate": 1
+    },
+    "factually_consistent": {
+      "cases": 10,
+      "passed": 10,
+      "rate": 1
+    },
+    "safe_refusal": {
+      "cases": 13,
+      "passed": 13,
+      "rate": 1
+    },
+    "no_phi_in_logs": {
+      "cases": 9,
+      "passed": 9,
+      "rate": 1
+    }
+  },
+  "rubric_mapping": {
+    "schema_valid": "deployed scan path (recorded Tesseract OCR replay -> field map -> typed extraction -> supervisor) output parses with the Zod LabResult/IntakeForm/Citation schemas and the HTTP response validator; the validator rejects outputs missing required keys or with malformed citations",
+    "citation_present": "every fact, typed lab result, intake field and handoff citation has the 5 keys, cites the stored document id, quotes text verbatim from the recorded OCR (or text source) that contains the cited value, and its bounding box is the quoted OCR line inside the page; facts from OCR lines below 0.85 confidence (and only those) carry the review flag; guideline evidence carries guideline citations",
+    "factually_consistent": "typed values, units, ranges, collection dates, abnormal flags and intake fields equal hand-written truth files; each LabResult cites its value line and its confidence is the minimum of its source OCR lines; guideline retrieval for the abnormal finding or chief concern ranks the relevant chunk first",
+    "safe_refusal": "zero fields, blank page, doc-type mismatch, patient mismatch (intake name, intake DOB, lab report header), no chart record, cross-patient read, off-topic questions and corrupt PDFs are BLOCKED, QUALIFIED or refused; never READY",
+    "no_phi_in_logs": "real workflow traces (InMemoryTraceSink) and captured stdout/stderr contain none of the truth-file identifiers (name, DOB, phone, medications, allergies, lab values, collection dates); raw handoffs stay redacted by the trace redactor"
   },
   "regressions": {
     "schema_valid": 0,
@@ -35,6 +58,309 @@
   },
   "critical_failures": [],
   "failed_cases": [],
+  "cases": [
+    {
+      "id": "sv-01-lab-a-typed",
+      "label": "schema_valid",
+      "guards_against": "Zod LabResult parsing or the HTTP response validator rejects or drops the typed results of a clean vector lab PDF.",
+      "passed": true
+    },
+    {
+      "id": "sv-03-intake-a-typed",
+      "label": "schema_valid",
+      "guards_against": "IntakeForm parsing fails, or a field the form contains is reported not_found_on_form.",
+      "passed": true
+    },
+    {
+      "id": "sv-04-intake-b-typed",
+      "label": "schema_valid",
+      "guards_against": "Alternate intake labels (Name/DOB/Telephone/Allergy) stop mapping into a valid IntakeForm.",
+      "passed": true
+    },
+    {
+      "id": "sv-05-lab-d-hl-typed",
+      "label": "schema_valid",
+      "guards_against": "Single-letter H/L flags produce a value outside the AbnormalFlag enum and invalidate the result.",
+      "passed": true
+    },
+    {
+      "id": "sv-06-lab-e-scan-partial-typed",
+      "label": "schema_valid",
+      "guards_against": "A noisy image-only scan yields a malformed or fabricated LabResult instead of typing only the complete test and reporting the rest as a typed issue.",
+      "passed": true
+    },
+    {
+      "id": "sv-07-labresult-required-fields",
+      "label": "schema_valid",
+      "guards_against": "The LabResult contract stops requiring a field (e.g. reference_range) so the HTTP boundary would forward an incomplete lab result.",
+      "passed": true
+    },
+    {
+      "id": "sv-08-intakeform-required-fields",
+      "label": "schema_valid",
+      "guards_against": "The IntakeForm contract stops requiring demographics, chief concern, medications, allergies or family history.",
+      "passed": true
+    },
+    {
+      "id": "sv-09-citation-shape",
+      "label": "schema_valid",
+      "guards_against": "The citation contract stops validating bounding_box or accepts a citation missing one of the five keys or carrying an extra key.",
+      "passed": true
+    },
+    {
+      "id": "sv-10-text-lab-evidence-response",
+      "label": "schema_valid",
+      "guards_against": "The LAB| text path behind /lab-evidence returns a response that fails its own response contract or typed LabResult parsing.",
+      "passed": true
+    },
+    {
+      "id": "cp-01-lab-a-citations",
+      "label": "citation_present",
+      "guards_against": "A vector-PDF lab fact or typed result loses a citation key, cites the wrong document or the wrong line (e.g. the test-name line instead of the value line), quotes text not in the OCR, or points outside the page.",
+      "passed": true
+    },
+    {
+      "id": "cp-03-intake-a-citations",
+      "label": "citation_present",
+      "guards_against": "An observed intake field (demographics, meds, allergies, history) is emitted without a complete, verbatim citation.",
+      "passed": true
+    },
+    {
+      "id": "cp-04-intake-b-citations",
+      "label": "citation_present",
+      "guards_against": "Rasterized intake fields lose their page region or verbatim quote.",
+      "passed": true
+    },
+    {
+      "id": "cp-05-lab-d-citations",
+      "label": "citation_present",
+      "guards_against": "Facts read from low-confidence OCR lines lose their human-review flag (so the preview would call them verified), or are cited with a reconstructed label instead of the verbatim OCR text.",
+      "passed": true
+    },
+    {
+      "id": "cp-06-lab-e-scan-citations",
+      "label": "citation_present",
+      "guards_against": "Facts from a partially read noisy scan are emitted uncited or with a box outside the page.",
+      "passed": true
+    },
+    {
+      "id": "cp-07-lab-as-intake-citations",
+      "label": "citation_present",
+      "guards_against": "Facts from a document whose declared type is contradicted are shown without source provenance.",
+      "passed": true
+    },
+    {
+      "id": "cp-08-guideline-citations",
+      "label": "citation_present",
+      "guards_against": "Guideline evidence reaches the workflow without the five-key guideline citation.",
+      "passed": true
+    },
+    {
+      "id": "cp-09-text-lab-citations",
+      "label": "citation_present",
+      "guards_against": "A LAB| text-path fact loses its quote (or any citation key) on the /v1/supervisor path.",
+      "passed": true
+    },
+    {
+      "id": "cp-10-text-intake-citations",
+      "label": "citation_present",
+      "guards_against": "An INTAKE| text-path fact loses its quote or page on the /v1/supervisor path.",
+      "passed": true
+    },
+    {
+      "id": "fc-01-lab-a-values",
+      "label": "factually_consistent",
+      "guards_against": "Value, unit, reference range, collection date, abnormal flag or confidence (min of its source lines) of a clean lab PDF no longer matches the document.",
+      "passed": true
+    },
+    {
+      "id": "fc-02-lab-b-values",
+      "label": "factually_consistent",
+      "guards_against": "Values read from a rasterized lab PDF drift from the document (e.g. \"Hgb\" labels or a Yes flag mis-mapped).",
+      "passed": true
+    },
+    {
+      "id": "fc-03-lab-d-high-low",
+      "label": "factually_consistent",
+      "guards_against": "H and L flags collapse to normal/abnormal or are swapped.",
+      "passed": true
+    },
+    {
+      "id": "fc-04-lab-e-scan-values",
+      "label": "factually_consistent",
+      "guards_against": "A noisy scan produces a wrong value, or an A1C result is invented from the fields OCR could not read.",
+      "passed": true
+    },
+    {
+      "id": "fc-05-intake-a-values",
+      "label": "factually_consistent",
+      "guards_against": "Intake demographics, chief concern, medications, allergies or family history no longer match the form.",
+      "passed": true
+    },
+    {
+      "id": "fc-06-intake-b-values",
+      "label": "factually_consistent",
+      "guards_against": "Alternate intake labels map values into the wrong typed fields.",
+      "passed": true
+    },
+    {
+      "id": "fc-07-intake-own-patient",
+      "label": "factually_consistent",
+      "guards_against": "The patient-identity check rejects a form whose demographics do match the chart, or its values drift.",
+      "passed": true
+    },
+    {
+      "id": "fc-08-retrieval-abnormal-a1c",
+      "label": "factually_consistent",
+      "guards_against": "Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence.",
+      "passed": true
+    },
+    {
+      "id": "fc-09-retrieval-fatigue",
+      "label": "factually_consistent",
+      "guards_against": "Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.",
+      "passed": true
+    },
+    {
+      "id": "fc-10-retrieval-medrec",
+      "label": "factually_consistent",
+      "guards_against": "Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.",
+      "passed": true
+    },
+    {
+      "id": "sr-01-table-lab-zero-fields",
+      "label": "safe_refusal",
+      "guards_against": "A lab layout the OCR label map cannot read is reported READY (or guessed) instead of BLOCKED no_fields_extracted.",
+      "passed": true
+    },
+    {
+      "id": "sr-02-blank-page",
+      "label": "safe_refusal",
+      "guards_against": "A blank upload with zero OCR lines proceeds to retrieval as if it were evidence.",
+      "passed": true
+    },
+    {
+      "id": "sr-03-intake-uploaded-as-lab",
+      "label": "safe_refusal",
+      "guards_against": "An intake form uploaded as a lab report is not refused and its type contradiction is not surfaced.",
+      "passed": true
+    },
+    {
+      "id": "sr-04-lab-uploaded-as-intake",
+      "label": "safe_refusal",
+      "guards_against": "A lab report uploaded as an intake form (header name/DOB readable) is reported READY instead of QUALIFIED doc_type_mismatch.",
+      "passed": true
+    },
+    {
+      "id": "sr-05-patient-mismatch",
+      "label": "safe_refusal",
+      "guards_against": "An intake form for another patient is attached to this chart instead of BLOCKED patient_mismatch.",
+      "passed": true
+    },
+    {
+      "id": "sr-06-cross-patient-read",
+      "label": "safe_refusal",
+      "guards_against": "A clinician scoped to one patient runs the scan workflow on another patient's document (the handler must answer 403).",
+      "passed": true
+    },
+    {
+      "id": "sr-07-unsupported-query-scan",
+      "label": "safe_refusal",
+      "guards_against": "An off-topic question gets guideline evidence or a READY state on the scan path.",
+      "passed": true
+    },
+    {
+      "id": "sr-08-unsupported-query-text",
+      "label": "safe_refusal",
+      "guards_against": "An unsupported clinical question gets guideline evidence or READY on the /v1/supervisor path.",
+      "passed": true
+    },
+    {
+      "id": "sr-09-corrupt-pdf",
+      "label": "safe_refusal",
+      "guards_against": "A corrupt PDF crashes the request (HTTP 500) or produces a result instead of a structured BLOCKED document_unreadable refusal (HTTP 422).",
+      "passed": true
+    },
+    {
+      "id": "sr-10-text-lab-declared-intake",
+      "label": "safe_refusal",
+      "guards_against": "A LAB| document declared as an intake form yields zero intake facts yet the supervisor still reports READY.",
+      "passed": true
+    },
+    {
+      "id": "sr-11-intake-dob-mismatch",
+      "label": "safe_refusal",
+      "guards_against": "An intake form with this patient's name but a different date of birth is attached to the chart because only the name is compared.",
+      "passed": true
+    },
+    {
+      "id": "sr-12-no-chart-record",
+      "label": "safe_refusal",
+      "guards_against": "A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.",
+      "passed": true
+    },
+    {
+      "id": "sr-13-lab-header-other-patient",
+      "label": "safe_refusal",
+      "guards_against": "A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.",
+      "passed": true
+    },
+    {
+      "id": "np-01-lab-a",
+      "label": "no_phi_in_logs",
+      "guards_against": "Lab values, collection dates or the report header (name/DOB) reach the stored trace or stdout/stderr on the vector lab path.",
+      "passed": true
+    },
+    {
+      "id": "np-03-intake-a",
+      "label": "no_phi_in_logs",
+      "guards_against": "Intake demographics, medications or allergies reach the trace or console.",
+      "passed": true
+    },
+    {
+      "id": "np-04-intake-b",
+      "label": "no_phi_in_logs",
+      "guards_against": "Rasterized intake OCR text reaches the trace or console.",
+      "passed": true
+    },
+    {
+      "id": "np-05-patient-mismatch",
+      "label": "no_phi_in_logs",
+      "guards_against": "The blocked patient-mismatch path logs the other patient's identifiers.",
+      "passed": true
+    },
+    {
+      "id": "np-06-lab-d",
+      "label": "no_phi_in_logs",
+      "guards_against": "Low-confidence or flagged lab values are logged for debugging.",
+      "passed": true
+    },
+    {
+      "id": "np-07-lab-e-scan",
+      "label": "no_phi_in_logs",
+      "guards_against": "A partially read scan logs its raw OCR lines.",
+      "passed": true
+    },
+    {
+      "id": "np-08-text-supervisor",
+      "label": "no_phi_in_logs",
+      "guards_against": "The /v1/supervisor text path traces extracted lab or intake values.",
+      "passed": true
+    },
+    {
+      "id": "np-09-corrupt-pdf",
+      "label": "no_phi_in_logs",
+      "guards_against": "The unreadable-document refusal path writes document bytes or tool stderr into the trace or console.",
+      "passed": true
+    },
+    {
+      "id": "np-10-raw-handoff-redaction",
+      "label": "no_phi_in_logs",
+      "guards_against": "The trace redactor stops stripping value/quote-keyed content, so any raw worker handoff recorded in a trace would leak intake identifiers.",
+      "passed": true
+    }
+  ],
   "evidence_command": "npm run eval:gate --prefix agentforge",
-  "mutation_command": "npm run eval:gate --prefix agentforge -- --inject-defect"
+  "mutation_command": "npm run eval:gate --prefix agentforge -- --inject-defect",
+  "rebaseline_command": "npm run eval:gate --prefix agentforge -- --update-baseline"
 }

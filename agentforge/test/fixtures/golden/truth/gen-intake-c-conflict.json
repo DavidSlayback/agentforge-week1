@@ -1,0 +1,17 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "gen-intake-c-conflict",
+  "written_from": "agentforge/scripts/generate-golden-pdfs.mjs (gen-intake-c-conflict.pdf)",
+  "document_kind": "intake_form",
+  "patient_ref": "fixture-patient-002",
+  "note": "Demographics belong to fixture-patient-002 (Test Conflict). Uploaded to fixture-patient-001 it is a patient mismatch.",
+  "intake_form": {
+    "name": "Test Conflict",
+    "dob": "1968-07-21",
+    "phone": "555-0142",
+    "chief_concern": "Morning headaches for one month",
+    "current_medications": ["Amlodipine 5 mg daily"],
+    "allergies": ["Latex"],
+    "family_history": ["Father had hypertension"]
+  }
+}

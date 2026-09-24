@@ -1,0 +1,20 @@
+{
+  "schema_version": "agentforge-golden-manifest-v1",
+  "synthetic_only": true,
+  "note": "Golden documents for the W2 eval gate. PDFs are OCR'd once with scripts/record-golden-ocr.mjs inside the deployed Docker image; truth files are hand-written from what each document says, never copied from OCR output.",
+  "documents": [
+    { "id": "lab-a", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-a.pdf", "truth": "truth/lab-a.json" },
+    { "id": "lab-b", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-b.pdf", "truth": "truth/lab-b.json" },
+    { "id": "intake-a", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-a.pdf", "truth": "truth/intake-a.json" },
+    { "id": "intake-b", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-b.pdf", "truth": "truth/intake-b.json" },
+    { "id": "gen-lab-c-table", "pdf": "agentforge/test/fixtures/golden/pdf/gen-lab-c-table.pdf", "truth": "truth/gen-lab-c-table.json" },
+    { "id": "gen-lab-d-flags", "pdf": "agentforge/test/fixtures/golden/pdf/gen-lab-d-flags.pdf", "truth": "truth/gen-lab-d-flags.json" },
+    { "id": "gen-intake-c-conflict", "pdf": "agentforge/test/fixtures/golden/pdf/gen-intake-c-conflict.pdf", "truth": "truth/gen-intake-c-conflict.json" },
+    { "id": "gen-intake-d-dob", "pdf": "agentforge/test/fixtures/golden/pdf/gen-intake-d-dob.pdf", "truth": "truth/gen-intake-d-dob.json" },
+    { "id": "gen-lab-e-scanned", "pdf": "agentforge/test/fixtures/golden/pdf/gen-lab-e-scanned.pdf", "truth": "truth/gen-lab-e-scanned.json" },
+    { "id": "gen-blank-page", "pdf": "agentforge/test/fixtures/golden/pdf/gen-blank-page.pdf", "truth": "truth/gen-blank-page.json" },
+    { "id": "gen-corrupt", "pdf": "agentforge/test/fixtures/golden/pdf/gen-corrupt.pdf", "truth": "truth/gen-corrupt.json" },
+    { "id": "text-lab", "text": "agentforge/test/fixtures/golden/text/text-lab.txt", "truth": "truth/text-lab.json" },
+    { "id": "text-intake", "text": "agentforge/test/fixtures/golden/text/text-intake.txt", "truth": "truth/text-intake.json" }
+  ]
+}

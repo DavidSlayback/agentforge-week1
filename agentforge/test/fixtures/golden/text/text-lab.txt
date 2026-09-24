@@ -1,0 +1,5 @@
+Synthetic text lab report for Test Patient One, DOB 1980-04-12
+Potassium 5.9 mmol/L (3.5-5.1) H
+Creatinine 0.9 mg/dL (0.6-1.2)
+LAB|test=Potassium|value=5.9|unit=mmol/L|reference_range=3.5-5.1|collection_date=2026-06-03|abnormal=true|page=1|field_id=lab.potassium|quote=Potassium 5.9 mmol/L (3.5-5.1) H|bounding_box=40,120,520,150
+LAB|test=Creatinine|value=0.9|unit=mg/dL|reference_range=0.6-1.2|collection_date=2026-06-03|abnormal=false|page=1|field_id=lab.creatinine|quote=Creatinine 0.9 mg/dL (0.6-1.2)|bounding_box=40,160,520,190

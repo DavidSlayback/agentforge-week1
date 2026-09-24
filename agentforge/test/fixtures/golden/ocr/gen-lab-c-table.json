@@ -1,0 +1,159 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "gen-lab-c-table",
+ "pdf": "agentforge/test/fixtures/golden/pdf/gen-lab-c-table.pdf",
+ "pdf_sha256": "eda04f1bbb8a6a23de24c125eebd0e011b08428d9905300d9a6a81d8e6d9c040",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "NORTHWIND",
+      "CLINICAL",
+      "LABORATORY"
+     ],
+     "page": 1,
+     "left": 204,
+     "top": 170,
+     "right": 877,
+     "bottom": 201,
+     "confidence": 0.90314835,
+     "text": "NORTHWIND CLINICAL LABORATORY"
+    },
+    {
+     "words": [
+      "Laboratory",
+      "results"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 242,
+     "right": 454,
+     "bottom": 273,
+     "confidence": 0.91488899,
+     "text": "Laboratory results"
+    },
+    {
+     "words": [
+      "Name:",
+      "Test",
+      "Patient",
+      "One"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 365,
+     "right": 527,
+     "bottom": 388,
+     "confidence": 0.9007266199999999,
+     "text": "Name: Test Patient One"
+    },
+    {
+     "words": [
+      "DOB:",
+      "1980-04-12"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 428,
+     "right": 429,
+     "bottom": 450,
+     "confidence": 0.90378143,
+     "text": "DOB: 1980-04-12"
+    },
+    {
+     "words": [
+      "Collected",
+      "2026-09-18"
+     ],
+     "page": 1,
+     "left": 1002,
+     "top": 364,
+     "right": 1291,
+     "bottom": 388,
+     "confidence": 0.90207878,
+     "text": "Collected 2026-09-18"
+    },
+    {
+     "words": [
+      "Test",
+      "Result",
+      "Units",
+      "Reference",
+      "range",
+      "Flag"
+     ],
+     "page": 1,
+     "left": 201,
+     "top": 560,
+     "right": 1447,
+     "bottom": 599,
+     "confidence": 0.8907959700000001,
+     "text": "Test Result Units Reference range Flag"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "12.6",
+      "g/dL",
+      "12.0-16.0"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 659,
+     "right": 1153,
+     "bottom": 690,
+     "confidence": 0.89720367,
+     "text": "Hemoglobin 12.6 g/dL 12.0-16.0"
+    },
+    {
+     "words": [
+      "Hemoglobin",
+      "A1C",
+      "6.4",
+      "%",
+      "4.0-5.6",
+      "H"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 731,
+     "right": 1408,
+     "bottom": 762,
+     "confidence": 0.8958830299999999,
+     "text": "Hemoglobin A1C 6.4 % 4.0-5.6 H"
+    },
+    {
+     "words": [
+      "Fictional",
+      "values",
+      "for",
+      "software",
+      "demonstration.",
+      "Not",
+      "a",
+      "real",
+      "patient",
+      "record."
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 2037,
+     "right": 926,
+     "bottom": 2060,
+     "confidence": 0.90454346,
+     "text": "Fictional values for software demonstration. Not a real patient record."
+    }
+   ]
+  }
+ ]
+}

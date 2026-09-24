@@ -1,0 +1,182 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "intake-a",
+ "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-a.pdf",
+ "pdf_sha256": "f7078115f0808533f383f20f5f78106f10e89be7ef2bafb45ffb736c7365afa7",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "SYNTHETIC",
+      "PATIENT",
+      "INTAKE",
+      "-",
+      "LAYOUT",
+      "A"
+     ],
+     "page": 1,
+     "left": 239,
+     "top": 240,
+     "right": 886,
+     "bottom": 280,
+     "confidence": 0.90255638,
+     "text": "SYNTHETIC PATIENT INTAKE - LAYOUT A"
+    },
+    {
+     "words": [
+      "New",
+      "patient",
+      "visit"
+     ],
+     "page": 1,
+     "left": 241,
+     "top": 335,
+     "right": 627,
+     "bottom": 380,
+     "confidence": 0.9125099899999999,
+     "text": "New patient visit"
+    },
+    {
+     "words": [
+      "Patient",
+      "name:",
+      "Test",
+      "Patient",
+      "One"
+     ],
+     "page": 1,
+     "left": 250,
+     "top": 500,
+     "right": 779,
+     "bottom": 529,
+     "confidence": 0.91316078,
+     "text": "Patient name: Test Patient One"
+    },
+    {
+     "words": [
+      "Date",
+      "of",
+      "birth:",
+      "1980-04-12"
+     ],
+     "page": 1,
+     "left": 250,
+     "top": 605,
+     "right": 675,
+     "bottom": 634,
+     "confidence": 0.8985445400000001,
+     "text": "Date of birth: 1980-04-12"
+    },
+    {
+     "words": [
+      "Phone:",
+      "555-0100"
+     ],
+     "page": 1,
+     "left": 250,
+     "top": 710,
+     "right": 542,
+     "bottom": 739,
+     "confidence": 0.9205332900000001,
+     "text": "Phone: 555-0100"
+    },
+    {
+     "words": [
+      "Reason",
+      "for",
+      "visit:",
+      "Fatigue",
+      "for",
+      "two",
+      "weeks"
+     ],
+     "page": 1,
+     "left": 250,
+     "top": 862,
+     "right": 909,
+     "bottom": 898,
+     "confidence": 0.9039187599999999,
+     "text": "Reason for visit: Fatigue for two weeks"
+    },
+    {
+     "words": [
+      "Current",
+      "medications:",
+      "Metformin",
+      "500",
+      "mg",
+      "daily"
+     ],
+     "page": 1,
+     "left": 249,
+     "top": 1013,
+     "right": 1015,
+     "bottom": 1049,
+     "confidence": 0.91009064,
+     "text": "Current medications: Metformin 500 mg daily"
+    },
+    {
+     "words": [
+      "Allergies:",
+      "Penicillin"
+     ],
+     "page": 1,
+     "left": 247,
+     "top": 1165,
+     "right": 566,
+     "bottom": 1201,
+     "confidence": 0.9013355300000001,
+     "text": "Allergies: Penicillin"
+    },
+    {
+     "words": [
+      "Family",
+      "history:",
+      "Mother",
+      "has",
+      "type",
+      "2",
+      "diabetes"
+     ],
+     "page": 1,
+     "left": 250,
+     "top": 1316,
+     "right": 971,
+     "bottom": 1352,
+     "confidence": 0.9133165700000001,
+     "text": "Family history: Mother has type 2 diabetes"
+    },
+    {
+     "words": [
+      "All",
+      "information",
+      "is",
+      "fictional",
+      "and",
+      "for",
+      "software",
+      "demonstration",
+      "only."
+     ],
+     "page": 1,
+     "left": 238,
+     "top": 1871,
+     "right": 997,
+     "bottom": 1897,
+     "confidence": 0.90738861,
+     "text": "All information is fictional and for software demonstration only."
+    }
+   ]
+  }
+ ]
+}

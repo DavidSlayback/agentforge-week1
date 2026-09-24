@@ -7,14 +7,20 @@
 #
 # Required env: AGENTFORGE_DEPLOY_HOST (user@host), AGENTFORGE_DEPLOY_KEY
 # (SSH private key path), AGENTFORGE_PUBLIC_URL (https://host, no trailing /).
-# Optional: AGENTFORGE_DEPLOY_SERVICES (default "agentforge agentforge-w2"),
-# AGENTFORGE_DEPLOY_ALLOW_UNMERGED=1 to ship a commit not yet on staging/main.
+# Optional: AGENTFORGE_DEPLOY_SERVICES (default "agentforge-w2"; the Week 1
+# "agentforge" service is frozen and ships only when named explicitly),
+# AGENTFORGE_DEPLOY_ALLOW_UNMERGED=1 to ship a commit not yet on staging/main,
+# AGENTFORGE_DEPLOY_APPLY_MODULE_SQL=1 to apply the idempotent
+# oe-module-agentforge table.sql through the mysql container (its own env
+# holds the credentials), AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1 to recreate the
+# openemr container so it picks up changed module env. The proxy is recreated
+# automatically when the Caddyfile changed (it is a single-file bind mount).
 set -eu
 
 host=${AGENTFORGE_DEPLOY_HOST:?set AGENTFORGE_DEPLOY_HOST}
 key=${AGENTFORGE_DEPLOY_KEY:?set AGENTFORGE_DEPLOY_KEY}
 public_url=${AGENTFORGE_PUBLIC_URL:?set AGENTFORGE_PUBLIC_URL}
-services=${AGENTFORGE_DEPLOY_SERVICES:-agentforge agentforge-w2}
+services=${AGENTFORGE_DEPLOY_SERVICES:-agentforge-w2}
 root=/opt/agentforge-week1
 # Build inputs are replaced wholesale so deleted files cannot linger in images.
 replaced="Dockerfile agentforge observability evals docs/agentforge"
@@ -45,12 +51,38 @@ stamp=$(date -u +%Y%m%dT%H%M%SZ)
 echo "Backing up current sources on the VM ($stamp)..."
 ssh_run "set -e; b=~/agentforge-week1-backups/$stamp; mkdir -p \$b; cd $root; for p in $replaced; do [ -e \$p ] && sudo mv \$p \$b/ || true; done; for p in $in_place; do [ -e \$p ] && sudo cp -a --parents \$p \$b/ || true; done"
 
+caddy_before=$(ssh_run "sha256sum $root/deploy/vultr/Caddyfile 2>/dev/null | cut -d' ' -f1" || true)
+
 echo "Shipping $sha..."
+# core.autocrlf=false: on a Windows host git archive would otherwise ship CRLF.
 # shellcheck disable=SC2086 # paths is a deliberate word list
-git archive --format=tar "$sha" $paths | ssh_run "sudo tar -x -C $root"
+git -c core.autocrlf=false archive --format=tar "$sha" $paths | ssh_run "sudo tar -x -C $root"
+
+compose="cd $root/deploy/vultr && docker compose --env-file $root/.env"
+
+# The Caddyfile is a single-file bind mount, so a changed file is only seen
+# after the proxy is recreated. Do it first, so the new deny rules are live
+# before any module or service change below.
+caddy_after=$(ssh_run "sha256sum $root/deploy/vultr/Caddyfile | cut -d' ' -f1")
+if [ "$caddy_before" != "$caddy_after" ]; then
+  echo "Caddyfile changed; recreating proxy..."
+  ssh_run "$compose up -d --no-deps --force-recreate proxy"
+fi
+
+if [ "${AGENTFORGE_DEPLOY_APPLY_MODULE_SQL:-}" = "1" ]; then
+  echo "Applying oe-module-agentforge table.sql (CREATE TABLE IF NOT EXISTS)..."
+  # MYSQL_PWD is read inside the mysql container from its own environment, so
+  # the password never appears on this host or in a process argument list.
+  ssh_run "$compose exec -T mysql sh -c 'MYSQL_PWD=\"\$MYSQL_ROOT_PASSWORD\" exec mariadb -uroot openemr' < $root/interface/modules/custom_modules/oe-module-agentforge/table.sql"
+fi
+
+if [ "${AGENTFORGE_DEPLOY_RECREATE_OPENEMR:-}" = "1" ]; then
+  echo "Recreating openemr for module env changes..."
+  ssh_run "$compose up -d --no-deps --wait openemr"
+fi
 
 echo "Rebuilding: $services"
-ssh_run "cd $root/deploy/vultr && docker compose --env-file $root/.env up -d --build --no-deps $services"
+ssh_run "$compose up -d --build --no-deps $services"
 
 for route in agentforge agentforge-w2; do
   case " $services " in *" $route "*) ;; *) continue ;; esac

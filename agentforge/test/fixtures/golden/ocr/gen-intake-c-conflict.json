@@ -1,0 +1,163 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "gen-intake-c-conflict",
+ "pdf": "agentforge/test/fixtures/golden/pdf/gen-intake-c-conflict.pdf",
+ "pdf_sha256": "7e810453d223455e95302eea4650ca9499556cde749b88dbada9a794e161289a",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "PATIENT",
+      "INTAKE",
+      "QUESTIONNAIRE"
+     ],
+     "page": 1,
+     "left": 204,
+     "top": 170,
+     "right": 826,
+     "bottom": 207,
+     "confidence": 0.91623215,
+     "text": "PATIENT INTAKE QUESTIONNAIRE"
+    },
+    {
+     "words": [
+      "Patient",
+      "name:",
+      "Test",
+      "Conflict"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 335,
+     "right": 607,
+     "bottom": 361,
+     "confidence": 0.87100121,
+     "text": "Patient name: Test Conflict"
+    },
+    {
+     "words": [
+      "Date",
+      "of",
+      "birth:",
+      "1968-07-21"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 446,
+     "right": 568,
+     "bottom": 472,
+     "confidence": 0.88915398,
+     "text": "Date of birth: 1968-07-21"
+    },
+    {
+     "words": [
+      "Telephone:",
+      "555-0142"
+     ],
+     "page": 1,
+     "left": 201,
+     "top": 557,
+     "right": 513,
+     "bottom": 590,
+     "confidence": 0.92401901,
+     "text": "Telephone: 555-0142"
+    },
+    {
+     "words": [
+      "Chief",
+      "concern:",
+      "Morning",
+      "headaches",
+      "for",
+      "one",
+      "month"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 668,
+     "right": 939,
+     "bottom": 702,
+     "confidence": 0.90623932,
+     "text": "Chief concern: Morning headaches for one month"
+    },
+    {
+     "words": [
+      "Current",
+      "medications:",
+      "Amlodipine",
+      "5",
+      "mg",
+      "daily"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 779,
+     "right": 860,
+     "bottom": 813,
+     "confidence": 0.9177132400000001,
+     "text": "Current medications: Amlodipine 5 mg daily"
+    },
+    {
+     "words": [
+      "Allergies:",
+      "Latex"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 890,
+     "right": 426,
+     "bottom": 924,
+     "confidence": 0.9172051999999999,
+     "text": "Allergies: Latex"
+    },
+    {
+     "words": [
+      "Family",
+      "history:",
+      "Father",
+      "had",
+      "hypertension"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 1001,
+     "right": 797,
+     "bottom": 1035,
+     "confidence": 0.9189638499999999,
+     "text": "Family history: Father had hypertension"
+    },
+    {
+     "words": [
+      "Fictional",
+      "values",
+      "for",
+      "software",
+      "demonstration.",
+      "Not",
+      "a",
+      "real",
+      "patient",
+      "record."
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 2037,
+     "right": 926,
+     "bottom": 2060,
+     "confidence": 0.90454346,
+     "text": "Fictional values for software demonstration. Not a real patient record."
+    }
+   ]
+  }
+ ]
+}

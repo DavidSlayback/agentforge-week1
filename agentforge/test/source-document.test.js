@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -10,6 +9,7 @@ import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
 import { extractLabEvidence } from '../src/labEvidence.js';
 import { extractIntakeEvidence } from '../src/intakeEvidence.js';
+import { startTestServer } from './helpers/testServer.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const signedContext = (patient_uuid, clinician_uuid = 'fixture-physician-001') => ({
@@ -45,8 +45,8 @@ test('simulated synthetic source documents persist, read back, and deduplicate',
   assert.equal(first.document.document_type, 'lab_pdf');
   assert.equal(first.document.filename, 'lab-results.txt');
   assert.equal(first.document.ingestion_revision, 1);
-  assert.equal(first.document.source_system, 'synthetic-roundtrip');
-  assert.equal(first.document.persistence_boundary, 'simulated-openemr-adapter');
+  assert.equal(first.document.source_system, 'agentforge-in-memory');
+  assert.equal(first.document.persistence_boundary, 'in-memory-synthetic');
   assert.equal(first.document.uploaded_by, 'fixture-physician-001');
   assert.match(first.document.id, /^src-/);
   assert.match(first.document.content_sha256, /^[0-9a-f]{64}$/);
@@ -82,17 +82,17 @@ test('synthetic source upload still requires a verified signed context at the ad
   assert.equal(adapter.authorize({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001' }, signedContext('fixture-patient-001')).status, 'blocked');
 });
 
-test('synthetic source persistence reports failures and the service exposes the workflow result', () => {
+test('synthetic source persistence reports failures and the service exposes the workflow result', async () => {
   const failingAdapter = new SimulatedOpenEMRAdapter({ fixturePath, sourceDocumentStore: { persist() { throw Object.assign(new Error('SOURCE_DOCUMENT_PERSISTENCE_FAILED'), { code: 'SOURCE_DOCUMENT_PERSISTENCE_FAILED' }); } } });
   const service = new AgentForgeService({ adapter: failingAdapter });
-  assert.throws(() => service.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'lab_pdf', filename: 'lab.pdf', content: Buffer.from('synthetic') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') }), /SOURCE_DOCUMENT_PERSISTENCE_FAILED/);
+  await assert.rejects(() => service.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'lab_pdf', filename: 'lab.pdf', content: Buffer.from('synthetic') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') }), /SOURCE_DOCUMENT_PERSISTENCE_FAILED/);
 
   const adapter = new SimulatedOpenEMRAdapter({ fixturePath });
   const workflow = new AgentForgeService({ adapter });
-  const result = workflow.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'intake_form', filename: 'intake.json', content: Buffer.from('{"synthetic":true}') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') });
+  const result = await workflow.ingestSourceDocument({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', document_type: 'intake_form', filename: 'intake.json', content: Buffer.from('{"synthetic":true}') }, { verifiedContext: verifiedWriteContext('fixture-patient-001') });
   assert.equal(result.status, 'persisted');
   assert.equal(result.synthetic_only, true);
-  assert.equal(result.source_document.persistence_boundary, 'simulated-openemr-adapter');
+  assert.equal(result.source_document.persistence_boundary, 'in-memory-synthetic');
 });
 
 test('AgentForge UI exposes the two synthetic source-document types and upload route', () => {
@@ -147,6 +147,12 @@ test('AgentForge UI keeps the isolated W2 public path for links and API calls', 
   assert.match(page, /location\.pathname\.startsWith\('\/agentforge-w2'\) \? '\/agentforge-w2' : location\.pathname\.startsWith\('\/agentforge'\) \? '\/agentforge' : ''/);
 });
 
+test('UI runs the scan supervisor with the write context so derived facts can persist', () => {
+  const page = renderAgentForgePage({ publicBasePath: '/agentforge-w2' });
+  const call = page.slice(page.indexOf("request('/v1/scan-supervisor'"));
+  assert.match(call.slice(0, call.indexOf('});')), /demo_token: writeContext\.demo_token/);
+});
+
 test('synthetic lab extraction preserves citations, qualifies gaps, and detects conflicts', () => {
   const content = Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40');
   const valid = extractLabEvidence({ sourceDocumentId: 'src-lab-1', content });
@@ -177,21 +183,7 @@ test('synthetic intake extraction preserves sections and qualifies contradiction
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-async function startServer(port, extraEnv = {}, waitPath = '/ready') {
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], {
-    cwd: root,
-    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...extraEnv },
-    stdio: ['ignore', 'ignore', 'ignore'],
-  });
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    try {
-      if ((await fetch(`http://127.0.0.1:${port}${waitPath}`)).ok) return child;
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  child.kill();
-  throw new Error('AgentForge test server did not become ready');
-}
+const startServer = (port, extraEnv = {}, waitPath = '/ready') => startTestServer(port, extraEnv, { path: waitPath });
 
 test('synthetic source document API uploads, deduplicates, reads back, and scopes records', async () => {
   const port = 18801;
@@ -309,7 +301,9 @@ test('synthetic scan-form evidence API and source preview preserve page-region c
     const workflowBody = await workflow.json();
     assert.equal(workflowBody.workflow.handoffs[0].worker, 'scan-form-extraction-worker');
     assert.equal(workflowBody.workflow.handoffs[1].worker, 'evidence-retrieval-worker');
-    assert.equal(workflowBody.workflow.final_state, 'READY');
+    // The untypeable flat fixture ids make the extraction `qualified`, so the workflow is QUALIFIED, not READY.
+    assert.equal(workflowBody.workflow.final_state, 'QUALIFIED');
+    assert.ok(workflowBody.workflow.qualification.reasons.includes('extraction_incomplete'));
   } finally {
     child.kill();
   }

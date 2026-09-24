@@ -14,7 +14,8 @@ export const COMPLETE_COVERAGE_GROUPS = Object.freeze(['identity', 'encounters',
 /** Additional primary-provider attempts after the initial attempt. */
 export const MAX_RETRIES = 2;
 /** The only chart operation the service may report or execute. */
-export const ALLOWED_READ_OPERATIONS = Object.freeze(['retrieve_openemr_read']);
+// The operation names the adapter actually read from: live OpenEMR REST or the synthetic fixture.
+export const ALLOWED_READ_OPERATIONS = Object.freeze(['retrieve_openemr_read', 'retrieve_synthetic_fixture_read']);
 
 export const isAllowedReadOperation = (operation) => ALLOWED_READ_OPERATIONS.includes(operation);
 

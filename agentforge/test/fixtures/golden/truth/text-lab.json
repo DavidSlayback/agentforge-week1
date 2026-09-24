@@ -1,0 +1,12 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "text-lab",
+  "written_from": "agentforge/test/fixtures/golden/text/text-lab.txt (LAB| text format read by /v1/supervisor and /lab-evidence)",
+  "document_kind": "lab_pdf",
+  "patient_ref": "fixture-patient-001",
+  "header": { "patient_name": "Test Patient One", "dob": "1980-04-12" },
+  "lab_results": [
+    { "test_name": "Potassium", "value": "5.9", "unit": "mmol/L", "reference_range": "3.5-5.1", "collection_date": "2026-06-03", "flag_text": "H", "abnormal_flag": "abnormal" },
+    { "test_name": "Creatinine", "value": "0.9", "unit": "mg/dL", "reference_range": "0.6-1.2", "collection_date": "2026-06-03", "flag_text": "", "abnormal_flag": "normal" }
+  ]
+}

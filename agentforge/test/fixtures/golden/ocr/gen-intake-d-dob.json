@@ -1,0 +1,164 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "gen-intake-d-dob",
+ "pdf": "agentforge/test/fixtures/golden/pdf/gen-intake-d-dob.pdf",
+ "pdf_sha256": "9b7588b63bf162df096d162a9f882160eccd2668861c6029ae3541781bc4adbf",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "PATIENT",
+      "INTAKE",
+      "QUESTIONNAIRE"
+     ],
+     "page": 1,
+     "left": 204,
+     "top": 170,
+     "right": 826,
+     "bottom": 207,
+     "confidence": 0.91623215,
+     "text": "PATIENT INTAKE QUESTIONNAIRE"
+    },
+    {
+     "words": [
+      "Patient",
+      "name:",
+      "Test",
+      "Patient",
+      "One"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 336,
+     "right": 668,
+     "bottom": 361,
+     "confidence": 0.90619484,
+     "text": "Patient name: Test Patient One"
+    },
+    {
+     "words": [
+      "Date",
+      "of",
+      "birth:",
+      "1980-12-04"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 446,
+     "right": 569,
+     "bottom": 472,
+     "confidence": 0.9209517700000001,
+     "text": "Date of birth: 1980-12-04"
+    },
+    {
+     "words": [
+      "Telephone:",
+      "555-0177"
+     ],
+     "page": 1,
+     "left": 201,
+     "top": 557,
+     "right": 513,
+     "bottom": 590,
+     "confidence": 0.91884338,
+     "text": "Telephone: 555-0177"
+    },
+    {
+     "words": [
+      "Chief",
+      "concern:",
+      "Shortness",
+      "of",
+      "breath",
+      "on",
+      "stairs"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 668,
+     "right": 854,
+     "bottom": 694,
+     "confidence": 0.90844269,
+     "text": "Chief concern: Shortness of breath on stairs"
+    },
+    {
+     "words": [
+      "Current",
+      "medications:",
+      "Albuterol",
+      "inhaler",
+      "as",
+      "needed"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 779,
+     "right": 937,
+     "bottom": 805,
+     "confidence": 0.85623512,
+     "text": "Current medications: Albuterol inhaler as needed"
+    },
+    {
+     "words": [
+      "Allergies:",
+      "Aspirin"
+     ],
+     "page": 1,
+     "left": 200,
+     "top": 890,
+     "right": 447,
+     "bottom": 924,
+     "confidence": 0.92176971,
+     "text": "Allergies: Aspirin"
+    },
+    {
+     "words": [
+      "Family",
+      "history:",
+      "Brother",
+      "has",
+      "asthma"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 1001,
+     "right": 723,
+     "bottom": 1035,
+     "confidence": 0.9166793099999999,
+     "text": "Family history: Brother has asthma"
+    },
+    {
+     "words": [
+      "Fictional",
+      "values",
+      "for",
+      "software",
+      "demonstration.",
+      "Not",
+      "a",
+      "real",
+      "patient",
+      "record."
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 2037,
+     "right": 926,
+     "bottom": 2060,
+     "confidence": 0.90454346,
+     "text": "Fictional values for software demonstration. Not a real patient record."
+    }
+   ]
+  }
+ ]
+}

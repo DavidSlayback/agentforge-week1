@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { executeSupervisorWorkflow, runDeterministicSupervisor, SUPERVISOR_STATES } from '../src/supervisor.js';
+import { startTestServer } from './helpers/testServer.js';
 
 const evidence = (overrides = {}) => ({ status: 'ready', patient_facts: [{ source_type: 'patient_record', patient_ref: 'fixture-patient-001', source_id: 'problem-1', field: 'problem.diabetes.status', value: 'active' }], guideline_evidence: [{ title: 'Synthetic guideline', version: '2026.1', section: 'Review', snippet: 'Review documented evidence.', sparse_score: 1, dense_score: 1, rerank_score: 1, matched_terms: ['review'], citation: { source_type: 'guideline', source_id: 'guideline-1', page_or_section: 'Review', field_or_chunk_id: 'guideline-1', quote_or_value: 'Review documented evidence.' } }], retrieval: { guideline_status: 'complete', guideline_issues: [], failed_patient_groups: [] }, qualification: { required: false, reasons: [] }, ...overrides });
 
 test('deterministic supervisor records typed worker handoffs and readiness', () => {
-  const result = runDeterministicSupervisor({ intakeResult: { status: 'complete', facts: [] }, evidenceResult: evidence() });
+  const result = runDeterministicSupervisor({ intakeResult: { status: 'complete', facts: [{ field_id: 'lab.hgb.value' }] }, evidenceResult: evidence() });
   assert.equal(result.final_state, SUPERVISOR_STATES.READY);
   assert.equal(result.readiness, 'ready');
   assert.deepEqual(result.handoffs.map((handoff) => handoff.worker), ['intake-extractor', 'evidence-retriever', 'deterministic-verifier']);
@@ -53,17 +54,9 @@ test('supervisor blocks when a requested worker fails', async () => {
 });
 
 test('supervisor API returns an inspectable synthetic workflow', async () => {
-  const { spawn } = await import('node:child_process');
   const port = 18808;
-  const repoRoot = new URL('../../', import.meta.url);
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: repoRoot, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true' }, stdio: ['ignore', 'ignore', 'ignore'] });
+  const child = await startTestServer(port);
   try {
-    let ready = false;
-    for (let attempt = 0; attempt < 40 && !ready; attempt += 1) {
-      try { ready = (await fetch(`http://127.0.0.1:${port}/ready`)).ok; } catch {}
-      if (!ready) await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    assert.equal(ready, true);
     const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
     const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
     const source = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'synthetic-lab.txt', content_base64: Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40').toString('base64') }) }).then((response) => response.json());

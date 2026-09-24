@@ -47,7 +47,12 @@ The local compose project exposes OpenEMR on ports 8300 (HTTP) and 9300 (HTTPS),
 Week 1 is the existing patient-scoped chart preparation service. Its OpenEMR
 chart adapter is read-only. Week 2 adds a separate, synthetic-only document
 workflow; it does not change the Week 1 chart adapter into a write path. The
-Week 2 upload store is in-memory and is **not** OpenEMR persistence.
+Week 2 service is configured (`AGENTFORGE_PERSISTENCE_MODE=openemr-module`) to
+store uploads, a derived-facts JSON and extracted lab results in OpenEMR through
+`oe-module-agentforge`; that live round-trip is unverified until
+`agentforge/scripts/w2-openemr-smoke.mjs` passes on the deployed SHA. In the
+default mode the upload store is in-memory (`in-memory-synthetic`) and is
+**not** OpenEMR persistence.
 
 The current Week 2 parser accepts UTF-8 text fixtures with `LAB|` or `INTAKE|`
 records. `lab_pdf` is a schema name: binary PDF parsing, OCR/VLM extraction,

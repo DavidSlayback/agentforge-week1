@@ -1,0 +1,249 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "lab-b",
+ "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-b.pdf",
+ "pdf_sha256": "d40af79af791711509d889e79f8d8ecf133a6f9333c4e60c679b4ad0f0d43883",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "Patient",
+      "laboratory",
+      "summary"
+     ],
+     "page": 1,
+     "left": 160,
+     "top": 229,
+     "right": 873,
+     "bottom": 278,
+     "confidence": 0.89441025,
+     "text": "Patient laboratory summary"
+    },
+    {
+     "words": [
+      "Patient:",
+      "Test",
+      "Patient",
+      "One",
+      "-",
+      "DOB:",
+      "1980-04-12"
+     ],
+     "page": 1,
+     "left": 155,
+     "top": 379,
+     "right": 924,
+     "bottom": 408,
+     "confidence": 0.89682999,
+     "text": "Patient: Test Patient One - DOB: 1980-04-12"
+    },
+    {
+     "words": [
+      "Hgb",
+      "test",
+      "name:",
+      "Hemoglobin"
+     ],
+     "page": 1,
+     "left": 156,
+     "top": 532,
+     "right": 656,
+     "bottom": 569,
+     "confidence": 0.89846817,
+     "text": "Hgb test name: Hemoglobin"
+    },
+    {
+     "words": [
+      "Hgb",
+      "value:",
+      "11.9"
+     ],
+     "page": 1,
+     "left": 156,
+     "top": 634,
+     "right": 434,
+     "bottom": 671,
+     "confidence": 0.90498276,
+     "text": "Hgb value: 11.9"
+    },
+    {
+     "words": [
+      "Hgb",
+      "unit:",
+      "g/dL"
+     ],
+     "page": 1,
+     "left": 156,
+     "top": 736,
+     "right": 406,
+     "bottom": 773,
+     "confidence": 0.8841493199999999,
+     "text": "Hgb unit: g/dL"
+    },
+    {
+     "words": [
+      "Hgb",
+      "reference",
+      "range:",
+      "12.0-16.0"
+     ],
+     "page": 1,
+     "left": 156,
+     "top": 838,
+     "right": 721,
+     "bottom": 875,
+     "confidence": 0.91455719,
+     "text": "Hgb reference range: 12.0-16.0"
+    },
+    {
+     "words": [
+      "Hgb",
+      "collection",
+      "date:",
+      "2026-09-21"
+     ],
+     "page": 1,
+     "left": 156,
+     "top": 940,
+     "right": 724,
+     "bottom": 977,
+     "confidence": 0.90577614,
+     "text": "Hgb collection date: 2026-09-21"
+    },
+    {
+     "words": [
+      "Hgb",
+      "abnormal:",
+      "Yes"
+     ],
+     "page": 1,
+     "left": 156,
+     "top": 1042,
+     "right": 496,
+     "bottom": 1079,
+     "confidence": 0.90603531,
+     "text": "Hgb abnormal: Yes"
+    },
+    {
+     "words": [
+      "A1C",
+      "test",
+      "name:",
+      "A1C"
+     ],
+     "page": 1,
+     "left": 152,
+     "top": 1229,
+     "right": 520,
+     "bottom": 1258,
+     "confidence": 0.8648175,
+     "text": "A1C test name: A1C"
+    },
+    {
+     "words": [
+      "A1C",
+      "value:",
+      "7.2"
+     ],
+     "page": 1,
+     "left": 152,
+     "top": 1331,
+     "right": 418,
+     "bottom": 1360,
+     "confidence": 0.8990385399999999,
+     "text": "A1C value: 7.2"
+    },
+    {
+     "words": [
+      "A1C",
+      "unit:",
+      "%"
+     ],
+     "page": 1,
+     "left": 152,
+     "top": 1433,
+     "right": 366,
+     "bottom": 1462,
+     "confidence": 0.89025215,
+     "text": "A1C unit: %"
+    },
+    {
+     "words": [
+      "A1C",
+      "reference",
+      "range:",
+      "under",
+      "5.7"
+     ],
+     "page": 1,
+     "left": 152,
+     "top": 1535,
+     "right": 726,
+     "bottom": 1572,
+     "confidence": 0.90514084,
+     "text": "A1C reference range: under 5.7"
+    },
+    {
+     "words": [
+      "A1C",
+      "collection",
+      "date:",
+      "2026-09-21"
+     ],
+     "page": 1,
+     "left": 152,
+     "top": 1637,
+     "right": 729,
+     "bottom": 1666,
+     "confidence": 0.89776848,
+     "text": "A1C collection date: 2026-09-21"
+    },
+    {
+     "words": [
+      "A1C",
+      "abnormal:",
+      "Yes"
+     ],
+     "page": 1,
+     "left": 152,
+     "top": 1739,
+     "right": 501,
+     "bottom": 1768,
+     "confidence": 0.9164440899999999,
+     "text": "A1C abnormal: Yes"
+    },
+    {
+     "words": [
+      "Fictional",
+      "values",
+      "for",
+      "software",
+      "demonstration.",
+      "Not",
+      "a",
+      "real",
+      "patient",
+      "record."
+     ],
+     "page": 1,
+     "left": 155,
+     "top": 1933,
+     "right": 1086,
+     "bottom": 1961,
+     "confidence": 0.90927635,
+     "text": "Fictional values for software demonstration. Not a real patient record."
+    }
+   ]
+  }
+ ]
+}

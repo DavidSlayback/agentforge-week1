@@ -1,0 +1,17 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "gen-intake-d-dob",
+  "written_from": "agentforge/scripts/generate-golden-pdfs.mjs (gen-intake-d-dob.pdf)",
+  "document_kind": "intake_form",
+  "patient_ref": null,
+  "note": "Carries fixture-patient-001's name but a different date of birth (1980-12-04, not 1980-04-12). A name match alone must not attach it to that chart.",
+  "intake_form": {
+    "name": "Test Patient One",
+    "dob": "1980-12-04",
+    "phone": "555-0177",
+    "chief_concern": "Shortness of breath on stairs",
+    "current_medications": ["Albuterol inhaler as needed"],
+    "allergies": ["Aspirin"],
+    "family_history": ["Brother has asthma"]
+  }
+}
