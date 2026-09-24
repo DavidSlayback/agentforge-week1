@@ -53,6 +53,12 @@ export const REGRESSIONS = [
   { id: 'I1', title: 'Lab reports skip the patient-header identity check', file: 'agentforge/src/documentSafety.js', find: ": { ...compareIdentity(readHeaderIdentity(documentText), targetPatient), source: 'lab_report_header' };", replace: ": { status: 'not_applicable', mismatched_fields: [], source: 'lab_report_header' };" },
   { id: 'U1', title: 'Unreadable PDFs are no longer refused (errors propagate as HTTP 500)', file: 'agentforge/src/service.js', find: "  return ['SOURCE_DOCUMENT_PDF_INVALID', 'PDF_PAGE_LIMIT_EXCEEDED', 'PDF_OCR_COMMAND_FAILED', 'PDF_OCR_COMMAND_TIMEOUT', 'PDF_OCR_OUTPUT_LIMIT_EXCEEDED'].includes(code);", replace: '  return false;' },
   { id: 'L0', title: 'Control: pre-fix trace behaviour (raw handoffs recorded in the scan trace)', file: 'agentforge/src/service.js', find: 'trace?.recordHandoff(traceSafeHandoff(handoff));', replace: 'trace?.recordHandoff(handoff);' },
+  // X1: added in review of R2 (issue #4), alongside the sr-16 gate case that
+  // replaces sr-10 ("a declared-wrong-type document reports READY instead of
+  // being refused"). Removing this BLOCKED stop lets a contract-invalid
+  // extraction (wrong declared type on a real envelope) fall through to
+  // safety/retrieval instead of refusing loudly.
+  { id: 'X1', title: 'Remove the extraction_contract_invalid BLOCKED stop', file: 'agentforge/src/supervisor.js', find: "  if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null);\n", replace: '' },
 ];
 
 // The hook's four checks, plus the agentforge unit tests without the gate's own

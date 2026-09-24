@@ -5,8 +5,8 @@
   "thresholds_passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "cefadff169bbb57bfe8759211f45619cfaa326136a741405bcf460247040a3e3",
-  "baseline_corpus_sha256": "cefadff169bbb57bfe8759211f45619cfaa326136a741405bcf460247040a3e3",
+  "corpus_sha256": "2025724409c74f2fd6934274d736c3e2f79eb671c098e9ed810bf1802813338f",
+  "baseline_corpus_sha256": "2025724409c74f2fd6934274d736c3e2f79eb671c098e9ed810bf1802813338f",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -300,9 +300,9 @@
       "passed": true
     },
     {
-      "id": "sr-15-scan-text-empty-envelope",
+      "id": "sr-16-scan-text-lab-declared-intake",
       "label": "safe_refusal",
-      "guards_against": "A `.scan.txt` (non-PDF) envelope with no readable FIELD rows is reported READY instead of BLOCKED no_fields_extracted — the zero-facts defect the retired LAB|/INTAKE| declared-wrong-type case guarded.",
+      "guards_against": "A `.scan.txt` lab upload declared as an intake form is reported READY instead of BLOCKED extraction_contract_invalid — the retired LAB|-declared-as-intake defect (sr-10) this refactor must still catch on the surviving scan path.",
       "passed": true
     },
     {
@@ -356,7 +356,7 @@
     {
       "id": "np-11-scan-text-envelope",
       "label": "no_phi_in_logs",
-      "guards_against": "A `.scan.txt` text-envelope upload traces its extracted lab or intake values — the leak the retired /v1/supervisor text path could hide.",
+      "guards_against": "A `.scan.txt` (non-PDF) lab upload's typed LabResult fields (test_name, unit, reference_range, collection_date, abnormal_flag — the keys the L0 leak showed the redactor's key-based allowlist misses) reach the trace or console — the leak the retired /v1/supervisor text path could hide.",
       "passed": true
     }
   ],

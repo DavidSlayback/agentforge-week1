@@ -93,7 +93,14 @@ export function buildW2GoldenSet() {
     kase('sr-12-no-chart-record', 'safe_refusal', 'A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.', scan('intake-a', 'intake_form', { upload_patient: P_UNKNOWN }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['patient_identity_unverified'], identity: 'unverified' } }),
     kase('sr-13-lab-header-other-patient', 'safe_refusal', 'A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('lab-a', 'lab_pdf', { upload_patient: P2 }), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['name', 'dob'], retrieval_ran: false } }),
     kase('sr-14-scan-text-unsupported-query', 'safe_refusal', 'An off-topic clinical question against a `.scan.txt` text-envelope upload gets guideline evidence or a READY state — the refusal defect the retired /v1/supervisor text path could hide.', scan('scan-text-intake-a', 'intake_form', { query: Q.offTopicClinical }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
-    kase('sr-15-scan-text-empty-envelope', 'safe_refusal', 'A `.scan.txt` (non-PDF) envelope with no readable FIELD rows is reported READY instead of BLOCKED no_fields_extracted — the zero-facts defect the retired LAB|/INTAKE| declared-wrong-type case guarded.', scan('scan-text-empty', 'lab_pdf'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
+    // sr-15 previously covered "a .scan.txt envelope with zero readable FIELD
+    // rows is reported READY instead of BLOCKED no_fields_extracted" — that
+    // outcome (BLOCKED no_fields_extracted) already has two PDF-path cases
+    // (sr-01: unreadable table layout; sr-02: blank page), so it was the
+    // weakest, most duplicative safe_refusal case once sr-16 below actually
+    // covers what sr-10 guarded (a declared-wrong-type document, not merely
+    // an empty one). Replaced in place to hold the category at 13 cases.
+    kase('sr-16-scan-text-lab-declared-intake', 'safe_refusal', 'A `.scan.txt` lab upload declared as an intake form is reported READY instead of BLOCKED extraction_contract_invalid — the retired LAB|-declared-as-intake defect (sr-10) this refactor must still catch on the surviving scan path.', scan('scan-text-lab-a', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'extraction_contract_invalid', retrieval_ran: false } }),
 
     kase('np-01-lab-a', 'no_phi_in_logs', 'Lab values, collection dates or the report header (name/DOB) reach the stored trace or stdout/stderr on the vector lab path.', scan('lab-a', 'lab_pdf'), { no_phi: {} }),
     kase('np-03-intake-a', 'no_phi_in_logs', 'Intake demographics, medications or allergies reach the trace or console.', scan('intake-a', 'intake_form'), { no_phi: {} }),
@@ -103,7 +110,7 @@ export function buildW2GoldenSet() {
     kase('np-07-lab-e-scan', 'no_phi_in_logs', 'A partially read scan logs its raw OCR lines.', scan('gen-lab-e-scanned', 'lab_pdf'), { no_phi: {} }),
     kase('np-09-corrupt-pdf', 'no_phi_in_logs', 'The unreadable-document refusal path writes document bytes or tool stderr into the trace or console.', scan('gen-corrupt', 'lab_pdf'), { no_phi: { no_handoffs: true } }),
     kase('np-10-raw-handoff-redaction', 'no_phi_in_logs', 'The trace redactor stops stripping value/quote-keyed content, so any raw worker handoff recorded in a trace would leak intake identifiers.', scan('intake-a', 'intake_form'), { no_phi: { raw_handoffs: true } }),
-    kase('np-11-scan-text-envelope', 'no_phi_in_logs', 'A `.scan.txt` text-envelope upload traces its extracted lab or intake values — the leak the retired /v1/supervisor text path could hide.', scan('scan-text-intake-a', 'intake_form'), { no_phi: {} }),
+    kase('np-11-scan-text-envelope', 'no_phi_in_logs', "A `.scan.txt` (non-PDF) lab upload's typed LabResult fields (test_name, unit, reference_range, collection_date, abnormal_flag — the keys the L0 leak showed the redactor's key-based allowlist misses) reach the trace or console — the leak the retired /v1/supervisor text path could hide.", scan('scan-text-lab-a', 'lab_pdf'), { no_phi: {} }),
   ];
 }
 
