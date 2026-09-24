@@ -96,7 +96,7 @@ for current local evidence and unverified release requirements, and
 the Week 2 implementation boundary and Sunday gaps.
 See [`docs/agentforge/PROJECT_EXPLAINER.md`](docs/agentforge/PROJECT_EXPLAINER.md),
 [`ARCHITECTURE.md`](docs/agentforge/ARCHITECTURE.md), and
-[`REQUIREMENTS_MATRIX.md`](docs/agentforge/REQUIREMENTS_MATRIX.md) for the
+[`REQUIREMENTS_MATRIX.md`](docs/agentforge/archive/REQUIREMENTS_MATRIX.md) for the
 assignment-grounded implementation and evidence map.
 
 ### Contributing

@@ -7,7 +7,7 @@
 > [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) for current W2 status and gaps.
 
 > At the time of that Week 1 checkpoint, candidate evidence was tracked in
-> `RELEASE_READINESS.md`; its video status and provider notes are historical.
+> `archive/RELEASE_READINESS.md`; its video status and provider notes are historical.
 
 ## Release position
 
@@ -85,12 +85,12 @@ The deployed path below remains a separate candidate readback.
 | Area | Evidence |
 | --- | --- |
 | Requirements and architecture | `docs/agentforge/REQUIREMENTS.md`, `ARCHITECTURE.md`, `DECISIONS.md` |
-| Early external checkpoint | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md` |
-| Authenticated synthetic seam | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md` |
-| Provider failure policy | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/RESILIENCE.md` |
-| Operations and recovery | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/RESILIENCE.md` |
-| Conversational latency/cache contract | `docs/agentforge/CONVERSATIONAL_AGENT_HANDOFF.md`, commit `1259fbb`, deployed `/v1/metrics` |
-| Load and cost boundary | `docs/agentforge/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/LOAD_TEST.md` |
+| Early external checkpoint | `docs/agentforge/archive/HISTORICAL_QUEUE_SUMMARY.md` |
+| Authenticated synthetic seam | `docs/agentforge/archive/HISTORICAL_QUEUE_SUMMARY.md` |
+| Provider failure policy | `docs/agentforge/archive/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/RESILIENCE.md` |
+| Operations and recovery | `docs/agentforge/archive/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/RESILIENCE.md` |
+| Conversational latency/cache contract | `docs/agentforge/archive/CONVERSATIONAL_AGENT_HANDOFF.md`, commit `1259fbb`, deployed `/v1/metrics` |
+| Load and cost boundary | `docs/agentforge/archive/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/LOAD_TEST.md` |
 | Current deployed scale | No current raw artifact; obtain fresh candidate-specific evidence. |
 | Final release checklist | `docs/agentforge/FINAL_PACKAGE.md` |
 | Interview defense | `docs/agentforge/FINAL_INTERVIEW_PREP.md` |
