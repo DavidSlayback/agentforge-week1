@@ -12,9 +12,17 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** Each regression is one exact, unique text replacement. */
+/**
+ * Each regression is one exact, unique text replacement.
+ *
+ * R1 (empty `quote_or_value` on a text-path lab citation) is retired: it
+ * targeted `agentforge/src/labEvidence.js`, deleted along with the legacy
+ * LAB|/INTAKE| text path and its old supervisor (R2, issue #4). The scan
+ * path's equivalent citation-completeness guard is exercised by N1, N7 and
+ * N9 below, and by the gate's `cp-11-scan-text-lab-citations`/
+ * `cp-12-scan-text-intake-citations` cases added in that same refactor.
+ */
 export const REGRESSIONS = [
-  { id: 'R1', title: 'Empty quote_or_value on a text-path lab citation', file: 'agentforge/src/labEvidence.js', find: 'quote_or_value: values.quote, bounding_box: boundingBox }', replace: "quote_or_value: '', bounding_box: boundingBox }" },
   { id: 'R2', title: 'Remove the citation from scan-path facts', file: 'agentforge/src/scanFormAdapter.js', find: "disposition: 'observed', citation, uncertainty", replace: "disposition: 'observed', uncertainty" },
   { id: 'R3', title: "Abnormal flag always 'normal' in typedExtraction", file: 'agentforge/src/typedExtraction.js', find: 'abnormal_flag: abnormalFlagFrom(fields.abnormal.value),', replace: "abnormal_flag: 'normal'," },
   { id: 'R4', title: 'Force unit to mg/dL in the typed PDF path', file: 'agentforge/src/typedExtraction.js', find: 'unit: fields.unit.value,', replace: "unit: 'mg/dL'," },
