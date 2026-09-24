@@ -1,0 +1,57 @@
+{
+  "results": [
+    {
+      "id": "cdc-a1c-test-definition",
+      "score": 0.85
+    },
+    {
+      "id": "medlineplus-a1c-what-it-is",
+      "score": 0.9
+    },
+    {
+      "id": "medlineplus-a1c-results-meaning",
+      "score": 0.75
+    },
+    {
+      "id": "niddk-a1c-test-uses",
+      "score": 0.95
+    },
+    {
+      "id": "cdc-a1c-diagnostic-ranges",
+      "score": 1
+    },
+    {
+      "id": "cdc-prediabetes-definition",
+      "score": 0.6
+    },
+    {
+      "id": "cdc-a1c-who-should-test",
+      "score": 0.5
+    },
+    {
+      "id": "niddk-a1c-testing-frequency",
+      "score": 0.4
+    },
+    {
+      "id": "medlineplus-cbc-hemoglobin-anemia",
+      "score": 0.1
+    },
+    {
+      "id": "niddk-diabetes-diagnosis-blood-tests",
+      "score": 0.8
+    },
+    {
+      "id": "nhlbi-cholesterol-diagnosis-method",
+      "score": 0
+    },
+    {
+      "id": "medlineplus-prediabetes-definition",
+      "score": 0.6
+    }
+  ],
+  "tokenUsage": {
+    "inputTokens": 894,
+    "outputTokens": 178,
+    "estimated": false
+  }
+}

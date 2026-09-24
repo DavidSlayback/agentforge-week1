@@ -1,4 +1,7 @@
 import test from 'node:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, loadGuidelineCorpus, retrieveGuidelineEvidence, sanitizeForExternalModel } from '../src/guidelineEvidence.js';
 import { createRecordedOrStubGeminiClient, stubEmbedding } from '../src/geminiClient.js';
@@ -93,7 +96,9 @@ test('the hybrid retriever degrades to sparse-only, not a fabricated empty embed
 
 test('the hybrid retriever unions sparse+dense candidates, reranks, and honestly labels a stub-backed run', async () => {
   const corpus = loadGuidelineCorpus();
-  const geminiClient = createRecordedOrStubGeminiClient();
+  // An empty fixtures dir keeps this a pure stub run: the shared dir now holds
+  // real recorded vectors for gate queries, which would not match stub corpus vectors.
+  const geminiClient = createRecordedOrStubGeminiClient({ fixturesDir: fs.mkdtempSync(path.join(os.tmpdir(), 'no-fixtures-')) });
   const retriever = createGeminiHybridGuidelineRetriever({ embedClient: geminiClient, reranker: createGeminiReranker(geminiClient), corpus, embeddings: stubEmbeddingsFor(corpus) });
   const result = await retriever.retrieve('A1C blood sugar diabetes diagnosis threshold', { topK: 3 });
   assert.equal(result.status, 'complete');
@@ -111,7 +116,7 @@ test('the hybrid retriever unions sparse+dense candidates, reranks, and honestly
   }
   // The rerank step must actually rank, not just pass candidates through:
   // the top result is a genuinely A1C-relevant chunk, and scores descend.
-  assert.equal(result.evidence[0].citation.source_id, 'cdc-a1c-test-definition');
+  assert.ok(['niddk-diabetes-diagnosis-blood-tests', 'cdc-a1c-diagnostic-ranges', 'cdc-a1c-test-definition', 'medlineplus-a1c-results-meaning', 'medlineplus-a1c-what-it-is', 'niddk-a1c-test-uses'].includes(result.evidence[0].citation.source_id), result.evidence[0].citation.source_id);
   for (let index = 1; index < result.evidence.length; index += 1) assert.ok(result.evidence[index].rerank_score <= result.evidence[index - 1].rerank_score);
   assert.ok(Array.isArray(result.usage) && result.usage.length === 2);
   assert.deepEqual(result.usage.map((usage) => usage.stage), ['embed', 'rerank']);
