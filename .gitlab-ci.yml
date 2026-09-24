@@ -1,0 +1,34 @@
+# AgentForge merge-request gate. GitHub workflows under .github/ do not run on
+# GitLab; this file is the only CI gate that can block a merge request here.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+    - when: never
+
+stages:
+  - test
+  - eval
+
+# Same base image and OCR packages as the deployed Dockerfile, so tests and the
+# gate exercise the Tesseract path that production runs.
+.agentforge-node:
+  image: node:24-alpine
+  before_script:
+    - apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
+
+agentforge-tests:
+  extends: .agentforge-node
+  stage: test
+  script:
+    - npm test --prefix agentforge
+    - npm test --prefix evals
+    - node --test observability/test/*.test.js
+
+w2-regression-gate:
+  extends: .agentforge-node
+  stage: eval
+  script:
+    - npm run eval:gate --prefix agentforge

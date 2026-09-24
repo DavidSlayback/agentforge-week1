@@ -18,6 +18,9 @@ import { runW2RegressionGate } from './w2RegressionGate.js';
 import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
+import { readBuildSha } from './buildInfo.js';
+
+const gitSha = readBuildSha();
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -147,7 +150,7 @@ async function readJsonBody(req) {
 }
 const server = http.createServer(async (req, res) => {
   try {
-    if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok' });
+    if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok', git_sha: gitSha });
     if (req.method === 'GET' && req.url === '/ready') { const result = await readiness.ready(); return json(res, result.status === 'ready' ? 200 : 503, result); }
     // These endpoints have no separate request authorization. Redaction is
     // their current safety boundary, not a production access policy.
