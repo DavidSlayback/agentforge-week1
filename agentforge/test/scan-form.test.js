@@ -107,6 +107,14 @@ test('active supervisor keeps worker handoffs inspectable and qualifies incomple
   assert.equal(qualified.final_state, 'QUALIFIED');
 });
 
+test('active supervisor retrieves through an injected retrievalAdapter instead of the hard-wired default', async () => {
+  const citation = { source_type: 'guideline', source_id: 'guideline-injected-1', page_or_section: 'Injected review', quote_or_value: 'Evidence from the injected retriever.' };
+  const injected = { name: 'injected-fake-retriever', retrieve: async () => ({ status: 'complete', evidence: [{ citation }], issues: [] }) };
+  const result = await runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence', retrievalAdapter: injected });
+  assert.deepEqual(result.typed_outputs.evidence.guideline_evidence.map((item) => item.citation), [citation]);
+  assert.equal(result.typed_outputs.evidence.output_status, 'ready');
+});
+
 test('retrieval benchmark records a defended deterministic local choice', () => {
   const report = runRetrievalBenchmark();
   assert.equal(report.synthetic_only, true);

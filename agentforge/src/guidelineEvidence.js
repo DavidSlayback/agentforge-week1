@@ -27,6 +27,14 @@ export function retrieveGuidelineEvidence(query, { topK = 3, corpus = GUIDELINE_
 }
 
 /**
+ * Named default retriever wrapping the deterministic local lexical/dense
+ * proxy. The name is the single source of truth for the "local-lexical-proxy"
+ * provider label; callers that inject a retriever (the scan supervisor, the
+ * service) read `.name` instead of hardcoding the string.
+ */
+export const localLexicalGuidelineRetriever = Object.freeze({ name: 'local-lexical-proxy', retrieve: retrieveGuidelineEvidence });
+
+/**
  * Build one `GuidelineEvidence` item (schemas.js) from a corpus document and
  * its retrieval scores. `citation.source_id`/`citation.field_or_chunk_id`
  * are both the document id because today's corpus has exactly one chunk per

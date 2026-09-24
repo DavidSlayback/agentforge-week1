@@ -1,5 +1,6 @@
 import { runEvidenceWorker, runExtractionWorker } from './activeWorkers.js';
 import { assessDocumentSafety } from './documentSafety.js';
+import { localLexicalGuidelineRetriever } from './guidelineEvidence.js';
 
 const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACTOR', EVIDENCE_RETRIEVER: 'EVIDENCE_RETRIEVER', VERIFY: 'VERIFY', READY: 'READY', QUALIFIED: 'QUALIFIED', CLARIFY: 'CLARIFY', BLOCKED: 'BLOCKED' });
 
@@ -85,8 +86,14 @@ export async function executeSupervisorWorkflow({ request, sourceDocumentIds = [
  * Async: the evidence-retrieval worker awaits its retriever (it may be a
  * remote/async provider such as Cohere embed+rerank), so this supervisor must
  * itself be async and every caller must await it.
+ *
+ * `retrievalAdapter` is an injected `{name, retrieve}` guideline retriever
+ * (sync or async — see `runEvidenceWorker`). It defaults to the deterministic
+ * local lexical/dense proxy so behavior is unchanged when the caller does not
+ * configure one (e.g. direct test calls that omit it entirely).
  */
 export async function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null, documentText = '', targetPatient = null } = {}) {
+  const retriever = retrievalAdapter || localLexicalGuidelineRetriever;
   const transitions = [STATES.START];
   observer?.startStage('extraction');
   let extractionWorker;
@@ -103,7 +110,7 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
   observer?.startStage('retrieval');
   let evidenceWorker;
   try {
-    evidenceWorker = await runEvidenceWorker({ query, patientFacts, documentFacts: extractionWorker.extraction.facts, ...(retrievalAdapter ? { retrieve: retrievalAdapter } : {}) });
+    evidenceWorker = await runEvidenceWorker({ query, patientFacts, documentFacts: extractionWorker.extraction.facts, retrieve: retriever.retrieve });
   } finally {
     observer?.finishStage('retrieval', { status: evidenceWorker?.output_status || 'failed' });
   }
