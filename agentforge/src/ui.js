@@ -253,10 +253,11 @@ button:disabled{opacity:.6;cursor:wait}
       let workflowSummary;
       let guidelineEvidence = [];
       if (isScanFixture) {
-        const readToken = state.demoToken;
+        // The write-scoped context lets the server persist derived facts to
+        // OpenEMR; a read token extracts but is refused persistence.
         const documentType = sourceDocumentForm.elements.document_type.value;
         const retrievalQuery = documentType === 'lab_pdf' ? 'documented glycemic values medication adherence' : 'medication reconciliation current documented list prior records';
-        const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: readToken, source_document_id: result.source_document.id, message: retrievalQuery });
+        const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: retrievalQuery });
         const active = workflow.workflow;
         workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
         guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];

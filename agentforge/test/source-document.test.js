@@ -147,6 +147,12 @@ test('AgentForge UI keeps the isolated W2 public path for links and API calls', 
   assert.match(page, /location\.pathname\.startsWith\('\/agentforge-w2'\) \? '\/agentforge-w2' : location\.pathname\.startsWith\('\/agentforge'\) \? '\/agentforge' : ''/);
 });
 
+test('UI runs the scan supervisor with the write context so derived facts can persist', () => {
+  const page = renderAgentForgePage({ publicBasePath: '/agentforge-w2' });
+  const call = page.slice(page.indexOf("request('/v1/scan-supervisor'"));
+  assert.match(call.slice(0, call.indexOf('});')), /demo_token: writeContext\.demo_token/);
+});
+
 test('synthetic lab extraction preserves citations, qualifies gaps, and detects conflicts', () => {
   const content = Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40');
   const valid = extractLabEvidence({ sourceDocumentId: 'src-lab-1', content });
