@@ -151,7 +151,24 @@ services:
       AGENTFORGE_OPENEMR_MODE: synthetic
       AGENTFORGE_PUBLIC_BASE_PATH: /agentforge-w2
       AGENTFORGE_PROVIDER_MODE: qwen
-      AGENTFORGE_RAG_PROVIDER: local-lexical
+      # S6: the same model env W1's `agentforge` block already reads
+      # (server.js buildProvider) -- without these, AGENTFORGE_PROVIDER_MODE
+      # above has no endpoint/key to use and server.js silently falls back to
+      # DeterministicProvider, so "qwen" was a label with nothing behind it.
+      # The W2 answer composer (answerComposer.js) reuses this same
+      # configured client for its own ResilientProvider; there is no separate
+      # answer-model env. See deploy/vultr/README.md for the variable list.
+      AGENTFORGE_MODEL_ENDPOINT: ${AGENTFORGE_MODEL_ENDPOINT:-}
+      AGENTFORGE_MODEL_PROTOCOL: ${AGENTFORGE_MODEL_PROTOCOL:-responses}
+      AGENTFORGE_MODEL: ${AGENTFORGE_MODEL:-configured-model}
+      AGENTFORGE_MODEL_API_KEY: ${AGENTFORGE_MODEL_API_KEY:-}
+      AGENTFORGE_MODEL_SITE_URL: ${AGENTFORGE_MODEL_SITE_URL:-}
+      AGENTFORGE_MODEL_SITE_NAME: ${AGENTFORGE_MODEL_SITE_NAME:-AgentForge}
+      AGENTFORGE_MODEL_TIMEOUT_MS: ${AGENTFORGE_MODEL_TIMEOUT_MS:-8000}
+      # F6 review fix: per-scan-request deadline (source OCR retry + answer
+      # composer provider call share one AbortSignal against this budget).
+      AGENTFORGE_SCAN_DEADLINE_MS: ${AGENTFORGE_SCAN_DEADLINE_MS:-25000}
+      AGENTFORGE_RAG_PROVIDER: gemini-hybrid
       AGENTFORGE_SCAN_PROVIDER_MODE: ${AGENTFORGE_SCAN_PROVIDER_MODE:-local}
       AGENTFORGE_GEMINI_SCAN_MODEL: ${AGENTFORGE_GEMINI_SCAN_MODEL:-gemini-3.8-flash}
       AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS: ${AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS:-45000}

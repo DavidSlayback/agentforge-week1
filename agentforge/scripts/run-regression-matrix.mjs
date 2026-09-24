@@ -21,15 +21,24 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
  * path's equivalent citation-completeness guard is exercised by N1, N7 and
  * N9 below, and by the gate's `cp-11-scan-text-lab-citations`/
  * `cp-12-scan-text-intake-citations` cases added in that same refactor.
+ *
+ * Re-anchored at the S4–S6 integration (same defect, equivalent code):
+ * R5–R7 now target the Gemini hybrid retriever's rerank sort, top-k slice and
+ * returned evidence (the retriever the gate and the `agentforge-w2` service
+ * run); R8 targets the BM25 `score > 0` filter in `bm25.js` (the sparse
+ * retriever behind both the sparse-only default and the hybrid's sparse half
+ * and its off-topic fallback); N5 replaces the supervisor's
+ * `clinicianQuestion` with the constant; X1 matches the S6 decision loop's
+ * `extraction_contract_invalid` stop.
  */
 export const REGRESSIONS = [
   { id: 'R2', title: 'Remove the citation from scan-path facts', file: 'agentforge/src/scanFormAdapter.js', find: "disposition: 'observed', citation, uncertainty", replace: "disposition: 'observed', uncertainty" },
   { id: 'R3', title: "Abnormal flag always 'normal' in typedExtraction", file: 'agentforge/src/typedExtraction.js', find: 'abnormal_flag: abnormalFlagFrom(fields.abnormal.value),', replace: "abnormal_flag: 'normal'," },
   { id: 'R4', title: 'Force unit to mg/dL in the typed PDF path', file: 'agentforge/src/typedExtraction.js', find: 'unit: fields.unit.value,', replace: "unit: 'mg/dL'," },
-  { id: 'R5', title: 'Reverse retriever ranking', file: 'agentforge/src/guidelineEvidence.js', find: '.sort((left, right) => right.score - left.score || left.document.id.localeCompare(right.document.id))', replace: '.sort((left, right) => left.score - right.score || left.document.id.localeCompare(right.document.id))' },
-  { id: 'R6', title: 'Retriever returns only the worst chunk', file: 'agentforge/src/guidelineEvidence.js', find: '.slice(0, Math.max(0, topK));', replace: '.slice(-1);' },
-  { id: 'R7', title: 'Retriever returns []', file: 'agentforge/src/guidelineEvidence.js', find: "evidence: ranked.map(({ document, sparseScore, denseScore, score, overlap }) => guidelineEvidenceItem(document, { sparseScore, denseScore, rerankScore: score, matchedTerms: overlap })), issues: [] };", replace: 'evidence: [], issues: [] };' },
-  { id: 'R8', title: "Remove the retriever's score > 0 filter", file: 'agentforge/src/guidelineEvidence.js', find: '    .filter((candidate) => candidate.score > 0)\n', replace: '' },
+  { id: "R5", title: "Reverse retriever ranking", file: "agentforge/src/guidelineEvidence.js", find: ".sort((left, right) => right.rerankScore - left.rerankScore)", replace: ".sort((left, right) => left.rerankScore - right.rerankScore)" },
+  { id: "R6", title: "Retriever returns only the worst chunk", file: "agentforge/src/guidelineEvidence.js", find: "        .slice(0, topK);\n", replace: "        .slice(-1);\n" },
+  { id: "R7", title: "Retriever returns []", file: "agentforge/src/guidelineEvidence.js", find: "        evidence,\n        issues: evidence.length ? [] : ['insufficient_guideline_evidence'],\n        degraded: itemDegraded,\n", replace: "        evidence: [],\n        issues: evidence.length ? [] : ['insufficient_guideline_evidence'],\n        degraded: itemDegraded,\n" },
+  { id: "R8", title: "Remove the retriever's score > 0 filter", file: "agentforge/src/bm25.js", find: "        if (score > 0) scored.push({ index, document: documents[index], score, matchedTerms });\n", replace: "        scored.push({ index, document: documents[index], score, matchedTerms });\n" },
   { id: 'R9', title: 'Evidence worker never qualifies/refuses', file: 'agentforge/src/activeWorkers.js', find: "const qualified = !normalizedQuery || !usable.length || guideline.status !== 'complete';", replace: 'const qualified = false;' },
   { id: 'R10', title: 'Log raw patient name and full OCR text to trace and console.log (service.js scan path)', file: 'agentforge/src/service.js', find: '      if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;\n', replace: "      if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;\n      console.log('scan workflow debug', { patient: targetPatient?.name, ocr: prepared.ocrText || contentText });\n      trace?.recordHandoff({ worker: 'debug', name: targetPatient?.name, ocr_dump: prepared.ocrText || contentText });\n" },
   { id: 'R11', title: 'Break the trace redaction regex for quote/value keys', file: 'observability/index.js', find: '|raw|value|field|quote|image|', replace: '|raw|field|image|' },
@@ -43,7 +52,7 @@ export const REGRESSIONS = [
   { id: 'N2', title: 'collection_date day/month swapped', file: 'agentforge/src/typedExtraction.js', find: 'collection_date: fields.collection_date.value,', replace: "collection_date: fields.collection_date.value.split('-').map((p, i, a) => i === 1 ? a[2] : i === 2 ? a[1] : p).join('-')," },
   { id: 'N3', title: 'patient identity ignores DOB', file: 'agentforge/src/documentSafety.js', find: "else if (formDob !== chartDob) mismatched.push('dob');", replace: "else if (false) mismatched.push('dob');" },
   { id: 'N4', title: 'doc-type detector always consistent', file: 'agentforge/src/documentSafety.js', find: "const typeStatus = typeDetection.detected === 'undetermined' ? 'undetermined' : typeDetection.detected === documentType ? 'consistent' : 'mismatch';", replace: "const typeStatus = 'consistent';" },
-  { id: 'N5', title: 'evidence worker query replaced with constant', file: 'agentforge/src/supervisor.js', find: 'evidenceWorker = await runEvidenceWorker({ query, patientFacts,', replace: "evidenceWorker = await runEvidenceWorker({ query: 'glycemic follow-up for an elevated A1C', patientFacts," },
+  { id: "N5", title: "evidence worker query replaced with constant", file: "agentforge/src/supervisor.js", find: "evidenceWorker = await runEvidenceWorker({ clinicianQuestion: query, patientFacts,", replace: "evidenceWorker = await runEvidenceWorker({ clinicianQuestion: 'glycemic follow-up for an elevated A1C', patientFacts," },
   { id: 'N6', title: 'LabResult confidence uses max instead of min', file: 'agentforge/src/typedExtraction.js', find: 'confidence: Math.min(...LAB_SUFFIXES', replace: 'confidence: Math.max(...LAB_SUFFIXES' },
   { id: 'N7', title: 'typed lab citation points at the test-name line, not the value line', file: 'agentforge/src/typedExtraction.js', find: 'citation: fields.value.citation,', replace: 'citation: fields.test_name.citation,' },
   { id: 'N8', title: 'missing chart demographics treated as identity match', file: 'agentforge/src/documentSafety.js', find: "if (!targetPatient) return { status: 'unverified', mismatched_fields: [] };", replace: "if (!targetPatient) return { status: 'match', mismatched_fields: [] };" },
@@ -58,7 +67,7 @@ export const REGRESSIONS = [
   // being refused"). Removing this BLOCKED stop lets a contract-invalid
   // extraction (wrong declared type on a real envelope) fall through to
   // safety/retrieval instead of refusing loudly.
-  { id: 'X1', title: 'Remove the extraction_contract_invalid BLOCKED stop', file: 'agentforge/src/supervisor.js', find: "  if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null);\n", replace: '' },
+  { id: "X1", title: "Remove the extraction_contract_invalid BLOCKED stop", file: "agentforge/src/supervisor.js", find: "      if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null, null, decisions, currentOcrMode);\n", replace: "" },
 ];
 
 // The hook's four checks, plus the agentforge unit tests without the gate's own
@@ -90,7 +99,8 @@ function gateSummary(stdout) {
 const only = process.argv.find((arg) => arg.startsWith('--only='))?.slice(7).split(',');
 const scratch = mkdtempSync(join(tmpdir(), 'agentforge-matrix-'));
 try {
-  for (const path of ['agentforge', 'observability', 'evals', 'docs/agentforge']) cpSync(join(repoRoot, path), join(scratch, path), { recursive: true });
+  // Dockerfile: dockerfile-runtime-dirs.test.js (S5) checks the image copies the corpus.
+  for (const path of ['agentforge', 'observability', 'evals', 'docs/agentforge', 'Dockerfile']) cpSync(join(repoRoot, path), join(scratch, path), { recursive: true });
   const rows = [];
   for (const regression of [{ id: 'R0', title: 'Control: no edit' }, ...REGRESSIONS].filter((item) => !only || item.id === 'R0' || only.includes(item.id))) {
     const target = regression.file ? join(scratch, regression.file) : null;

@@ -28,7 +28,8 @@ import {
  * - `guideline` claims cite `guideline` values only and must contain a
  *   verbatim span of each cited chunk (8 words, or the whole chunk if
  *   shorter). Words outside the span are limited to attribution words and
- *   the guideline's title, section, and version.
+ *   the guideline's title, section, and version (a date-format version or a
+ *   date inside the cited chunk may appear; any other date fails).
  * - `framing` claims need no citation but may state no clinical content: no
  *   numbers, dates, or clinical terms, and only reporting/framing words.
  *   Withheld or qualification context terms may be named, never with a
@@ -77,6 +78,9 @@ function bindingFact(fact) {
     words,
     numbers: new Set(numbersOf(ownWords)),
     labelWords: new Set(label.tokens),
+    // A guideline's version is often a date ("May 15, 2024" in the S5
+    // corpus); extractDates pulls it out of `label.tokens`, so keep it here.
+    labelDates: new Set(label.dates),
     rangeNumbers: new Set(numbersOf(bindingTokens(fact.rangeText).tokens)),
     interpretive: new Set(interpretive),
     negated: ownWords.some((token) => NEGATION_CUES.has(token)),
@@ -152,7 +156,10 @@ function bindGuideline(tokens, dates, facts, reasons) {
     }
     for (let index = run.start; index < run.start + run.length; index += 1) quoted.add(index);
   }
-  if (dates.length) reasons.add('UNANCHORED_DATE');
+  // A date may appear only when it is the cited chunk's own version (or
+  // title/section) date, or a date inside the cited chunk itself.
+  const knownDates = new Set(facts.flatMap((fact) => [...fact.dates, ...fact.labelDates]));
+  if (dates.some((date) => !knownDates.has(date))) reasons.add('UNANCHORED_DATE');
   const outside = tokens.filter((_, index) => !quoted.has(index));
   for (const token of outside) {
     const allowed = BINDING_VOCABULARY.has(token) || GUIDELINE_VOCABULARY.has(token) || facts.some((fact) => fact.labelWords.has(token));

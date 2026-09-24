@@ -6,6 +6,7 @@ RUN npm ci --omit=dev --prefix agentforge
 COPY agentforge/src agentforge/src
 COPY agentforge/scripts agentforge/scripts
 COPY agentforge/test agentforge/test
+COPY agentforge/corpus agentforge/corpus
 COPY observability observability
 COPY evals/deployed-service-results.json evals/deployed-service-results.json
 COPY evals/error-analysis.json evals/error-analysis.json

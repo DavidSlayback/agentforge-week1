@@ -1,0 +1,26 @@
+{
+  "schema_version": "agentforge-synthetic-ocr-v1",
+  "document_id": "s4-two-page-synthetic",
+  "synthetic_only": true,
+  "engine": "synthetic-recorded-replay",
+  "pdf_sha256": "6e051062768c4a34d4696866cbac444ab7b6e49334e408f37199e317cba6d943",
+  "page_count": 2,
+  "pages": [
+    {
+      "page": 1,
+      "width": 1000,
+      "height": 1200,
+      "lines": [
+        { "page": 1, "left": 100, "top": 120, "right": 300, "bottom": 150, "confidence": 0.95, "text": "Hemoglobin value: 11.2" }
+      ]
+    },
+    {
+      "page": 2,
+      "width": 2000,
+      "height": 3000,
+      "lines": [
+        { "page": 2, "left": 300, "top": 400, "right": 900, "bottom": 460, "confidence": 0.96, "text": "A1C value: 6.2" }
+      ]
+    }
+  ]
+}

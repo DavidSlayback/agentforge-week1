@@ -1,4 +1,4 @@
-import { Citation, IntakeForm, LabResult, parseOrIssues } from './schemas.js';
+import { Citation, IntakeForm, LabResult, ScanExtractionMetadata, parseOrIssues } from './schemas.js';
 
 export const SCAN_FORM_CONTRACT_VERSION = 'w2-scan-v1';
 export const SCAN_DOCUMENT_TYPES = Object.freeze(['lab_pdf', 'intake_form']);
@@ -79,6 +79,7 @@ export function validateScanExtraction(value, { sourceDocumentId = null, documen
   if (!nonEmpty(value.provider)) issues.push('provider_required');
   if (!EXTRACTION_STATUSES.includes(value.status)) issues.push('extraction_status_invalid');
   for (const field of ['facts', 'missing_fields', 'uncertain_fields', 'conflicts', 'issues']) if (!Array.isArray(value[field])) issues.push(`${field}_must_be_array`);
+  if ('page_sizes' in value) issues.push(...parseOrIssues(ScanExtractionMetadata, { page_sizes: value.page_sizes }).issues.map((issue) => `page_sizes_${issue}`));
   if (Array.isArray(value.facts)) value.facts.forEach((fact) => issues.push(...validateExtractedField(fact, { sourceDocumentId }).issues));
   if (documentType && Array.isArray(value.facts)) {
     const allowed = new Set(requiredScanFields({ documentType, layoutId }));
@@ -110,10 +111,15 @@ export function validateWorkerHandoff(value) {
   return { valid: issues.length === 0, issues: [...new Set(issues)] };
 }
 
+// `message` is an optional clinician question (activeWorkers.js formulates
+// the actual retrieval query from the document's own typed findings and
+// appends this only as a refinement) — absent or an empty string are both
+// valid; a non-string value is still rejected.
 export function validateActiveSupervisorRequest(value) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
-  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id', 'message']) if (!nonEmpty(value[field])) issues.push(`${field}_required`);
+  for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id']) if (!nonEmpty(value[field])) issues.push(`${field}_required`);
+  if ('message' in value && typeof value.message !== 'string') issues.push('message_must_be_string');
   const allowed = new Set(['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id', 'message']);
   for (const field of Object.keys(value)) if (!allowed.has(field)) issues.push(`${field}_not_allowed`);
   return { valid: issues.length === 0, issues };

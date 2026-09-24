@@ -29,8 +29,8 @@ test('golden suite can evaluate the running AgentForge service', async () => {
     assert.equal(metrics.requests, 9);
     assert.ok(metrics.retrievalAttempts >= 9);
     const dashboard = await (await fetch('http://127.0.0.1:18788/observability')).text();
-    assert.ok(dashboard.includes('AgentForge observability'));
-    assert.ok(dashboard.includes("basePath+'/v1/metrics'"));
+    assert.ok(dashboard.includes('Observability'));
+    for (const route of ['/v1/metrics', '/v1/alerts', '/v1/traces']) assert.ok(dashboard.includes(route));
   } finally {
     // Wait for the child to actually exit (and release port 18788) before
     // this test returns, so a back-to-back run of this suite — or the

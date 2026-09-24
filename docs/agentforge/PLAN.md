@@ -113,14 +113,14 @@ Status is as of `7ac46e9`.
 | W2-C1 | p4 §1 | `attach_and_extract` for lab_pdf and intake_form; stores the source in OpenEMR | C | The response includes the OpenEMR `document_id`; `GET /api/patient/:pid/document/:did` returns identical bytes | wired, untested live (S8; smoke not run) | S8 |
 | W2-C2 | p2, p4 §1 | Derived facts persisted as FHIR/OpenEMR records, no duplicates | C | Lab values are readable through FHIR Observation, and re-uploading the same file creates 0 new rows | wired, untested live (S8; smoke not run) | S8 |
 | W2-C3 | p4 §2 | Strict schemas with the required lab and intake fields plus validation tests | C | Zod schemas; negative tests per required field | Partial | S2 |
-| W2-C4 | p4 §3 | Sparse + dense + rerank; only top evidence goes to the answer model | C | Trace shows the BM25 candidates, Cohere dense and rerank scores, and top-k ≤ 3 sent to the answer model | FAIL | S5 |
-| W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | FAIL | S5 |
-| W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | Partial | S6 |
-| W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | FAIL | S2, S6 |
-| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | FAIL | S4 |
+| W2-C4 | p4 §3 | Sparse + dense + rerank; only top evidence goes to the answer model | C | Trace shows the BM25 candidates, Cohere dense and rerank scores, and top-k ≤ 3 sent to the answer model | wired, untested live (S5; Gemini dense + Gemini rerank per D2′ instead of Cohere, on `integrate/s4-s6`, not deployed) | S5 |
+| W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | wired, untested live (S5; 42 chunks in `agentforge/corpus/guidelines/corpus.json`, copied into the image by the `Dockerfile`, not deployed) | S5 |
+| W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | wired, untested live (S6; `decideNext` loop + `workflow.decisions[]` pass 26 unit tests and the gate on `integrate/s4-s6`, not deployed) | S6 |
+| W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | wired, untested live (S2 document/guideline citations deployed; S6 answer-claim citations pass the gate on `integrate/s4-s6`, not deployed) | S2, S6 |
+| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | wired, untested live (S4; `/v1/source-documents/:id/pages/:n.png` + server-side overlay in the source preview on `integrate/s4-s6`, not deployed) | S4 |
 | W2-C9 | p5 §6 | Categories schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs; >5% regression or below threshold fails | C | Gate thresholds documented; each category has at least one deployed-path case | Partial | S1 |
 | W2-C10 | p5 §7 | Per encounter: tool sequence, per-step latency, tokens, cost, retrieval hits, extraction confidence, eval outcome; no raw PHI | C | A real scan trace has all 7 fields non-null; the PHI scan of that trace is clean | Partial | S9 |
-| W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | FAIL | S6 |
+| W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | wired, untested live (S6; `workflow.answer` — `patient_facts[]`/`guideline_evidence[]`, each `verifyClaims`-checked — on `integrate/s4-s6`, not deployed; no model provider configured yet, so every observed run is `composer: 'deterministic-fallback'`) | S6 |
 | W2-SF1 | p2 | Unsupported extracted facts visible; the scan may be imperfect | SF | 0 facts, a doc-type mismatch or a patient mismatch means not READY, with a reason | FAIL | S3 |
 | W2-S1 | p3 | README separates W1 and W2; branch, env vars and services are unambiguous | S | README has URLs, SHA endpoint, W1 vs W2 table, full env table | FAIL | S12 |
 | W2-S2 | p6 | `./W2_ARCHITECTURE.md` covering ingestion, graph, RAG, gate, risks, tradeoffs | S | At root; every claim matches the code at the freeze SHA | FAIL (location) | S12 |
@@ -295,15 +295,16 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
 - Tests plus golden cases (they feed `safe_refusal`).
 
 ### S4 — Bounding-box overlay with click-to-source (Fri PM, 3 h)
-- Server: `GET /v1/source-documents/:id/pages/:n.png`, rendered by `pdftoppm
-  -r 200` (the same coordinate space as Tesseract boxes), cached, and
-  patient-scoped by token.
-- `ui.js`: page `<img>` with absolutely positioned `<div>` boxes scaled by
-  `img.clientWidth / naturalWidth`. Clicking a citation scrolls to and
-  highlights its box, and hovering a box highlights its citation. Colors show
-  confidence.
-- Tests: the render function emits one box per fact with the correct scaled
-  coordinates. A browser screenshot is captured in S11.
+- Carry recorded page dimensions through the OCR envelope and extraction as
+  optional `page_sizes`; older `.scan.txt` envelopes remain valid.
+- Serve cached `pdftoppm -r 200` PNG pages through a signed-token,
+  patient-scoped route. The preview positions boxes in percentage coordinates,
+  links citations to `citationBoxId` targets, and separates low-confidence
+  facts into the review section.
+- Verification: page-size round trip, all-fact overlay/link checks, and HTTP
+  scope/status/render checks pass locally. Deliberately swapping X/Y fails the
+  geometry test. Status: wired, untested live (merged into `integrate/s4-s6`;
+  not deployed); its public-URL screenshot belongs to S11.
 
 ### S5 — Real hybrid RAG (Fri, 4 h, after H2)
 - Corpus: `agentforge/corpus/guidelines/*.md`, 20–60 chunks drawn from public
@@ -327,6 +328,10 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   gate is deterministic and needs no key. Live calls happen only on deploy.
 - Tests: a query about abnormal A1C ranks the ADA A1C chunk first; an
   off-topic query returns 0 chunks and triggers `safe_refusal`.
+- Status: wired, untested live (merged into `integrate/s4-s6`; not deployed).
+  As built (D2′), dense and rerank use Gemini (`gemini-embedding-2`, flash
+  listwise rerank) rather than Cohere; the gate uses the recorded/stub Gemini
+  client, and degraded results are labeled `sparse_only`/`stub`.
 
 ### S7 — W1 trust fixes (Thu–Fri, 4 h; lane C, before S6)
 - Remove every `item.expected` read from `preVisitPreparation.js:89-100`.
@@ -352,25 +357,49 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   require an ops bearer token (`AGENTFORGE_OPS_TOKEN`).
 
 ### S6 — Supervisor decisions and the grounded answer (Sat AM, 5 h)
+
+Status: **wired, untested live**, merged into `integrate/s4-s6` after S4 and
+S5 (not merged to `main`, not deployed). On the integrated tree all unit
+suites and the 50-case gate pass locally and via `.githooks/pre-commit`
+(counts in the completion record); see `docs/agentforge/W2_ARCHITECTURE.md`'s
+"Supervisor decisions and the grounded answer (S6)" section for the decision
+table, composer contract, and gate coverage. No model provider is configured
+in this environment, so every locally observed `workflow.answer.composer` is
+`deterministic-fallback`; the model and `model+deterministic-topup` paths are
+exercised only by fake providers in tests and the gate, per an independent
+review (2026-09-24) that also added: a per-call `maxTokens` for the answer
+composer (the briefing lane's 300-token cap truncated the ~1.1-1.6k token
+claims JSON); a deterministic top-up for facts/evidence a partial model
+answer missed; `model_rejected_reason` carried through a fallback;
+`trace.recordModelUsage` for the answer stage; a fix for `isRecordLookupQuestion`
+false positives on guideline-seeking questions; skipping the real provider
+entirely (no wasted retries) when it is already deterministic; a
+per-request `AGENTFORGE_SCAN_DEADLINE_MS` deadline; `allowExternalLiveProvider`
+enforcement for the composer; content-addressed, bounded extraction caching;
+and answer-before-persist ordering at the HTTP boundary.
+
 - `supervisor.js`: `decideNext(state) → {next, reason}` over the states
   EXTRACT, RETRIEVE, ANSWER and DONE:
   - skip EXTRACT if the doc hash is already extracted;
   - skip RETRIEVE for a pure record-lookup question;
   - re-extract once with an alternate OCR mode (`--psm 4` vs `6`) if mean
-    confidence < 0.7;
+    confidence < 0.7, keeping whichever extraction has the higher mean
+    confidence and never adopting a contract-invalid retry;
   - DONE with a qualification when a limit is hit.
   Each decision is recorded as a trace event.
 - Answer composer: the model gets only the typed facts and top-k chunks, and
-  must return `{claims[{text, citations[]}]}` (Zod-validated). The output then
-  goes through the S7 verifier per claim. Patient facts and guideline evidence
-  are rendered in separate sections, as W2 p2 requires. Fallback is a
-  deterministic, template-based answer built from the same claims and labeled
-  as such.
-- Patient-record facts (`service.js:201` `retrieveFollowUpEvidence`'s
-  `patient_facts`) carry the 5-key citation with `source_type:
-  'openemr_record'` (S2 review finding 8).
-- Tests: at least 3 routing variants, uncited-claim rejection, and the fallback
-  path.
+  must return `{claims[{kind, text, citations[]}]}` (Zod-validated). The
+  output then goes through `verifyClaims` (claimBinding.js) per claim.
+  Patient facts and guideline evidence are rendered in separate sections, as
+  W2 p2 requires. Fallback is a deterministic, template-based answer built
+  from the same facts and labeled as such.
+- Patient-record facts (`service.js` `retrievePatientChartFacts`, shared by
+  `retrieveFollowUpEvidence` and the S6 answer) carry the 5-key citation with
+  `source_type: 'openemr_record'` (S2 review finding 8).
+- Tests: 26 supervisor-decision tests (`supervisor-decisions.test.js`), 21
+  composer tests (`answer-composer.test.js`), 4 service/HTTP integration
+  tests (`answer-service-integration.test.js`), and 5 gate cases carrying
+  `expect.answer` assertions (fc-01, cp-05, fc-05, sr-07, fc-08).
 
 ### S8 — OpenEMR round-trip (Fri–Sat, 6 h, after H1; lane B)
 Implemented per D7 and `.scratch/agentforge-week2/S8_DESIGN.md` (which replaced
@@ -447,6 +476,15 @@ observed live** — the post-deploy smoke below has not run.
 - Alerts: per-route p95 thresholds from S11 baselines. The trace store becomes
   a ring of 1,000 with totals counted separately. The dashboard polls every
   10 s and the label says "all time" or the actual window.
+- S9 dashboard slice: polished responsive light/dark page, all-time KPI labels,
+  alert thresholds/states, expandable per-encounter stage/handoff/retrieval/
+  model detail, 10 s refresh, and a separately generated fake-data preview.
+  Local acceptance is covered by `agentforge/test/observability-dashboard.test.js`;
+  this does not establish deployed or public-URL verification.
+  Local checks passed: `npm test --prefix agentforge` (230 passed, 2 skipped),
+  `npm test --prefix evals` (10), `node --test observability/test/*.test.js`
+  (25), and `npm run eval:gate --prefix agentforge` (50/50). The p95-to-median
+  mutation failed its test as expected.
 
 ### S12 — Documentation truth pass (Sat PM–Sun AM, 3 h)
 - Root files on `main`: `AUDIT.md`, `ARCHITECTURE.md`, `USERS.md` (the real
@@ -539,7 +577,10 @@ adversarial review before merge.
 | S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
 | S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
 | R0–R5 refactor | **Done, live on `67b0844`** (MR !74). Full matrix on the merged tree: R0 passes, 29/29 regression rows fail the gate. Live: OpenEMR smoke 48/48, module attack checks 8/8, a legacy `LAB|` upload returns 400, `/v1/supervisor` returns 404. Workers: Sonnet (R2, R3), Haiku (R1, R4a, R4b, R5). Codex Luna headless `exec` could not run shell commands under the Windows sandbox. | Originally planned in | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
-| S4, S5, S6, S9, S12, S11 | Not started | After R0–R5 |
+| S4 | Wired, untested live | Merged into `integrate/s4-s6` (from `slice/s4`, Codex). Page PNG route + server-side overlay + `page_sizes` in the scan envelope. Not deployed; public screenshot deferred to S11. Test counts for the integrated tree are in the S6 row. |
+| S5 | Wired, untested live | Merged into `integrate/s4-s6` (from `slice/s5`). BM25 + `gemini-embedding-2` dense + Gemini flash listwise rerank over the 42-chunk verified corpus (`agentforge/corpus/guidelines/`); `agentforge-w2` compose sets `AGENTFORGE_RAG_PROVIDER=gemini-hybrid`. The gate runs the hybrid retriever with the recorded/stub Gemini client (honest `degraded` labels), never a live call. Not deployed; never run against a live Gemini key on the public URL. |
+| S6 | Wired, untested live | `supervisor.js#decideNext` loop (EXTRACT/RETRIEVE/ANSWER/DONE) + `answerComposer.js#composeGroundedAnswer` merged into `integrate/s4-s6` after S4 and S5 (not deployed); RETRIEVE calls the injected S5 hybrid retriever through `runEvidenceWorker` and its query formulation, and `record_lookup_only` skips it. Integrated tree: agentforge 320 tests (317 pass, 3 skip without Poppler/Tesseract on this Windows host), evals 10/10, observability 25/25, module PHP 49/49; 50-case gate green with S5 retrieval cases and S6 `expect.answer` assertions on 5 cases (fc-01, cp-05, fc-05, sr-07, fc-08); all pass locally and via `.githooks/pre-commit`. Confirmed live-workflow-shaped but never run against the deployed SHA or a real model provider (`docs/agentforge/W2_ARCHITECTURE.md` "Supervisor decisions and the grounded answer (S6)"). |
+| S9, S12, S11 | Not started | After R0–R5 |
 
 Incidents, all fixed and recorded in commits:
 - `git archive` on Windows shipped CRLF; `deploy.sh` now disables autocrlf.
