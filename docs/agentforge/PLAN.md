@@ -476,6 +476,15 @@ observed live** — the post-deploy smoke below has not run.
 - Alerts: per-route p95 thresholds from S11 baselines. The trace store becomes
   a ring of 1,000 with totals counted separately. The dashboard polls every
   10 s and the label says "all time" or the actual window.
+- S9 dashboard slice: polished responsive light/dark page, all-time KPI labels,
+  alert thresholds/states, expandable per-encounter stage/handoff/retrieval/
+  model detail, 10 s refresh, and a separately generated fake-data preview.
+  Local acceptance is covered by `agentforge/test/observability-dashboard.test.js`;
+  this does not establish deployed or public-URL verification.
+  Local checks passed: `npm test --prefix agentforge` (230 passed, 2 skipped),
+  `npm test --prefix evals` (10), `node --test observability/test/*.test.js`
+  (25), and `npm run eval:gate --prefix agentforge` (50/50). The p95-to-median
+  mutation failed its test as expected.
 
 ### S12 — Documentation truth pass (Sat PM–Sun AM, 3 h)
 - Root files on `main`: `AUDIT.md`, `ARCHITECTURE.md`, `USERS.md` (the real

@@ -1,0 +1,1926 @@
+[
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-001",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:00:00.000Z",
+    "completedAt": "2026-09-24T14:00:00.000Z",
+    "durationMs": 200,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 90,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 60,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 30,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 2
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 307,
+      "output_tokens": 93,
+      "cost_usd": 0.00083,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 307,
+        "outputTokens": 93,
+        "estimatedCostUsd": 0.00083
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.88,
+        "min": 0.76,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-002",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:00:30.000Z",
+    "completedAt": "2026-09-24T14:00:30.000Z",
+    "durationMs": 300,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 135,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 90,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 45,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 3
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 314,
+      "output_tokens": 96,
+      "cost_usd": 0.00086,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 314,
+        "outputTokens": 96,
+        "estimatedCostUsd": 0.00086
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.9,
+        "min": 0.8,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-003",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:01:00.000Z",
+    "completedAt": "2026-09-24T14:01:00.000Z",
+    "durationMs": 400,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 180,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 120,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 60,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 4
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 321,
+      "output_tokens": 99,
+      "cost_usd": 0.00089,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 321,
+        "outputTokens": 99,
+        "estimatedCostUsd": 0.00089
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.92,
+        "min": 0.84,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-004",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:01:30.000Z",
+    "completedAt": "2026-09-24T14:01:30.000Z",
+    "durationMs": 500,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 225,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 150,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 75,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 1
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 328,
+      "output_tokens": 102,
+      "cost_usd": 0.00092,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 328,
+        "outputTokens": 102,
+        "estimatedCostUsd": 0.00092
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.94,
+        "min": 0.72,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-005",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:02:00.000Z",
+    "completedAt": "2026-09-24T14:02:00.000Z",
+    "durationMs": 600,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 270,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 180,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 90,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-fallback",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 2
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": true,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 335,
+      "output_tokens": 105,
+      "cost_usd": 0.00095,
+      "calls": 2
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "fallback-local",
+        "model": "synthetic-preview-model",
+        "inputTokens": 335,
+        "outputTokens": 105,
+        "estimatedCostUsd": 0.00095
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.86,
+        "min": 0.76,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-006",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:02:30.000Z",
+    "completedAt": "2026-09-24T14:02:30.000Z",
+    "durationMs": 700,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 315,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 210,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 105,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 2,
+          "hit_count": 3
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 1,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 342,
+      "output_tokens": 108,
+      "cost_usd": 0.00098,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 342,
+        "outputTokens": 108,
+        "estimatedCostUsd": 0.00098
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.88,
+        "min": 0.8,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-007",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:03:00.000Z",
+    "completedAt": "2026-09-24T14:03:00.000Z",
+    "durationMs": 800,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 360,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 240,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 120,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 4
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 349,
+      "output_tokens": 111,
+      "cost_usd": 0.00101,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 349,
+        "outputTokens": 111,
+        "estimatedCostUsd": 0.00101
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.9,
+        "min": 0.84,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-008",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:03:30.000Z",
+    "completedAt": "2026-09-24T14:03:30.000Z",
+    "durationMs": 900,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 405,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 270,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 135,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 1
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 356,
+      "output_tokens": 114,
+      "cost_usd": 0.00104,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 356,
+        "outputTokens": 114,
+        "estimatedCostUsd": 0.00104
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.92,
+        "min": 0.72,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-009",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:04:00.000Z",
+    "completedAt": "2026-09-24T14:04:00.000Z",
+    "durationMs": 1000,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 450,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 300,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 150,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 2
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 363,
+      "output_tokens": 117,
+      "cost_usd": 0.00107,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 363,
+        "outputTokens": 117,
+        "estimatedCostUsd": 0.00107
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.94,
+        "min": 0.76,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-010",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:04:30.000Z",
+    "completedAt": "2026-09-24T14:04:30.000Z",
+    "durationMs": 1100,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 495,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 330,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 165,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 3
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 370,
+      "output_tokens": 120,
+      "cost_usd": 0.0011,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 370,
+        "outputTokens": 120,
+        "estimatedCostUsd": 0.0011
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.86,
+        "min": 0.8,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-011",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:05:00.000Z",
+    "completedAt": "2026-09-24T14:05:00.000Z",
+    "durationMs": 1200,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 540,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 360,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 180,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 4
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 377,
+      "output_tokens": 123,
+      "cost_usd": 0.00113,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 377,
+        "outputTokens": 123,
+        "estimatedCostUsd": 0.00113
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.88,
+        "min": 0.84,
+        "count": 5
+      }
+    },
+    "decisions": [
+      {
+        "next": "evidence-retriever-worker",
+        "reason": "synthetic routing decision"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-012",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:05:30.000Z",
+    "completedAt": "2026-09-24T14:05:30.000Z",
+    "durationMs": 1300,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 585,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 390,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 195,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 1
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 384,
+      "output_tokens": 126,
+      "cost_usd": 0.00116,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 384,
+        "outputTokens": 126,
+        "estimatedCostUsd": 0.00116
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.9,
+        "min": 0.72,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-013",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:06:00.000Z",
+    "completedAt": "2026-09-24T14:06:00.000Z",
+    "durationMs": 1400,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 630,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 420,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 210,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 2
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 391,
+      "output_tokens": 129,
+      "cost_usd": 0.00119,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 391,
+        "outputTokens": 129,
+        "estimatedCostUsd": 0.00119
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.92,
+        "min": 0.76,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-014",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:06:30.000Z",
+    "completedAt": "2026-09-24T14:06:30.000Z",
+    "durationMs": 1500,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 675,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 450,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 225,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 3
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 398,
+      "output_tokens": 132,
+      "cost_usd": 0.00122,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 398,
+        "outputTokens": 132,
+        "estimatedCostUsd": 0.00122
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.94,
+        "min": 0.8,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-015",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:07:00.000Z",
+    "completedAt": "2026-09-24T14:07:00.000Z",
+    "durationMs": 1600,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 720,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 480,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 240,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 4
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 405,
+      "output_tokens": 135,
+      "cost_usd": 0.00125,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 405,
+        "outputTokens": 135,
+        "estimatedCostUsd": 0.00125
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.86,
+        "min": 0.84,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-016",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:07:30.000Z",
+    "completedAt": "2026-09-24T14:07:30.000Z",
+    "durationMs": 1700,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 765,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 510,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 255,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 1
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 412,
+      "output_tokens": 138,
+      "cost_usd": 0.00128,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 412,
+        "outputTokens": 138,
+        "estimatedCostUsd": 0.00128
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.88,
+        "min": 0.72,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-017",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:08:00.000Z",
+    "completedAt": "2026-09-24T14:08:00.000Z",
+    "durationMs": 1800,
+    "status": "failure",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 810,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 540,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 270,
+        "status": "failure"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "failed",
+          "attempts": 1,
+          "hit_count": 2
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "failed"
+    },
+    "display": {
+      "status": "blocked"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "fail"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 419,
+      "output_tokens": 141,
+      "cost_usd": 0.00131,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 419,
+        "outputTokens": 141,
+        "estimatedCostUsd": 0.00131
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.9,
+        "min": 0.76,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-018",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:08:30.000Z",
+    "completedAt": "2026-09-24T14:08:30.000Z",
+    "durationMs": 1900,
+    "status": "blocked",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 855,
+        "status": "blocked"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 570,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 285,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "blocked"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 0
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "blocked"
+    },
+    "display": {
+      "status": "blocked"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "blocked"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 426,
+      "output_tokens": 144,
+      "cost_usd": 0.00134,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 426,
+        "outputTokens": 144,
+        "estimatedCostUsd": 0.00134
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.92,
+        "min": 0.8,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-019",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:09:00.000Z",
+    "completedAt": "2026-09-24T14:09:00.000Z",
+    "durationMs": 25000,
+    "status": "qualified",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 11250,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 7500,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 3750,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 4
+        }
+      ]
+    },
+    "model": {
+      "provider_fallback": false,
+      "model": "synthetic-preview-model"
+    },
+    "verification": {
+      "status": "qualified"
+    },
+    "display": {
+      "status": "qualified"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "qualified"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    },
+    "modelTotals": {
+      "input_tokens": 433,
+      "output_tokens": 147,
+      "cost_usd": 0.00137,
+      "calls": 1
+    },
+    "modelUsage": [
+      {
+        "stage": "extract",
+        "provider": "synthetic-provider",
+        "model": "synthetic-preview-model",
+        "inputTokens": 433,
+        "outputTokens": 147,
+        "estimatedCostUsd": 0.00137
+      }
+    ],
+    "extraction": {
+      "status": "complete",
+      "confidence": {
+        "mean": 0.94,
+        "min": 0.84,
+        "count": 5
+      }
+    }
+  },
+  {
+    "schemaVersion": 2,
+    "correlationId": "fake-s9-020",
+    "operation": "w2-scan-supervisor",
+    "interactionType": "scan_form",
+    "startedAt": "2026-09-24T14:09:30.000Z",
+    "completedAt": "2026-09-24T14:09:30.000Z",
+    "durationMs": 2100,
+    "status": "success",
+    "stages": [
+      {
+        "name": "scan-extraction",
+        "sequence": 1,
+        "durationMs": 945,
+        "status": "success"
+      },
+      {
+        "name": "evidence-retrieval",
+        "sequence": 2,
+        "durationMs": 630,
+        "status": "success"
+      },
+      {
+        "name": "verification",
+        "sequence": 3,
+        "durationMs": 315,
+        "status": "success"
+      }
+    ],
+    "handoffs": [
+      {
+        "worker": "scan-extraction-worker",
+        "status": "completed",
+        "input_type": "lab_pdf",
+        "output_status": "qualified"
+      },
+      {
+        "worker": "evidence-retriever-worker",
+        "status": "completed",
+        "input_type": "extracted-facts",
+        "output_status": "evidence-ready"
+      }
+    ],
+    "retrieval": {
+      "attempts": [
+        {
+          "adapter": "local-guideline-index",
+          "group": "guidelines",
+          "status": "success",
+          "attempts": 1,
+          "hit_count": 1
+        }
+      ]
+    },
+    "model": {
+      "inputTokens": 420,
+      "outputTokens": 110,
+      "estimatedCostUsd": 0.0011,
+      "model": "legacy-preview-model"
+    },
+    "verification": {
+      "status": "passed"
+    },
+    "display": {
+      "status": "ready"
+    },
+    "evaluation": {
+      "status": "recorded",
+      "outcome": "pass"
+    },
+    "retries": {
+      "total": 0,
+      "exhausted": false
+    }
+  }
+]
