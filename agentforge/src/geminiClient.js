@@ -257,6 +257,19 @@ export function defaultRetrievalFixturesDir() {
   return fileURLToPath(new URL('../test/fixtures/retrieval/', import.meta.url));
 }
 
+/**
+ * The recorder writes COMPLETE.json only after every gate query recorded a real
+ * Gemini response. Returns it, or null when absent or unreadable, so callers
+ * can refuse to mix real corpus vectors with an incomplete fixture set.
+ */
+export function readRetrievalFixtureManifest(dir = defaultRetrievalFixturesDir()) {
+  try {
+    return JSON.parse(readFileSync(path.join(dir, 'COMPLETE.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 // Shared by the recorded-or-stub client (lookup) and
 // `scripts/record-retrieval-fixtures.mjs` (write) so a fixture recorded for
 // one exact request is found by the other — the hash key is a single

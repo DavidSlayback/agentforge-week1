@@ -8,8 +8,8 @@ import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { formulateEvidenceQuery } from './activeWorkers.js';
 import { validateScanExtractionTypedOutput } from './contracts.js';
 import { FixtureAdapter } from './fixtureAdapter.js';
-import { createRecordedOrStubGeminiClient, stubEmbedding } from './geminiClient.js';
-import { createGeminiHybridGuidelineRetriever, loadCorpusEmbeddings, loadGuidelineCorpus } from './guidelineEvidence.js';
+import { createRecordedOrStubGeminiClient, readRetrievalFixtureManifest, stubEmbedding } from './geminiClient.js';
+import { corpusEmbeddingsFingerprint, createGeminiHybridGuidelineRetriever, loadCorpusEmbeddings, loadGuidelineCorpus } from './guidelineEvidence.js';
 import { DeterministicProvider, ResilientProvider } from './modelProvider.js';
 import { createRecordedOcrReplay } from './pdfScanAdapter.js';
 import { validateScanExtraction } from './scanFormContracts.js';
@@ -218,19 +218,24 @@ const golden = () => (goldenCache ||= readGolden());
  * finding: previously the gate built its service with no retriever at all
  * and so only ever tested the BM25-only default.
  *
- * Corpus embeddings: the real `corpus/embeddings.json` when it has been
- * built (`build-corpus-embeddings.mjs`, which needs a live key this gate
- * never has); otherwise a locally-computed stand-in built with the same
- * `stubEmbedding` hashing-trick function the recorded-or-stub client uses
- * for its own fallback, so query and corpus vectors always share a
- * dimension and the dense half of the pipeline is exercised even with no
- * real embeddings file committed yet.
+ * Corpus embeddings: the real `corpus/embeddings.json` ONLY when the
+ * recorder's completion manifest (`test/fixtures/retrieval/COMPLETE.json`)
+ * matches it, meaning every gate query has a recorded real Gemini response
+ * against exactly these vectors. Otherwise a locally computed stand-in built
+ * with the same `stubEmbedding` function the recorded-or-stub client uses, so
+ * query and corpus vectors always come from the same source. Mixing real
+ * corpus vectors with stub query vectors would silently degrade to
+ * sparse-only and change results (found 2026-09-24 when the real embeddings
+ * landed before the fixtures).
  */
 let gateGuidelineRetriever = null;
 function guidelineRetrieverForGate() {
   if (gateGuidelineRetriever) return gateGuidelineRetriever;
   const corpus = loadGuidelineCorpus();
-  const embeddings = loadCorpusEmbeddings() || { vectors: Object.fromEntries(corpus.map((chunk) => [chunk.source_id, stubEmbedding(`${chunk.title}\n${chunk.section}\n${chunk.text}`)])) };
+  const real = loadCorpusEmbeddings();
+  const manifest = readRetrievalFixtureManifest();
+  const useReal = Boolean(real && manifest?.embeddings_fingerprint && manifest.embeddings_fingerprint === corpusEmbeddingsFingerprint(real));
+  const embeddings = useReal ? real : { vectors: Object.fromEntries(corpus.map((chunk) => [chunk.source_id, stubEmbedding(`${chunk.title}\n${chunk.section}\n${chunk.text}`)])) };
   gateGuidelineRetriever = createGeminiHybridGuidelineRetriever({ geminiClient: createRecordedOrStubGeminiClient(), corpus, embeddings });
   return gateGuidelineRetriever;
 }
