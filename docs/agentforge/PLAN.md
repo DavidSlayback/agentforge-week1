@@ -117,7 +117,7 @@ Status is as of `7ac46e9`.
 | W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | FAIL | S5 |
 | W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | Partial | S6 |
 | W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | FAIL | S2, S6 |
-| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | FAIL | S4 |
+| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | Implemented, not wired | S4 |
 | W2-C9 | p5 §6 | Categories schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs; >5% regression or below threshold fails | C | Gate thresholds documented; each category has at least one deployed-path case | Partial | S1 |
 | W2-C10 | p5 §7 | Per encounter: tool sequence, per-step latency, tokens, cost, retrieval hits, extraction confidence, eval outcome; no raw PHI | C | A real scan trace has all 7 fields non-null; the PHI scan of that trace is clean | Partial | S9 |
 | W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | FAIL | S6 |
@@ -295,15 +295,16 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
 - Tests plus golden cases (they feed `safe_refusal`).
 
 ### S4 — Bounding-box overlay with click-to-source (Fri PM, 3 h)
-- Server: `GET /v1/source-documents/:id/pages/:n.png`, rendered by `pdftoppm
-  -r 200` (the same coordinate space as Tesseract boxes), cached, and
-  patient-scoped by token.
-- `ui.js`: page `<img>` with absolutely positioned `<div>` boxes scaled by
-  `img.clientWidth / naturalWidth`. Clicking a citation scrolls to and
-  highlights its box, and hovering a box highlights its citation. Colors show
-  confidence.
-- Tests: the render function emits one box per fact with the correct scaled
-  coordinates. A browser screenshot is captured in S11.
+- Carry recorded page dimensions through the OCR envelope and extraction as
+  optional `page_sizes`; older `.scan.txt` envelopes remain valid.
+- Serve cached `pdftoppm -r 200` PNG pages through a signed-token,
+  patient-scoped route. The preview positions boxes in percentage coordinates,
+  links citations to `citationBoxId` targets, and separates low-confidence
+  facts into the review section.
+- Verification: page-size round trip, all-fact overlay/link checks, and HTTP
+  scope/status/render checks pass locally. Deliberately swapping X/Y fails the
+  geometry test. The route is implemented, not wired on the deployed public
+  URL; its screenshot belongs to S11.
 
 ### S5 — Real hybrid RAG (Fri, 4 h, after H2)
 - Corpus: `agentforge/corpus/guidelines/*.md`, 20–60 chunks drawn from public
@@ -539,7 +540,8 @@ adversarial review before merge.
 | S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
 | S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
 | R0–R5 refactor | **Done, live on `67b0844`** (MR !74). Full matrix on the merged tree: R0 passes, 29/29 regression rows fail the gate. Live: OpenEMR smoke 48/48, module attack checks 8/8, a legacy `LAB|` upload returns 400, `/v1/supervisor` returns 404. Workers: Sonnet (R2, R3), Haiku (R1, R4a, R4b, R5). Codex Luna headless `exec` could not run shell commands under the Windows sandbox. | Originally planned in | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
-| S4, S5, S6, S9, S12, S11 | Not started | After R0–R5 |
+| S4 | Implemented, not wired | `slice/s4`: 234 AgentForge tests (232 pass, 2 skip), evals 10/10, observability 25/25, 50/50 W2 gate; X/Y mutation fails. Public deployment/screenshot deferred to S11. |
+| S5, S6, S9, S12, S11 | Not started | After R0–R5 |
 
 Incidents, all fixed and recorded in commits:
 - `git archive` on Windows shipped CRLF; `deploy.sh` now disables autocrlf.

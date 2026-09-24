@@ -19,8 +19,10 @@ import { createCohereGuidelineRetriever } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
 import { readBuildSha } from './buildInfo.js';
+import { renderPdfPagePng } from './pdfScanAdapter.js';
 
 const gitSha = readBuildSha();
+const renderedPageCache = new Map();
 
 /**
  * Environment selects deterministic or external-primary model mode and live
@@ -270,6 +272,36 @@ const server = http.createServer(async (req, res) => {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
     }
+    const sourcePageMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/pages\/(\d+)\.png(?:\?(.*))?$/);
+    if (req.method === 'GET' && sourcePageMatch) {
+      if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const patient_uuid = query.get('patient_uuid') || '';
+      const token = tokenPayload(query.get('demo_token') || '');
+      if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
+      const id = decodeURIComponent(sourcePageMatch[1]);
+      const page = Number(sourcePageMatch[2]);
+      try {
+        const result = await service.readSourceDocument(id, { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        if (result.status !== 'read') return json(res, 403, { error: result.reason });
+        if (result.content.subarray(0, 5).toString() !== '%PDF-') return json(res, 404, { error: 'source_page_not_found' });
+        const cacheKey = `${id}:${page}`;
+        let image = renderedPageCache.get(cacheKey);
+        if (!image) {
+          image = renderPdfPagePng(result.content, page);
+          renderedPageCache.set(cacheKey, image);
+          image.catch(() => { if (renderedPageCache.get(cacheKey) === image) renderedPageCache.delete(cacheKey); });
+          while (renderedPageCache.size > 100) renderedPageCache.delete(renderedPageCache.keys().next().value);
+        }
+        const png = await image;
+        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'private, max-age=300' });
+        return res.end(png);
+      } catch (error) {
+        if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return json(res, 403, { error: 'invalid_demo_context' });
+        if ((error.code || error.message) === 'DOCUMENT_NOT_FOUND' || (error.code || error.message) === 'PDF_PAGE_NOT_FOUND') return json(res, 404, { error: 'source_page_not_found' });
+        return json(res, 422, { error: 'pdf_page_render_failed' });
+      }
+    }
     const scanSourcePreviewMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/source-preview(?:\?(.*))?$/);
     if (req.method === 'GET' && scanSourcePreviewMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -280,7 +312,7 @@ const server = http.createServer(async (req, res) => {
       const result = await service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       if (result.status === 'failed') return json(res, 500, { error: result.reason });
-      return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath }));
+      return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath, patient_uuid, demo_token: query.get('demo_token') || '' }));
     }
     const sourceDocumentMatch = req.url.match(/^\/v1\/source-documents\/([^?]+)(?:\?(.*))?$/);
     if (req.method === 'GET' && sourceDocumentMatch) {

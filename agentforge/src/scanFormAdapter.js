@@ -1,6 +1,7 @@
 import { EXTRACTION_STATUSES, requiredScanFields, SCAN_FORM_CONTRACT_VERSION, validateScanExtraction, validateScanInput } from './scanFormContracts.js';
 import { formatPageOrSection } from './sourceEvidenceParsing.js';
 import { buildTypedIntakeForm, buildTypedLabResults } from './typedExtraction.js';
+import { ScanExtractionMetadata, parseOrIssues } from './schemas.js';
 
 const parseAttributes = (line) => Object.fromEntries(line.split('|').slice(1).map((part) => {
   const separator = part.indexOf('=');
@@ -11,6 +12,11 @@ const parseBox = (value) => {
   const box = String(value || '').split(',').map(Number);
   return box.length === 4 && box.every((item) => Number.isFinite(item) && item >= 0) ? box : null;
 };
+
+const parsePageSizes = (value) => String(value || '').split(',').filter(Boolean).flatMap((entry) => {
+  const match = entry.match(/^(\d+):(\d+)x(\d+)$/);
+  return match ? [{ page: Number(match[1]), width: Number(match[2]), height: Number(match[3]) }] : [];
+});
 
 const issue = (code, detail = '') => detail ? `${code}:${detail}` : code;
 
@@ -30,7 +36,11 @@ function parseFixture(content) {
     else if (kind === 'UNREADABLE') unreadable.push({ field_id: attrs.field_id, reason: attrs.reason || 'unreadable' });
     else issues.push(issue('unknown_fixture_row', kind));
   }
-  return { header: parseAttributes(header), fields, missing, unreadable, issues };
+  const headerAttributes = parseAttributes(header);
+  const pageSizes = parsePageSizes(headerAttributes.page_sizes);
+  const declaredPageSizeCount = headerAttributes.page_sizes?.split(',').length || 0;
+  if (headerAttributes.page_sizes && pageSizes.length !== declaredPageSizeCount) issues.push('page_sizes_invalid');
+  return { header: headerAttributes, pageSizes, fields, missing, unreadable, issues };
 }
 
 function citationFor(sourceDocumentId, layoutId, field) {
@@ -106,7 +116,8 @@ export function extractScanForm({ sourceDocumentId, documentType, layoutId, page
   // typed view. Only `complete` is downgraded here: `partial`/`qualified`
   // already signal a degraded extraction through the untyped-fact checks.
   if (status === 'complete' && typedIssues.length) status = 'qualified';
-  const result = { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status, facts, missing_fields: missingFields, uncertain_fields: uncertainFields, conflicts, issues: [...new Set(issues)], lab_results: labResults, intake_form: intakeForm, typed_issues: [...new Set(typedIssues)], metrics: { pages: pageCount, candidate_fields: parsed.fields.length, accepted_fields: facts.length, duration_ms: Number((performance.now() - started).toFixed(3)) }, synthetic_only: true };
+  const pageMetadata = parsed.pageSizes.length ? { page_sizes: parsed.pageSizes } : {};
+  const result = { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status, facts, missing_fields: missingFields, uncertain_fields: uncertainFields, conflicts, issues: [...new Set(issues)], ...pageMetadata, lab_results: labResults, intake_form: intakeForm, typed_issues: [...new Set(typedIssues)], metrics: { pages: pageCount, candidate_fields: parsed.fields.length, accepted_fields: facts.length, duration_ms: Number((performance.now() - started).toFixed(3)) }, synthetic_only: true };
   const validation = validateScanExtraction(result, { sourceDocumentId, documentType, layoutId });
   return validation.valid ? result : blockedResult([...result.issues, ...validation.issues]);
 }

@@ -124,9 +124,10 @@ test('source preview never lists a low-confidence field as verified', () => {
   };
   const html = renderScanSourcePreview({ sourceDocument: { id: 'doc-1', filename: 'lab.pdf' }, extraction });
   assert.match(html, /<strong>1<\/strong><span>verified fields<\/span>/);
-  const verifiedSection = html.slice(html.indexOf('Verified field evidence'), html.indexOf('Low-confidence values'));
+  const verifiedSection = html.slice(html.indexOf('Verified field evidence'), html.indexOf('Needs a closer look'));
   assert.ok(!verifiedSection.includes('data-field-id="lab.hgb.value"'), 'low-confidence field rendered under verified evidence');
-  assert.match(html.slice(html.indexOf('Low-confidence values')), /data-field-id="lab\.hgb\.value"/);
+  assert.equal((html.match(/data-field-id="lab\.hgb\.value"/g) || []).length, 1, 'low-confidence field should appear once in needs-review evidence');
+  assert.match(html.slice(html.indexOf('Needs a closer look')), /data-field-id="lab\.hgb\.value"/);
 });
 
 test('lab reports are identity-checked on their printed patient header', async () => {

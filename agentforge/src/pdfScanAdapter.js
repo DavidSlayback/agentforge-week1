@@ -175,6 +175,28 @@ export async function pdfToOcrLines(content, { includeImages = false } = {}) {
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
+/** Render one source page in the same 200 DPI pixel space used by Tesseract. */
+export async function renderPdfPagePng(content, page) {
+  assertPdf(content);
+  if (!Number.isInteger(page) || page < 1) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
+  const directory = await mkdtemp(join(tmpdir(), 'agentforge-page-'));
+  try {
+    const pdf = join(directory, 'source.pdf');
+    await writeFile(pdf, content);
+    const info = await run('pdfinfo', [pdf]);
+    const pageCount = Number(info.match(/^Pages:\s+(\d+)/m)?.[1] || 0);
+    if (!pageCount) throw new Error('PDF_PAGE_INFO_INVALID');
+    if (page > pageCount) throw Object.assign(new Error('PDF_PAGE_NOT_FOUND'), { code: 'PDF_PAGE_NOT_FOUND' });
+    const prefix = join(directory, 'page');
+    await run('pdftoppm', ['-r', '200', '-f', String(page), '-l', String(page), '-png', pdf, prefix]);
+    const imageName = (await readdir(directory)).find((name) => new RegExp(`^page-${page}\\.png$`).test(name));
+    if (!imageName) throw new Error('PDF_PAGE_RENDER_FAILED');
+    const image = await readFile(join(directory, imageName));
+    if (image.length < 8 || image.length > MAX_COMMAND_OUTPUT_BYTES || image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error('PDF_PAGE_RENDER_FAILED');
+    return image;
+  } finally { await rm(directory, { recursive: true, force: true }); }
+}
+
 /** Production OCR engine: the real poppler + Tesseract binaries. */
 export const tesseractOcrEngine = Object.freeze({ name: 'tesseract-local-pdf', recognize: pdfToOcrLines });
 
@@ -209,7 +231,10 @@ export async function extractPdfScanFixture({ content, documentType, layoutId = 
   const extracted = modelResult
     ? modelResult.fields
     : fieldRows(ocrLines, documentType, layoutId);
-  const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}`];
+  const pageSizes = renderedPages
+    .filter((page) => Number.isInteger(page.page) && Number.isInteger(page.width) && Number.isInteger(page.height) && page.width > 0 && page.height > 0)
+    .map((page) => `${page.page}:${page.width}x${page.height}`);
+  const fixture = [`SYNTHETIC_SCAN_FORM|layout=${layoutId}|page_count=${pages}${pageSizes.length ? `|page_sizes=${pageSizes.join(',')}` : ''}`];
   for (const field of extracted) {
     const line = field.line;
     const page = field.page || line?.page;
