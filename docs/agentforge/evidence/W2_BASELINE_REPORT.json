@@ -5,8 +5,8 @@
   "thresholds_passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "2a08f384982c8595e8c5152b820b963593428270002e8ab3318c9e70aa0f5428",
-  "baseline_corpus_sha256": "2a08f384982c8595e8c5152b820b963593428270002e8ab3318c9e70aa0f5428",
+  "corpus_sha256": "b0982306708df761a0bbc79990359ba7944b54811cfd0650da4b0aba084bdc9d",
+  "baseline_corpus_sha256": "b0982306708df761a0bbc79990359ba7944b54811cfd0650da4b0aba084bdc9d",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -194,7 +194,7 @@
     {
       "id": "fc-05-intake-a-values",
       "label": "factually_consistent",
-      "guards_against": "Intake demographics, chief concern, medications, allergies or family history no longer match the form.",
+      "guards_against": "Intake demographics, chief concern, medications, allergies or family history no longer match the form. S6: every observed intake leaf must also survive independently in the grounded answer as a cited patient_fact claim (the deterministic intake template).",
       "passed": true
     },
     {

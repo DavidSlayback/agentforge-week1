@@ -183,14 +183,25 @@ export const NeedsReviewItem = z.object({
  * `/v1/scan-supervisor`). `patient_facts` and `guideline_evidence` are the
  * verified claims that survived `verifyClaims`, already split by `kind` so a
  * caller never has to re-derive the W2-required separation. `composer`
- * records whether the claims came from the configured model or the
- * deterministic fallback (never silently relabeled). `unverified_dropped`
- * counts claims the model/fallback proposed that failed verification and
- * were removed — the server validates this exact shape before ever sending
- * it (S6 item 4: invalid answer -> 500, never unvalidated).
+ * records whether the claims came from the configured model, the
+ * deterministic fallback, or a model answer topped up with deterministic
+ * claims for facts/evidence the model itself missed (never silently
+ * relabeled). `model_rejected_reason` is present only when a real model was
+ * attempted and its own output could not be used as-is: `invalid_json` (the
+ * model's JSON never passed the `GroundedAnswer` schema after retries),
+ * `provider_error` (a network/timeout/other failure), `all_claims_unverified`
+ * (schema-valid JSON, but every claim failed content verification), or
+ * `deadline` (the per-request scan deadline had already passed). It is absent
+ * when no model was configured at all, or one part of the answer came
+ * through cleanly. `unverified_dropped` counts claims that failed
+ * verification and were removed — carried forward from the model's own
+ * attempt when it fell back (F2), not reset to 0. The server validates this
+ * exact shape before ever sending it (S6 item 4: invalid answer -> 500,
+ * never unvalidated).
  */
 export const GroundedAnswerResult = z.object({
-  composer: z.enum(['model', 'deterministic-fallback']),
+  composer: z.enum(['model', 'deterministic-fallback', 'model+deterministic-topup']),
+  model_rejected_reason: z.enum(['all_claims_unverified', 'invalid_json', 'provider_error', 'deadline']).optional(),
   patient_facts: z.array(AnswerClaim),
   guideline_evidence: z.array(AnswerClaim),
   needs_review: z.array(NeedsReviewItem),

@@ -333,19 +333,24 @@ button:disabled{opacity:.6;cursor:wait}
             text.textContent = claim.text + ' ';
             row.append(text);
             for (const citation of claim.citations) {
-              const link = document.createElement('a');
-              if (citation.source_type === 'guideline') {
-                // No public URL exists for the synthetic guideline corpus;
-                // the citation is still shown in full, just not as a live link.
-                link.textContent = '[' + citation.page_or_section + ']';
-                link.href = '#';
-                link.addEventListener('click', (event) => event.preventDefault());
-              } else {
+              // F9 review fix: only a document-type citation has a source
+              // preview page behind it. A guideline citation has no public
+              // URL in the current synthetic corpus, and an openemr_record
+              // citation is a chart record with no document/preview at all --
+              // both render as plain, non-interactive text, never a link
+              // that goes nowhere real.
+              if (citation.source_type === 'document') {
+                const link = document.createElement('a');
                 link.href = basePath + '/v1/source-documents/' + encodeURIComponent(citation.source_id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken) + '#' + citationBoxId(citation.field_or_chunk_id);
                 link.target = '_blank';
                 link.textContent = '[' + citation.page_or_section + ']';
+                row.append(document.createTextNode(' '), link);
+              } else {
+                const span = document.createElement('span');
+                span.className = 'citation-text';
+                span.textContent = '[' + citation.page_or_section + ']';
+                row.append(document.createTextNode(' '), span);
               }
-              row.append(document.createTextNode(' '), link);
             }
             list.append(row);
           }

@@ -17,8 +17,8 @@ test('decideNext: extraction_needed is the default when nothing has run yet', ()
   assert.deepEqual(decideNext({}), { next: DECISIONS.EXTRACT, reason: 'extraction_needed' });
 });
 
-test('decideNext: extraction_cached skips straight past EXTRACT to RETRIEVE', () => {
-  assert.deepEqual(decideNext({ extraction: null, extractionCached: true }), { next: DECISIONS.RETRIEVE, reason: 'extraction_cached' });
+test('decideNext: extraction_cached is still an EXTRACT decision (the trace reads truthfully: an extraction happened, from cache)', () => {
+  assert.deepEqual(decideNext({ extraction: null, extractionCached: true }), { next: DECISIONS.EXTRACT, reason: 'extraction_cached' });
 });
 
 test('decideNext: a fail-loud safety-blocking reason stops at DONE, not RETRIEVE or ANSWER', () => {
@@ -67,6 +67,29 @@ test('isRecordLookupQuestion: matches direct value/result/level questions, not o
   assert.equal(isRecordLookupQuestion(undefined), false);
 });
 
+// F5 review fix: a question that otherwise matches the "what is/was the X
+// value/result/level" shape but actually asks for guideline evidence (a
+// target, a recommendation, an interpretation) must still route to RETRIEVE.
+test('isRecordLookupQuestion: guideline-seeking questions (target/goal/recommended/normal/should/abnormal) are not a record lookup', () => {
+  const cases = [
+    ['What is the target A1C value?', false],
+    ['What is the recommended potassium level?', false],
+    ['What is the normal hemoglobin result?', false],
+    ['What is the abnormal glucose value?', false],
+    ['What should the glucose level be?', false],
+    ['What is the goal blood pressure reading?', false],
+    // Still real lookups: no guideline-seeking word present.
+    ['What was the hemoglobin value?', true],
+    ['What is the potassium result?', true],
+  ];
+  for (const [question, expected] of cases) assert.equal(isRecordLookupQuestion(question), expected, question);
+});
+
+test('answerComposer.js re-exports the same isRecordLookupQuestion as supervisor.js (one canonical copy)', async () => {
+  const composer = await import('../src/answerComposer.js');
+  assert.equal(composer.isRecordLookupQuestion, isRecordLookupQuestion);
+});
+
 const envelope = (fields) => {
   const lines = ['SYNTHETIC_SCAN_FORM|layout=pdf-ocr-lab_pdf|page_count=1'];
   for (const [fieldId, label, value, unit, confidence] of fields) {
@@ -90,7 +113,7 @@ test('active supervisor: a shared extractionCache skips EXTRACT on the second ca
   const first = await runActiveSupervisor(args);
   assert.deepEqual(first.decisions[0], { next: 'EXTRACT', reason: 'extraction_needed' });
   const second = await runActiveSupervisor(args);
-  assert.deepEqual(second.decisions[0], { next: 'RETRIEVE', reason: 'extraction_cached' });
+  assert.deepEqual(second.decisions[0], { next: 'EXTRACT', reason: 'extraction_cached' });
   // The cached extraction is reused verbatim -- same typed facts.
   assert.deepEqual(second.typed_outputs.extraction.lab_results, first.typed_outputs.extraction.lab_results);
 });
@@ -153,4 +176,60 @@ test('active supervisor: every decision is also recorded on the observer trace, 
   await runActiveSupervisor({ sourceDocumentId: 'doc-trace-1', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(hgbFields(0.95)), query: LAB_QUERY, observer });
   assert.deepEqual(recorded.map((decision) => decision.reason), ['extraction_needed', 'evidence_needed', 'facts_and_evidence_ready']);
   assert.ok(recorded.every((decision) => Object.keys(decision).every((key) => ['next', 'reason'].includes(key))));
+});
+
+// F6 review fix: the retry must never make things worse.
+test('active supervisor: a retry with lower confidence than the original is discarded, not adopted', async () => {
+  const reextractWithAlternateOcr = async () => ({ content: envelope(hgbFields(0.3)), ocrMode: 'psm4' });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-retry-worse-confidence', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(hgbFields(0.6)), query: LAB_QUERY, reextractWithAlternateOcr });
+  assert.equal(result.typed_outputs.extraction.lab_results[0].confidence, 0.6);
+  assert.equal(result.ocr_mode, 'psm6');
+});
+
+test('active supervisor: a retry that comes back contract-invalid (blocked) never replaces the original valid extraction', async () => {
+  // `lab.bogus.value` is not in the pdf-ocr-lab_pdf allowlist, so this
+  // extraction is contract-invalid (`blocked`) regardless of its confidence.
+  const badContent = envelope([['lab.bogus.value', 'Bogus value', '1', '', 0.99]]);
+  const reextractWithAlternateOcr = async () => ({ content: badContent, ocrMode: 'psm4' });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-retry-blocked-candidate', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(hgbFields(0.5)), query: LAB_QUERY, reextractWithAlternateOcr });
+  assert.notEqual(result.final_state, 'BLOCKED');
+  assert.equal(result.typed_outputs.extraction.lab_results[0].confidence, 0.5);
+  assert.equal(result.ocr_mode, 'psm6');
+});
+
+test('active supervisor: a retry with higher confidence is adopted and the reported ocr_mode reflects the extraction actually used', async () => {
+  const reextractWithAlternateOcr = async () => ({ content: envelope(hgbFields(0.95)), ocrMode: 'psm4' });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-retry-better-confidence', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(hgbFields(0.5)), query: LAB_QUERY, reextractWithAlternateOcr });
+  assert.equal(result.typed_outputs.extraction.lab_results[0].confidence, 0.95);
+  assert.equal(result.ocr_mode, 'psm4');
+});
+
+// F11 review fix: content-addressed cache (not document-id-addressed), bounded, and truthfully traced.
+test('active supervisor: extractionCache is content-addressed, so a different sourceDocumentId with identical content still hits the cache', async () => {
+  const extractionCache = new Map();
+  const content = envelope(hgbFields(0.95));
+  await runActiveSupervisor({ sourceDocumentId: 'doc-content-a', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-content-b', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
+  assert.deepEqual(result.decisions[0], { next: 'EXTRACT', reason: 'extraction_cached' });
+});
+
+test('active supervisor: a cache hit still records extraction confidence on the trace (setExtraction is called)', async () => {
+  const extractionCache = new Map();
+  const content = envelope(hgbFields(0.95));
+  await runActiveSupervisor({ sourceDocumentId: 'doc-setext-a', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
+  const setExtractionCalls = [];
+  const observer = { startStage() {}, finishStage() {}, recordRetrievalAttempt() {}, setExtraction: (value) => setExtractionCalls.push(value) };
+  await runActiveSupervisor({ sourceDocumentId: 'doc-setext-b', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache, observer });
+  assert.equal(setExtractionCalls.length, 1);
+  assert.equal(setExtractionCalls[0].confidence.mean, 0.95);
+});
+
+test('active supervisor: extractionCache evicts the oldest entry once it exceeds its bound (50)', async () => {
+  const extractionCache = new Map();
+  for (let i = 0; i < 51; i += 1) {
+    const fields = hgbFields(0.95).map((field) => [...field]);
+    fields[1][2] = String(13 + i); // unique value per iteration -> unique content -> unique cache key
+    await runActiveSupervisor({ sourceDocumentId: `doc-bound-${i}`, documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(fields), query: LAB_QUERY, extractionCache });
+  }
+  assert.ok(extractionCache.size <= 50, `expected extractionCache.size <= 50, got ${extractionCache.size}`);
 });

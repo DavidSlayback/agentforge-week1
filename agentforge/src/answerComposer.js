@@ -27,6 +27,13 @@
 import { verifyClaims } from './claimBinding.js';
 import { canonicalText } from './groundingText.js';
 import { GroundedAnswer, parseOrIssues } from './schemas.js';
+// F5 review fix: one canonical `isRecordLookupQuestion`, defined in
+// supervisor.js (the `record_lookup_only` routing decision owns it); this
+// module re-exports it rather than keeping its own copy of the regex, so the
+// two can never quietly drift apart on what counts as a pure record lookup.
+import { isRecordLookupQuestion } from './supervisor.js';
+
+export { isRecordLookupQuestion };
 
 /** Facts extracted with less than this confidence are excluded from the
  * answer and reported separately as `needs_review`, never as a patient fact
@@ -35,15 +42,12 @@ import { GroundedAnswer, parseOrIssues } from './schemas.js';
  * already used for the source-preview UI's low-confidence flag. */
 export const LOW_CONFIDENCE_THRESHOLD = 0.85;
 
-/** A direct "what was the X value/result/level" question. Documented, simple
- * rule used by both the supervisor's `record_lookup_only` routing decision
- * and (here) to decide whether guideline evidence belongs in the prompt at
- * all; kept in one place so the two never disagree. */
-const RECORD_LOOKUP_QUESTION = /^\s*what\s+(?:is|was|are|were)\s+the\s+[a-z0-9 /%.'-]+?\s+(?:value|values|result|results|level|levels|reading|readings)s?\s*\??\s*$/i;
-
-export function isRecordLookupQuestion(query) {
-  return RECORD_LOOKUP_QUESTION.test(String(query || '').trim());
-}
+/** F1 review fix: the model's own claims JSON typically runs 1.1-1.6k tokens
+ * for a handful of claims with full citations; the briefing prose lane's
+ * 300-token cap (modelProvider.js) truncated it mid-JSON, guaranteeing a
+ * parse failure. The composer asks for its own, much larger budget; the
+ * briefing lane's default (300) is untouched. */
+const ANSWER_MODEL_MAX_TOKENS = 2000;
 
 /** Human-readable words derived only from a citation's own `field_or_chunk_id`
  * (e.g. "patient.date_of_birth" -> "patient date of birth"), so a claim that
@@ -177,6 +181,23 @@ async function attempt(provider, args, allowedValues, { trace, correlationId, si
   return { result, claims, verification, verified };
 }
 
+/** A provider whose primary is (or resolves to) `DeterministicProvider`/
+ * `DeterministicAnswerComposer` -- i.e. no real model is configured at all.
+ * `ResilientProvider.name` already equals its primary's name, so this single
+ * check covers a bare deterministic provider and a `ResilientProvider`
+ * wrapping one. */
+function isEffectivelyDeterministic(provider) {
+  return !provider || provider.name === 'deterministic' || provider.name === 'deterministic-answer-composer';
+}
+
+/** Identifies one allowed fact/evidence item by exactly what a citation to it
+ * would contain, so a claim's citations can be matched back to the fact they
+ * covered (used both for the F1 top-up gap check and, implicitly, wherever a
+ * caller needs "did any claim actually cite this fact"). */
+function citationKey(citation) {
+  return citation ? `${citation.source_type}:${citation.source_id}:${citation.field_or_chunk_id}` : null;
+}
+
 /**
  * Compose the W2 grounded answer.
  *
@@ -194,7 +215,12 @@ async function attempt(provider, args, allowedValues, { trace, correlationId, si
  *     facts/evidence given).
  *   provider: A `ResilientProvider`-shaped `{generate(args, opts)}`. Its
  *     fallback must be a `DeterministicAnswerComposer` (or throws on
- *     briefing-shaped args, per S6 R&D note).
+ *     briefing-shaped args, per S6 R&D note). When absent, or effectively
+ *     deterministic (F7), the deterministic composer is called directly --
+ *     no wasted retries against a primary that cannot succeed.
+ *   signal: An optional `AbortSignal` (F6, a per-request scan deadline). If
+ *     already aborted, the real model is skipped entirely and the answer is
+ *     composed deterministically with `model_rejected_reason: 'deadline'`.
  *
  * Returns a `GroundedAnswerResult`-shaped object (schemas.js), the exact
  * contract the server validates before ever sending `workflow.answer`.
@@ -219,39 +245,96 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
   }
 
   const allowedValues = [...verifiedLabResults, ...verifiedIntakeCitations, ...guidelineEvidence, ...patientFactCitations];
-  const args = { question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations, prompt: buildPrompt({ question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations }), correlationId, signal };
+  const args = { question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations, prompt: buildPrompt({ question, verifiedLabResults, verifiedIntakeCitations, guidelineEvidence, patientFactCitations }), correlationId, signal, maxTokens: ANSWER_MODEL_MAX_TOKENS };
 
   const fallback = new DeterministicAnswerComposer();
+  const runFallback = () => attempt(fallback, args, allowedValues, { trace, correlationId, signal });
+
   let outcome;
   let composerLabel;
-  if (provider) {
+  let modelRejectedReason = null;
+  let modelDroppedCount = 0;
+
+  const deadlineAlreadyPassed = Boolean(signal?.aborted);
+  const useRealProvider = provider && !isEffectivelyDeterministic(provider) && !deadlineAlreadyPassed;
+
+  if (useRealProvider) {
     try {
       outcome = await attempt(provider, args, allowedValues, { trace, correlationId, signal });
       composerLabel = outcome.result.provider_status === 'fallback' ? 'deterministic-fallback' : 'model';
-    } catch {
-      outcome = await attempt(fallback, args, allowedValues, { trace, correlationId, signal });
+      if (composerLabel === 'deterministic-fallback') {
+        // The model itself never produced output we could even run
+        // per-claim verification on -- its own attempts were rejected at
+        // the schema/JSON stage (or the primary errored) before ever
+        // reaching us, so there is no per-claim drop count to report, only why.
+        modelRejectedReason = outcome.result.provider_error_code === 'MODEL_OUTPUT_REJECTED' ? 'invalid_json' : 'provider_error';
+      }
+    } catch (error) {
+      outcome = await runFallback();
       composerLabel = 'deterministic-fallback';
+      modelRejectedReason = (signal?.aborted || error?.message === 'MODEL_ABORTED') ? 'deadline' : 'provider_error';
     }
   } else {
-    outcome = await attempt(fallback, args, allowedValues, { trace, correlationId, signal });
+    outcome = await runFallback();
     composerLabel = 'deterministic-fallback';
+    if (provider && !isEffectivelyDeterministic(provider) && deadlineAlreadyPassed) modelRejectedReason = 'deadline';
   }
 
   // A model that produced schema-valid JSON but zero claims that actually
   // verify is not usable output; fall back rather than return an empty,
-  // possibly-hallucinated-and-entirely-dropped answer.
+  // possibly-hallucinated-and-entirely-dropped answer. Here, unlike above,
+  // the model's claims *did* reach per-claim verification, so the drop count
+  // is real and worth carrying forward (F2).
   if (composerLabel === 'model' && outcome.verified.length === 0) {
-    outcome = await attempt(fallback, args, allowedValues, { trace, correlationId, signal });
+    modelDroppedCount = outcome.claims.length;
+    modelRejectedReason = 'all_claims_unverified';
+    outcome = await runFallback();
     composerLabel = 'deterministic-fallback';
   }
 
-  const unverifiedDropped = outcome.claims.length - outcome.verified.length;
+  // Real per-claim drop count from whichever attempt's claims survive in
+  // `outcome` right now -- captured *before* the F1 top-up below adds new
+  // claims that were never "dropped" (they were never proposed at all), so
+  // topping up can never make an earlier drop look like it did not happen.
+  const unverifiedDropped = Math.max(modelDroppedCount, outcome.claims.length - outcome.verified.length);
+
+  // F1 top-up: a model that verified *something* but missed facts or
+  // evidence that were actually available (never cited by any surviving
+  // claim) gets those specific gaps filled deterministically, rather than
+  // shipping a thinner answer than the facts on hand support.
+  if (composerLabel === 'model') {
+    const covered = new Set(outcome.verified.flatMap((claim) => claim.citations.map((citation) => citationKey(citation))));
+    const topup = [
+      ...verifiedLabResults.filter((result) => !covered.has(citationKey(result.citation))).map(labResultClaim),
+      ...verifiedIntakeCitations.filter((citation) => !covered.has(citationKey(citation))).map(fieldValueClaim),
+      ...patientFactCitations.filter((citation) => !covered.has(citationKey(citation))).map(fieldValueClaim),
+      ...guidelineEvidence.filter((evidence) => !covered.has(citationKey(evidence.citation))).map(guidelineClaim),
+    ];
+    if (topup.length) {
+      outcome = { ...outcome, verified: [...outcome.verified, ...topup] };
+      composerLabel = 'model+deterministic-topup';
+    }
+  }
+
+  // F4: record exactly one model-usage entry for the answer stage, whichever
+  // provider ultimately produced the shipped claims.
+  trace?.recordModelUsage?.({
+    stage: 'answer',
+    provider: outcome.result.provider_name || fallback.name,
+    model: outcome.result.model_name || fallback.model,
+    inputTokens: outcome.result.inputTokens || 0,
+    outputTokens: outcome.result.outputTokens || 0,
+    estimatedCostUsd: outcome.result.estimatedCostUsd || 0,
+    status: composerLabel,
+  });
+
   return {
     composer: composerLabel,
+    ...(modelRejectedReason ? { model_rejected_reason: modelRejectedReason } : {}),
     patient_facts: outcome.verified.filter((claim) => claim.kind === 'patient_fact'),
     guideline_evidence: outcome.verified.filter((claim) => claim.kind === 'guideline'),
     needs_review: needsReview,
-    unverified_dropped: Math.max(0, unverifiedDropped),
+    unverified_dropped: unverifiedDropped,
   };
 }
 

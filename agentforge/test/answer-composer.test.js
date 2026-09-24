@@ -133,3 +133,144 @@ test('isRecordLookupQuestion is exported and agrees with the supervisor\'s rule'
   assert.equal(isRecordLookupQuestion('What was the hemoglobin value?'), true);
   assert.equal(isRecordLookupQuestion('What changed since the last visit?'), false);
 });
+
+// F1 review fix: maxTokens threaded to the real provider, and deterministic
+// top-up for facts/evidence a partially-successful model answer missed.
+test('composeGroundedAnswer passes a maxTokens of at least 2000 to the real provider (not the 300-token briefing default)', async () => {
+  let capturedMaxTokens = null;
+  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate({ maxTokens }) { capturedMaxTokens = maxTokens; return { text: JSON.stringify({ claims: [] }), inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 }; } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  await composeGroundedAnswer({ labResults: [labResult()] }, { provider });
+  assert.ok(capturedMaxTokens >= 2000, `expected maxTokens >= 2000, got ${capturedMaxTokens}`);
+});
+
+test('a model that verifies only one of several available facts gets the missing ones topped up deterministically, labeled model+deterministic-topup', async () => {
+  const secondLab = labResult({ test_name: 'Potassium', value: '5.9', unit: 'mmol/L', reference_range: '3.5-5.1', abnormal_flag: 'high', citation: { source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.k.value', quote_or_value: '5.9' } });
+  const legitText = 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.';
+  const fakePrimary = {
+    name: 'thin-model', model: 'thin-v1', async checkReady() { return true; },
+    async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: legitText, citations: [labResult().citation] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 }; },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [labResult(), secondLab], guidelineEvidence: [guideline()] }, { provider });
+  assert.equal(result.composer, 'model+deterministic-topup');
+  assert.equal(result.patient_facts.length, 2);
+  assert.equal(result.guideline_evidence.length, 1);
+  assert.ok(result.patient_facts.some((claim) => claim.text === legitText));
+  assert.ok(result.patient_facts.some((claim) => /Potassium/.test(claim.text)));
+});
+
+test('a model that already covers every fact and guideline is not relabeled as topped up', async () => {
+  const fakePrimary = {
+    name: 'complete-model', model: 'complete-v1', async checkReady() { return true; },
+    async generate({ verifiedLabResults, guidelineEvidence: ge }) {
+      const claims = [
+        { kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', citations: [verifiedLabResults[0].citation] },
+        { kind: 'guideline', text: `Per Synthetic primary-care diabetes follow-up guideline, section Follow-up review (2026.1): "${ge[0].snippet}"`, citations: [ge[0].citation] },
+      ];
+      return { text: JSON.stringify({ claims }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 };
+    },
+  };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [labResult()], guidelineEvidence: [guideline()] }, { provider });
+  assert.equal(result.composer, 'model');
+  assert.equal(result.patient_facts.length, 1);
+  assert.equal(result.guideline_evidence.length, 1);
+});
+
+// F2 review fix: dropped count and rejection reason survive the fallback.
+test('model_rejected_reason is all_claims_unverified and the drop count is carried forward when every model claim fails verification', async () => {
+  const fakePrimary = { name: 'bad-model', model: 'bad-v1', async checkReady() { return true; }, async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Sodium was recorded at 140 mmol/L.', citations: [{ source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'lab.na.value', quote_or_value: '140' }] }] }), inputTokens: 5, outputTokens: 5, estimatedCostUsd: 0 }; } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider });
+  assert.equal(result.composer, 'deterministic-fallback');
+  assert.equal(result.model_rejected_reason, 'all_claims_unverified');
+  assert.equal(result.unverified_dropped, 1);
+});
+
+test('model_rejected_reason is invalid_json when the model never produces schema-valid JSON', async () => {
+  const fakePrimary = { name: 'garbage-model', model: 'garbage-v1', async checkReady() { return true; }, async generate() { return { text: 'not json', inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 }; } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer(), maxRetries: 0 });
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider });
+  assert.equal(result.composer, 'deterministic-fallback');
+  assert.equal(result.model_rejected_reason, 'invalid_json');
+});
+
+test('model_rejected_reason is provider_error when the model throws (e.g. a timeout)', async () => {
+  const fakePrimary = { name: 'down-model', model: 'down-v1', async checkReady() { return true; }, async generate() { throw new Error('MODEL_TIMEOUT'); } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer(), maxRetries: 0 });
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider });
+  assert.equal(result.composer, 'deterministic-fallback');
+  assert.equal(result.model_rejected_reason, 'provider_error');
+});
+
+test('model_rejected_reason is absent when no model is configured at all', async () => {
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, {});
+  assert.equal(result.composer, 'deterministic-fallback');
+  assert.equal('model_rejected_reason' in result, false);
+});
+
+test('GroundedAnswerResult accepts every model_rejected_reason and the topup composer label', () => {
+  for (const reason of ['all_claims_unverified', 'invalid_json', 'provider_error', 'deadline']) {
+    const candidate = { composer: 'deterministic-fallback', model_rejected_reason: reason, patient_facts: [], guideline_evidence: [], needs_review: [], unverified_dropped: 1 };
+    assert.equal(parseOrIssues(GroundedAnswerResult, candidate).ok, true, reason);
+  }
+  assert.equal(parseOrIssues(GroundedAnswerResult, { composer: 'model+deterministic-topup', patient_facts: [], guideline_evidence: [], needs_review: [], unverified_dropped: 0 }).ok, true);
+});
+
+// F4 review fix: exactly one model-usage entry per composed answer.
+test('composeGroundedAnswer records exactly one model-usage entry on the trace, for every composer path', async () => {
+  const traceStub = () => { const usage = []; return { usage, recordModelUsage: (entry) => usage.push(entry) }; };
+
+  const detTrace = traceStub();
+  await composeGroundedAnswer({ labResults: [labResult()] }, { trace: detTrace });
+  assert.equal(detTrace.usage.length, 1);
+  assert.equal(detTrace.usage[0].stage, 'answer');
+  assert.equal(detTrace.usage[0].provider, 'deterministic-answer-composer');
+
+  const modelTrace = traceStub();
+  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate() { return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', citations: [labResult().citation] }] }), inputTokens: 10, outputTokens: 20, estimatedCostUsd: 0.002 }; } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  await composeGroundedAnswer({ labResults: [labResult()] }, { provider, trace: modelTrace });
+  assert.equal(modelTrace.usage.length, 1);
+  assert.equal(modelTrace.usage[0].provider, 'fake-model');
+  assert.equal(modelTrace.usage[0].inputTokens, 10);
+
+  const fallbackTrace = traceStub();
+  const throwingPrimary = { name: 'down-model', model: 'down-v1', async checkReady() { return true; }, async generate() { throw new Error('boom'); } };
+  await composeGroundedAnswer({ labResults: [labResult()] }, { provider: new ResilientProvider({ primary: throwingPrimary, fallback: new DeterministicAnswerComposer(), maxRetries: 0 }), trace: fallbackTrace });
+  assert.equal(fallbackTrace.usage.length, 1);
+});
+
+// F7 review fix: an already-deterministic provider is used directly, with no
+// wasted retries or spurious errors (DeterministicProvider.generate expects
+// briefing-shaped {patient, ...} args and would throw on the composer's).
+test('an effectively-deterministic provider (bare DeterministicProvider, or a ResilientProvider wrapping one) is used directly, no retries', async () => {
+  const { DeterministicProvider } = await import('../src/modelProvider.js');
+  const trace = { retries: [], recordRetry(entry) { this.retries.push(entry); } };
+
+  const bare = await composeGroundedAnswer({ labResults: [] }, { provider: new DeterministicProvider(), trace });
+  assert.equal(bare.composer, 'deterministic-fallback');
+  assert.equal(trace.retries.length, 0);
+
+  const wrapped = new ResilientProvider({ primary: new DeterministicProvider(), fallback: new DeterministicAnswerComposer() });
+  assert.equal(wrapped.primaryHealthy, null);
+  const trace2 = { retries: [], recordRetry(entry) { this.retries.push(entry); } };
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider: wrapped, trace: trace2 });
+  assert.equal(result.composer, 'deterministic-fallback');
+  assert.equal(trace2.retries.length, 0);
+  assert.equal(wrapped.primaryHealthy, null); // never touched -- no attempt was ever made against it
+});
+
+// F6 review fix: a deadline that has already passed skips the real model
+// entirely and records why.
+test('a signal that is already aborted skips the real model and reports model_rejected_reason: deadline', async () => {
+  const fakePrimary = { name: 'fake-model', model: 'fake-v1', async checkReady() { return true; }, async generate() { throw new Error('should never be called'); } };
+  const provider = new ResilientProvider({ primary: fakePrimary, fallback: new DeterministicAnswerComposer() });
+  const controller = new AbortController();
+  controller.abort();
+  const result = await composeGroundedAnswer({ labResults: [labResult()] }, { provider, signal: controller.signal });
+  assert.equal(result.composer, 'deterministic-fallback');
+  assert.equal(result.model_rejected_reason, 'deadline');
+  assert.equal(result.patient_facts.length, 1);
+});

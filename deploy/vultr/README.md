@@ -118,6 +118,14 @@ AGENTFORGE_MODEL_SITE_NAME=AgentForge
 AGENTFORGE_MODEL_TIMEOUT_MS=8000
 ```
 
+`AGENTFORGE_SCAN_DEADLINE_MS` (default 25000, `agentforge-w2` only) bounds one
+`/v1/scan-supervisor` request end to end: its `AbortSignal` is shared by the
+low-confidence OCR retry and the answer composer's model call, so a slow
+retry or a slow model cannot hang the request past this budget. Once it
+fires, the OCR retry is skipped (the original extraction is kept) and the
+answer is composed deterministically (`workflow.answer.model_rejected_reason:
+"deadline"`), never left hanging.
+
 As of S6 (the W2 grounded-answer composer), `agentforge-w2`'s compose block
 also sets these same `AGENTFORGE_MODEL_*` variables (previously only the W1
 `agentforge` block had them, so `AGENTFORGE_PROVIDER_MODE=qwen` on

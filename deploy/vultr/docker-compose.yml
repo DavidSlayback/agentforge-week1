@@ -165,6 +165,9 @@ services:
       AGENTFORGE_MODEL_SITE_URL: ${AGENTFORGE_MODEL_SITE_URL:-}
       AGENTFORGE_MODEL_SITE_NAME: ${AGENTFORGE_MODEL_SITE_NAME:-AgentForge}
       AGENTFORGE_MODEL_TIMEOUT_MS: ${AGENTFORGE_MODEL_TIMEOUT_MS:-8000}
+      # F6 review fix: per-scan-request deadline (source OCR retry + answer
+      # composer provider call share one AbortSignal against this budget).
+      AGENTFORGE_SCAN_DEADLINE_MS: ${AGENTFORGE_SCAN_DEADLINE_MS:-25000}
       AGENTFORGE_RAG_PROVIDER: local-lexical
       AGENTFORGE_SCAN_PROVIDER_MODE: ${AGENTFORGE_SCAN_PROVIDER_MODE:-local}
       AGENTFORGE_GEMINI_SCAN_MODEL: ${AGENTFORGE_GEMINI_SCAN_MODEL:-gemini-3.8-flash}

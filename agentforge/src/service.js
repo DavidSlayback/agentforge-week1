@@ -8,11 +8,11 @@ import { extractScanForm } from './scanFormAdapter.js';
 import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './pdfScanAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 import { recordBelongsToPatient } from './recordScope.js';
-import { composeGroundedAnswer } from './answerComposer.js';
+import { composeGroundedAnswer, DeterministicAnswerComposer } from './answerComposer.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000 }) {
     this.adapter = chartAdapter;
     // null keeps the pdfScanAdapter default (real pdftoppm + Tesseract).
     this.ocrEngine = ocrEngine;
@@ -27,13 +27,28 @@ export class AgentForgeService {
     // `DeterministicAnswerComposer`, not the briefing-shaped `DeterministicProvider`.
     // `null` means every scan-supervisor answer uses the deterministic composer.
     this.answerProvider = answerProvider;
+    // F8 review fix: honored the same way PreVisitPreparation honors it for
+    // briefings -- a live OpenEMR chart adapter with no explicit external-
+    // provider approval forces the deterministic composer, never a real model.
+    this.allowExternalLiveProvider = allowExternalLiveProvider;
+    // F6 review fix: a per-scan-request deadline. Its AbortSignal is passed to
+    // the low-confidence OCR retry and to the answer composer's provider call;
+    // once it fires, the answer is composed deterministically
+    // (`model_rejected_reason: 'deadline'`) rather than hanging the request.
+    this.scanDeadlineMs = scanDeadlineMs;
     this.scanProvider = scanProvider;
     this.scanPreparations = new Map();
     // Backs the supervisor's `extraction_cached` decision: one extraction
-    // handoff cached per `${sourceDocumentId}:${ocrMode}`, shared across
-    // calls to this service instance (supervisor.js keeps its own default
-    // when a caller does not pass one, so this is additive/opt-in).
+    // handoff cached per content-hash + OCR mode, shared across calls to this
+    // service instance (supervisor.js keeps its own default when a caller
+    // does not pass one, so this is additive/opt-in).
     this.extractionCache = new Map();
+    // F6 review fix: which OCR mode's preparation actually produced the
+    // typed facts a document's workflow shipped (the low-confidence retry
+    // can upgrade this mid-request) -- `prepareScanSource` and the source
+    // preview/scan-form-evidence routes must render *that* preparation's
+    // boxes, not silently default back to the initial mode.
+    this.resolvedOcrMode = new Map();
     this.traceSink = traceSink;
     this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs });
     // Preserve the established facade access used by callers and tests while
@@ -143,6 +158,12 @@ export class AgentForgeService {
     }
     if (source.status !== 'read') return source;
     const trace = this.traceSink?.start?.({ correlationId: `w2-scan-${randomUUID()}`, operation: 'w2-scan-supervisor', interactionType: 'scan_form', scope: { patientRef: request.patient_uuid } });
+    // F6 review fix: a per-request deadline whose AbortSignal is passed to the
+    // low-confidence OCR retry and to the answer composer's provider call, so
+    // a slow retry or a slow model cannot hang the request indefinitely --
+    // once it fires, both fall back to their safe, synchronous defaults.
+    const deadline = new AbortController();
+    const deadlineTimer = setTimeout(() => deadline.abort(new Error('SCAN_DEADLINE_EXCEEDED')), this.scanDeadlineMs);
     try {
       trace?.startStage('source_preparation');
       let prepared;
@@ -177,20 +198,29 @@ export class AgentForgeService {
         retrievalAdapter: this.guidelineRetriever,
         extractionCache: this.extractionCache,
         ocrMode: pdf ? (prepared.ocrMode || DEFAULT_OCR_MODE) : DEFAULT_OCR_MODE,
+        signal: deadline.signal,
         reextractWithAlternateOcr: pdf ? async () => {
           const alternate = await this.prepareScanSource(source, { ocrMode: ALTERNATE_OCR_MODE });
           return { content: alternate.content, ocrMode: ALTERNATE_OCR_MODE };
         } : null,
       });
       if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
+      // F6 review fix: remember which OCR mode this document's workflow
+      // actually used, so a later preview/evidence read renders that
+      // extraction's boxes, not always the initial default.
+      if (workflow.ocr_mode) this.resolvedOcrMode.set(source.source_document.id, workflow.ocr_mode);
       for (const handoff of workflow.handoffs || []) trace?.recordHandoff(traceSafeHandoff(handoff));
       if (workflow.readiness !== 'stopped') {
         trace?.startStage('answer');
         try {
           const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref).catch(() => ({ patient_facts: [] }));
+          // F8 review fix: honor allowExternalLiveProvider the same way
+          // briefings do -- a live OpenEMR chart with no explicit external-
+          // provider approval never reaches a real model for the answer either.
+          const liveProviderBlocked = this.chartAdapter?.name === 'openemr-rest' && !this.allowExternalLiveProvider && this.answerProvider && this.answerProvider.name !== 'deterministic' && this.answerProvider.name !== 'deterministic-answer-composer';
           workflow.answer = await composeGroundedAnswer(
             { labResults: workflow.typed_outputs.extraction?.lab_results || [], intakeForm: workflow.typed_outputs.extraction?.intake_form || null, guidelineEvidence: workflow.typed_outputs.evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [], question: query },
-            { provider: this.answerProvider, trace, correlationId: trace?.correlationId || '' },
+            { provider: liveProviderBlocked ? new DeterministicAnswerComposer() : this.answerProvider, trace, correlationId: trace?.correlationId || '', signal: deadline.signal },
           );
         } finally {
           trace?.finishStage('answer', { status: workflow.answer ? workflow.answer.composer : 'failed' });
@@ -202,16 +232,24 @@ export class AgentForgeService {
     } catch (error) {
       trace?.complete({ status: 'failure' });
       throw error;
+    } finally {
+      clearTimeout(deadlineTimer);
     }
   }
 
-  async prepareScanSource(source, { ocrMode = DEFAULT_OCR_MODE } = {}) {
-    const id = `${source.source_document.id}:${ocrMode}`;
+  async prepareScanSource(source, { ocrMode } = {}) {
+    // F6 review fix: default to whichever OCR mode this document's workflow
+    // actually settled on (set by `runActiveSupervisorForDocument` below),
+    // not always the initial default -- so a later `/source-preview` or
+    // `/scan-form-evidence` read renders the boxes of the extraction that
+    // was actually used, even after a low-confidence retry upgraded it.
+    const resolvedOcrMode = ocrMode || this.resolvedOcrMode.get(source.source_document.id) || DEFAULT_OCR_MODE;
+    const id = `${source.source_document.id}:${resolvedOcrMode}`;
     const cached = this.scanPreparations.get(id);
     if (cached) return cached;
     const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
     const prepared = Promise.resolve().then(async () => pdf
-      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider, ocrMode, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
+      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider, ocrMode: resolvedOcrMode, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
       : { content: source.content, pageCount: 1, pdf: false });
     if (this.scanPreparations.size >= 50) this.scanPreparations.delete(this.scanPreparations.keys().next().value);
     this.scanPreparations.set(id, prepared);

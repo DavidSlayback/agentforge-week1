@@ -115,12 +115,12 @@ Status is as of `7ac46e9`.
 | W2-C3 | p4 §2 | Strict schemas with the required lab and intake fields plus validation tests | C | Zod schemas; negative tests per required field | Partial | S2 |
 | W2-C4 | p4 §3 | Sparse + dense + rerank; only top evidence goes to the answer model | C | Trace shows the BM25 candidates, Cohere dense and rerank scores, and top-k ≤ 3 sent to the answer model | FAIL | S5 |
 | W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | FAIL | S5 |
-| W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | Partial | S6 |
-| W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | FAIL | S2, S6 |
+| W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | wired, untested live (S6; `decideNext` loop + `workflow.decisions[]` pass 26 unit tests and the gate on `slice/s6`, not merged/deployed) | S6 |
+| W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | wired, untested live (S2 document/guideline citations deployed; S6 answer-claim citations pass the gate on `slice/s6`, not merged/deployed) | S2, S6 |
 | W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | FAIL | S4 |
 | W2-C9 | p5 §6 | Categories schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs; >5% regression or below threshold fails | C | Gate thresholds documented; each category has at least one deployed-path case | Partial | S1 |
 | W2-C10 | p5 §7 | Per encounter: tool sequence, per-step latency, tokens, cost, retrieval hits, extraction confidence, eval outcome; no raw PHI | C | A real scan trace has all 7 fields non-null; the PHI scan of that trace is clean | Partial | S9 |
-| W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | FAIL | S6 |
+| W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | wired, untested live (S6; `workflow.answer` — `patient_facts[]`/`guideline_evidence[]`, each `verifyClaims`-checked — on `slice/s6`, not merged/deployed; no model provider configured yet, so every observed run is `composer: 'deterministic-fallback'`) | S6 |
 | W2-SF1 | p2 | Unsupported extracted facts visible; the scan may be imperfect | SF | 0 facts, a doc-type mismatch or a patient mismatch means not READY, with a reason | FAIL | S3 |
 | W2-S1 | p3 | README separates W1 and W2; branch, env vars and services are unambiguous | S | README has URLs, SHA endpoint, W1 vs W2 table, full env table | FAIL | S12 |
 | W2-S2 | p6 | `./W2_ARCHITECTURE.md` covering ingestion, graph, RAG, gate, risks, tradeoffs | S | At root; every claim matches the code at the freeze SHA | FAIL (location) | S12 |
@@ -352,25 +352,49 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   require an ops bearer token (`AGENTFORGE_OPS_TOKEN`).
 
 ### S6 — Supervisor decisions and the grounded answer (Sat AM, 5 h)
+
+Status: **wired, untested live** on branch `slice/s6` (not merged to `main`,
+not deployed). All unit suites (281, 2 skipped for missing local
+tesseract/pdftoppm) and the 50-case gate pass locally and via
+`.githooks/pre-commit`; see `docs/agentforge/W2_ARCHITECTURE.md`'s
+"Supervisor decisions and the grounded answer (S6)" section for the decision
+table, composer contract, and gate coverage. No model provider is configured
+in this environment, so every locally observed `workflow.answer.composer` is
+`deterministic-fallback`; the model and `model+deterministic-topup` paths are
+exercised only by fake providers in tests and the gate, per an independent
+review (2026-09-24) that also added: a per-call `maxTokens` for the answer
+composer (the briefing lane's 300-token cap truncated the ~1.1-1.6k token
+claims JSON); a deterministic top-up for facts/evidence a partial model
+answer missed; `model_rejected_reason` carried through a fallback;
+`trace.recordModelUsage` for the answer stage; a fix for `isRecordLookupQuestion`
+false positives on guideline-seeking questions; skipping the real provider
+entirely (no wasted retries) when it is already deterministic; a
+per-request `AGENTFORGE_SCAN_DEADLINE_MS` deadline; `allowExternalLiveProvider`
+enforcement for the composer; content-addressed, bounded extraction caching;
+and answer-before-persist ordering at the HTTP boundary.
+
 - `supervisor.js`: `decideNext(state) → {next, reason}` over the states
   EXTRACT, RETRIEVE, ANSWER and DONE:
   - skip EXTRACT if the doc hash is already extracted;
   - skip RETRIEVE for a pure record-lookup question;
   - re-extract once with an alternate OCR mode (`--psm 4` vs `6`) if mean
-    confidence < 0.7;
+    confidence < 0.7, keeping whichever extraction has the higher mean
+    confidence and never adopting a contract-invalid retry;
   - DONE with a qualification when a limit is hit.
   Each decision is recorded as a trace event.
 - Answer composer: the model gets only the typed facts and top-k chunks, and
-  must return `{claims[{text, citations[]}]}` (Zod-validated). The output then
-  goes through the S7 verifier per claim. Patient facts and guideline evidence
-  are rendered in separate sections, as W2 p2 requires. Fallback is a
-  deterministic, template-based answer built from the same claims and labeled
-  as such.
-- Patient-record facts (`service.js:201` `retrieveFollowUpEvidence`'s
-  `patient_facts`) carry the 5-key citation with `source_type:
-  'openemr_record'` (S2 review finding 8).
-- Tests: at least 3 routing variants, uncited-claim rejection, and the fallback
-  path.
+  must return `{claims[{kind, text, citations[]}]}` (Zod-validated). The
+  output then goes through `verifyClaims` (claimBinding.js) per claim.
+  Patient facts and guideline evidence are rendered in separate sections, as
+  W2 p2 requires. Fallback is a deterministic, template-based answer built
+  from the same facts and labeled as such.
+- Patient-record facts (`service.js` `retrievePatientChartFacts`, shared by
+  `retrieveFollowUpEvidence` and the S6 answer) carry the 5-key citation with
+  `source_type: 'openemr_record'` (S2 review finding 8).
+- Tests: 26 supervisor-decision tests (`supervisor-decisions.test.js`), 21
+  composer tests (`answer-composer.test.js`), 4 service/HTTP integration
+  tests (`answer-service-integration.test.js`), and 5 gate cases carrying
+  `expect.answer` assertions (fc-01, cp-05, fc-05, sr-07, fc-08).
 
 ### S8 — OpenEMR round-trip (Fri–Sat, 6 h, after H1; lane B)
 Implemented per D7 and `.scratch/agentforge-week2/S8_DESIGN.md` (which replaced
@@ -539,7 +563,8 @@ adversarial review before merge.
 | S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
 | S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
 | R0–R5 refactor | **Done, live on `67b0844`** (MR !74). Full matrix on the merged tree: R0 passes, 29/29 regression rows fail the gate. Live: OpenEMR smoke 48/48, module attack checks 8/8, a legacy `LAB|` upload returns 400, `/v1/supervisor` returns 404. Workers: Sonnet (R2, R3), Haiku (R1, R4a, R4b, R5). Codex Luna headless `exec` could not run shell commands under the Windows sandbox. | Originally planned in | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
-| S4, S5, S6, S9, S12, S11 | Not started | After R0–R5 |
+| S6 | Wired, untested live | `supervisor.js#decideNext` loop (EXTRACT/RETRIEVE/ANSWER/DONE) + `answerComposer.js#composeGroundedAnswer` on branch `slice/s6` (not merged, not deployed). 281 unit tests (256 baseline + 25 new: `supervisor-decisions.test.js`, `answer-composer.test.js`, `answer-service-integration.test.js`), 50-case gate green with `expect.answer` assertions on 5 cases (fc-01, cp-05, fc-05, sr-07, fc-08) plus the pre-existing 5 categories; all pass locally and via `.githooks/pre-commit`. Confirmed live-workflow-shaped but never run against the deployed SHA or a real model provider (`docs/agentforge/W2_ARCHITECTURE.md` "Supervisor decisions and the grounded answer (S6)"). |
+| S4, S5, S9, S12, S11 | Not started | After R0–R5 |
 
 Incidents, all fixed and recorded in commits:
 - `git archive` on Windows shipped CRLF; `deploy.sh` now disables autocrlf.
