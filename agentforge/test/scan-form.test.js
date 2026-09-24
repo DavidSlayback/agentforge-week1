@@ -58,20 +58,43 @@ test('scan-form adapter qualifies missing, unreadable, and conflicting values', 
   assert.equal(conflict.facts.some((fact) => fact.field_id === 'medication.metformin'), false);
 });
 
-test('active workers expose inspect-act-qualify handoffs and never promote empty evidence', () => {
+test('active workers expose inspect-act-qualify handoffs and never promote empty evidence', async () => {
   const extraction = runExtractionWorker({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt') });
   // See the equivalent assertion above: this fixture's flat lab ids cannot
   // build a typed LabResult, so the worker's output is qualified.
   assert.equal(extraction.output_status, 'qualified');
   assert.deepEqual(extraction.steps.map((step) => step.name), ['inspect', 'extract', 'validate_or_qualify']);
   assert.equal(JSON.stringify(extraction.redacted_metrics).includes('13.2'), false);
-  const evidence = runEvidenceWorker({ query: '' });
+  const evidence = await runEvidenceWorker({ query: '' });
   assert.equal(evidence.output_status, 'qualified');
   assert.equal(evidence.guideline_evidence.length, 0);
 });
 
-test('active supervisor keeps worker handoffs inspectable and qualifies incomplete evidence', () => {
-  const ready = runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence' });
+test('evidence worker awaits an async retriever instead of silently qualifying its Promise', async () => {
+  const citation = { source_type: 'guideline', source_id: 'guideline-async-1', page_or_section: 'Async review', quote_or_value: 'Asynchronous retrieval evidence.' };
+  const asyncRetriever = async (query, { topK } = {}) => {
+    assert.equal(query, 'async guideline lookup');
+    assert.equal(topK, 3);
+    return { status: 'complete', provider: 'async-fake-retriever', evidence: [{ citation }], issues: [] };
+  };
+  const evidence = await runEvidenceWorker({ query: 'async guideline lookup', retrieve: asyncRetriever });
+  assert.equal(evidence.output_status, 'ready');
+  assert.equal(evidence.guideline_evidence.length, 1);
+  assert.deepEqual(evidence.guideline_evidence[0].citation, citation);
+  assert.equal(evidence.qualification.required, false);
+});
+
+test('evidence worker turns a rejecting retriever into a qualified result with an error code, not raw error text', async () => {
+  const rejecting = async () => { throw new Error('boom: leaking a connection string or stack trace here would be a PHI/secret risk'); };
+  const evidence = await runEvidenceWorker({ query: 'async guideline lookup', retrieve: rejecting });
+  assert.equal(evidence.output_status, 'qualified');
+  assert.equal(evidence.guideline_evidence.length, 0);
+  assert.deepEqual(evidence.qualification.reasons, ['guideline_retrieval_failed']);
+  assert.equal(JSON.stringify(evidence).includes('boom'), false);
+});
+
+test('active supervisor keeps worker handoffs inspectable and qualifies incomplete evidence', async () => {
+  const ready = await runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence' });
   // The flat lab.hgb/lab.a1c fixture ids cannot be typed into LabResult, and the
   // text envelope prints no patient header, so the workflow may not claim READY.
   assert.equal(ready.final_state, 'QUALIFIED');
@@ -79,7 +102,7 @@ test('active supervisor keeps worker handoffs inspectable and qualifies incomple
   assert.equal(ready.typed_outputs.evidence.output_status, 'ready');
   assert.equal(ready.handoffs.length, 2);
   assert.equal(ready.handoffs[0].worker, 'scan-form-extraction-worker');
-  const qualified = runActiveSupervisor({ sourceDocumentId: 'src-lab-b', documentType: 'lab_pdf', layoutId: 'lab-b', content: fixture('lab-layout-b-partial.scan.txt'), query: '' });
+  const qualified = await runActiveSupervisor({ sourceDocumentId: 'src-lab-b', documentType: 'lab_pdf', layoutId: 'lab-b', content: fixture('lab-layout-b-partial.scan.txt'), query: '' });
   assert.equal(qualified.readiness, 'qualified');
   assert.equal(qualified.final_state, 'QUALIFIED');
 });

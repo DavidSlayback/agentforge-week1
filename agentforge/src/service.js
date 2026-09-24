@@ -181,7 +181,7 @@ export class AgentForgeService {
       const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
       const pageCountMatch = contentText.match(/page_count=(\d+)/);
       const targetPatient = await this.patientDemographics?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
-      const workflow = runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace, documentText: pdf ? prepared.ocrText : contentText, targetPatient });
+      const workflow = await runActiveSupervisor({ sourceDocumentId: source.source_document.id, documentType: source.source_document.document_type, layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'), pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1), content, query, observer: trace, documentText: pdf ? prepared.ocrText : contentText, targetPatient });
       if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
       for (const handoff of workflow.handoffs || []) trace?.recordHandoff(traceSafeHandoff(handoff));
       trace?.setEvaluation({ status: 'not_run', reason: 'the golden-set gate runs separately from an individual document workflow' });
