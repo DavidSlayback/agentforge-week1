@@ -7,8 +7,6 @@ import { SimulatedOpenEMRAdapter } from '../src/openemrAdapter.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
-import { extractLabEvidence } from '../src/labEvidence.js';
-import { extractIntakeEvidence } from '../src/intakeEvidence.js';
 import { startTestServer } from './helpers/testServer.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
@@ -162,33 +160,14 @@ test('UI runs the scan supervisor with the write context so derived facts can pe
   assert.match(call.slice(0, call.indexOf('});')), /demo_token: writeContext\.demo_token/);
 });
 
-test('synthetic lab extraction preserves citations, qualifies gaps, and detects conflicts', () => {
-  const content = Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb|quote=Hemoglobin 13.2 g/dL|bounding_box=10,20,100,40');
-  const valid = extractLabEvidence({ sourceDocumentId: 'src-lab-1', content });
-  assert.equal(valid.status, 'complete');
-  assert.deepEqual(valid.facts[0].citation.bounding_box, [10, 20, 100, 40]);
-  assert.equal(valid.facts[0].citation.source_id, 'src-lab-1');
-  assert.equal(valid.lab_results[0].test_name, 'Hemoglobin');
-  assert.equal(valid.lab_results[0].abnormal_flag, 'normal');
-
-  const missing = extractLabEvidence({ sourceDocumentId: 'src-lab-2', content: Buffer.from('LAB|test=Hemoglobin|value=13.2|unit=g/dL') });
-  assert.equal(missing.status, 'qualified');
-  assert.ok(missing.issues.some((value) => value.includes('missing_fields')));
-
-  const conflict = extractLabEvidence({ sourceDocumentId: 'src-lab-3', content: Buffer.from(`${content.toString()}\nLAB|test=Hemoglobin|value=14.1|unit=g/dL|reference_range=12-16|collection_date=2026-09-20|abnormal=false|page=1|field_id=lab.hgb-2|quote=Hemoglobin 14.1 g/dL|bounding_box=10,50,100,70`) });
-  assert.equal(conflict.status, 'qualified');
-  assert.ok(conflict.issues.some((value) => value.includes('conflicting_values')));
-});
-
-test('synthetic intake extraction preserves sections and qualifies contradictions', () => {
-  const content = Buffer.from('INTAKE|field=demographics.age|value=42|section=Demographics|page=1|field_id=intake.demographics.age|quote=Age 42|bounding_box=10,20,100,40\nINTAKE|field=medication.metformin|value=500 mg daily|section=Medications|page=2|field_id=intake.medications.1|quote=Metformin 500 mg daily|bounding_box=10,50,100,70');
-  const valid = extractIntakeEvidence({ sourceDocumentId: 'src-intake-1', content });
-  assert.equal(valid.status, 'complete');
-  assert.equal(valid.facts[1].citation.page_or_section, 'page 2 · Medications');
-  const contradiction = extractIntakeEvidence({ sourceDocumentId: 'src-intake-2', content: Buffer.from(`${content.toString()}\nINTAKE|field=medication.metformin|value=1000 mg daily|section=Medications|page=2|field_id=intake.medications.2|quote=Metformin 1000 mg daily|bounding_box=10,80,100,100`) });
-  assert.equal(contradiction.status, 'qualified');
-  assert.ok(contradiction.issues.some((value) => value.includes('conflicting_values')));
-});
+// The unit tests that lived here for the legacy `extractLabEvidence`/
+// `extractIntakeEvidence` LAB|/INTAKE| parsers were removed with those
+// parsers (R2, issue #4). The surviving `.scan.txt` extraction path's
+// equivalent missing/conflicting-field qualification is covered by
+// scan-form.test.js ("scan-form adapter qualifies missing, unreadable, and
+// conflicting values"), and its citation-schema validity is covered by
+// schemas.test.js ("`.scan.txt` lab and intake extraction produce citations
+// that validate against the Citation schema").
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 

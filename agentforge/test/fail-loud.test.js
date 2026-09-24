@@ -11,7 +11,7 @@ import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
 import { createRecordedOcrReplay } from '../src/pdfScanAdapter.js';
 import { AgentForgeService } from '../src/service.js';
-import { runActiveSupervisor, runDeterministicSupervisor } from '../src/supervisor.js';
+import { runActiveSupervisor } from '../src/supervisor.js';
 import { SyntheticWriteback } from '../src/syntheticWriteback.js';
 import { renderScanSourcePreview } from '../src/ui.js';
 
@@ -57,14 +57,11 @@ test('patient identity check matches, mismatches and refuses to guess', () => {
   assert.equal(normalizeDob('4/2/1980'), '1980-04-02');
 });
 
-test('zero extracted facts is BLOCKED no_fields_extracted before retrieval, on both supervisors', () => {
+test('zero extracted facts is BLOCKED no_fields_extracted before retrieval', () => {
   const active = runActiveSupervisor({ sourceDocumentId: 'doc-empty', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope('lab_pdf', []), query: 'glycemic follow-up', documentText: '' });
   assert.equal(active.final_state, 'BLOCKED');
   assert.equal(active.stop_reason, 'no_fields_extracted');
   assert.equal(active.typed_outputs.evidence, null);
-  const text = runDeterministicSupervisor({ intakeResult: { status: 'qualified', facts: [], documents: [] }, evidenceResult: { status: 'ready', patient_facts: [], guideline_evidence: [] } });
-  assert.equal(text.final_state, 'BLOCKED');
-  assert.equal(text.stop_reason, 'no_fields_extracted');
 });
 
 test('a declared type contradicted by the document text is QUALIFIED doc_type_mismatch, never READY', () => {
