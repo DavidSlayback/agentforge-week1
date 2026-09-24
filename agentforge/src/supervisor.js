@@ -1,6 +1,7 @@
 import { runEvidenceWorker, runExtractionWorker } from './activeWorkers.js';
 import { assessDocumentSafety } from './documentSafety.js';
 import { localLexicalGuidelineRetriever } from './guidelineEvidence.js';
+import { summarizeExtractionConfidence } from './typedExtraction.js';
 
 const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACTOR', EVIDENCE_RETRIEVER: 'EVIDENCE_RETRIEVER', VERIFY: 'VERIFY', READY: 'READY', QUALIFIED: 'QUALIFIED', CLARIFY: 'CLARIFY', BLOCKED: 'BLOCKED' });
 
@@ -104,7 +105,8 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
   } finally {
     observer?.finishStage('extraction', { status: extractionWorker?.output_status || 'failed' });
   }
-  observer?.setExtraction({ status: extractionWorker.output_status, confidence: null, document_count: 1, fact_count: extractionWorker.extraction?.facts?.length || 0, issue_count: extractionWorker.extraction?.issues?.length || 0 });
+  const confidenceSummary = summarizeExtractionConfidence(extractionWorker.extraction);
+  observer?.setExtraction({ status: extractionWorker.output_status, confidence: confidenceSummary, document_count: 1, fact_count: extractionWorker.extraction?.facts?.length || 0, issue_count: extractionWorker.extraction?.issues?.length || 0 });
   transitions.push(STATES.INTAKE_EXTRACTOR);
   if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null);
   const safety = assessDocumentSafety({ documentType, documentText, extraction: extractionWorker.extraction, targetPatient });
