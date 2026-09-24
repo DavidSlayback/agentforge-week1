@@ -1,6 +1,6 @@
 import {
   BINDING_VOCABULARY, COMPARATIVES, FRAMING_VOCABULARY, FREQUENCY_WORDS, GUIDELINE_VOCABULARY,
-  INTERPRETIVE_WORDS, NEGATION_CUES, SPELLED_NUMBERS, STATUS_WORDS, UNIT_WORDS,
+  INTERPRETIVE_WORDS, LAB_NAME_ALIASES, NEGATION_CUES, SPELLED_NUMBERS, STATUS_WORDS, UNIT_WORDS,
 } from './clinicalVocabulary.js';
 import {
   bindingTokens, canonicalText, contextTermsFrom, isDirective, isNumberToken, judgeSentence,
@@ -59,6 +59,19 @@ const VALUE_WORDS = new Set([...SPELLED_NUMBERS, ...COMPARATIVES, ...STATUS_WORD
 const wordsOf = (tokens) => tokens.filter((token) => !isNumberToken(token));
 const numbersOf = (tokens) => tokens.filter(isNumberToken);
 
+/**
+ * Extra label words a typed `LabResult` fact's own test name unlocks, from
+ * `LAB_NAME_ALIASES` -- looked up by the *raw* `test_name` (lowercased), not
+ * the canonicalized label, so the map stays a plain, readable lookup table
+ * independent of `TERM_SYNONYMS`'s own collapsing. Empty for anything not a
+ * lab result, or a lab result whose test name is not in the alias table.
+ */
+function labAliasWords(fact, typed) {
+  if (!typed) return [];
+  const aliases = LAB_NAME_ALIASES[String(fact.label || '').trim().toLowerCase()];
+  return aliases ? aliases.flatMap((alias) => wordsOf(bindingTokens(alias).tokens)) : [];
+}
+
 /** Precompute the binding view of one allowed fact. */
 function bindingFact(fact) {
   const value = bindingTokens(fact.value);
@@ -69,7 +82,7 @@ function bindingFact(fact) {
   const ownWords = [...value.tokens, ...quote.tokens];
   // Typed results get interpretation only from their flag or range.
   const interpretive = typed ? fact.interpretive : ownWords.filter((token) => INTERPRETIVE_WORDS.has(token));
-  const words = new Set([...wordsOf(ownWords), ...wordsOf(label.tokens), ...wordsOf(field.tokens), ...wordsOf(bindingTokens(fact.rangeText).tokens)]
+  const words = new Set([...wordsOf(ownWords), ...wordsOf(label.tokens), ...wordsOf(field.tokens), ...wordsOf(bindingTokens(fact.rangeText).tokens), ...labAliasWords(fact, typed)]
     .filter((token) => !INTERPRETIVE_WORDS.has(token)));
   return {
     ...fact,

@@ -596,10 +596,14 @@ function checkNoPhi(run, output, expect) {
  * `answerComposer.js#collectIntakeLeaves` (not exported -- this is the
  * gate's own independent read, deliberately not sharing the composer's
  * internals, so a bug in the composer's own collection cannot also hide it
- * from the check that is supposed to catch that bug). */
+ * from the check that is supposed to catch that bug). Demographics
+ * (name/dob/phone) are excluded here too, matching the composer's own F8
+ * exclusion (identity data, not a clinical finding for the W2 answer) --
+ * otherwise this independent check would demand they be represented in
+ * `patient_facts` when the composer now deliberately never puts them there. */
 function intakeLeavesOf(intakeForm) {
   if (!intakeForm) return [];
-  const leaves = [intakeForm.demographics?.name, intakeForm.demographics?.dob, intakeForm.demographics?.phone, intakeForm.chief_concern, ...(intakeForm.current_medications || []), ...(intakeForm.allergies || []), ...(intakeForm.family_history || [])];
+  const leaves = [intakeForm.chief_concern, ...(intakeForm.current_medications || []), ...(intakeForm.allergies || []), ...(intakeForm.family_history || [])];
   return leaves.filter((leaf) => leaf && leaf.status === 'observed');
 }
 
