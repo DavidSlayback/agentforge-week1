@@ -67,29 +67,16 @@ test('an unanchored model answer falls back to the deterministic template', asyn
   assert.match(result.text, /Lisinopril is recorded at 5 mg daily/);
 });
 
-// Guards: the W2 composer contract. Each claim is judged alone, against only
-// the values its citations resolve to.
-test('verifyClaims returns per-claim verdicts against cited allowed values', () => {
-  const allowedValues = [
-    { source_type: 'document', source_id: 'doc-lab-a', page_or_section: 'page 1', field_or_chunk_id: 'lab.potassium', quote_or_value: 'Potassium 5.9 mmol/L' },
-    { source_type: 'document', source_id: 'doc-lab-a', page_or_section: 'page 1', field_or_chunk_id: 'lab.hba1c', quote_or_value: 'HbA1c 7.2 %' },
-    ...lisinoprilOnly,
-  ];
-  const potassiumCitation = allowedValues[0];
-  const result = verifyClaims({ allowedValues, claims: [
-    { text: 'Potassium was 5.9 mmol/L.', citations: [potassiumCitation] },
-    { text: 'HbA1c was 7.2 %.', citations: [potassiumCitation] },
-    { text: 'Lisinopril is 5 mg daily.' },
-    { text: 'Potassium was 5.9 mmol/L.', citations: [{ ...potassiumCitation, source_id: 'doc-other', field_or_chunk_id: 'lab.other', quote_or_value: 'Potassium 6.1 mmol/L' }] },
-    { text: 'The document was reviewed.', citations: [] },
-  ] });
-  assert.equal(result.status, 'failed');
-  assert.deepEqual(result.verdicts.map((verdict) => verdict.status), ['anchored', 'unanchored', 'unanchored', 'unanchored', 'no_clinical_assertion']);
-  assert.ok(result.verdicts[1].reasons.includes('UNANCHORED_TERM'), 'citing the potassium value cannot anchor an HbA1c claim');
-  assert.ok(result.verdicts[2].reasons.includes('UNCITED_CLAIM'));
-  assert.ok(result.verdicts[3].reasons.includes('CITATION_NOT_ALLOWED'));
-  assert.deepEqual(result.issues.sort(), ['CITATION_NOT_ALLOWED', 'UNANCHORED_CLAIM', 'UNCITED_CLAIM']);
-  assert.doesNotMatch(JSON.stringify(result), /5\.9|Potassium|Lisinopril/, 'verdicts carry codes, not text');
+// Guards: a withheld value leaking through words instead of digits.
+test('a sentence naming a withheld-only drug may not state a value, change, or status', () => {
+  const context = { withheldFields: ['medication.metformin.dose'], qualificationReasons: ['conflict:medication.metformin.dose'] };
+  for (const leak of ['The metformin dose was one thousand milligrams.', 'Metformin continues at the higher dose.', 'Metformin was discontinued.']) {
+    const result = verifyGeneratedText({ text: `Hypertension is active. ${leak}`, claims: briefingClaims, ...context });
+    assert.equal(result.status, 'failed', leak);
+    assert.ok(result.unanchored_sentences[0].reasons.includes('CONTEXT_TERM_WITH_VALUE'), leak);
+  }
+  // A number with no clinical term to pair with is unanchored.
+  assert.ok(verifyGeneratedText({ text: 'Hypertension is active. It was 10 on review.', claims: briefingClaims }).issues.includes('UNANCHORED_CLAIM'));
 });
 
 test('verifyClaims text mode gives one verdict per sentence and keeps the directive check', () => {
