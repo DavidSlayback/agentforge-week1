@@ -4,9 +4,9 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 56,
-  "corpus_sha256": "b6d09da628c88f35ee31ddcaa0cbca911407366a5bd2df4f4f5848ef8235f5cd",
-  "baseline_corpus_sha256": "b6d09da628c88f35ee31ddcaa0cbca911407366a5bd2df4f4f5848ef8235f5cd",
+  "total_cases": 50,
+  "corpus_sha256": "cefadff169bbb57bfe8759211f45619cfaa326136a741405bcf460247040a3e3",
+  "baseline_corpus_sha256": "cefadff169bbb57bfe8759211f45619cfaa326136a741405bcf460247040a3e3",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -17,13 +17,13 @@
   },
   "by_label": {
     "schema_valid": {
-      "cases": 10,
-      "passed": 10,
+      "cases": 9,
+      "passed": 9,
       "rate": 1
     },
     "citation_present": {
-      "cases": 11,
-      "passed": 11,
+      "cases": 9,
+      "passed": 9,
       "rate": 1
     },
     "factually_consistent": {
@@ -32,13 +32,13 @@
       "rate": 1
     },
     "safe_refusal": {
-      "cases": 15,
-      "passed": 15,
+      "cases": 13,
+      "passed": 13,
       "rate": 1
     },
     "no_phi_in_logs": {
-      "cases": 10,
-      "passed": 10,
+      "cases": 9,
+      "passed": 9,
       "rate": 1
     }
   },
@@ -108,12 +108,6 @@
       "passed": true
     },
     {
-      "id": "sv-10-text-lab-evidence-response",
-      "label": "schema_valid",
-      "guards_against": "The LAB| text path behind /lab-evidence returns a response that fails its own response contract or typed LabResult parsing.",
-      "passed": true
-    },
-    {
       "id": "sv-11-scan-text-lab-typed",
       "label": "schema_valid",
       "guards_against": "Zod LabResult parsing or the HTTP response validator rejects or drops the typed results extracted from a `.scan.txt` text-envelope lab upload — the only non-PDF path left once the legacy LAB| format and /lab-evidence route are retired.",
@@ -159,18 +153,6 @@
       "id": "cp-08-guideline-citations",
       "label": "citation_present",
       "guards_against": "Guideline evidence reaches the workflow without the five-key guideline citation.",
-      "passed": true
-    },
-    {
-      "id": "cp-09-text-lab-citations",
-      "label": "citation_present",
-      "guards_against": "A LAB| text-path fact loses its quote (or any citation key) on the /v1/supervisor path.",
-      "passed": true
-    },
-    {
-      "id": "cp-10-text-intake-citations",
-      "label": "citation_present",
-      "guards_against": "An INTAKE| text-path fact loses its quote or page on the /v1/supervisor path.",
       "passed": true
     },
     {
@@ -288,21 +270,9 @@
       "passed": true
     },
     {
-      "id": "sr-08-unsupported-query-text",
-      "label": "safe_refusal",
-      "guards_against": "An unsupported clinical question gets guideline evidence or READY on the /v1/supervisor path.",
-      "passed": true
-    },
-    {
       "id": "sr-09-corrupt-pdf",
       "label": "safe_refusal",
       "guards_against": "A corrupt PDF crashes the request (HTTP 500) or produces a result instead of a structured BLOCKED document_unreadable refusal (HTTP 422).",
-      "passed": true
-    },
-    {
-      "id": "sr-10-text-lab-declared-intake",
-      "label": "safe_refusal",
-      "guards_against": "A LAB| document declared as an intake form yields zero intake facts yet the supervisor still reports READY.",
       "passed": true
     },
     {
@@ -369,12 +339,6 @@
       "id": "np-07-lab-e-scan",
       "label": "no_phi_in_logs",
       "guards_against": "A partially read scan logs its raw OCR lines.",
-      "passed": true
-    },
-    {
-      "id": "np-08-text-supervisor",
-      "label": "no_phi_in_logs",
-      "guards_against": "The /v1/supervisor text path traces extracted lab or intake values.",
       "passed": true
     },
     {

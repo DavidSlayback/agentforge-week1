@@ -5,7 +5,7 @@ import { inspect } from 'node:util';
 import baselineReport from '../../docs/agentforge/evidence/W2_BASELINE_REPORT.json' with { type: 'json' };
 import { InMemoryTraceSink } from '../../observability/index.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
-import { validateLabEvidenceResponse, validateScanExtractionTypedOutput } from './contracts.js';
+import { validateScanExtractionTypedOutput } from './contracts.js';
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { DeterministicProvider } from './modelProvider.js';
 import { createRecordedOcrReplay } from './pdfScanAdapter.js';
@@ -15,10 +15,7 @@ import { AgentForgeService } from './service.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 
 export const W2_GATE_LABELS = Object.freeze(['schema_valid', 'citation_present', 'factually_consistent', 'safe_refusal', 'no_phi_in_logs']);
-// Interim count while both the legacy LAB|/INTAKE| cases and their scan-path
-// replacements are present (R2 commit 1 of 2). Drops back to 50 once the
-// legacy cases are removed (R2 commit 2).
-export const W2_GATE_CASE_COUNT = 56;
+export const W2_GATE_CASE_COUNT = 50;
 
 const GOLDEN_DIR = new URL('../test/fixtures/golden/', import.meta.url);
 const REPO_ROOT = new URL('../../', import.meta.url);
@@ -42,7 +39,6 @@ const Q = Object.freeze({
 });
 
 const scan = (doc, declaredType, extra = {}) => ({ kind: 'scan', doc, declared_type: declaredType, upload_patient: P1, query: declaredType === 'lab_pdf' ? Q.glycemic : Q.medrec, ...extra });
-const textSupervisor = (docs, query = Q.glycemic, extra = {}) => ({ kind: 'text_supervisor', docs, query, upload_patient: P1, ...extra });
 const kase = (id, category, guardsAgainst, scenario, expect) => ({ id, category, guards_against: guardsAgainst, synthetic_only: true, scenario, expect });
 
 /**
@@ -62,7 +58,6 @@ export function buildW2GoldenSet() {
     kase('sv-07-labresult-required-fields', 'schema_valid', 'The LabResult contract stops requiring a field (e.g. reference_range) so the HTTP boundary would forward an incomplete lab result.', scan('lab-a', 'lab_pdf'), { contract_rejects: 'lab_result_without_each_required_key' }),
     kase('sv-08-intakeform-required-fields', 'schema_valid', 'The IntakeForm contract stops requiring demographics, chief concern, medications, allergies or family history.', scan('intake-a', 'intake_form'), { contract_rejects: 'intake_form_without_each_required_key' }),
     kase('sv-09-citation-shape', 'schema_valid', 'The citation contract stops validating bounding_box or accepts a citation missing one of the five keys or carrying an extra key.', scan('lab-a', 'lab_pdf'), { contract_rejects: 'malformed_citations' }),
-    kase('sv-10-text-lab-evidence-response', 'schema_valid', 'The LAB| text path behind /lab-evidence returns a response that fails its own response contract or typed LabResult parsing.', { kind: 'text_lab_evidence', doc: 'text-lab', upload_patient: P1 }, { typed: { lab_results: 2 } }),
     kase('sv-11-scan-text-lab-typed', 'schema_valid', 'Zod LabResult parsing or the HTTP response validator rejects or drops the typed results extracted from a `.scan.txt` text-envelope lab upload — the only non-PDF path left once the legacy LAB| format and /lab-evidence route are retired.', scan('scan-text-lab-a', 'lab_pdf'), { typed: { lab_results: 2 } }),
 
     kase('cp-01-lab-a-citations', 'citation_present', 'A vector-PDF lab fact or typed result loses a citation key, cites the wrong document or the wrong line (e.g. the test-name line instead of the value line), quotes text not in the OCR, or points outside the page.', scan('lab-a', 'lab_pdf'), { citations: true }),
@@ -72,8 +67,6 @@ export function buildW2GoldenSet() {
     kase('cp-06-lab-e-scan-citations', 'citation_present', 'Facts from a partially read noisy scan are emitted uncited or with a box outside the page.', scan('gen-lab-e-scanned', 'lab_pdf'), { citations: true }),
     kase('cp-07-lab-as-intake-citations', 'citation_present', 'Facts from a document whose declared type is contradicted are shown without source provenance.', scan('gen-lab-c-table', 'intake_form'), { citations: true }),
     kase('cp-08-guideline-citations', 'citation_present', 'Guideline evidence reaches the workflow without the five-key guideline citation.', scan('lab-b', 'lab_pdf'), { guideline_citations: true }),
-    kase('cp-09-text-lab-citations', 'citation_present', 'A LAB| text-path fact loses its quote (or any citation key) on the /v1/supervisor path.', textSupervisor(['text-lab']), { citations: true }),
-    kase('cp-10-text-intake-citations', 'citation_present', 'An INTAKE| text-path fact loses its quote or page on the /v1/supervisor path.', textSupervisor(['text-intake'], Q.medrec), { citations: true }),
     kase('cp-11-scan-text-lab-citations', 'citation_present', 'A `.scan.txt` lab fact or typed result loses a citation key, quotes text not in the envelope, or points outside the page — the citation defect the retired LAB| path could hide.', scan('scan-text-lab-a', 'lab_pdf'), { citations: true }),
     kase('cp-12-scan-text-intake-citations', 'citation_present', 'An observed `.scan.txt` intake field loses its quote or page — the citation defect the retired INTAKE| path could hide.', scan('scan-text-intake-a', 'intake_form'), { citations: true }),
 
@@ -95,9 +88,7 @@ export function buildW2GoldenSet() {
     kase('sr-05-patient-mismatch', 'safe_refusal', 'An intake form for another patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('gen-intake-c-conflict', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', retrieval_ran: false } }),
     kase('sr-06-cross-patient-read', 'safe_refusal', "A clinician scoped to one patient runs the scan workflow on another patient's document (the handler must answer 403).", scan('lab-a', 'lab_pdf', { request_patient: P2 }), { refusal: { service_status: 'blocked', reason: 'document_scope_mismatch' } }),
     kase('sr-07-unsupported-query-scan', 'safe_refusal', 'An off-topic question gets guideline evidence or a READY state on the scan path.', scan('lab-a', 'lab_pdf', { query: Q.offTopic }), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
-    kase('sr-08-unsupported-query-text', 'safe_refusal', 'An unsupported clinical question gets guideline evidence or READY on the /v1/supervisor path.', textSupervisor(['text-lab'], Q.offTopicClinical), { refusal: { final_state: 'QUALIFIED', evidence_empty: true } }),
     kase('sr-09-corrupt-pdf', 'safe_refusal', 'A corrupt PDF crashes the request (HTTP 500) or produces a result instead of a structured BLOCKED document_unreadable refusal (HTTP 422).', scan('gen-corrupt', 'lab_pdf'), { refusal: { service_status: 'unreadable', reason: 'document_unreadable', traced_as: 'blocked' } }),
-    kase('sr-10-text-lab-declared-intake', 'safe_refusal', 'A LAB| document declared as an intake form yields zero intake facts yet the supervisor still reports READY.', textSupervisor(['text-lab'], Q.glycemic, { declared_type: 'intake_form' }), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted' } }),
     kase('sr-11-intake-dob-mismatch', 'safe_refusal', "An intake form with this patient's name but a different date of birth is attached to the chart because only the name is compared.", scan('gen-intake-d-dob', 'intake_form'), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['dob'], retrieval_ran: false } }),
     kase('sr-12-no-chart-record', 'safe_refusal', 'A patient with no chart demographics is treated as an identity match, so an unverifiable intake form is reported READY.', scan('intake-a', 'intake_form', { upload_patient: P_UNKNOWN }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['patient_identity_unverified'], identity: 'unverified' } }),
     kase('sr-13-lab-header-other-patient', 'safe_refusal', 'A lab report whose printed patient header names a different patient is attached to this chart instead of BLOCKED patient_mismatch.', scan('lab-a', 'lab_pdf', { upload_patient: P2 }), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', mismatched_fields: ['name', 'dob'], retrieval_ran: false } }),
@@ -110,7 +101,6 @@ export function buildW2GoldenSet() {
     kase('np-05-patient-mismatch', 'no_phi_in_logs', "The blocked patient-mismatch path logs the other patient's identifiers.", scan('gen-intake-c-conflict', 'intake_form'), { no_phi: {} }),
     kase('np-06-lab-d', 'no_phi_in_logs', 'Low-confidence or flagged lab values are logged for debugging.', scan('gen-lab-d-flags', 'lab_pdf'), { no_phi: {} }),
     kase('np-07-lab-e-scan', 'no_phi_in_logs', 'A partially read scan logs its raw OCR lines.', scan('gen-lab-e-scanned', 'lab_pdf'), { no_phi: {} }),
-    kase('np-08-text-supervisor', 'no_phi_in_logs', 'The /v1/supervisor text path traces extracted lab or intake values.', textSupervisor(['text-lab', 'text-intake']), { no_phi: {} }),
     kase('np-09-corrupt-pdf', 'no_phi_in_logs', 'The unreadable-document refusal path writes document bytes or tool stderr into the trace or console.', scan('gen-corrupt', 'lab_pdf'), { no_phi: { no_handoffs: true } }),
     kase('np-10-raw-handoff-redaction', 'no_phi_in_logs', 'The trace redactor stops stripping value/quote-keyed content, so any raw worker handoff recorded in a trace would leak intake identifiers.', scan('intake-a', 'intake_form'), { no_phi: { raw_handoffs: true } }),
     kase('np-11-scan-text-envelope', 'no_phi_in_logs', 'A `.scan.txt` text-envelope upload traces its extracted lab or intake values — the leak the retired /v1/supervisor text path could hide.', scan('scan-text-intake-a', 'intake_form'), { no_phi: {} }),
@@ -187,14 +177,6 @@ async function runScenario(scenario) {
       run.sourceIds.push(stored.id);
       const requestPatient = scenario.request_patient || scenario.upload_patient;
       run.result = await h.service.runActiveSupervisorForDocument(stored.id, { patient_uuid: requestPatient, clinician_uuid: CLINICIAN }, { verifiedContext: h.context(requestPatient), query: scenario.query });
-    } else if (scenario.kind === 'text_supervisor') {
-      for (const doc of docs) run.sourceIds.push((await h.upload(doc, scenario.upload_patient, scenario.declared_type || doc.truth.document_kind)).id);
-      const request = { patient_uuid: scenario.upload_patient, clinician_uuid: CLINICIAN, message: scenario.query, source_document_ids: run.sourceIds };
-      run.result = await h.service.runSupervisorWorkflow(request, { verifiedContext: h.context(scenario.upload_patient), sourceDocumentContext: h.context(scenario.upload_patient, 'write-source-document') });
-    } else if (scenario.kind === 'text_lab_evidence') {
-      const stored = await h.upload(docs[0], scenario.upload_patient, 'lab_pdf');
-      run.sourceIds.push(stored.id);
-      run.result = await h.service.extractLabEvidence(stored.id, { patient_uuid: scenario.upload_patient, clinician_uuid: CLINICIAN }, { verifiedContext: h.context(scenario.upload_patient, 'write-source-document') });
     } else throw new Error('GOLDEN_SCENARIO_UNKNOWN');
   } catch (error) {
     run.error = error;
@@ -292,15 +274,10 @@ function citationIssues(label, citation, { sourceId, doc }) {
 
 function checkTyped(run, expect) {
   const issues = [];
-  if (run.result?.status === 'extracted') {
-    const response = { synthetic_only: true, source_document: run.result.source_document, extraction: run.result.extraction, observations: run.result.observations };
-    if (!validateLabEvidenceResponse(response).valid) issues.push('lab_evidence_response_contract_invalid');
-  } else {
-    const extraction = extractionOf(run);
-    if (!extraction) return ['extraction_missing'];
-    if (!validateScanExtraction(extraction, {}).valid) issues.push('scan_extraction_contract_invalid');
-    if (!validateScanExtractionTypedOutput(extraction).valid) issues.push('http_response_contract_invalid');
-  }
+  const baseExtraction = extractionOf(run);
+  if (!baseExtraction) return ['extraction_missing'];
+  if (!validateScanExtraction(baseExtraction, {}).valid) issues.push('scan_extraction_contract_invalid');
+  if (!validateScanExtractionTypedOutput(baseExtraction).valid) issues.push('http_response_contract_invalid');
   const extraction = extractionOf(run);
   const labResults = extraction?.lab_results || [];
   labResults.forEach((result, index) => { if (!parseOrIssues(LabResult, result).ok) issues.push(`lab_results[${index}]_zod_invalid`); });
@@ -359,17 +336,6 @@ function checkCitations(run) {
   if (run.error) return ['workflow_threw'];
   const [doc] = run.docs;
   const sourceId = run.sourceIds[0];
-  if (run.result?.typed_outputs?.intake) {
-    const facts = run.result.typed_outputs.intake.facts || [];
-    if (!facts.length) return ['no_facts_to_cite'];
-    const truthCount = (doc.truth.lab_results || []).length + Object.values(doc.truth.intake_form || {}).flat().length;
-    if (facts.length !== truthCount) issues.push(`fact_count_${facts.length}_expected_${truthCount}`);
-    facts.forEach((fact, index) => {
-      issues.push(...citationIssues(`fact[${index}]`, fact.citation, { sourceId, doc }));
-      if (!quotes(fact.citation, fact.value)) issues.push(`fact[${index}]:quote_does_not_contain_value`);
-    });
-    return issues;
-  }
   const extraction = extractionOf(run);
   if (!extraction?.facts?.length) return ['no_facts_to_cite'];
   extraction.facts.forEach((fact, index) => {

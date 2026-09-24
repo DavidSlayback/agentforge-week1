@@ -17,7 +17,7 @@ test('W2 gate has 50 distinct cases in every category, each documenting its fail
   for (const item of cases) {
     assert.equal(item.synthetic_only, true);
     assert.ok(item.guards_against.length > 20, `${item.id} must state the failure mode it guards`);
-    assert.ok(['scan', 'text_supervisor', 'text_lab_evidence'].includes(item.scenario.kind), `${item.id} must run a service workflow`);
+    assert.equal(item.scenario.kind, 'scan', `${item.id} must run a service workflow`);
   }
   assert.equal(new Set(cases.map((item) => JSON.stringify([item.scenario, item.expect]))).size, cases.length, 'no two cases may be the same scenario with the same assertions');
 });
