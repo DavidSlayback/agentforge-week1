@@ -16,15 +16,21 @@ const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACT
  * `qualification.reasons`.
  *
  * Async: the evidence-retrieval worker awaits its retriever (it may be a
- * remote/async provider such as Cohere embed+rerank), so this supervisor must
- * itself be async and every caller must await it.
+ * remote/async provider such as the Gemini hybrid retriever), so this
+ * supervisor must itself be async and every caller must await it.
  *
  * `retrievalAdapter` is an injected `{name, retrieve}` guideline retriever
- * (sync or async — see `runEvidenceWorker`). It defaults to the deterministic
- * local lexical/dense proxy so behavior is unchanged when the caller does not
- * configure one (e.g. direct test calls that omit it entirely). The
- * retrieval provider label recorded on the observer trace always comes from
- * `retrievalAdapter.name`, never a hardcoded constant.
+ * (sync or async — see `runEvidenceWorker`). It defaults to the real BM25
+ * sparse-only retriever so behavior is unchanged when the caller does not
+ * configure one (e.g. direct test calls that omit it entirely). `query` is
+ * passed through as `runEvidenceWorker`'s `clinicianQuestion` — an optional
+ * refinement to the query `runEvidenceWorker` formulates from the
+ * extraction's own typed lab/intake output, never the query verbatim. The
+ * retrieval provider label recorded on the observer trace comes from the
+ * evidence worker's actual per-call result, falling back to
+ * `retrievalAdapter.name` only when a retriever omits it — never a
+ * hardcoded constant, and never a static label once a call has actually
+ * run and reported its own mode.
  */
 export async function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null, documentText = '', targetPatient = null } = {}) {
   const retriever = retrievalAdapter || localLexicalGuidelineRetriever;
@@ -45,11 +51,15 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
   observer?.startStage('retrieval');
   let evidenceWorker;
   try {
-    evidenceWorker = await runEvidenceWorker({ query, patientFacts, documentFacts: extractionWorker.extraction.facts, retrieve: retriever.retrieve });
+    evidenceWorker = await runEvidenceWorker({ clinicianQuestion: query, patientFacts, extraction: extractionWorker.extraction, retrieve: retriever.retrieve });
   } finally {
     observer?.finishStage('retrieval', { status: evidenceWorker?.output_status || 'failed' });
   }
-  observer?.recordRetrievalAttempt({ tool: 'evidence-retriever', provider: retriever.name || 'local-lexical-proxy', status: evidenceWorker.output_status === 'ready' ? 'complete' : 'qualified', hit_count: evidenceWorker.guideline_evidence?.length || 0 });
+  // The provider that actually answered this call (which may have degraded
+  // to sparse-only mid-request) takes precedence over the retriever's static
+  // name, so the trace never mislabels a degraded hybrid call as hybrid.
+  observer?.recordRetrievalAttempt({ tool: 'evidence-retriever', provider: evidenceWorker.provider || retriever.name || 'bm25-sparse-only', status: evidenceWorker.output_status === 'ready' ? 'complete' : 'qualified', hit_count: evidenceWorker.guideline_evidence?.length || 0 });
+  for (const usage of evidenceWorker.usage || []) observer?.recordModelUsage?.(usage);
   transitions.push(STATES.EVIDENCE_RETRIEVER);
   const ready = evidenceWorker.output_status === 'ready' && !safety.qualifying.length;
   if (evidenceWorker.output_status === 'ready') transitions.push(STATES.VERIFY);

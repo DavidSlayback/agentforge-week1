@@ -286,6 +286,31 @@ test('synthetic scan-form evidence API and source preview preserve page-region c
   }
 });
 
+test('scan-supervisor accepts an absent or empty message: the UI sends no canned query string', async () => {
+  const port = 18806;
+  const child = await startServer(port);
+  try {
+    const patient = 'fixture-patient-001';
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
+    const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-layout-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
+    // Empty string, exactly what ui.js now sends (no canned per-document-type query).
+    const empty = await fetch(`http://127.0.0.1:${port}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: readContext.demo_token, source_document_id: upload.source_document.id, message: '' }) });
+    assert.equal(empty.status, 200);
+    // Absent entirely is equally valid.
+    const { message: _omitted, ...withoutMessage } = { patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: readContext.demo_token, source_document_id: upload.source_document.id, message: '' };
+    const absent = await fetch(`http://127.0.0.1:${port}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(withoutMessage) });
+    assert.equal(absent.status, 200);
+    // A non-string message is still rejected.
+    const wrongType = await fetch(`http://127.0.0.1:${port}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...withoutMessage, message: 42 }) });
+    assert.equal(wrongType.status, 400);
+    assert.ok((await wrongType.json()).issues.includes('message_must_be_string'));
+  } finally {
+    child.kill();
+  }
+});
+
 test('scan extraction responses are re-validated at the HTTP boundary and never sent unvalidated', async () => {
   const port = 18809;
   const child = await startServer(port, { AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION: 'true' });

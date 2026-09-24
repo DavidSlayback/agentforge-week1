@@ -58,17 +58,62 @@ export function runExtractionWorker({ sourceDocumentId, documentType, layoutId, 
   return handoffValidation.valid ? handoff : { ...handoff, output_status: 'blocked', steps: [...steps, { name: 'handoff_validation', decision: handoffValidation.issues.join(',') }] };
 }
 
+const NON_ABNORMAL_FLAGS = new Set(['normal', 'unknown']);
+
+/**
+ * Describe a document's abnormal lab findings for the retrieval query, e.g.
+ * `"Abnormal findings: A1C abnormal, Hemoglobin low."`. Normal and
+ * unreadable (`unknown`) flags are excluded — an evidence query built from
+ * "everything the form mentions" would drown a genuinely abnormal result in
+ * noise from the tests that came back fine.
+ */
+function abnormalLabPhrase(labResults) {
+  const abnormal = (labResults || []).filter((result) => result?.test_name && result.abnormal_flag && !NON_ABNORMAL_FLAGS.has(result.abnormal_flag));
+  if (!abnormal.length) return '';
+  return `Abnormal findings: ${abnormal.map((result) => `${result.test_name} test result ${result.abnormal_flag}`).join(', ')}.`;
+}
+
+/** Describe the intake form's chief concern for the retrieval query, or '' when it was never observed on the form. */
+function chiefConcernPhrase(intakeForm) {
+  const field = intakeForm?.chief_concern;
+  if (!field || field.status !== 'observed' || !field.value) return '';
+  return `Chief concern: ${field.value}.`;
+}
+
+/**
+ * Build the guideline-retrieval query from the extraction's own typed
+ * output, not from whatever text the client happened to send.
+ *
+ * The primary signal is the document's abnormal lab findings and the
+ * intake's chief concern — both grounded in what was actually extracted.
+ * `clinicianQuestion` (the client-supplied free-text `message`) is appended
+ * only as an optional, secondary refinement; when there is no typed
+ * evidence to build from (no lab results, no intake form, or none of their
+ * fields are abnormal/observed), the formulated query is exactly the
+ * clinician's question, unchanged.
+ */
+export function formulateEvidenceQuery({ labResults = [], intakeForm = null, clinicianQuestion = '' } = {}) {
+  const formulated = [abnormalLabPhrase(labResults), chiefConcernPhrase(intakeForm)].filter(Boolean).join(' ');
+  const question = String(clinicianQuestion || '').trim();
+  return [formulated, question].filter(Boolean).join(' ');
+}
+
 /**
  * Independently testable retrieval workflow that separates patient facts from
- * guidelines. `retrieve` may be sync or async (e.g. a Cohere embed+rerank
+ * guidelines. `retrieve` may be sync or async (e.g. the Gemini hybrid
  * retriever); the result is always awaited so an async retriever's Promise is
  * never mistaken for evidence. A retriever that throws or rejects is caught
  * here and turned into a qualified result carrying an error code, never the
  * raw exception text.
+ *
+ * `extraction` (the scan-form extraction worker's typed output, carrying
+ * `lab_results`/`intake_form`) and `clinicianQuestion` (the client's raw
+ * `message`, if any) feed `formulateEvidenceQuery` — this worker owns query
+ * formulation, not its callers.
  */
-export async function runEvidenceWorker({ query, patientFacts = [], documentFacts = [], retrieve = retrieveGuidelineEvidence, topK = 3 }) {
+export async function runEvidenceWorker({ clinicianQuestion = '', patientFacts = [], documentFacts = [], extraction = null, retrieve = retrieveGuidelineEvidence, topK = 3 }) {
   const steps = [{ name: 'inspect', decision: 'accepted scoped evidence request' }];
-  const normalizedQuery = String(query || '').trim();
+  const normalizedQuery = formulateEvidenceQuery({ labResults: extraction?.lab_results, intakeForm: extraction?.intake_form, clinicianQuestion });
   steps.push({ name: 'formulate_query', decision: normalizedQuery ? 'query_ready' : 'empty_query' });
   let guideline;
   try {
@@ -81,6 +126,7 @@ export async function runEvidenceWorker({ query, patientFacts = [], documentFact
   steps.push({ name: 'retrieve_and_check', decision: usable.length ? `usable_guideline_hits:${usable.length}` : 'insufficient_grounded_evidence' });
   const qualified = !normalizedQuery || !usable.length || guideline.status !== 'complete';
   steps.push({ name: 'qualify', decision: qualified ? 'withhold_unsupported_claims' : 'grounded_evidence_ready' });
+  const documentFactsOut = documentFacts.length ? documentFacts : extraction?.facts || [];
   return {
     contract_version: SCAN_FORM_CONTRACT_VERSION,
     worker: 'evidence-retrieval-worker',
@@ -89,10 +135,16 @@ export async function runEvidenceWorker({ query, patientFacts = [], documentFact
     steps,
     retry_count: 0,
     citations: usable.map((item) => item.citation),
-    redacted_metrics: { patient_fact_count: patientFacts.length, document_fact_count: documentFacts.length, guideline_hit_count: usable.length, query_length: normalizedQuery.length },
+    redacted_metrics: { patient_fact_count: patientFacts.length, document_fact_count: documentFactsOut.length, guideline_hit_count: usable.length, query_length: normalizedQuery.length },
     patient_facts: patientFacts,
-    document_facts: documentFacts,
+    document_facts: documentFactsOut,
     guideline_evidence: usable,
+    // Surfaced so a caller can trace the retriever's *actual* mode (never a
+    // hard-coded default) and forward per-call model usage without needing
+    // to know which retriever produced this result.
+    provider: guideline.provider || null,
+    degraded: guideline.degraded ?? null,
+    usage: guideline.usage || null,
     qualification: { required: qualified, reasons: qualified ? (guideline.issues || ['insufficient_evidence']) : [] },
   };
 }

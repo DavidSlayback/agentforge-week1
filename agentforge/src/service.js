@@ -195,10 +195,13 @@ export class AgentForgeService {
     let guideline;
     try {
       guideline = await this.guidelineRetriever.retrieve(request.message, { topK });
-    } catch (error) {
-      guideline = { status: 'qualified', provider: this.guidelineRetriever.name || 'unknown', evidence: [], issues: [error.message || 'retrieval_failed'] };
+    } catch {
+      // An error code only — never `error.message`, which can carry
+      // upstream HTTP/network detail (e.g. an internal host or a raw
+      // provider error string) that must not reach an API response or trace.
+      guideline = { status: 'qualified', provider: this.guidelineRetriever.name || 'unknown', evidence: [], issues: ['guideline_retrieval_failed'] };
     }
-    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || this.guidelineRetriever.name || 'local-lexical-proxy', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups }, qualification: { required: Boolean(failedGroups.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...guideline.issues] } };
+    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || this.guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups }, qualification: { required: Boolean(failedGroups.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...guideline.issues] } };
   }
 
   prepare(...args) { return this.preparation.prepare(...args); }

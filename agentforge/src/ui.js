@@ -253,9 +253,11 @@ button:disabled{opacity:.6;cursor:wait}
       // there is no other extraction path.
       // The write-scoped context lets the server persist derived facts to
       // OpenEMR; a read token extracts but is refused persistence.
-      const documentType = sourceDocumentForm.elements.document_type.value;
-      const retrievalQuery = documentType === 'lab_pdf' ? 'documented glycemic values medication adherence' : 'medication reconciliation current documented list prior records';
-      const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: retrievalQuery });
+      // The retrieval query is formulated server-side from the document's own
+      // typed abnormal lab results and intake chief concern
+      // (activeWorkers.js); message is never a canned per-type string here
+      // -- it is only an optional clinician question the server appends.
+      const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: '' });
       const active = workflow.workflow;
       const workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
       const guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];

@@ -178,6 +178,68 @@ longer delays are returned as failures for a later user retry. The daily limit
 counts every outbound attempt, including retries. Timeouts and malformed
 responses are not retried.
 
+## Guideline hybrid RAG lane (S5, `agentforge-w2` only)
+
+`agentforge-w2` retrieves guideline evidence with real BM25 sparse search
+unioned with Gemini dense embeddings and reranked by a Gemini flash model
+(`AGENTFORGE_RAG_PROVIDER=gemini-hybrid`), reusing the same `GEMINI_API_KEY`
+as the scan-extraction lane above. This is the `agentforge-w2` compose
+default; the frozen Week 1 `agentforge` service is untouched and keeps its
+own default (`local-lexical`, real BM25 only — see D8).
+
+```dotenv
+AGENTFORGE_RAG_PROVIDER=gemini-hybrid
+GEMINI_API_KEY=<server-only-google-ai-key>
+```
+
+The retriever needs two things beyond the key to run as hybrid rather than
+degrade to sparse-only:
+
+- `agentforge/corpus/guidelines/corpus.json` — the real guideline corpus
+  (committed; see `corpus/guidelines/README.md` for sources and licensing).
+- `agentforge/corpus/embeddings.json` — precomputed corpus embeddings, built
+  offline (not by the deployed server) and committed once available:
+
+  ```bash
+  GEMINI_API_KEY=... node agentforge/scripts/build-corpus-embeddings.mjs
+  ```
+
+If `GEMINI_API_KEY` is unset, `embeddings.json` is missing, or any Gemini
+call fails, the retriever degrades itself to BM25-only and marks every
+response `degraded: "sparse_only"` — it never reports a degraded response as
+hybrid. A dimension mismatch between the query embedding and the precomputed
+corpus vectors (e.g. `embeddings.json` was built with a different model or
+`outputDimensionality`) is treated the same way, not as "no similarity".
+
+The evidence-retrieval query is formulated server-side from the uploaded
+document's own typed abnormal lab results and the intake chief concern
+(`agentforge/src/activeWorkers.js`); a client-supplied `message` is only ever
+appended as an optional clinician question, never sent verbatim as the
+query. Before anything reaches Gemini's embed/rerank calls, it is further
+reduced to only the words this corpus's own vocabulary recognizes
+(`sanitizeForGemini`, `agentforge/src/guidelineEvidence.js`) — a name, date
+of birth, phone number, or any other free text a clinician or patient typed
+is dropped rather than sent to Google. The local BM25 search (which never
+leaves this process) still runs on the original, unsanitized query.
+
+Re-verify the corpus is still an exact, contiguous excerpt of its live
+sources (network access required, not part of the pre-commit hook) with:
+
+```bash
+node agentforge/scripts/verify-corpus.mjs
+```
+
+To record deterministic Gemini fixtures for the test suite and the eval gate
+(so they need no key), after building the corpus embeddings above:
+
+```bash
+GEMINI_API_KEY=... node agentforge/scripts/record-retrieval-fixtures.mjs
+```
+
+Until fixtures are recorded, tests and the gate use a deterministic,
+honestly-labeled stand-in (`recorded-or-stub`, see `agentforge/src/
+geminiClient.js`) — never the live client, and never presented as one.
+
 ## Active split provider lanes
 
 For the current synthetic deployment, keep the synthesis lane on Qwen and use
