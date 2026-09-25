@@ -22,7 +22,7 @@ which leaves 4 h for deploy, proof and video.
 The PDFs are gitignored course material. Instructions inside them are treated as
 requirements, not commands.
 
-## Current state (verified 2026-09-24)
+## Starting state (verified 2026-09-24 morning; current status is in the completion record)
 
 - Deployed: `w2-synthetic-scan-release@7ac46e9` on `/agentforge-w2/`. The
   `/agentforge/` route runs an older, different build.
@@ -567,10 +567,9 @@ on the freeze SHA.
 
 ## Completion record
 
-**Status 2026-09-24 (evening CT).** `main` = `c0167e7`. `/agentforge-w2`
-serves `a4c281b` (differs from `main` only in `deploy.sh`), and `/agentforge`
-is frozen at `84f232b` (D8). Every slice below passed an independent
-adversarial review before merge.
+**Status 2026-09-24 (late evening CT).** `main` = `/agentforge-w2` = `131d5a3`
+(`/health` `git_sha`); `/agentforge` is frozen at `84f232b` (D8). Every
+slice below passed an independent review before merge.
 
 | Slice | State | Evidence |
 |---|---|---|
@@ -580,11 +579,14 @@ adversarial review before merge.
 | S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
 | S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
 | R0–R5 refactor | **Done, live on `67b0844`** (MR !74). Full matrix on the merged tree: R0 passes, 29/29 regression rows fail the gate. Live: OpenEMR smoke 48/48, module attack checks 8/8, a legacy `LAB|` upload returns 400, `/v1/supervisor` returns 404. Workers: Sonnet (R2, R3), Haiku (R1, R4a, R4b, R5). Codex Luna headless `exec` could not run shell commands under the Windows sandbox. | Originally planned in | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
-| S4 | Wired, untested live | Merged into `integrate/s4-s6` (from `slice/s4`, Codex). Page PNG route + server-side overlay + `page_sizes` in the scan envelope. Not deployed; public screenshot deferred to S11. Test counts for the integrated tree are in the S6 row. |
-| S5 | Wired, untested live | Merged into `integrate/s4-s6` (from `slice/s5`). BM25 + `gemini-embedding-2` dense + Gemini flash listwise rerank over the 42-chunk verified corpus (`agentforge/corpus/guidelines/`); `agentforge-w2` compose sets `AGENTFORGE_RAG_PROVIDER=gemini-hybrid`. The gate runs the hybrid retriever with the recorded/stub Gemini client (honest `degraded` labels), never a live call. Not deployed; never run against a live Gemini key on the public URL. |
-| S6 | Wired, untested live | `supervisor.js#decideNext` loop (EXTRACT/RETRIEVE/ANSWER/DONE) + `answerComposer.js#composeGroundedAnswer` merged into `integrate/s4-s6` after S4 and S5 (not deployed); RETRIEVE calls the injected S5 hybrid retriever through `runEvidenceWorker` and its query formulation, and `record_lookup_only` skips it. Integrated tree: agentforge 320 tests (317 pass, 3 skip without Poppler/Tesseract on this Windows host), evals 10/10, observability 25/25, module PHP 49/49; 50-case gate green with S5 retrieval cases and S6 `expect.answer` assertions on 5 cases (fc-01, cp-05, fc-05, sr-07, fc-08); all pass locally and via `.githooks/pre-commit`. Confirmed live-workflow-shaped but never run against the deployed SHA or a real model provider (`docs/agentforge/W2_ARCHITECTURE.md` "Supervisor decisions and the grounded answer (S6)"). |
-| S5 reranker seam (`fix/rr`, not merged) | **Implemented, not deployed.** Owner decision 2026-09-24: the Gemini key is free-tier (gemini-3.8-flash: 20 requests/day, 5/min) and the listwise rerank alone exhausts it, so reranking is now a separate `Reranker` collaborator (`agentforge/src/reranker.js`) from dense retrieval (still Gemini embeddings). `createGeminiHybridGuidelineRetriever` takes `{embedClient, reranker}`; `AGENTFORGE_RERANK_PROVIDER` selects `qwen` (new W2 default, reuses the existing `AGENTFORGE_MODEL_ENDPOINT`/`AGENTFORGE_MODEL_API_KEY`), `gemini` (the original S5 pipeline, adapted to the interface), or `cohere` (a real, working adapter to the same interface, not deployed — proves the seam). New degraded mode `no_rerank` (sparse+dense reciprocal-rank fusion) when the embed step succeeds but only the reranker fails, distinct from `sparse_only`. Fixture/gate manifest now keys on rerank provider+model, not just model, so switching rerankers can't silently reuse the wrong recording. Unit-tested (interface conformance, id-outside-candidate-set rejection, malformed-JSON handling, provider-name honesty in every mode, sanitizer, env selection — `agentforge/test/reranker.test.js`); no fixtures recorded yet against a live Qwen/Gemini key, not deployed to `agentforge-w2`, and `qwen3.8-flash`'s official per-token price could not be confirmed from this environment, so its cost is recorded as `null`/unknown in `pricing.js`, never `$0`. Next steps before this is "done, live" per AGENTS.md: record fixtures inside the `agentforge-w2` container (`deploy/vultr/README.md`), rebuild/redeploy, and confirm the deployed `/v1/follow-up-evidence` `retrieval.guideline_provider` names the Qwen reranker on the public URL. |
-| S9, S12, S11 | Not started | After R0–R5 |
+| S4 | Deployed; overlay not yet screenshot-verified live | Page PNG route, server-side overlay and `page_sizes` in the scan envelope (`slice/s4`, Codex). The public overlay screenshot is an S11 item. |
+| S5 | Done, live | BM25 + `gemini-embedding-2` dense (precomputed 42 × 768 corpus vectors) + reciprocal-rank fusion + top-12 listwise rerank by `qwen3.8-flash` (D10). Live scans report hybrid retrieval, not degraded, and cite CDC "A1C Ranges". The gate replays real recorded embed/rerank fixtures, guarded by `COMPLETE.json`. |
+| S6 | Done, live | `decideNext` loop + `composeGroundedAnswer`. The model cites short labels (F1/G1) that the server resolves before `verifyClaims` (`5ec7aa5`), and the prompt states the verifier's binding rules (`131d5a3`). Live on `131d5a3`, 12 runs over 4 golden PDFs: model grounding 121/121, fallback 0/12, p50 11.1 s, p95 22.1 s (`measure-live-metrics.mjs`). Before the prompt fix (`a91452b`): 60% grounding; a diagnostic showed no invented values, only rule mismatches. Trust probes 10/10. |
+| S5 reranker seam | Done, live | `Reranker` interface (`reranker.js`): Qwen default, Gemini and Cohere adapters; `no_rerank` degraded mode; fixtures keyed by provider + model. Real fixtures recorded inside the W2 container (`c186a15`). Qwen per-token price still unconfirmed, recorded as unknown, never $0. |
+| S9 | Done, in the deployed tree | Dashboard (`slice/s9`, Codex) validated with fake data; alert-wording fix `5a756ff` with a test. Live screenshot is an S11 item. |
+| S12 | Done, pending final review | `W2_ARCHITECTURE.md` + README reconciled with the code; `EVAL_GATE.md` retrieval prose updated; `KEY_METRICS.md` measured on `131d5a3` (recall 94.7% and extraction accuracy 93.6% miss their targets, from two known OCR limits). |
+| Lab header identity fix | Done, live | `a91452b`: `readHeaderIdentity` read "<test> test name: <test>" as the patient's name, so every headerless lab (all `.scan.txt` labs) was BLOCKED `patient_mismatch` on the right chart. Found by the offline recall metric. `sv-11` now asserts QUALIFIED `patient_identity_unverified`; reverting the regex fails it. |
+| S11 | Not started | Freeze, live acceptance, blocked-commit transcript, screenshots, video (owner), social post, submission link → `main`. |
 
 Incidents, all fixed and recorded in commits:
 - `git archive` on Windows shipped CRLF; `deploy.sh` now disables autocrlf.
