@@ -5,6 +5,7 @@ DELETE FROM care_teams WHERE team_name LIKE '%[seed:phase1]%';
 DELETE FROM pnotes WHERE body LIKE '%[seed:phase1]%';
 DELETE f FROM forms f JOIN form_vitals v ON v.id = f.form_id AND f.formdir = 'vitals' WHERE v.note LIKE '%[seed:phase1]%';
 DELETE FROM form_vitals WHERE note LIKE '%[seed:phase1]%';
+UPDATE patient_data SET deceased_date = NULL, deceased_reason = '' WHERE deceased_reason = '[seed:phase1]';
 COMMIT;
 SELECT (SELECT COUNT(*) FROM care_teams WHERE team_name LIKE '%[seed:phase1]%') AS teams_left,
        (SELECT COUNT(*) FROM pnotes WHERE body LIKE '%[seed:phase1]%') AS notes_left;
