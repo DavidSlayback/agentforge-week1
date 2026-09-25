@@ -28,8 +28,8 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | 4 | Data audit | **approved 2026-09-25** | `data/README.md`, `data/SCHEMA.md`, `data/UUID-MAPPING.md`, `data/CONFIG.md` |
 | 5 | Repo split | **approved 2026-09-25** (in place) | tag `legacy-baseline` → `3ccfe1d`, `AGENT-BRIEF.md`, `README.md` |
 | 6 | Deep-dive | **approved 2026-09-25** (code-only; live evidence deferred to the build) | `VERIFICATION.md`, `walkthroughs/*.md` (5) |
-| 7 | Bug catalog | **checkpoint presented 2026-09-25** | `BUGS-MITIGATIONS.md`: 164 entries from 238 rows (2 Critical, 18 High, 61 Medium, 83 Low) |
-| 8 | Migration route | not started | |
+| 7 | Bug catalog | **approved 2026-09-25** | `BUGS-MITIGATIONS.md`: 164 entries (2 Critical, 18 High, 61 Medium, 83 Low) |
+| 8 | Migration route | **near-tie presented 2026-09-25**; waiting for David (familiarity decides) | `MIGRATION-OPTIONS.md`: R1 React 110, R3 Vue 109, R2 SvelteKit 108, R4 Next 87, R0 PHP 49 (out of 135) |
 | 9 | Side quests | not started | |
 | 10 | Vertical slices | not started | |
 
@@ -80,6 +80,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-25 | Phase 8 weights (David: "defaults", set before scoring): working by Sunday 12:00 CT = 5; defensibility in PATIENT_DASHBOARD_MIGRATION.md = 5; BFF fit = 4; David's familiarity = 4; testability / pre-commit fit = 3; parity ergonomics = 3; deploy fit (Vultr + Caddy) = 2; long-term ecosystem = 1. Language: **TypeScript**. No framework ruled out. The highest score wins by default; near-ties (within 5%) go to David | Weights agreed before any scoring (skill Phase 8 §A.5) |
 | 2026-09-25 | Deceased test patient: pid 12 `deceased_date` = 2026-08-30 (`seed/phase1-seed-deceased.sql`, marker in `deceased_reason`) | Makes the header's derived "Deceased" status testable |
 | 2026-09-25 | Phase 6 scope: **no scripted live API checks and no restricted-user checks**. Code-only walkthroughs now; live evidence comes from the build's walking skeleton, card by card. Findings stay "verified from code" until then | Scripted endpoint verification was stopped by a safety classifier; David chose options 1 + 3 |
 | 2026-09-25 | Keep `rest_api` on in production | AgentForge's live adapter needs it; M-1 isn't reachable without a `prescription` scope, and no enabled client has one |
@@ -147,3 +148,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 6 approved; deceased seed applied to pid 12. Phase 7 started: findings harvest (2 haiku, to scratchpad TSV) → tier-3 dedup and final severity.
 
 - 2026-09-25 — Phase 7: catalog written by a tier-3 agent from 238 harvested rows → 164 entries (74 merged; every row in exactly one Sources line, checked by script). Critical: 5.01 (U-1, legacy vitals join) and 5.02 (M-5, FHIR vitals without a deleted filter). U-2 → High (7.01). Local-only credentials and password grant → Medium (1.05); the deploy compose requires OE_USER and OE_PASSWORD with no default (verified). Phase 7 checkpoint presented.
+
+- 2026-09-25 — Phase 7 approved. Phase 8 Part A started with the default weights and TypeScript.
+
+- 2026-09-25 — Phase 8A scored (tier 3): near-tie between R1, R3 and R2 (within 5%). The familiarity score was inferred from the repo (no framework history), so David decides. Flagged: brief says "FHIR API" for clinical cards; client model B uses REST for 4 cards plus Vitals, to be justified in the migration doc.
