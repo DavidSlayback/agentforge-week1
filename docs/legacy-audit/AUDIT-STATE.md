@@ -46,11 +46,11 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 
 ## Work queues (Phases 2–4), ordered
 
-Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). "ovr" = raised to tier 3 by override: the center of gravity, auth, or a requirement read path over patient data. Output goes to `ui/`, `modules/` or `data/` as `<NAME>.md`.
+Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). **Approved tiering (David, 2026-09-25): tier 3 only for `demographics.php`, `AuthorizationController.php`, `CORSListener.php` and `PrescriptionService.php`. Every other T3/"ovr" line below runs on tier 2 (sonnet), with a tier-3 spot-check of its claims.** Output goes to `ui/`, `modules/` or `data/` as `<NAME>.md`.
 
 **Phase 2: UI layer**
 - [ ] T3 `interface/patient_file/summary/demographics.php` (1,890 lines; split by section across agents) → `ui/DEMOGRAPHICS.md`
-- [ ] T3 `interface/patient_file/summary/pnotes_fragment.php` → `ui/PNOTES-FRAGMENT.md` (why the `Done` note is hidden)
+- [ ] T2 `interface/patient_file/summary/vitals_fragment.php` (+ the vitals report it renders) → `ui/VITALS-FRAGMENT.md` (DB-08 = Vitals)
 - [ ] T3 `src/Patient/Cards/CareTeamViewCard.php` + `templates/patient/card/manage_care_team.html.twig` → `ui/CARE-TEAM-CARD.md` (why seeded members didn't render)
 - [ ] T3 `interface/patient_file/summary/stats.php` → `ui/STATS.md`
 - [ ] T3 (ovr) `interface/patient_file/summary/dashboard_header.php` → `ui/DASHBOARD-HEADER.md`
@@ -66,7 +66,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). "
 - [ ] T3 (ovr) `src/Services/ConditionService.php`, `FHIR/FhirConditionService.php`, `src/Services/PatientIssuesService.php` → `modules/CONDITION-SERVICES.md` (`clinical-status` param)
 - [ ] T3 (ovr) `src/Services/PrescriptionService.php`, `FHIR/FhirMedicationRequestService.php`, `src/Services/ListService.php` → `modules/MEDICATION-SERVICES.md` (UNION, refills)
 - [ ] T3 `src/Services/CareTeamService.php`, `FHIR/FhirCareTeamService.php` → `modules/CARE-TEAM-SERVICES.md`
-- [ ] T3 `library/pnotes.inc.php`, (ovr) `src/RestControllers/MessageRestController.php` → `modules/PNOTES.md`
+- [ ] T2 `src/Services/FHIR/Observation/FhirObservationVitalsService.php`, `src/Services/FHIR/FhirObservationService.php` (routing and `_sort`) → `modules/VITALS-SERVICES.md`. (`pnotes` dropped from the queue: Messages isn't ported)
 - [ ] T3 `library/classes/Controller.class.php`, `library/lists.inc.php` → `modules/LEGACY-ROUTER-AND-LISTS.md`
 
 **Phase 4: data**
@@ -79,6 +79,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). "
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-25 | Phase 1: DB-08 = **Vitals** (FHIR `Observation` vital-signs); Messages marked "not ported: no read API"; queue scope (29 units) and reduced tier-3 set approved; branch pushed, draft MR staging !81 | Patient notes was one of six brief options; `pnotes` has no read API by design (`ServerScopeListEntity.php:283`). Explicit requirements aren't blocked |
 | 2026-09-25 | Phase 0 approved with the four recommendations: (1) seed synthetic Care Team + notes locally (done: `seed/phase1-seed.sql`, marker `[seed:phase1]`); (2) strict parity, improvements go to Phase 9; (3) audit docs on `agentforge/w2-dashboard`; (4) LF re-run, done from an LF copy inside the container (`git checkout-index`) so David's checkout is untouched | David: "approve, fan out to cheaper agents" |
 | 2026-09-25 | Repo reconciliation (David): `week1-final` → `e4c0721` (Gauntlet snapshot Wbs…); GitLab staging is canonical and GitHub a one-way mirror (`origin/main` force-with-lease to `3ccfe1d`); GitLab staging is the tracker; merged, archived and dependabot branches deleted (`archive/*` tags keep superseded content) | One line, one tracker, a frozen Week 1 |
 | 2026-09-25 | Probe patients: pid 13 (data-rich) and pid 3 (empty), from read-only SQL counts | pid 7 has no allergies; `phase0-setup.ps1` output wasn't available |
@@ -109,3 +110,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). "
 - 2026-09-25 — `composer install` failed in the cloud container (GitHub auth), so PHP checks move to the laptop. This session turned out to be a cloud session, not Remote Control on the laptop: the dashboard probe and PHP checks move to a laptop session (probe kit in `probe/`, handoff prompt given to David).
 - 2026-09-25 — Laptop session (Claude, Local): repo reconciliation done as approved. Codex probe (pid 7) and claude-laptop probe (pids 13 and 3) run; PHP baseline complete (PHPStan 401). David's dashboard pass logged (B-06…B-16). Care Team and Patient Notes have no data and David couldn't create any. Phase 0 checkpoint presented.
 - 2026-09-25 — Phase 0 approved. Phase 1: 8 parallel mappers (6 sonnet, 2 haiku) and a tier-3 review. Seed applied to pid 13. LF re-run: isolated PHPUnit 0 failures (E-01 proven). DB-08 has no read API (hard conflict with DB-10). Phase 1 checkpoint presented.
+
+- 2026-09-25 — Phase 1 approved (scope, tiers, push; DB-08 → Vitals). Cross-checked against `PLAN.md` W2D-1…W2D-8 and the 09-24 pre-code parity spec (`.scratch/assignments/dashboard-parity-spec.md`, gitignored): same conclusions on header active status (derive from `deceasedDateTime`) and filters. **DB-xx ↔ W2D mapping:** DB-01=W2D-1, DB-02=W2D-2, DB-03…07=W2D-3, DB-08=W2D-4, DB-09=W2D-5, DB-10=W2D-8, DB-11=W2D-7. PLAN.md stays the single plan; this audit is its evidence.
