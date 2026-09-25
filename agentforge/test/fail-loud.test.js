@@ -138,11 +138,11 @@ test('W2 PRD §7: a real scan-supervisor trace carries all 7 required fields, ev
   // 7. eval outcome -- the field this change makes real (was a `not_run`
   // stub). lab-a's recorded OCR replay has two lab values below the 0.85
   // confidence threshold (answerComposer.js), so the honest outcome here is
-  // 'degraded' with a 'needs_review' issue -- not a blanket 'passed' just
+  // 'needs_review' with a 'needs_review' issue -- not a blanket 'passed' just
   // because the workflow reached READY.
   assert.equal(trace.evaluation.kind, 'runtime_encounter');
   assert.notEqual(trace.evaluation.status, 'not_run');
-  assert.equal(trace.evaluation.status, 'degraded');
+  assert.equal(trace.evaluation.status, 'needs_review');
   assert.equal(trace.evaluation.final_state, 'READY');
   assert.deepEqual(trace.evaluation.issues, ['needs_review']);
   assert.equal(trace.verification.needs_review_count, 2);

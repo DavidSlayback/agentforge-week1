@@ -60,11 +60,11 @@ test('passed: READY, nothing dropped or rejected, no read-back applicable', () =
   assert.equal(verification.guideline_evidence_count, 1);
 });
 
-test('passed: QUALIFIED alone (no other issue) is degraded, not passed -- QUALIFIED always carries its own trigger', () => {
+test('needs_review: QUALIFIED alone (no other issue) asks for review, never passed', () => {
   // Documented precisely: QUALIFIED is one of the degraded triggers by
   // itself (the safety/evidence check could not reach READY unassisted).
   const { evaluation } = computeRuntimeEvaluation({ workflow: readyWorkflow({ final_state: 'QUALIFIED', readiness: 'qualified', qualification: { required: true, reasons: ['doc_type_mismatch'] } }) });
-  assert.equal(evaluation.status, 'degraded');
+  assert.equal(evaluation.status, 'needs_review');
   assert.ok(evaluation.issues.includes('qualified_not_ready'));
 });
 
@@ -83,19 +83,19 @@ test('degraded: the real model was rejected and the composer fell back', () => {
   assert.ok(verification.reason_codes.includes('model_rejected:invalid_json'));
 });
 
-test('degraded: at least one proposed claim failed verification and was dropped', () => {
+test('passed: a dropped unverified claim is recorded as an issue but the verified answer still passes', () => {
   const answer = readyAnswer({ unverified_dropped: 2, model_claims_proposed: 4, model_claims_verified: 2 });
   const { evaluation, verification } = computeRuntimeEvaluation({ workflow: readyWorkflow({ answer }) });
-  assert.equal(evaluation.status, 'degraded');
+  assert.equal(evaluation.status, 'passed');
   assert.ok(evaluation.issues.includes('claims_dropped'));
   assert.equal(verification.claims_dropped, 2);
   assert.equal(verification.status, 'issues_found');
 });
 
-test('degraded: a low-confidence fact was excluded and flagged needs_review', () => {
+test('needs_review: a low-confidence fact was excluded and flagged for review', () => {
   const answer = readyAnswer({ needs_review: [{ kind: 'lab_result', field: 'lab.hgb.value', reason: 'low_confidence' }] });
   const { evaluation, verification } = computeRuntimeEvaluation({ workflow: readyWorkflow({ answer }) });
-  assert.equal(evaluation.status, 'degraded');
+  assert.equal(evaluation.status, 'needs_review');
   assert.ok(evaluation.issues.includes('needs_review'));
   assert.equal(verification.needs_review_count, 1);
   assert.ok(verification.reason_codes.includes('low_confidence'));

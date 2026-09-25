@@ -58,25 +58,19 @@
  *     composed (`workflow.readiness === 'stopped'`, `final_state ===
  *     'BLOCKED'`). No claims exist to grade; `stop_reason` and
  *     `qualification_reasons` say why.
- *   - `'degraded'`: an answer was composed (`final_state` is `READY` or
- *     `QUALIFIED`) but at least one of the following fired:
- *       (a) the real model's output was rejected and the answer fell back
- *           deterministically (`answer.model_rejected_reason` set);
- *       (b) at least one proposed claim failed verification and was dropped
- *           (`answer.unverified_dropped > 0`);
- *       (c) at least one extracted fact was excluded for low OCR confidence
- *           (`answer.needs_review.length > 0`);
- *       (d) the safety/evidence check could not reach READY on its own
- *           (`final_state === 'QUALIFIED'`);
- *       (e) the OpenEMR read-back explicitly failed
- *           (`readBack.verified === false`, only when a read-back was
- *           attempted -- see the `readBack` note above).
- *   - `'passed'`: an answer was composed, `final_state` is `READY` or
- *     `QUALIFIED`, none of the `'degraded'` triggers above fired, and the
- *     OpenEMR read-back either verified or never applied to this document
- *     (no `readBack` given, or the writeback has no read-back step for this
- *     document type -- e.g. `intake_form`, which never maps to lab
- *     observations).
+ *   - `'degraded'`: the encounter did not work as designed: no answer was
+ *     composed, the real model's output was rejected and the answer fell
+ *     back deterministically (`answer.model_rejected_reason` set), or the
+ *     OpenEMR read-back explicitly failed (`readBack.verified === false`,
+ *     only when a read-back was attempted -- see the `readBack` note above).
+ *   - `'needs_review'`: the answer is complete and verified, and the safety
+ *     design asks a human to look: a fact was excluded for low OCR
+ *     confidence (`answer.needs_review.length > 0`) or the document is
+ *     `QUALIFIED` rather than `READY`.
+ *   - `'passed'`: none of the above. A claim the verifier dropped
+ *     (`answer.unverified_dropped > 0`) is listed in `issues` as
+ *     `claims_dropped` but does not change the status: the shipped answer
+ *     is still fully verified.
  *
  * `verification` is the answer verifier's own per-claim summary: counts and
  * closed reason codes only, never claim text, citation quotes, or extracted
@@ -136,6 +130,20 @@ function summarizeAnswerVerification(answer) {
  * non-stopped workflow). `readBack` is `{verified: boolean, ...}` or `null`
  * -- see the module doc for why every current call site passes `null`.
  */
+// Issues that mean the encounter did not work as designed. The rest
+// (needs_review, qualified_not_ready, claims_dropped) are the safety design
+// working: a human is asked to look, or the verifier removed an unsupported
+// claim, and the shipped answer is still fully verified.
+const DEGRADING_ISSUES = new Set(['answer_missing', 'read_back_failed']);
+const REVIEW_ISSUES = new Set(['needs_review', 'qualified_not_ready']);
+
+/** Closed status set for a non-blocked encounter: degraded > needs_review > passed. */
+export function statusForIssues(issues) {
+  if (issues.some((issue) => DEGRADING_ISSUES.has(issue) || issue.startsWith('model_rejected:'))) return 'degraded';
+  if (issues.some((issue) => REVIEW_ISSUES.has(issue))) return 'needs_review';
+  return 'passed';
+}
+
 export function computeRuntimeEvaluation({ workflow, readBack = null } = {}) {
   const finalState = workflow?.final_state ?? null;
   const stopReason = workflow?.stop_reason ?? null;
@@ -169,7 +177,7 @@ export function computeRuntimeEvaluation({ workflow, readBack = null } = {}) {
   return {
     evaluation: {
       kind: RUNTIME_EVALUATION_KIND,
-      status: issues.length ? 'degraded' : 'passed',
+      status: statusForIssues(issues),
       final_state: finalState,
       stop_reason: stopReason,
       qualification_reasons: qualificationReasons,
