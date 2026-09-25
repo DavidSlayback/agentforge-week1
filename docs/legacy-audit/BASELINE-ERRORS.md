@@ -16,9 +16,9 @@ runtime click-through run on David's laptop.
 | AgentForge service tests | `cd agentforge && node --test test/*.test.js` | 103/103 pass | |
 | Evals tests | `cd evals && node --test test/*.test.js` | 10/10 pass | |
 | W2 eval gate | `cd agentforge && node scripts/run-w2-gate.mjs` | pass, 0 critical failures | |
-| OpenEMR isolated PHPUnit | `composer phpunit-isolated` | _pending_ | waiting on `composer install` |
-| PHP style | `composer phpcs` | _pending_ | waiting on `composer install` |
-| PHPStan level 10 | `composer phpstan` | _pending_ | waiting on `composer install`; full codebase |
+| OpenEMR isolated PHPUnit | `composer phpunit-isolated` or `openemr-cmd pit` | _not run_ | `composer install` failed in the cloud container (see Notes). Run on the laptop stack. |
+| PHP style | `composer phpcs` or `openemr-cmd pr` | _not run_ | same as above |
+| PHPStan level 10 | `composer phpstan` or `openemr-cmd pst` | _not run_ | same as above; full codebase |
 | JS lint / tests | `npm run lint:js` / `npm run test:js` | _pending_ | needs `npm install` |
 | DB-backed suites (unit/services/api/e2e) | `openemr-cmd ut/st/at/et` | _needs David's Docker stack_ | |
 | Runtime errors | David's run-through | 5 observations (B-01…B-05); dashboard-specific pass pending | from `DISCOVERY-GUIDE.md` §7 |
@@ -39,6 +39,8 @@ runtime click-through run on David's laptop.
 
 ## Notes
 
-- `composer install` falls back to cloning from source because GitHub dist
-  downloads aren't authenticated in this container. It's slow, but it
-  hasn't failed.
+- `composer install` failed in the cloud container (exit 100). GitHub dist
+  downloads weren't authenticated, and the fallback source clone then
+  failed with "Could not authenticate against github.com". This is a
+  limitation of the audit environment, not a repo defect. The PHP checks
+  run on David's laptop stack instead (`openemr-cmd pit`, `pr`, `pst`).

@@ -14,7 +14,7 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | Current phase | 0 — Manual recon |
 | Checkpoint mode | every phase (default) |
 | Requirements source | W2 surprise challenge, *Modernize the Patient Dashboard* (`output/pdf/W2-surprise-challenge-modernize-patient-dashboard.pdf`, git-excluded). Intake is in `REQUIREMENTS-TRACE.md` (DB-01…DB-11). |
-| Baseline checks | `node --test` (agentforge, evals), `run-w2-gate.mjs`; PHP checks pending `composer install` |
+| Baseline checks | `node --test` (agentforge, evals), `run-w2-gate.mjs` all pass. PHP checks couldn't run in the cloud container (`composer install` blocked by GitHub auth); run them on the laptop with `openemr-cmd pit/pr/pst`. |
 | Chosen route | _(Phase 8)_ |
 
 ## Phase status
@@ -67,3 +67,4 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 - 2026-09-25 — Phase 0 started. Inventory and tiers generated. AgentForge service tests 103/103 and evals tests 10/10 pass, and the W2 eval gate passes. `composer install` running for the PHP checks.
 - 2026-09-25 — Requirements received (W2 surprise challenge: port the patient dashboard to a modern framework on the REST/FHIR API). Intake written to `REQUIREMENTS-TRACE.md` with 11 requirements and 6 ambiguities. Discovery guide refocused on the patient dashboard.
 - 2026-09-25 — David's general run-through: 5 observations logged (B-01…B-05). Scope limited to the brief's cards plus Patient Notes; A1–A6 agreed. Next: David generates synthetic patients (`import-random-patients`) and probes the dashboard.
+- 2026-09-25 — `composer install` failed in the cloud container (GitHub auth), so PHP checks move to the laptop. This session turned out to be a cloud session, not Remote Control on the laptop: the dashboard probe and PHP checks move to a laptop session (probe kit in `probe/`, handoff prompt given to David).
