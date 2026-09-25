@@ -9,6 +9,7 @@ import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './p
 import { PreVisitPreparation } from './preVisitPreparation.js';
 import { recordBelongsToPatient } from './recordScope.js';
 import { composeGroundedAnswer, DeterministicAnswerComposer } from './answerComposer.js';
+import { computeRuntimeEvaluation } from './runtimeEvaluation.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
@@ -174,6 +175,12 @@ export class AgentForgeService {
         const errorCode = error.code || String(error.message || '').split(':')[0];
         trace?.finishStage('source_preparation', { status: 'failed', errorCode: errorCode || 'source_preparation_failed' });
         if (isUnreadableDocumentError(errorCode)) {
+          // The document never reached extraction, so there is no answer to
+          // grade -- the same `computeRuntimeEvaluation` "fail-loud refusal"
+          // branch used for every other BLOCKED stop below.
+          const { evaluation, verification } = computeRuntimeEvaluation({ workflow: { readiness: 'stopped', final_state: 'BLOCKED', stop_reason: 'document_unreadable', qualification: { required: true, reasons: ['document_unreadable'] } } });
+          trace?.setEvaluation(evaluation);
+          trace?.setVerification(verification);
           trace?.complete({ status: 'blocked' });
           return { status: 'unreadable', synthetic_only: true, reason: 'document_unreadable', final_state: 'BLOCKED', source_document: source.source_document };
         }
@@ -226,7 +233,13 @@ export class AgentForgeService {
           trace?.finishStage('answer', { status: workflow.answer ? workflow.answer.composer : 'failed' });
         }
       }
-      trace?.setEvaluation({ status: 'not_run', reason: 'the golden-set gate runs separately from an individual document workflow' });
+      // The per-encounter runtime evaluation (W2 PRD §7 "eval outcome"),
+      // distinct from the offline golden-set gate (`npm run eval:gate`) --
+      // see runtimeEvaluation.js for the exact status rule and why OpenEMR
+      // read-back is not yet wired at this call site.
+      const { evaluation, verification } = computeRuntimeEvaluation({ workflow, readBack: null });
+      trace?.setEvaluation(evaluation);
+      trace?.setVerification(verification);
       trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
       return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
     } catch (error) {
