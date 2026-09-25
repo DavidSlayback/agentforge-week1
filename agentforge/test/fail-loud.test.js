@@ -112,6 +112,55 @@ test('scan traces carry allowlisted handoff summaries, not typed lab values or d
   assert.deepEqual(Object.keys(traceSafeHandoff(result.workflow.handoffs[0])).sort(), ['citation_count', 'input_type', 'output_status', 'redacted_metrics', 'retry_count', 'step_names', 'worker']);
 });
 
+test('W2 PRD §7: a real scan-supervisor trace carries all 7 required fields, eval outcome included, and no PHI', async () => {
+  const { run, traceSink } = serviceWithReplay();
+  const result = await run('lab-a', 'lab_pdf');
+  assert.equal(result.workflow.final_state, 'READY');
+  const [trace] = traceSink.list();
+
+  // 1. tool sequence -- the ordered stage/worker sequence this encounter ran.
+  assert.ok(trace.stages.length > 0, 'tool sequence (stages) must be recorded');
+  // 2. latency by step.
+  assert.ok(Object.values(trace.latencyMs).some((value) => typeof value === 'number'), 'latency by step must be recorded');
+  assert.ok(trace.stages.every((stage) => typeof stage.durationMs === 'number'));
+  // 3. token usage.
+  assert.equal(typeof trace.modelTotals.input_tokens, 'number');
+  assert.equal(typeof trace.modelTotals.output_tokens, 'number');
+  // 4. cost estimate.
+  assert.notEqual(trace.modelTotals.cost_usd, undefined);
+  assert.equal(trace.modelTotals.cost_complete, true);
+  // 5. retrieval hits.
+  assert.ok(trace.retrieval.attempts.length > 0, 'retrieval hits must be recorded');
+  assert.equal(typeof trace.retrieval.attempts[0].hit_count, 'number');
+  // 6. extraction confidence.
+  assert.ok(trace.extraction.confidence, 'extraction confidence must be recorded');
+  assert.equal(typeof trace.extraction.confidence.mean, 'number');
+  // 7. eval outcome -- the field this change makes real (was a `not_run`
+  // stub). lab-a's recorded OCR replay has two lab values below the 0.85
+  // confidence threshold (answerComposer.js), so the honest outcome here is
+  // 'needs_review' with a 'needs_review' issue -- not a blanket 'passed' just
+  // because the workflow reached READY.
+  assert.equal(trace.evaluation.kind, 'runtime_encounter');
+  assert.notEqual(trace.evaluation.status, 'not_run');
+  assert.equal(trace.evaluation.status, 'needs_review');
+  assert.equal(trace.evaluation.final_state, 'READY');
+  assert.deepEqual(trace.evaluation.issues, ['needs_review']);
+  assert.equal(trace.verification.needs_review_count, 2);
+  assert.ok(trace.verification.record_claims_count > 0 || trace.verification.guideline_evidence_count > 0);
+  // Reason codes are closed codes only, never the field id or the value.
+  assert.deepEqual(trace.verification.reason_codes, ['low_confidence', 'low_confidence']);
+  assert.ok(!JSON.stringify(trace.verification).includes('lab.hgb'));
+  assert.ok(!JSON.stringify(trace.verification).includes('lab.a1c'));
+
+  // No PHI: the same truth-file identifiers the existing redaction test
+  // checks (lab-a's own name/DOB/values/dates), now also checked against the
+  // evaluation/verification fields this change adds.
+  const serialized = JSON.stringify(trace);
+  for (const secret of ['2026-09-20', '12.0-16.0', 'under 5.7', 'Test Patient One', '1980-04-12']) {
+    assert.ok(!serialized.includes(secret), `trace leaked ${secret}`);
+  }
+});
+
 test('source preview never lists a low-confidence field as verified', () => {
   const citation = (quote) => ({ source_type: 'document', source_id: 'doc-1', page_or_section: 'page 1', field_or_chunk_id: 'x', quote_or_value: quote, bounding_box: [1, 2, 3, 4], coordinate_space: 'raster_pixels_200dpi' });
   const extraction = {

@@ -565,10 +565,19 @@ function operationalTrace(trace = {}) {
     modelUsage: Array.isArray(trace.modelUsage) ? trace.modelUsage.map((usage) => pick(usage, ['stage', 'provider', 'provider_name', 'model', 'model_name', 'inputTokens', 'outputTokens', 'estimatedCostUsd'])) : [],
     modelTotals: trace.modelTotals ? pick(trace.modelTotals, ['input_tokens', 'output_tokens', 'cost_usd', 'calls', 'cost_complete']) : { input_tokens: 0, output_tokens: 0, cost_usd: 0, calls: 0, cost_complete: true },
     coverage: pick(trace.coverage, ['status', 'groups']),
-    verification: pick(trace.verification, ['status', 'evidence_grounding', 'patient_scope', 'read_only']),
+    // `evidence_grounding`/`patient_scope`/`read_only` are the briefing lane's
+    // own verification shape (preVisitPreparation.js); `composer` through
+    // `reason_codes` are the scan-supervisor runtime-encounter verification
+    // summary (runtimeEvaluation.js) -- counts and reason codes only, never
+    // claim text or extracted values.
+    verification: pick(trace.verification, ['status', 'evidence_grounding', 'patient_scope', 'read_only', 'composer', 'claims_proposed', 'claims_verified', 'claims_dropped', 'record_claims_count', 'guideline_evidence_count', 'needs_review_count', 'reason_codes']),
     display: pick(trace.display, ['status']),
     extraction: pick(trace.extraction, ['status', 'confidence']),
-    evaluation: pick(trace.evaluation, ['status', 'caseType', 'outcome']),
+    // `caseType`/`outcome` are the briefing lane's own evaluation shape
+    // (preVisitPreparation.js); `kind` through `read_back` are the
+    // scan-supervisor per-encounter runtime evaluation (runtimeEvaluation.js,
+    // `kind: 'runtime_encounter'`) -- fixed status/reason codes only.
+    evaluation: pick(trace.evaluation, ['status', 'caseType', 'outcome', 'kind', 'final_state', 'stop_reason', 'qualification_reasons', 'issues', 'read_back']),
     cache: pick(trace.cache, ['status']),
     status: trace.status,
   };
