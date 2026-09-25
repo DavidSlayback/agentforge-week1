@@ -41,15 +41,41 @@
  *     stays correct if that ever changes. `model+deterministic-topup`
  *     (the model produced *some* real, verified output) never counts as a
  *     fallback.
- *   - Per-stage timings are best-effort: the deployed server has no
- *     correlation id in the `/v1/scan-supervisor` response to key a lookup
- *     by, so this script fetches `GET /v1/traces` right after each call and
- *     matches the most recent `w2-scan-supervisor` trace for this patient
- *     started at or after the call began. On a live server also serving
- *     other concurrent traffic for the same fixture patient this heuristic
- *     can mis-attribute a trace; `stage_durations_ms` is reported as
- *     best-effort for exactly this reason, and total wall time (measured
- *     directly around the fetch, never from a trace) is the number to trust.
+ *   - Per-stage timings: the deployed `/v1/scan-supervisor` response carries
+ *     no correlation id to key a lookup by, and a real trace's `scope`
+ *     (which is where `patientRef` lives) is PHI-redacted to `[REDACTED]`
+ *     before `GET /v1/traces` ever returns it -- so neither a response-body
+ *     join nor a patient-matching join is possible. Traces also key their
+ *     start time as `startedAt` (an ISO string), not `start`. This script
+ *     instead does an exact-by-elimination join: it snapshots the set of
+ *     `w2-scan-supervisor` trace `correlationId`s that exist right before
+ *     issuing the call, then -- since every call in the sweep is sequential,
+ *     never parallel -- the one `w2-scan-supervisor` trace that appears
+ *     afterwards with a `correlationId` absent from that snapshot is this
+ *     call's trace (see `matchNewTrace`, unit-tested against a hand-built
+ *     fixture shaped like a real trace). This is still best-effort on a
+ *     server also serving other concurrent scan-supervisor traffic (a
+ *     concurrent call could produce the "new" trace this run attributes to
+ *     itself), which is why `stage_durations_ms` keeps its best-effort label
+ *     -- but it no longer depends on a redacted field or a wrong key name,
+ *     so on an otherwise-idle deployment (the intended way to run this
+ *     script) it is exact.
+ *   - Re-uploading byte-identical PDF content hits the server's OCR/extraction
+ *     cache, so a repeat run's `source_preparation` stage collapses to near
+ *     0 ms instead of doing real OCR work. Mixing those "warm" runs into the
+ *     same p50/p95 as genuine "cold" (first-seen-bytes) runs would understate
+ *     real latency, so every successful run is classified `cold` or `warm`
+ *     from its own measured `source_preparation` duration (`> 1000ms` is
+ *     cold; see `classifyCacheState`), and every reported per-stage
+ *     percentile is split by that classification.
+ *   - Token usage and cost: each matched trace's `modelTotals` (summed
+ *     per-call `estimatedCostUsd`/token counts, already computed server-side
+ *     in `observability/index.js#TraceRecorder`) is reported per run and
+ *     summed across runs. If any matched trace has `modelTotals.cost_complete
+ *     === false` (at least one call in it had an unknown per-call cost), the
+ *     total is reported as `null` -- with a count of how many traces were
+ *     incomplete -- rather than silently summing a partial total as if it
+ *     were the whole spend.
  *   - Never prints claim text, citation quotes, or extracted values -- only
  *     counts, composer/reason labels, and timings, per AGENTS.md (PHI: never
  *     log raw extracted values) and the task's own instruction.
@@ -61,6 +87,12 @@ const PDF_SAMPLES_DIR = fileURLToPath(new URL('../../docs/agentforge/fixtures/sc
 const PATIENT = 'fixture-patient-001';
 const CLINICIAN = 'fixture-physician-001';
 const MESSAGE = 'What changed and what should I pay attention to?';
+const SCAN_SUPERVISOR_OPERATION = 'w2-scan-supervisor';
+// A repeat upload of byte-identical content hits the OCR/extraction cache and
+// finishes `source_preparation` in low single-digit ms; a real (cold) OCR
+// pass takes far longer. 1000ms comfortably separates the two on this
+// workload -- see the module doc for why the distinction matters.
+const COLD_SOURCE_PREPARATION_THRESHOLD_MS = 1000;
 
 /** Read the pdf-samples manifest and return `{ toRun, skipped }`, where
  * `toRun` is every sample belonging to `PATIENT` (ready to upload) and
@@ -76,6 +108,34 @@ export function selectSamples({ dir = PDF_SAMPLES_DIR, patient = PATIENT } = {})
     toRun.push({ filename: sample.filename, document_type: sample.document_type, path: `${dir}${sample.filename}` });
   }
   return { toRun, skipped };
+}
+
+/**
+ * Pick the trace this run produced out of a full `GET /v1/traces` listing
+ * (`tracesAfter`), given the set of matching-operation `correlationId`s that
+ * already existed *before* the call was made (`beforeCorrelationIds`). This
+ * is the exact-by-elimination join described in the module doc: since the
+ * caller never issues two scan-supervisor calls concurrently, the trace(s)
+ * with a `correlationId` absent from the "before" snapshot are new, and the
+ * earliest-started one is this call's. Returns `null` when nothing new
+ * matched (e.g. the trace store already evicted it, or `/v1/traces` failed).
+ * Pure and network-free -- exported for unit testing against a hand-built
+ * fixture shaped like a real trace, with no need to hit a live server.
+ */
+export function matchNewTrace(tracesAfter, beforeCorrelationIds, { operation }) {
+  const candidates = (tracesAfter || [])
+    .filter((trace) => trace.operation === operation && !beforeCorrelationIds.has(trace.correlationId))
+    .sort((a, b) => new Date(a.startedAt || 0).getTime() - new Date(b.startedAt || 0).getTime());
+  return candidates[0] || null;
+}
+
+/** `cold` (real OCR work), `warm` (OCR/extraction cache hit on re-uploaded
+ * identical bytes), or `unknown` (no `source_preparation` duration was
+ * available at all, e.g. the trace never matched). Pure and unit-testable. */
+export function classifyCacheState(stageDurationsMs, { coldThresholdMs = COLD_SOURCE_PREPARATION_THRESHOLD_MS } = {}) {
+  const sourcePreparationMs = stageDurationsMs?.source_preparation;
+  if (typeof sourcePreparationMs !== 'number') return 'unknown';
+  return sourcePreparationMs > coldThresholdMs ? 'cold' : 'warm';
 }
 
 async function jsonFetch(base, path, options) {
@@ -105,6 +165,19 @@ async function runOnce(baseUrl, sample, { fetchImpl = jsonFetch } = {}) {
   const sourceDocumentId = uploadResponse.data?.source_document?.id;
   if (!sourceDocumentId) return { ok: false, filename: sample.filename, stage: 'upload', status: uploadResponse.status };
 
+  // Snapshot every existing w2-scan-supervisor correlationId immediately
+  // before issuing the call -- see `matchNewTrace` / the module doc for why
+  // this replaces the old (always-failing) patient+time-window match. A
+  // failed snapshot fetch degrades to an empty set, which still lets
+  // `matchNewTrace` run (worst case it now risks matching a pre-existing
+  // trace instead of finding none at all, an acceptable best-effort trade
+  // since stage timings are always labeled best-effort).
+  let beforeCorrelationIds = new Set();
+  try {
+    const before = await fetchImpl(baseUrl, '/v1/traces');
+    beforeCorrelationIds = new Set((before.data || []).filter((trace) => trace.operation === SCAN_SUPERVISOR_OPERATION).map((trace) => trace.correlationId));
+  } catch { /* best-effort only -- see above */ }
+
   const startedAt = Date.now();
   const scanResponse = await fetchImpl(baseUrl, '/v1/scan-supervisor', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -116,12 +189,12 @@ async function runOnce(baseUrl, sample, { fetchImpl = jsonFetch } = {}) {
   const workflow = scanResponse.data?.workflow || {};
   const answer = workflow.answer || null;
   let stageDurationsMs = null;
+  let modelTotals = null;
   try {
     const traces = await fetchImpl(baseUrl, '/v1/traces');
-    const candidate = (traces.data || [])
-      .filter((trace) => trace.operation === 'w2-scan-supervisor' && trace.scope?.patientRef === PATIENT && new Date(trace.start || 0).getTime() >= startedAt - 1000)
-      .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+    const candidate = matchNewTrace(traces.data, beforeCorrelationIds, { operation: SCAN_SUPERVISOR_OPERATION });
     if (candidate?.stages?.length) stageDurationsMs = Object.fromEntries(candidate.stages.map((stage) => [stage.name, stage.durationMs]));
+    if (candidate?.modelTotals) modelTotals = candidate.modelTotals;
   } catch { /* best-effort only -- total wall time above is always trustworthy regardless */ }
 
   return {
@@ -135,6 +208,8 @@ async function runOnce(baseUrl, sample, { fetchImpl = jsonFetch } = {}) {
     had_answer: Boolean(answer),
     wall_time_ms: wallTimeMs,
     stage_durations_ms: stageDurationsMs,
+    cache_state: classifyCacheState(stageDurationsMs),
+    model_totals: modelTotals,
   };
 }
 
@@ -169,11 +244,26 @@ export function computeLiveMetrics(records) {
   for (const record of successful) { const key = record.final_state ?? 'unknown'; finalStateCounts[key] = (finalStateCounts[key] || 0) + 1; }
 
   const wallTimes = successful.map((record) => record.wall_time_ms).sort((a, b) => a - b);
-  const stageNames = [...new Set(successful.flatMap((record) => Object.keys(record.stage_durations_ms || {})))];
-  const perStage = Object.fromEntries(stageNames.map((name) => {
-    const values = successful.map((record) => record.stage_durations_ms?.[name]).filter((value) => typeof value === 'number').sort((a, b) => a - b);
-    return [name, { p50_ms: percentile(values, 50), p95_ms: percentile(values, 95), samples: values.length }];
-  }));
+  const perStageFor = (records) => {
+    const stageNames = [...new Set(records.flatMap((record) => Object.keys(record.stage_durations_ms || {})))];
+    return Object.fromEntries(stageNames.map((name) => {
+      const values = records.map((record) => record.stage_durations_ms?.[name]).filter((value) => typeof value === 'number').sort((a, b) => a - b);
+      return [name, { p50_ms: percentile(values, 50), p95_ms: percentile(values, 95), samples: values.length }];
+    }));
+  };
+  const perStage = perStageFor(successful);
+  const coldRuns = successful.filter((record) => record.cache_state === 'cold');
+  const warmRuns = successful.filter((record) => record.cache_state === 'warm');
+  const unknownCacheStateRuns = successful.filter((record) => !record.cache_state || record.cache_state === 'unknown');
+
+  const withMatchedTrace = successful.filter((record) => record.model_totals);
+  const incompleteCostTraces = withMatchedTrace.filter((record) => record.model_totals.cost_complete === false);
+  const totalInputTokens = withMatchedTrace.reduce((sum, record) => sum + (record.model_totals.input_tokens || 0), 0);
+  const totalOutputTokens = withMatchedTrace.reduce((sum, record) => sum + (record.model_totals.output_tokens || 0), 0);
+  const totalCalls = withMatchedTrace.reduce((sum, record) => sum + (record.model_totals.calls || 0), 0);
+  const totalCostUsd = incompleteCostTraces.length > 0
+    ? null
+    : Number(withMatchedTrace.reduce((sum, record) => sum + (record.model_totals.cost_usd || 0), 0).toFixed(8));
 
   return {
     runs_attempted: records.length,
@@ -196,7 +286,32 @@ export function computeLiveMetrics(records) {
     rejected_reason_counts: rejectedReasonCounts,
     final_state_counts: finalStateCounts,
     wall_time_ms: { p50: percentile(wallTimes, 50), p95: percentile(wallTimes, 95), samples: wallTimes.length },
-    stage_durations_ms: { note: 'best-effort, matched from GET /v1/traces by patient + operation + start time -- see module doc for the matching caveat on a shared server', by_stage: perStage },
+    stage_durations_ms: {
+      note: 'best-effort, matched from GET /v1/traces by an exact correlationId-elimination join (new w2-scan-supervisor trace not present before the call) -- see module doc for the matching caveat on a server also serving other concurrent scan-supervisor traffic',
+      by_stage: perStage,
+      cold: { definition: 'source_preparation > 1000ms -- a real OCR pass, not an OCR/extraction cache hit', samples: coldRuns.length, by_stage: perStageFor(coldRuns) },
+      warm: { definition: 'source_preparation <= 1000ms -- re-uploaded byte-identical content served from the OCR/extraction cache', samples: warmRuns.length, by_stage: perStageFor(warmRuns) },
+      unknown_cache_state: unknownCacheStateRuns.length,
+    },
+    token_usage_and_cost: {
+      definition: 'per-run and total token usage/cost from each run\'s matched trace modelTotals (server-computed real per-call cost); total_cost_usd is null (never a silent partial sum) when any matched trace has modelTotals.cost_complete: false',
+      runs_with_matched_trace: withMatchedTrace.length,
+      runs_missing_trace_match: successful.length - withMatchedTrace.length,
+      total_input_tokens: totalInputTokens,
+      total_output_tokens: totalOutputTokens,
+      total_calls: totalCalls,
+      total_cost_usd: totalCostUsd,
+      incomplete_cost_trace_count: incompleteCostTraces.length,
+      per_run: withMatchedTrace.map((record) => ({
+        filename: record.filename,
+        cache_state: record.cache_state,
+        input_tokens: record.model_totals.input_tokens || 0,
+        output_tokens: record.model_totals.output_tokens || 0,
+        calls: record.model_totals.calls || 0,
+        cost_usd: record.model_totals.cost_complete === false ? null : (record.model_totals.cost_usd ?? null),
+        cost_complete: record.model_totals.cost_complete !== false,
+      })),
+    },
   };
 }
 

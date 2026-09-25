@@ -3,7 +3,44 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
-import { computeLiveMetrics, selectSamples } from '../scripts/measure-live-metrics.mjs';
+import { computeLiveMetrics, selectSamples, matchNewTrace, classifyCacheState } from '../scripts/measure-live-metrics.mjs';
+
+// A fixture shaped like a real (redacted) w2-scan-supervisor trace as
+// returned by `GET /v1/traces` -- hand-built from the real shape documented
+// in observability/index.js#TraceRecorder.complete and
+// service.js#runActiveSupervisorForDocument, not from any real deployment
+// response. Two real-world facts this fixture must preserve, because the
+// original matching bug depended on getting them wrong:
+//   1. the trace's start time lives at the top level as `startedAt` (an ISO
+//      string) -- there is no `start` field on the trace itself (only inside
+//      each stage, which the old code never read either).
+//   2. `scope.patientRef` is redacted to the literal string '[REDACTED]' by
+//      `observability/index.js#redactPayload` before this endpoint ever
+//      returns it, because the key name "patientRef" matches the PHI
+//      redaction pattern -- so a live trace's real patient id is never
+//      visible here, no matter which patient the scan was for.
+function fakeTrace(overrides = {}) {
+  return {
+    schemaVersion: 2,
+    correlationId: 'w2-scan-fake-0001',
+    operation: 'w2-scan-supervisor',
+    interactionType: 'scan_form',
+    startedAt: '2026-09-24T14:00:00.000Z',
+    completedAt: '2026-09-24T14:00:01.000Z',
+    durationMs: 1000,
+    status: 'success',
+    scope: { patientRef: '[REDACTED]' },
+    stages: [
+      { name: 'source_preparation', sequence: 1, durationMs: 900, status: 'complete' },
+      { name: 'extraction', sequence: 2, durationMs: 50, status: 'complete' },
+      { name: 'retrieval', sequence: 3, durationMs: 30, status: 'complete' },
+      { name: 'answer', sequence: 4, durationMs: 20, status: 'model' },
+    ],
+    modelUsage: [{ stage: 'answer', provider: 'synthetic-provider', model: 'synthetic-preview-model', inputTokens: 100, outputTokens: 40, estimatedCostUsd: 0.0005 }],
+    modelTotals: { input_tokens: 100, output_tokens: 40, cost_usd: 0.0005, calls: 1, cost_complete: true },
+    ...overrides,
+  };
+}
 
 // Every assertion here runs against local files or synthetic in-memory
 // records only -- this file makes no network call, and must never be given
@@ -95,4 +132,123 @@ test('computeLiveMetrics never includes claim text, quotes, or values -- only co
   const result = computeLiveMetrics([record()]);
   const text = JSON.stringify(result);
   assert.ok(!/quote_or_value|citations|patient_facts|guideline_evidence/.test(text), 'the live metrics report must never carry raw claim/citation shapes, only aggregated counts');
+});
+
+// --- matchNewTrace: the exact-join fix for the root-cause matching bug -----
+//
+// The old code filtered `/v1/traces` on `trace.scope?.patientRef === PATIENT`
+// and `new Date(trace.start || 0).getTime() >= startedAt - 1000`. Against a
+// real trace (`fakeTrace()` above) both conditions are always false:
+// `scope.patientRef` is the literal string '[REDACTED]' (never equal to any
+// real patient id), and `trace.start` does not exist on a trace at all (only
+// `startedAt` does, so `trace.start || 0` was always `0` -- epoch, always
+// older than "now minus a second"). The result was `stage_durations_ms:
+// by_stage: {}` on every real run. `matchNewTrace` replaces both broken
+// conditions with an operation match plus a before/after correlationId diff.
+
+test('matchNewTrace finds the one new trace whose correlationId was not in the before-snapshot', () => {
+  const before = new Set(['w2-scan-fake-0001']);
+  const tracesAfter = [fakeTrace({ correlationId: 'w2-scan-fake-0001' }), fakeTrace({ correlationId: 'w2-scan-fake-0002', startedAt: '2026-09-24T14:05:00.000Z' })];
+  const match = matchNewTrace(tracesAfter, before, { operation: 'w2-scan-supervisor' });
+  assert.equal(match.correlationId, 'w2-scan-fake-0002');
+});
+
+test('matchNewTrace works against a real (redacted) trace shape even though scope.patientRef is always [REDACTED] and there is no top-level `start` field', () => {
+  // This is exactly the case that defeated the old patient+time-window
+  // filter: nothing about this trace's PHI-safe fields distinguishes it by
+  // patient or by a `start` key that does not exist -- only the
+  // correlationId diff does.
+  const trace = fakeTrace({ correlationId: 'w2-scan-fake-real-shape' });
+  assert.equal(trace.scope.patientRef, '[REDACTED]');
+  assert.equal(trace.start, undefined);
+  const match = matchNewTrace([trace], new Set(), { operation: 'w2-scan-supervisor' });
+  assert.equal(match.correlationId, 'w2-scan-fake-real-shape');
+});
+
+test('matchNewTrace ignores traces for a different operation', () => {
+  const tracesAfter = [fakeTrace({ correlationId: 'other-op', operation: 'w2-briefing' })];
+  const match = matchNewTrace(tracesAfter, new Set(), { operation: 'w2-scan-supervisor' });
+  assert.equal(match, null);
+});
+
+test('matchNewTrace returns null when nothing new appeared', () => {
+  const tracesAfter = [fakeTrace({ correlationId: 'w2-scan-fake-0001' })];
+  const match = matchNewTrace(tracesAfter, new Set(['w2-scan-fake-0001']), { operation: 'w2-scan-supervisor' });
+  assert.equal(match, null);
+});
+
+test('matchNewTrace picks the earliest-started new trace when more than one is new', () => {
+  const tracesAfter = [
+    fakeTrace({ correlationId: 'later', startedAt: '2026-09-24T14:10:00.000Z' }),
+    fakeTrace({ correlationId: 'earlier', startedAt: '2026-09-24T14:00:00.000Z' }),
+  ];
+  const match = matchNewTrace(tracesAfter, new Set(), { operation: 'w2-scan-supervisor' });
+  assert.equal(match.correlationId, 'earlier');
+});
+
+// --- classifyCacheState: cold (real OCR) vs warm (OCR cache hit) -----------
+
+test('classifyCacheState: source_preparation over the threshold is cold', () => {
+  assert.equal(classifyCacheState({ source_preparation: 1500 }), 'cold');
+});
+
+test('classifyCacheState: source_preparation at or under the threshold is warm', () => {
+  assert.equal(classifyCacheState({ source_preparation: 5 }), 'warm');
+  assert.equal(classifyCacheState({ source_preparation: 1000 }), 'warm');
+});
+
+test('classifyCacheState: unknown when there is no source_preparation duration at all (e.g. the trace never matched)', () => {
+  assert.equal(classifyCacheState(null), 'unknown');
+  assert.equal(classifyCacheState({}), 'unknown');
+});
+
+// --- computeLiveMetrics: cold vs warm stage stats, and token/cost totals ---
+
+test('computeLiveMetrics splits per-stage p50/p95 into cold and warm buckets using each run\'s cache_state', () => {
+  const cold = [1200, 1300, 1400].map((ms) => record({ cache_state: 'cold', stage_durations_ms: { source_preparation: ms, extraction: 50 } }));
+  const warm = [5, 10].map((ms) => record({ cache_state: 'warm', stage_durations_ms: { source_preparation: ms, extraction: 5 } }));
+  const result = computeLiveMetrics([...cold, ...warm]);
+  assert.equal(result.stage_durations_ms.cold.samples, 3);
+  assert.equal(result.stage_durations_ms.warm.samples, 2);
+  assert.equal(result.stage_durations_ms.cold.by_stage.source_preparation.samples, 3);
+  assert.equal(result.stage_durations_ms.warm.by_stage.source_preparation.samples, 2);
+  assert.equal(result.stage_durations_ms.cold.by_stage.source_preparation.p50_ms, 1300);
+  assert.equal(result.stage_durations_ms.warm.by_stage.source_preparation.p50_ms, 5);
+  // Still available unsplit, for the existing overall view.
+  assert.equal(result.stage_durations_ms.by_stage.source_preparation.samples, 5);
+});
+
+test('computeLiveMetrics: token usage and cost sum modelTotals across runs, matching modelTotals.cost_usd exactly (not re-derived)', () => {
+  const records = [
+    record({ model_totals: { input_tokens: 100, output_tokens: 40, cost_usd: 0.0005, calls: 1, cost_complete: true } }),
+    record({ model_totals: { input_tokens: 200, output_tokens: 80, cost_usd: 0.001, calls: 1, cost_complete: true } }),
+  ];
+  const result = computeLiveMetrics(records);
+  assert.equal(result.token_usage_and_cost.runs_with_matched_trace, 2);
+  assert.equal(result.token_usage_and_cost.runs_missing_trace_match, 0);
+  assert.equal(result.token_usage_and_cost.total_input_tokens, 300);
+  assert.equal(result.token_usage_and_cost.total_output_tokens, 120);
+  assert.equal(result.token_usage_and_cost.total_cost_usd, 0.0015);
+  assert.equal(result.token_usage_and_cost.incomplete_cost_trace_count, 0);
+});
+
+test('computeLiveMetrics: total cost is null (never a silent partial sum), with a count, when any matched trace has an incomplete cost', () => {
+  const records = [
+    record({ model_totals: { input_tokens: 100, output_tokens: 40, cost_usd: 0.0005, calls: 1, cost_complete: true } }),
+    record({ model_totals: { input_tokens: 200, output_tokens: 80, cost_usd: null, calls: 1, cost_complete: false } }),
+  ];
+  const result = computeLiveMetrics(records);
+  assert.equal(result.token_usage_and_cost.total_cost_usd, null);
+  assert.equal(result.token_usage_and_cost.incomplete_cost_trace_count, 1);
+  // Token counts are still known even when cost is not -- summed regardless.
+  assert.equal(result.token_usage_and_cost.total_input_tokens, 300);
+  const incompleteRun = result.token_usage_and_cost.per_run.find((run) => run.cost_complete === false);
+  assert.equal(incompleteRun.cost_usd, null);
+});
+
+test('computeLiveMetrics: a run whose trace never matched (model_totals null) is counted as missing, not zero', () => {
+  const records = [record({ model_totals: null }), record({ model_totals: { input_tokens: 10, output_tokens: 5, cost_usd: 0.0001, calls: 1, cost_complete: true } })];
+  const result = computeLiveMetrics(records);
+  assert.equal(result.token_usage_and_cost.runs_with_matched_trace, 1);
+  assert.equal(result.token_usage_and_cost.runs_missing_trace_match, 1);
 });
