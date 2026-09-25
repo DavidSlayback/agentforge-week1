@@ -24,8 +24,8 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | 0 | Manual recon | **approved 2026-09-25** | `DISCOVERY-GUIDE.md`, `INVENTORY.md`, `BASELINE-ERRORS.md`, `RECON.md`, `probe/results/` |
 | 1 | AI scrape | **approved 2026-09-25** | `PROJECT-MAP.md`, `project/*.md`, `ui/DASHBOARD-MAP.md`, `api/*.md`, `REQUIREMENTS-TRACE.md`, `seed/` |
 | 2 | UI-layer audit | **approved 2026-09-25** | `ui/README.md`, `ui/UI-FLOW.md`, `ui/DEMOGRAPHICS*.md` + 7 unit analyses |
-| 3 | Module audit | **checkpoint pending: architecture decision A/B asked 2026-09-25** | `modules/README.md`, `modules/DATA-FLOW.md` + 10 module analyses |
-| 4 | Data audit | not started | |
+| 3 | Module audit | **approved 2026-09-25** (client model B) | `modules/README.md`, `modules/DATA-FLOW.md` + 10 module analyses |
+| 4 | Data audit | **checkpoint presented 2026-09-25** | `data/README.md`, `data/SCHEMA.md`, `data/UUID-MAPPING.md`, `data/CONFIG.md` |
 | 5 | Repo split | not started (in place: `legacy-baseline` tag, to confirm) | |
 | 6 | Deep-dive | not started | |
 | 7 | Bug catalog | not started | |
@@ -71,8 +71,8 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - [x] T3 `library/classes/Controller.class.php`, `library/lists.inc.php` → `modules/LEGACY-ROUTER-AND-LISTS.md`
 
 **Phase 4: data**
-- [ ] T2 schema for `patient_data`, `lists`, `prescriptions`, `care_teams`, `care_team_member`, `pnotes`, `list_options` (relevant lists) → `data/SCHEMA.md`
-- [ ] T2 `uuid_registry` / pid↔uuid mapping → `data/UUID-MAPPING.md`
+- [x] T2 schema for `patient_data`, `lists`, `prescriptions`, `care_teams`, `care_team_member`, `pnotes`, `list_options` (relevant lists) → `data/SCHEMA.md`
+- [x] T2 `uuid_registry` / pid↔uuid mapping → `data/UUID-MAPPING.md`
 
 **Calibration (delegation.md):** the first tier-1 output (`WHATS-MISSING.md`) failed review; 8 rows were corrected. Judgment-heavy work goes to tier 2 or higher. Tier-2 claims were spot-checked (B-14 root cause, `filterActiveIssues`, the Rx UNION, missing `refills`, no pnotes GET) and held. **Correction (Phase 2):** the orchestrator's own Phase 1 check of the Rx `active` filter was wrong: it confirmed the template line exists, not that the filter fires. A tier-3 auditor showed it never fires. Lesson: verify that a gate *executes*, not that it's *written*.
 
@@ -80,6 +80,8 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-25 | Keep `rest_api` on in production | AgentForge's live adapter needs it; M-1 isn't reachable without a `prescription` scope, and no enabled client has one |
+| 2026-09-25 | **Client model B**: the SPA is served by a thin BFF (our server, not OpenEMR's backend) holding a confidential OAuth client; tokens stay server-side; same-origin removes the CORS preflight problem; FHIR-first, standard REST per card where FHIR can't match (Allergies, Problems, Meds, Rx, Vitals) | Public clients can't get `user/` scopes (M-2); FHIR vitals serves deleted sets (M-5); preflight 404 (M-3) |
 | 2026-09-25 | Phase 2 parity decisions (David, all as recommended): (1) Prescriptions shows **all** rows, with the dead `active` filter documented; (2) Vitals shows the **correct** latest set, an intentional deviation from the join bug; (3) Allergies: highlight severe only, no re-sort (sorting is a Phase 9 side quest); (4) empty lists always say "Nothing Recorded" (no `lists_touch` in the API); (5) squad restriction and `hide_dashboard_cards` accepted as API gaps, all cards shown; (6) live security checks with a restricted local test user approved for Phase 6 | Parity = what users see today, except where that is a patient-safety bug |
 | 2026-09-25 | Vitals seed approved and applied (`seed/phase1-seed-vitals.sql`: 3 sets 2024–2026 plus 1 soft-deleted set on pid 13) | 'Latest of several' and deleted-row hiding must be testable |
 | 2026-09-25 | Phase 1: DB-08 = **Vitals** (FHIR `Observation` vital-signs); Messages marked "not ported: no read API"; queue scope (29 units) and reduced tier-3 set approved; branch pushed, draft MR staging !81 | Patient notes was one of six brief options; `pnotes` has no read API by design (`ServerScopeListEntity.php:283`). Explicit requirements aren't blocked |
@@ -90,7 +92,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 ## Open questions
 
-**Blocking (Phase 3 → build): client model.** (A) public SPA, FHIR only, `patient/` scopes, one patient per login; or (B) SPA + thin BFF with a confidential client (FHIR + REST, same-origin, one login). Recommended: B. Evidence: `modules/README.md` "Per-card data source by client model".
+**Resolved: client model B (David, 2026-09-25).** SPA + thin BFF with a confidential OAuth client; FHIR-first, REST where FHIR can't match the card (`modules/README.md` per-card table). **M-1 production exposure (checked by David in the admin UI, 2026-09-25):** `rest_api=1`, FHIR and portal APIs off. The only enabled API client (AgentForge live adapter) has `openid offline_access api:oemr user/{patient,encounter,medical_problem,allergy,medication,document}.rs` and **no `prescription` scope**. The route scope is `user/prescription.*` (`AuthorizationListener.php:186-192`), so M-1 is **not reachable in production** through it. Rules: don't grant `user/prescription.*` to any client until M-1 is fixed; the BFF (which needs it) sends only allow-listed query keys. Upstream report: **deferred** (David, 2026-09-25: "we'll think about it later"); nothing to be sent. Follow-up: protect AgentForge's refresh-token cache (M-4 makes a refresh token sufficient to mint tokens).
 
 **Phase 6 verification list** (security findings from Phase 2, confirmed by reading code, not exercised live; live checks need a restricted test user, which needs David's approval):
 - U-4 Care Team save without write ACL · U-6/U-7 pre-authorization patient switch and identity JS · U-8 fragment endpoints without ACL (vitals, stats immunizations, labdata, reminders) · Rx edit list under view-only ACL · `pnotes_fragment.php` `disappearPnote` before ACL · eRx SOAP POSTs without CSRF · U-5 Care Team stored XSS
@@ -127,3 +129,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 1 approved; DB-08 → Vitals; vitals seed applied. Phase 2: 9 auditors (2 opus, 6 sonnet, 1 haiku); tier-3 verification of U-1…U-11. Phase 1 corrections applied (Rx filter, Details column, collapse default, Care Team render, Messages `Done` notes, line count). Phase 2 checkpoint presented.
 
 - 2026-09-25 — Phase 2 approved (6 parity decisions). Phase 3: 9 auditors (3 opus, 6 sonnet) plus a scoped opus re-run of medication services (the first attempt's write was stopped by a safety classifier). Verified: public-client scope restriction (port blocker), CORS preflight 404 (confirmed live with one unauthenticated OPTIONS request), SQL injection on `/api/prescription` (not exercised), FHIR vitals deleted-set exposure, CareTeam member status gap. Escalated SQLi and the A/B client-model decision to David.
+
+- 2026-09-25 — Phase 3 approved (client model B). M-1 production exposure checked by David: not reachable (no enabled client has a prescription scope); `rest_api` stays on; upstream report deferred. Phase 4: 2 sonnet auditors (schema, uuid mapping and config). Tier-3 corrections: `outcome=6` exists with a blank title; `ListService` uuid null-guard downgraded to Medium. Phase 4 checkpoint presented.
