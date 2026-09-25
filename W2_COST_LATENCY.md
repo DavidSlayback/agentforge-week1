@@ -36,7 +36,7 @@ Prices from official pricing pages, retrieved 2026-09-24:
 | One encounter (a lab PDF + an intake form = 2 scans) | **~$0.0009** | **~$0.0012** |
 | Worst case per scan (3 answer attempts) | ~$0.0010 | ~$0.0013 |
 
-A follow-up encounter costs about a tenth of a cent in model calls. The
+Since `dcaa180`, every trace records these costs per stage (`modelTotals.cost_usd`). Two live scans on that commit: $0.00038 (lab PDF) and $0.00055 (intake form). A follow-up encounter costs about a tenth of a cent in model calls. The
 account may be on a prepaid Alibaba "token plan" (the endpoint host is
 `token-plan.cn-beijing.maas.aliyuncs.com`); if so, marginal cost inside the
 plan is lower than list price. This report uses list price.

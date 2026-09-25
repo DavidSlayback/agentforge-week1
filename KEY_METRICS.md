@@ -45,8 +45,9 @@ Why these: **recall** asks whether it finds what matters. **Accuracy** asks
 whether what it read is right. **Grounding rate** asks whether the model's
 answers are useful, and not mostly fallback templates. **Speed** asks whether
 it fits the minutes before the physician walks in. Cost per encounter is
-recorded in traces (`modelTotals.cost_usd`), but the per-token price of
-`qwen3.8-flash` is not yet confirmed, so cost is recorded as unknown, never $0.
+recorded in traces (`modelTotals.cost_usd`, with `cost_complete` false and a
+null total if any call is unpriced): live on `dcaa180`, $0.0004–0.0006 per
+scan at the official Beijing rate. See [`W2_COST_LATENCY.md`](W2_COST_LATENCY.md).
 
 ## Guardrails (must hold at all times)
 
