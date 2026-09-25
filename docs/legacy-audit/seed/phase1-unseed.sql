@@ -3,6 +3,8 @@ START TRANSACTION;
 DELETE m FROM care_team_member m JOIN care_teams t ON t.id = m.care_team_id WHERE t.team_name LIKE '%[seed:phase1]%';
 DELETE FROM care_teams WHERE team_name LIKE '%[seed:phase1]%';
 DELETE FROM pnotes WHERE body LIKE '%[seed:phase1]%';
+DELETE f FROM forms f JOIN form_vitals v ON v.id = f.form_id AND f.formdir = 'vitals' WHERE v.note LIKE '%[seed:phase1]%';
+DELETE FROM form_vitals WHERE note LIKE '%[seed:phase1]%';
 COMMIT;
 SELECT (SELECT COUNT(*) FROM care_teams WHERE team_name LIKE '%[seed:phase1]%') AS teams_left,
        (SELECT COUNT(*) FROM pnotes WHERE body LIKE '%[seed:phase1]%') AS notes_left;

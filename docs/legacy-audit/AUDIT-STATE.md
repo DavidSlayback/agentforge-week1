@@ -22,8 +22,8 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | # | Phase | Status | Artifact(s) |
 |---|---|---|---|
 | 0 | Manual recon | **approved 2026-09-25** | `DISCOVERY-GUIDE.md`, `INVENTORY.md`, `BASELINE-ERRORS.md`, `RECON.md`, `probe/results/` |
-| 1 | AI scrape | **checkpoint presented 2026-09-25** | `PROJECT-MAP.md`, `project/*.md`, `ui/DASHBOARD-MAP.md`, `api/*.md`, `REQUIREMENTS-TRACE.md` (Today column), `seed/` |
-| 2 | UI-layer audit | not started | |
+| 1 | AI scrape | **approved 2026-09-25** | `PROJECT-MAP.md`, `project/*.md`, `ui/DASHBOARD-MAP.md`, `api/*.md`, `REQUIREMENTS-TRACE.md`, `seed/` |
+| 2 | UI-layer audit | **checkpoint presented 2026-09-25** | `ui/README.md`, `ui/UI-FLOW.md`, `ui/DEMOGRAPHICS*.md` + 7 unit analyses |
 | 3 | Module audit | not started | |
 | 4 | Data audit | not started | |
 | 5 | Repo split | not started (in place: `legacy-baseline` tag, to confirm) | |
@@ -49,13 +49,14 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). **Approved tiering (David, 2026-09-25): tier 3 only for `demographics.php`, `AuthorizationController.php`, `CORSListener.php` and `PrescriptionService.php`. Every other T3/"ovr" line below runs on tier 2 (sonnet), with a tier-3 spot-check of its claims.** Output goes to `ui/`, `modules/` or `data/` as `<NAME>.md`.
 
 **Phase 2: UI layer**
-- [ ] T3 `interface/patient_file/summary/demographics.php` (1,890 lines; split by section across agents) → `ui/DEMOGRAPHICS.md`
-- [ ] T2 `interface/patient_file/summary/vitals_fragment.php` (+ the vitals report it renders) → `ui/VITALS-FRAGMENT.md` (DB-08 = Vitals)
-- [ ] T3 `src/Patient/Cards/CareTeamViewCard.php` + `templates/patient/card/manage_care_team.html.twig` → `ui/CARE-TEAM-CARD.md` (why seeded members didn't render)
-- [ ] T3 `interface/patient_file/summary/stats.php` → `ui/STATS.md`
-- [ ] T3 (ovr) `interface/patient_file/summary/dashboard_header.php` → `ui/DASHBOARD-HEADER.md`
-- [ ] T2 `templates/prescription/general_fragment.html`, `general_list.html.twig` → `ui/PRESCRIPTION-TEMPLATES.md` (B-14)
-- [ ] T1 `src/Common/Layouts/LayoutsUtils.php` → `ui/LAYOUTS-UTILS.md`
+- [x] T3 `interface/patient_file/summary/demographics.php`, split at the page ACL gate: lines 1–1055 → `ui/DEMOGRAPHICS-PART1-BOOT.md`, 1056–end → `ui/DEMOGRAPHICS-PART2-CARDS.md` (merged into `ui/DEMOGRAPHICS.md` by the orchestrator)
+- [x] T2 `templates/patient/card/*` for Allergies, Medical Problems and Medications → `ui/CARD-TEMPLATES.md` (added 2026-09-25: missing from the Phase 1 queue)
+- [x] T2 `interface/patient_file/summary/vitals_fragment.php` (+ the vitals report it renders) → `ui/VITALS-FRAGMENT.md` (DB-08 = Vitals)
+- [x] T3 `src/Patient/Cards/CareTeamViewCard.php` + `templates/patient/card/manage_care_team.html.twig` → `ui/CARE-TEAM-CARD.md` (why seeded members didn't render)
+- [x] T3 `interface/patient_file/summary/stats.php` → `ui/STATS.md`
+- [x] T2 `interface/patient_file/summary/dashboard_header.php` + the tabbed-shell patient bar (`interface/main/tabs/`) → `ui/DASHBOARD-HEADER.md`
+- [x] T2 `templates/prescription/general_fragment.html`, `general_list.html.twig` → `ui/PRESCRIPTION-TEMPLATES.md` (B-14)
+- [x] T1 `src/Common/Layouts/LayoutsUtils.php` → `ui/LAYOUTS-UTILS.md`
 
 **Phase 3: modules (auth first, then read paths)**
 - [ ] T3 `src/RestControllers/AuthorizationController.php` (1,772 lines) → `modules/AUTHORIZATION-CONTROLLER.md`
@@ -73,12 +74,13 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - [ ] T2 schema for `patient_data`, `lists`, `prescriptions`, `care_teams`, `care_team_member`, `pnotes`, `list_options` (relevant lists) → `data/SCHEMA.md`
 - [ ] T2 `uuid_registry` / pid↔uuid mapping → `data/UUID-MAPPING.md`
 
-**Calibration (delegation.md):** the first tier-1 output (`WHATS-MISSING.md`) failed review; 8 rows were corrected. Judgment-heavy work goes to tier 2 or higher. Tier-2 claims were spot-checked (B-14 root cause, `filterActiveIssues`, the Rx `active` filter, the Rx UNION, missing `refills`, no pnotes GET) and all held.
+**Calibration (delegation.md):** the first tier-1 output (`WHATS-MISSING.md`) failed review; 8 rows were corrected. Judgment-heavy work goes to tier 2 or higher. Tier-2 claims were spot-checked (B-14 root cause, `filterActiveIssues`, the Rx UNION, missing `refills`, no pnotes GET) and held. **Correction (Phase 2):** the orchestrator's own Phase 1 check of the Rx `active` filter was wrong: it confirmed the template line exists, not that the filter fires. A tier-3 auditor showed it never fires. Lesson: verify that a gate *executes*, not that it's *written*.
 
 ## Decisions
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-25 | Vitals seed approved and applied (`seed/phase1-seed-vitals.sql`: 3 sets 2024–2026 plus 1 soft-deleted set on pid 13) | 'Latest of several' and deleted-row hiding must be testable |
 | 2026-09-25 | Phase 1: DB-08 = **Vitals** (FHIR `Observation` vital-signs); Messages marked "not ported: no read API"; queue scope (29 units) and reduced tier-3 set approved; branch pushed, draft MR staging !81 | Patient notes was one of six brief options; `pnotes` has no read API by design (`ServerScopeListEntity.php:283`). Explicit requirements aren't blocked |
 | 2026-09-25 | Phase 0 approved with the four recommendations: (1) seed synthetic Care Team + notes locally (done: `seed/phase1-seed.sql`, marker `[seed:phase1]`); (2) strict parity, improvements go to Phase 9; (3) audit docs on `agentforge/w2-dashboard`; (4) LF re-run, done from an LF copy inside the container (`git checkout-index`) so David's checkout is untouched | David: "approve, fan out to cheaper agents" |
 | 2026-09-25 | Repo reconciliation (David): `week1-final` → `e4c0721` (Gauntlet snapshot Wbs…); GitLab staging is canonical and GitHub a one-way mirror (`origin/main` force-with-lease to `3ccfe1d`); GitLab staging is the tracker; merged, archived and dependabot branches deleted (`archive/*` tags keep superseded content) | One line, one tracker, a frozen Week 1 |
@@ -87,8 +89,13 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 ## Open questions
 
+**Phase 6 verification list** (security findings from Phase 2, confirmed by reading code, not exercised live; live checks need a restricted test user, which needs David's approval):
+- U-4 Care Team save without write ACL · U-6/U-7 pre-authorization patient switch and identity JS · U-8 fragment endpoints without ACL (vitals, stats immunizations, labdata, reminders) · Rx edit list under view-only ACL · `pnotes_fragment.php` `disappearPnote` before ACL · eRx SOAP POSTs without CSRF · U-5 Care Team stored XSS
+
+**Phase 2 parity questions:** see the Phase 2 checkpoint (Rx all-vs-active, Vitals deleted set, allergy severity ordering, empty-state wording without `lists_touch`, inactive Care Team members, squad restriction, `hide_dashboard_cards`).
+
 - [x] Requirements document: received 2026-09-25 (W2 surprise challenge)
-- [x] Ambiguities A1–A6: all agreed; DB-08 = Patient Notes (David, 2026-09-25)
+- [x] Ambiguities A1–A6: all agreed. DB-08 was Patient Notes, changed to **Vitals** at the Phase 1 checkpoint (no read API for `pnotes`)
 - [ ] Should audit docs be committed to this repo, kept local, or live elsewhere?
 
 ## Workflow test notes (feedback for the skill)
@@ -112,3 +119,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 0 approved. Phase 1: 8 parallel mappers (6 sonnet, 2 haiku) and a tier-3 review. Seed applied to pid 13. LF re-run: isolated PHPUnit 0 failures (E-01 proven). DB-08 has no read API (hard conflict with DB-10). Phase 1 checkpoint presented.
 
 - 2026-09-25 — Phase 1 approved (scope, tiers, push; DB-08 → Vitals). Cross-checked against `PLAN.md` W2D-1…W2D-8 and the 09-24 pre-code parity spec (`.scratch/assignments/dashboard-parity-spec.md`, gitignored): same conclusions on header active status (derive from `deceasedDateTime`) and filters. **DB-xx ↔ W2D mapping:** DB-01=W2D-1, DB-02=W2D-2, DB-03…07=W2D-3, DB-08=W2D-4, DB-09=W2D-5, DB-10=W2D-8, DB-11=W2D-7. PLAN.md stays the single plan; this audit is its evidence.
+
+- 2026-09-25 — Phase 1 approved; DB-08 → Vitals; vitals seed applied. Phase 2: 9 auditors (2 opus, 6 sonnet, 1 haiku); tier-3 verification of U-1…U-11. Phase 1 corrections applied (Rx filter, Details column, collapse default, Care Team render, Messages `Done` notes, line count). Phase 2 checkpoint presented.

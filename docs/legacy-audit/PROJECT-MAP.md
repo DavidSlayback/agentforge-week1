@@ -57,7 +57,7 @@ agentforge-week1/                       9,097 tracked files
 
 | Unit | Path | Lines | Purpose | Opened from |
 |---|---|---|---|---|
-| Dashboard page | `interface/patient_file/summary/demographics.php` | 1,890 | 22-card patient dashboard | tabbed shell, Finder, `set_pid` URL |
+| Dashboard page | `interface/patient_file/summary/demographics.php` | 2,080 | 22-card patient dashboard | tabbed shell, Finder, `set_pid` URL |
 | Header | `interface/patient_file/summary/dashboard_header.php` | 30 | title + nav row | `demographics.php` |
 | Issue cards | `interface/patient_file/summary/stats.php` | 301 | issue-type cards (Health Concerns, Immunizations…) | `demographics.php` |
 | Messages card | `interface/patient_file/summary/pnotes_fragment.php` | 122 | `pnotes`, N most recent active | `demographics.php` (AJAX) |

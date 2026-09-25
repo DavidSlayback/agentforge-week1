@@ -1,5 +1,7 @@
 # Patient Dashboard Map
 
+> **Superseded in part by Phase 2** (2026-09-25). Seven claims here were corrected; see [`README.md`](README.md) "Corrections to Phase 1". Per-card detail now lives in the Phase 2 analyses.
+
 Audited by: tier 2 (sonnet), 2026-09-25, git SHA `3ccfe1d`
 
 `interface/patient_file/summary/demographics.php` — 2,080 lines.
