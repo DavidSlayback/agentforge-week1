@@ -25,8 +25,8 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | 1 | AI scrape | **approved 2026-09-25** | `PROJECT-MAP.md`, `project/*.md`, `ui/DASHBOARD-MAP.md`, `api/*.md`, `REQUIREMENTS-TRACE.md`, `seed/` |
 | 2 | UI-layer audit | **approved 2026-09-25** | `ui/README.md`, `ui/UI-FLOW.md`, `ui/DEMOGRAPHICS*.md` + 7 unit analyses |
 | 3 | Module audit | **approved 2026-09-25** (client model B) | `modules/README.md`, `modules/DATA-FLOW.md` + 10 module analyses |
-| 4 | Data audit | **checkpoint presented 2026-09-25** | `data/README.md`, `data/SCHEMA.md`, `data/UUID-MAPPING.md`, `data/CONFIG.md` |
-| 5 | Repo split | not started (in place: `legacy-baseline` tag, to confirm) | |
+| 4 | Data audit | **approved 2026-09-25** | `data/README.md`, `data/SCHEMA.md`, `data/UUID-MAPPING.md`, `data/CONFIG.md` |
+| 5 | Repo split | **checkpoint presented 2026-09-25** (in place) | tag `legacy-baseline` → `3ccfe1d` (staging + GitHub), `AGENT-BRIEF.md`, `README.md` |
 | 6 | Deep-dive | not started | |
 | 7 | Bug catalog | not started | |
 | 8 | Migration route | not started | |
@@ -131,3 +131,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 2 approved (6 parity decisions). Phase 3: 9 auditors (3 opus, 6 sonnet) plus a scoped opus re-run of medication services (the first attempt's write was stopped by a safety classifier). Verified: public-client scope restriction (port blocker), CORS preflight 404 (confirmed live with one unauthenticated OPTIONS request), SQL injection on `/api/prescription` (not exercised), FHIR vitals deleted-set exposure, CareTeam member status gap. Escalated SQLi and the A/B client-model decision to David.
 
 - 2026-09-25 — Phase 3 approved (client model B). M-1 production exposure checked by David: not reachable (no enabled client has a prescription scope); `rest_api` stays on; upstream report deferred. Phase 4: 2 sonnet auditors (schema, uuid mapping and config). Tier-3 corrections: `outcome=6` exists with a blank title; `ListService` uuid null-guard downgraded to Medium. Phase 4 checkpoint presented.
+
+- 2026-09-25 — Phase 4 approved. Phase 5 in place: annotated tag `legacy-baseline` → `3ccfe1d` pushed to staging and origin (David: yes); `AGENT-BRIEF.md` and `README.md` written; pointer added to `AGENTS.md`. Phase 5 checkpoint presented.
