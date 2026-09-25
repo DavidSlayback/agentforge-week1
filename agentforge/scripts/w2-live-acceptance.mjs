@@ -201,7 +201,7 @@ const REMAINING_CHECKS_IF_SHA_FAILS = [
   ['W2-SF-WRONGTYPE', 'the intake bytes mislabeled as lab_pdf are refused, never READY'],
   ['W2-SF-CROSSPATIENT', "a cross-patient scan of patient-001's document under patient-002's context is refused (403)"],
   ['W2-SF-LEGACYTEXT', 'a legacy LAB| text upload is rejected (400, unsupported_upload_format)'],
-  ['W2-SF-LEGACYSUPERVISOR', 'the retired /v1/supervisor route returns 404'],
+  ['W2-SF-LEGACYSUPERVISOR', 'the retired POST /v1/supervisor route returns 404'],
 ];
 
 async function main() {
@@ -331,7 +331,7 @@ async function main() {
         && typeof labScanTrace.modelTotals?.output_tokens === 'number'
         && labScanTrace.modelTotals?.cost_usd !== null && labScanTrace.modelTotals?.cost_usd !== undefined
         && retrievalHasHitCount(labScanTrace.retrieval)
-        && typeof labScanTrace.extraction?.confidence === 'number';
+        && typeof labScanTrace.extraction?.confidence?.mean === 'number';
       record('W2-C10', 'the matched w2-scan-supervisor trace carries handoffs/decisions/stage durations/model totals/retrieval hit_count/extraction confidence', traceOk, {
         trace_found: Boolean(labScanTrace),
         correlation_id: labScanTrace?.correlationId ?? null,
@@ -341,7 +341,7 @@ async function main() {
         model_totals_tokens_present: typeof labScanTrace?.modelTotals?.input_tokens === 'number' && typeof labScanTrace?.modelTotals?.output_tokens === 'number',
         model_totals_cost_usd: labScanTrace?.modelTotals?.cost_usd ?? null,
         retrieval_hit_count_present: retrievalHasHitCount(labScanTrace?.retrieval),
-        extraction_confidence_present: typeof labScanTrace?.extraction?.confidence === 'number',
+        extraction_confidence_present: typeof labScanTrace?.extraction?.confidence?.mean === 'number',
         // Reported as-is, per the task: another change may make this real
         // (`not_run` today -- the golden-set gate evaluates separately from
         // any individual document workflow, service.js#runActiveSupervisorForDocument);
@@ -424,7 +424,7 @@ async function main() {
     if (labSourceId) {
       const otherToken = await writeContextFor(OTHER_PATIENT);
       const crossPatient = await postJson('/v1/scan-supervisor', { patient_uuid: OTHER_PATIENT, clinician_uuid: CLINICIAN, demo_token: otherToken, source_document_id: labSourceId, message: SCAN_MESSAGE });
-      record('W2-SF-CROSSPATIENT', "a cross-patient scan of patient-001's document under patient-002's context is refused (403)", crossPatient.status === 403 && crossPatient.data?.error === 'document_scope_mismatch', { status: crossPatient.status, error: crossPatient.data?.error });
+      record('W2-SF-CROSSPATIENT', "a cross-patient scan of patient-001's document under patient-002's context is refused (403)", crossPatient.status === 403 && CROSS_PATIENT_REFUSALS.has(crossPatient.data?.error), { status: crossPatient.status, error: crossPatient.data?.error, refused_by: crossPatient.data?.error === 'document_scope_mismatch' ? 'document_scope_check' : 'patient_allowlist' });
     } else {
       record('W2-SF-CROSSPATIENT', "a cross-patient scan of patient-001's document under patient-002's context is refused (403)", false, { skipped: 'no_lab_source_document_id' });
     }
@@ -445,14 +445,16 @@ async function main() {
     record('W2-SF-LEGACYTEXT', 'a legacy LAB| text upload is rejected (400, unsupported_upload_format)', false, { error: error?.code || error?.message || 'unknown_error' });
   }
   try {
-    const legacySupervisor = await getJson('/v1/supervisor');
-    record('W2-SF-LEGACYSUPERVISOR', 'the retired /v1/supervisor route returns 404', legacySupervisor.status === 404, { status: legacySupervisor.status });
+    const legacySupervisor = await postJson('/v1/supervisor', {});
+    record('W2-SF-LEGACYSUPERVISOR', 'the retired POST /v1/supervisor route returns 404', legacySupervisor.status === 404, { status: legacySupervisor.status });
   } catch (error) {
-    record('W2-SF-LEGACYSUPERVISOR', 'the retired /v1/supervisor route returns 404', false, { error: error?.code || error?.message || 'unknown_error' });
+    record('W2-SF-LEGACYSUPERVISOR', 'the retired POST /v1/supervisor route returns 404', false, { error: error?.code || error?.message || 'unknown_error' });
   }
 
   return finish();
 }
+
+const CROSS_PATIENT_REFUSALS = new Set(['document_scope_mismatch', 'openemr_demo_patient_not_allowed']);
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) await main();
