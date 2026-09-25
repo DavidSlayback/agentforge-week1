@@ -15,7 +15,7 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | Checkpoint mode | every phase (default) |
 | Requirements source | W2 surprise challenge, *Modernize the Patient Dashboard* (`output/pdf/W2-surprise-challenge-modernize-patient-dashboard.pdf`, git-excluded). Intake is in `REQUIREMENTS-TRACE.md` (DB-01…DB-11). |
 | Baseline checks | Node: all pass. PHP (laptop): isolated PHPUnit 24 F (all CRLF artifacts), PHPCS 8, ESLint 3, PHPStan 401 (~273 in the AgentForge module). See `BASELINE-ERRORS.md`. |
-| Chosen route | _(Phase 8)_ |
+| Chosen route | **R1: React + TypeScript + Vite SPA, Node (Fastify) BFF with a confidential OAuth client**, same-origin behind Caddy (Phase 8, David 2026-09-25) |
 
 ## Phase status
 
@@ -29,7 +29,7 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | 5 | Repo split | **approved 2026-09-25** (in place) | tag `legacy-baseline` → `3ccfe1d`, `AGENT-BRIEF.md`, `README.md` |
 | 6 | Deep-dive | **approved 2026-09-25** (code-only; live evidence deferred to the build) | `VERIFICATION.md`, `walkthroughs/*.md` (5) |
 | 7 | Bug catalog | **approved 2026-09-25** | `BUGS-MITIGATIONS.md`: 164 entries (2 Critical, 18 High, 61 Medium, 83 Low) |
-| 8 | Migration route | **near-tie presented 2026-09-25**; waiting for David (familiarity decides) | `MIGRATION-OPTIONS.md`: R1 React 110, R3 Vue 109, R2 SvelteKit 108, R4 Next 87, R0 PHP 49 (out of 135) |
+| 8 | Migration route | route **chosen 2026-09-25: R1 React + TypeScript + Vite SPA + Node (Fastify) BFF**; Part B playbook in progress | `MIGRATION-OPTIONS.md`, `MIGRATION-REACT.md` |
 | 9 | Side quests | not started | |
 | 10 | Vertical slices | not started | |
 
@@ -80,6 +80,8 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-25 | **Standing authorizations (David, phone):** (1) start Phase 10 slice 01 without a separate go after the plan is shown (pre-approved); (2) deploy to the public Vultr host and (3) register/enable the BFF OAuth client on production OpenEMR, without waiting for David. Each production action is reported after it happens | David is phone-only; deadline Sunday 12:00 CT |
+| 2026-09-25 | **Route: R1 React + TS + Vite + Node (Fastify) BFF** (David: "no preference", so the top score wins, 110/135; near-tie with Vue 109 and SvelteKit 108 acknowledged). **Data sources: "keep"**: FHIR-first, standard REST where FHIR can't match the card (Allergies, Problems, Meds, Rx, Vitals per encounter), each defended in `PATIENT_DASHBOARD_MIGRATION.md` against the brief's "FHIR API" wording | Highest weighted score; REST avoids the FHIR vitals deleted-set exposure (5.02) and FHIR's parity losses |
 | 2026-09-25 | Phase 8 weights (David: "defaults", set before scoring): working by Sunday 12:00 CT = 5; defensibility in PATIENT_DASHBOARD_MIGRATION.md = 5; BFF fit = 4; David's familiarity = 4; testability / pre-commit fit = 3; parity ergonomics = 3; deploy fit (Vultr + Caddy) = 2; long-term ecosystem = 1. Language: **TypeScript**. No framework ruled out. The highest score wins by default; near-ties (within 5%) go to David | Weights agreed before any scoring (skill Phase 8 §A.5) |
 | 2026-09-25 | Deceased test patient: pid 12 `deceased_date` = 2026-08-30 (`seed/phase1-seed-deceased.sql`, marker in `deceased_reason`) | Makes the header's derived "Deceased" status testable |
 | 2026-09-25 | Phase 6 scope: **no scripted live API checks and no restricted-user checks**. Code-only walkthroughs now; live evidence comes from the build's walking skeleton, card by card. Findings stay "verified from code" until then | Scripted endpoint verification was stopped by a safety classifier; David chose options 1 + 3 |
@@ -95,6 +97,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 ## Resume notes
 
+- **Production deploy access (read-only check OK 2026-09-25):** `AGENTFORGE_DEPLOY_HOST=linuxuser@64.177.10.182`, `AGENTFORGE_DEPLOY_KEY=~/.ssh/agentforge-week1-vultr` (key path only; found from earlier Codex deploy sessions). Containers: `vultr-openemr-1`, `vultr-mysql-1`, `vultr-agentforge-1`, `vultr-agentforge-w2-1`, `vultr-proxy-1`. Public URL `https://dtstest.64.177.10.182.nip.io`.
 - Paused and resumed 2026-09-25. The Phase 7 catalog agent was continued (write step only) after the pause, as planned. David is phone-only for the rest of the day: checkpoints are short, with one-word replies.
 
 ## Open questions
@@ -152,3 +155,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 7 approved. Phase 8 Part A started with the default weights and TypeScript.
 
 - 2026-09-25 — Phase 8A scored (tier 3): near-tie between R1, R3 and R2 (within 5%). The familiarity score was inferred from the repo (no framework history), so David decides. Flagged: brief says "FHIR API" for clinical cards; client model B uses REST for 4 cards plus Vitals, to be justified in the migration doc.
+
+- 2026-09-25 — Phase 8 route chosen by David: R1 React; data sources "keep" (REST where FHIR fails). Part B playbook started.
