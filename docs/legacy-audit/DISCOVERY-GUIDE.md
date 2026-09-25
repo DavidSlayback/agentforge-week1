@@ -1,5 +1,9 @@
 # Discovery Guide — AgentForge (OpenEMR + AgentForge service)
 
+**Focus:** the W2 surprise challenge, porting the OpenEMR **patient
+dashboard** to a modern framework on top of the REST/FHIR API. Item 10 is
+the most important part of this guide.
+
 You're about to look at the app the way its users do, before anyone reads the
 code. Spend 15–30 minutes. Answer what you can, in this file or in chat. Short
 notes are fine. Anything that surprised or annoyed you is worth writing
@@ -60,9 +64,24 @@ Synthetic or demo data only, throughout.
 8. **Where AgentForge meets OpenEMR.** Can you reach the AgentForge module
    from inside OpenEMR? What happens when you do?
 9. **Missing.** What did you expect either app to do that it doesn't?
-10. **For the new requirements.** Where in the app would each new
-    requirement live? Which screens would it touch? (Add the requirements
-    doc first; see the checkpoint message.)
+10. **The patient dashboard, which is what we're porting.** Load demo
+    data first (the reset command above). Open a patient with plenty of
+    data and spend most of your time here. Screenshots help a lot, since
+    parity is judged against them.
+    - **Header bar:** name, DOB, sex, MRN (the "External ID" / pubpid),
+      active status. What else does it show? What's clickable?
+    - **Cards:** Allergies, Problem List, Medications, Prescriptions, Care
+      Team. For each, note what columns or fields it shows, what an empty
+      card looks like, and whether you can expand, collapse, edit or add
+      from it.
+    - **Every other card** on the page (vitals, labs, immunizations,
+      appointments, notes, insurance, reminders, …). List them, and star
+      the one you'd pick as the "one additional section".
+    - **Behavior:** anything slow, broken, or confusing on this page, and
+      what happens when you switch patients.
+    - **API access (if you get to it):** Administration → Globals →
+      Connectors. Are the REST/FHIR APIs and OAuth2 enabled? Don't change
+      anything yet; just note what's on or off.
 
 ## Your notes
 

@@ -13,7 +13,7 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | Exclusions | `vendor`, `node_modules`, `Documentation`, `.phpstan`, `contrib`, `public`, `output`, `.scratch`, `fpdf`, generated FHIR R4 classes, `*.sql` data dumps, `*.svg`, `*.dot`, `*.html` docs |
 | Current phase | 0 — Manual recon |
 | Checkpoint mode | every phase (default) |
-| Requirements source | **Pending: David to supply the new assignment requirements** |
+| Requirements source | W2 surprise challenge, *Modernize the Patient Dashboard* (`output/pdf/W2-surprise-challenge-modernize-patient-dashboard.pdf`, git-excluded). Intake is in `REQUIREMENTS-TRACE.md` (DB-01…DB-11). |
 | Baseline checks | `node --test` (agentforge, evals), `run-w2-gate.mjs`; PHP checks pending `composer install` |
 | Chosen route | _(Phase 8)_ |
 
@@ -21,7 +21,7 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 
 | # | Phase | Status | Artifact(s) |
 |---|---|---|---|
-| 0 | Manual recon | in progress: waiting on David's run-through and the requirements doc | `DISCOVERY-GUIDE.md`, `INVENTORY.md`, `TIERS.csv`, `BASELINE-ERRORS.md` (partial) |
+| 0 | Manual recon | in progress: waiting on David's run-through (focused on the patient dashboard) and answers to A1–A6 | `DISCOVERY-GUIDE.md`, `INVENTORY.md`, `TIERS.csv`, `BASELINE-ERRORS.md` (partial), `REQUIREMENTS-TRACE.md` (intake) |
 | 1 | AI scrape | not started | |
 | 2 | UI-layer audit | not started | |
 | 3 | Module audit | not started | |
@@ -52,7 +52,8 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 
 ## Open questions
 
-- [ ] Where is the new requirements document? (Needed for requirements-driven mode.)
+- [x] Requirements document: received 2026-09-25 (W2 surprise challenge)
+- [ ] Ambiguities A1–A6 in `REQUIREMENTS-TRACE.md`
 - [ ] Should audit docs be committed to this repo, kept local, or live elsewhere?
 
 ## Workflow test notes (feedback for the skill)
@@ -64,3 +65,4 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 ## Phase log
 
 - 2026-09-25 — Phase 0 started. Inventory and tiers generated. AgentForge service tests 103/103 and evals tests 10/10 pass, and the W2 eval gate passes. `composer install` running for the PHP checks.
+- 2026-09-25 — Requirements received (W2 surprise challenge: port the patient dashboard to a modern framework on the REST/FHIR API). Intake written to `REQUIREMENTS-TRACE.md` with 11 requirements and 6 ambiguities. Discovery guide refocused on the patient dashboard.
