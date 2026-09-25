@@ -87,7 +87,9 @@ re-run any time with `node agentforge/scripts/run-regression-matrix.mjs`
 
 See [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) for how all of this fits
 together, [`KEY_METRICS.md`](KEY_METRICS.md) for what "working" is measured
-against, and [`EVAL_GATE.md`](EVAL_GATE.md) for the full gate rubric.
+against, [`W2_COST_LATENCY.md`](W2_COST_LATENCY.md) for measured cost and
+latency with production projections, and [`EVAL_GATE.md`](EVAL_GATE.md) for
+the full gate rubric.
 
 ## Week 1 vs. Week 2
 
