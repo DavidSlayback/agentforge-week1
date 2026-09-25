@@ -21,13 +21,17 @@ runtime click-through run on David's laptop.
 | PHPStan level 10 | `composer phpstan` | _pending_ | waiting on `composer install`; full codebase |
 | JS lint / tests | `npm run lint:js` / `npm run test:js` | _pending_ | needs `npm install` |
 | DB-backed suites (unit/services/api/e2e) | `openemr-cmd ut/st/at/et` | _needs David's Docker stack_ | |
-| Runtime errors | David's run-through | _pending_ | from `DISCOVERY-GUIDE.md` §7 |
+| Runtime errors | David's run-through | 5 observations (B-01…B-05); dashboard-specific pass pending | from `DISCOVERY-GUIDE.md` §7 |
 
 ## Failures
 
 | # | Check | Error (exact) | Location | Reproduces? | Severity guess | Catalog ID |
 |---|---|---|---|---|---|---|
-| _none yet_ | | | | | | |
+| B-01 | David's run-through | Unexplained pop-up asking for an email address; unclear whether the session is remembered | login / first screen | always (to confirm) | Low (UX); maybe product registration | _(Phase 7)_ |
+| B-02 | David's run-through | Pages load slowly in general | across the app | always | Medium (performance) | _(Phase 7)_ |
+| B-03 | David's run-through | No validation on many data-entry fields, e.g. SSN | demographics / data-entry forms | always | Medium (data quality) | _(Phase 7)_ |
+| B-04 | David's run-through | Form field highlighting is hard to work with during data entry | data-entry forms | always | Low (UX) | _(Phase 7)_ |
+| B-05 | David's run-through | Many tab pop-ups; how the parts authenticate is unclear | navigation / auth | always | Medium (UX, auth clarity) | _(Phase 7)_ |
 
 ## Missing checks
 

@@ -36,10 +36,10 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 ## Current phase exit criteria (Phase 0)
 
 - [x] `DISCOVERY-GUIDE.md` written with this repo's run instructions
-- [ ] David's answers to the discovery guide received
+- [ ] David's answers to the discovery guide received. General pass done (B-01…B-05); dashboard pass pending a data-rich synthetic patient
 - [x] `INVENTORY.md` generated (with exclusions above). Regenerate `TIERS.csv` with the command in `INVENTORY.md`'s header notes.
 - [ ] `BASELINE-ERRORS.md` complete. Node checks done; PHP checks (isolated PHPUnit, PHPCS, PHPStan) wait on `composer install`; runtime errors come from David's run-through
-- [ ] `RECON.md` written from David's run-through plus the inventory
+- [ ] `RECON.md` written from David's run-through plus the inventory (started; dashboard section pending)
 - [ ] Project manifest identified in `RECON.md` (`composer.json` plus `package.json`; the OpenEMR entry point is `interface/`)
 - [ ] Red flags listed
 - [ ] Checkpoint presented and approved
@@ -53,7 +53,7 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 ## Open questions
 
 - [x] Requirements document: received 2026-09-25 (W2 surprise challenge)
-- [ ] Ambiguities A1–A6 in `REQUIREMENTS-TRACE.md`
+- [x] Ambiguities A1–A6: all agreed; DB-08 = Patient Notes (David, 2026-09-25)
 - [ ] Should audit docs be committed to this repo, kept local, or live elsewhere?
 
 ## Workflow test notes (feedback for the skill)
@@ -66,3 +66,4 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 
 - 2026-09-25 — Phase 0 started. Inventory and tiers generated. AgentForge service tests 103/103 and evals tests 10/10 pass, and the W2 eval gate passes. `composer install` running for the PHP checks.
 - 2026-09-25 — Requirements received (W2 surprise challenge: port the patient dashboard to a modern framework on the REST/FHIR API). Intake written to `REQUIREMENTS-TRACE.md` with 11 requirements and 6 ambiguities. Discovery guide refocused on the patient dashboard.
+- 2026-09-25 — David's general run-through: 5 observations logged (B-01…B-05). Scope limited to the brief's cards plus Patient Notes; A1–A6 agreed. Next: David generates synthetic patients (`import-random-patients`) and probes the dashboard.

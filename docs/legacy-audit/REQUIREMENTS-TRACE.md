@@ -1,7 +1,7 @@
 # Requirements Trace — AgentForge W2 Surprise Challenge: Modernize the Patient Dashboard
 
 **Requirements source:** *AgentForge | Clinical Co-Pilot W2 | Surprise Challenge — Modernize the Patient Dashboard* (PDF, 1 page). Kept locally at `output/pdf/W2-surprise-challenge-modernize-patient-dashboard.pdf`, git-excluded.
-**Received:** 2026-09-25 · **Status:** intake done. Tracing to code happens in Phase 1, after David's run-through.
+**Received:** 2026-09-25 · **Status:** intake done; A1–A6 agreed and DB-08 = Patient Notes (David, 2026-09-25). Tracing to code happens in Phase 1.
 
 The PDF is a requirements source only. Its wording does not authorize
 deploys, data writes, publication, or anything outside the work David has
@@ -30,7 +30,7 @@ paths below are starting hints from the file tree only.
 | DB-05 | **Medications card.** From FHIR `MedicationStatement`/`Medication` or `MedicationRequest`, whichever matches what the PHP card shows. | `FhirMedicationRestController`, `FhirMedicationRequestRestController` | _Phase 1_ | | | open |
 | DB-06 | **Prescriptions card.** From FHIR `MedicationRequest` or the REST prescriptions endpoint, matching the PHP card. | `FhirMedicationRequestRestController`; REST prescription routes | _Phase 1_ | | | open |
 | DB-07 | **Care Team card.** From FHIR `CareTeam`, matching the PHP card. | `FhirCareTeamRestController` | _Phase 1_ | | | open |
-| DB-08 | **One more section** (our choice, API-backed): encounter history, labs, vitals, immunizations, upcoming appointments, or notes. | `vitals_fragment.php`, `labdata_fragment.php`, `immunizations.php`, `pnotes_fragment.php`, … | _Phase 1_ | | | open |
+| DB-08 | **Patient Notes section** (chosen by David, 2026-09-25): the patient's notes as shown on the PHP dashboard, from the API. | `pnotes_fragment.php`, `pnotes.php`; API route for patient notes (to trace) | _Phase 1_ | | | open |
 | DB-09 | **Parity.** For each implemented card, the same patient shows the same data, states (empty, loading, error), and UX layout as the current PHP dashboard. | `demographics.php` + fragments | _Phase 1_ | | | open |
 | DB-10 | **Backend untouched.** No changes to OpenEMR PHP, schema, or API. The new app consumes the existing API only. Gaps are documented, not patched. | whole backend | n/a | | every slice | open |
 | DB-11 | **Defense doc.** `PATIENT_DASHBOARD_MIGRATION.md` in the repo explains why this framework, what moving off PHP gained, and what it cost, grounded in the Phase 8 scoring. | new file | missing | | final slice | open |
@@ -39,18 +39,19 @@ paths below are starting hints from the file tree only.
 
 | # | Where | Conflict | Proposed reading | Decided by / date |
 |---|---|---|---|---|
-| A1 | "Feature parity is the standard" vs the listed must-haves | The PHP dashboard has many more cards (vitals, immunizations, appointments, notes, insurance, amendments, labs, disclosures, reminders, …) than the brief lists. | The must-haves (DB-01…DB-08) define done. Parity applies within each implemented card. Remaining cards go to a parity checklist marked "not ported", with a reason. | |
-| A2 | "Consume the existing API" + "don't touch the backend" | Some dashboard data may not be exposed by the API (for example "active status" or MRN formatting). Parity and no-backend-changes can then conflict. | Phase 1 maps every field to an API source. Gaps get recorded as findings and shown as "not available via API". No backend patches. | |
-| A3 | Framework "of your choosing" | React + TypeScript + Vite was proposed earlier but not confirmed. | Decide by weighted scoring in Phase 8, with the top score winning by default. The scoring becomes the core of `PATIENT_DASHBOARD_MIGRATION.md`. | |
-| A4 | Where the new app lives and runs | Not specified: a new top-level folder? Served how? Deployed? | A new top-level app folder, run locally against the dev stack. Deployment only if David approves. | |
-| A5 | OAuth2/OIDC setup | It needs OpenEMR's API and OAuth2 enabled and a registered client. That is configuration in the local dev stack, not a backend code change. | Treat it as local environment config, documented in the setup steps. Confirm it doesn't count as "touching the backend". | |
-| A6 | Relationship to the AgentForge Co-Pilot | The brief doesn't mention embedding the Co-Pilot in the new dashboard. | Out of scope unless David wants it as a side quest. | |
+| A1 | "Feature parity is the standard" vs the listed must-haves | The PHP dashboard has many more cards (vitals, immunizations, appointments, notes, insurance, amendments, labs, disclosures, reminders, …) than the brief lists. | The must-haves (DB-01…DB-08) define done. Parity applies within each implemented card. Remaining cards go to a parity checklist marked "not ported", with a reason. | **Agreed**: David, 2026-09-25 |
+| A2 | "Consume the existing API" + "don't touch the backend" | Some dashboard data may not be exposed by the API (for example "active status" or MRN formatting). Parity and no-backend-changes can then conflict. | Phase 1 maps every field to an API source. Gaps get recorded as findings and shown as "not available via API". No backend patches. | **Agreed**: David, 2026-09-25 |
+| A3 | Framework "of your choosing" | React + TypeScript + Vite was proposed earlier but not confirmed. | Decide by weighted scoring in Phase 8, with the top score winning by default. The scoring becomes the core of `PATIENT_DASHBOARD_MIGRATION.md`. | **Agreed**: David, 2026-09-25 |
+| A4 | Where the new app lives and runs | Not specified: a new top-level folder? Served how? Deployed? | A new top-level app folder, run locally against the dev stack. Deployment only if David approves. | **Agreed**: David, 2026-09-25 |
+| A5 | OAuth2/OIDC setup | It needs OpenEMR's API and OAuth2 enabled and a registered client. That is configuration in the local dev stack, not a backend code change. | Treat it as local environment config, documented in the setup steps. Confirm it doesn't count as "touching the backend". | **Agreed**: David, 2026-09-25 |
+| A6 | Relationship to the AgentForge Co-Pilot | The brief doesn't mention embedding the Co-Pilot in the new dashboard. | Out of scope unless David wants it as a side quest. | **Agreed**: David, 2026-09-25 |
 
 ## Out of scope / stretch
 
 - Redesigning the UX (the brief says reimplement, not redesign).
 - Any OpenEMR backend change (DB-10).
-- Dashboard cards beyond DB-08 (see A1), unless David promotes them.
+- Dashboard cards beyond the brief's list plus Patient Notes (see A1).
+- UX fixes to things David dislikes in the current app (form highlighting, tab pop-ups, data-entry validation). The brief says reimplement, not redesign, and most of these are outside the dashboard. They're recorded in `RECON.md` and will go to the catalog / side quests.
 
 ## Audit scope derived from this trace (proposed; confirm at the Phase 1 checkpoint)
 
