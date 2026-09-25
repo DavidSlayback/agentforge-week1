@@ -46,14 +46,35 @@ export const PRICE_TABLE = Object.freeze({
     retrieved_at: '2026-09-24',
     estimate: true,
   },
-  // Deliberately absent: 'alibaba-qwen/qwen3.8-flash' (the W2 default
-  // reranker model, reranker.js's createQwenReranker). No official Alibaba
-  // Model Studio per-token price for this model could be confirmed from this
-  // environment (checked 2026-09-24). Per AGENTS.md ("fail loudly" / never
-  // present a guess as measured), rerank usage cost is left as `null`
-  // (`estimateCostUsd` below returns `null` for any key not in this table) —
-  // recorded as unknown, never as a silent `$0`. Add a real entry here, with
-  // a cited official pricing-page URL, once one is confirmed.
+  // Confirmed 2026-09-24 against the official Alibaba Model Studio pricing
+  // page. The deployed W2 endpoint (AGENTFORGE_MODEL_ENDPOINT) is
+  // token-plan.cn-beijing.maas.aliyuncs.com, so the Chinese Mainland
+  // (Beijing) rate below is the one `estimateCostUsd` uses; the
+  // International (Singapore) rate is recorded alongside for reference only
+  // and is never used by `estimateCostUsd`. This is both the W2 answer
+  // composer's synthesis-lane model (server.js's `provider`/`answerProvider`,
+  // AGENTFORGE_PROVIDER_MODE=qwen) and the default reranker model
+  // (reranker.js's `createQwenReranker`).
+  //
+  // The account may be on a prepaid "token plan" rather than metered
+  // per-token billing; this is a list-price estimate applied to measured
+  // token counts, not a reconciled invoice figure.
+  'alibaba-qwen/qwen3.8-flash': {
+    input_per_million_usd: 0.113,
+    output_per_million_usd: 0.382,
+    source: 'https://www.alibabacloud.com/help/en/model-studio/model-pricing (qwen3.8-flash, Chinese Mainland/Beijing region — matches the deployed token-plan.cn-beijing.maas.aliyuncs.com endpoint)',
+    retrieved_at: '2026-09-24',
+    estimate: false,
+    // International (Singapore) rate from the same page, for reference only;
+    // `estimateCostUsd` never applies this — it also carries a 1M-token free
+    // quota for 90 days that would make a naive per-token calculation
+    // overstate real cost during that window.
+    international_singapore_rate: {
+      input_per_million_usd: 0.15,
+      output_per_million_usd: 0.47,
+      note: '1M-token free quota for 90 days; not applied by estimateCostUsd',
+    },
+  },
 });
 
 /**

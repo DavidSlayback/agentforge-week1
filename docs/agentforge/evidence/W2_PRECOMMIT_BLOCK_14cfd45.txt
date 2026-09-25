@@ -1,0 +1,507 @@
+# Pre-commit hook blocking a deliberate regression
+# Base: 14cfd45 (agentforge/w2-final). Captured 2026-09-24 in a scratch clone; the regression was discarded after capture.
+# The staged change restores the lab header regex fixed in a91452b. The hook fails the W2 gate (sv-11-scan-text-lab-typed) and a unit test, and git creates no commit.
+
+$ git diff --cached   # deliberate regression: restore the pre-a91452b lab header regex
+-const HEADER_NAME = /(?<![A-Za-z0-9][ \t]*)\b(?:patient(?:\s+name)?|name)\s*:\s*([^:]+?)\s*(?:[-–·•~|,]\s*)*(?=\bdob\b|\bdate of birth\b|$)/i;
++const HEADER_NAME = /\b(?:patient(?:\s+name)?|name)\s*:\s*([^:]+?)\s*(?:[-–·•~|,]\s*)*(?=\bdob\b|\bdate of birth\b|$)/i;
+
+$ git commit -m "refactor(agentforge): simplify lab header name regex"
+AgentForge gate: module PHP lint and tests...
+49 passed, 0 failed
+AgentForge gate: unit suites...
+✔ signed synthetic context verifies and expires (1.4925ms)
+✔ authorization uses server context rather than browser-selected identity (0.227ms)
+✔ live authorization requires the OpenEMR module issuer and session authentication (0.147ms)
+✔ signed context TTL cannot exceed five minutes (0.2908ms)
+✔ signed requests do not require a duplicate body authorization object (0.1656ms)
+✔ authorization rechecks signed context expiry and context objects are immutable (0.141ms)
+✔ deterministic composer: lab, intake, chart, and guideline facts all produce claims that verify (zero dropped) (8.0944ms)
+✔ deterministic composer: a test name with an embedded digit (A1C) is named exactly, not genericized, and still verifies (0.5336ms)
+✔ deterministic composer: a Hemoglobin A1c test name is also named exactly (the combined-name golden fixture spelling) (0.4139ms)
+✔ deterministic composer: intake claims are the form's own labeled line, not wrapped in a duplicate label (0.5708ms)
+✔ demographics (name, DOB, phone) never appear as a patient_fact claim, even though the intake form has them observed (0.4084ms)
+✔ model path: claims that name each lab test exactly as its own test_name verify with zero drops (0.5679ms)
+✔ model path: a claim naming a different test than the one it cites is dropped, not shipped (1.3311ms)
+✔ low-confidence facts are excluded from patient_facts and listed as needs_review, never as a claim (0.2244ms)
+✔ a model that returns an invented, uncited claim has it dropped and counted, keeping the claims that do verify (0.5011ms)
+✔ a model whose entire output fails verification falls back to the deterministic composer, not an empty answer (0.5128ms)
+✔ a model that throws or produces invalid JSON falls back to the deterministic composer (0.5727ms)
+✔ no provider configured composes deterministically (0.21ms)
+✔ with no guideline evidence given (an off-topic or record-lookup question), there are never guideline claims -- deterministic path (0.2013ms)
+✔ with no guideline evidence given, a model cannot manufacture a guideline claim either -- it has nothing to cite (0.3442ms)
+✔ isRecordLookupQuestion is exported and agrees with the supervisor's rule (0.3923ms)
+✔ composeGroundedAnswer passes a maxTokens of at least 2000 to the real provider (not the 300-token briefing default) (0.3354ms)
+✔ a model that verifies only one of several available facts gets the missing ones topped up deterministically, labeled model+deterministic-topup (0.3827ms)
+✔ a model that already covers every fact and guideline is not relabeled as topped up (0.4002ms)
+✔ model_rejected_reason is all_claims_unverified and the drop count is carried forward when every model claim fails verification (0.3054ms)
+✔ model_rejected_reason is invalid_json when the model never produces schema-valid JSON (0.2635ms)
+✔ model_rejected_reason is provider_error when the model throws (e.g. a timeout) (0.2276ms)
+✔ model_rejected_reason is absent when no model is configured at all (0.1618ms)
+✔ GroundedAnswerResult accepts every model_rejected_reason and the topup composer label (0.1396ms)
+✔ composeGroundedAnswer records exactly one model-usage entry on the trace, for every composer path (0.6002ms)
+✔ an effectively-deterministic provider (bare DeterministicProvider, or a ResilientProvider wrapping one) is used directly, no retries (0.3501ms)
+✔ a signal that is already aborted skips the real model and reports model_rejected_reason: deadline (0.2136ms)
+✔ the prompt lists facts/guideline chunks under short labels and asks the model to cite by "refs", never by echoing a full citation object (0.5887ms)
+✔ a realistic ref-based model response for lab-a facts is materialized into claims carrying full 5-key citations that verify (0.4716ms)
+✔ a claim whose ref does not name any known label is dropped: it ends up with no citations, fails UNCITED_CLAIM, and never survives (0.3343ms)
+✔ model_claims_proposed/verified: a fake model with 3 claims, 1 unverifiable, verifies 2 -- and the topped-up 3rd fact is not counted as the model's own (0.4348ms)
+✔ model_claims_proposed/verified are 0/0 on the deterministic-only path (no provider configured at all) (0.2213ms)
+✔ model_claims_proposed/verified are 0/0 when the per-request deadline had already passed before the call (0.2695ms)
+✔ model_claims_proposed/verified are 0/0 when the model throws (provider_error) -- no parseable output ever reached us (0.3035ms)
+✔ model_claims_proposed/verified are 0/0 when the model never produces schema-valid JSON -- ResilientProvider's own internal fallback ran, not the model (0.2472ms)
+✔ model_claims_proposed/verified reflect a model whose schema-valid JSON has zero claims that verify (all_claims_unverified): proposed > 0, verified 0 (0.3485ms)
+✔ composeGroundedAnswer records model_claims_proposed/verified on the trace answer-stage entry (counts only, no PHI) (0.2702ms)
+✔ an unresolved ref never silently borrows another fact's citation, even one whose values happen to match the claim text (0.3788ms)
+✔ a scan deadline of 0ms composes the answer deterministically with model_rejected_reason: deadline (42.603ms)
+✔ a generous scan deadline lets a fast real model answer normally (4.7474ms)
+✔ allowExternalLiveProvider: false forces the deterministic composer for a live chart adapter (2.4261ms)
+✔ the HTTP boundary refuses to send (and, per code order, to persist from) a workflow whose answer fails contract validation (245.6172ms)
+✔ chart retrieval and synthetic writeback are separate collaborators (0.8748ms)
+✔ a read-only chart service has no synthetic writeback capability (0.7375ms)
+✔ stamped BUILD_SHA from git archive wins (2.7143ms)
+✔ unstamped placeholder falls back to a valid env SHA (1.389ms)
+✔ never reports a guessed or malformed SHA (1.5085ms)
+✔ the committed BUILD_SHA is an export-subst placeholder (0.3274ms)
+✔ probe allowed values are real W2 schema shapes (5.0591ms)
+✔ claims mode rejects: uncited Synthroid (3.1685ms)
+✔ claims mode rejects: uncited Eliquis (1.5866ms)
+✔ claims mode rejects: uncited tacrolimus (1.3175ms)
+✔ claims mode rejects: uncited Jardiance (0.4287ms)
+✔ claims mode rejects: no known allergies with an allergy on file (0.5797ms)
+✔ claims mode rejects: HbA1c has improved (0.4788ms)
+✔ claims mode rejects: critically low when flag is normal (0.436ms)
+✔ claims mode rejects: twice daily when record says daily (0.4309ms)
+✔ claims mode rejects: spelled-out dose (0.437ms)
+✔ claims mode rejects: six months when record says two weeks (0.4109ms)
+✔ claims mode rejects: 1000 years old citing metformin 1000 mg (0.4087ms)
+✔ claims mode rejects: 42 ER visits citing age 42 (0.3618ms)
+✔ claims mode rejects: chest pain citing the fatigue field (0.3695ms)
+✔ claims mode rejects: hemoglobin claim citing lab.k (0.3633ms)
+✔ claims mode rejects: A1C named while citing the plain hemoglobin result (0.3728ms)
+✔ claims mode rejects: HbA1c named while citing the plain hemoglobin result (0.3897ms)
+✔ claims mode rejects: Hemoglobin named while citing the A1C result (0.369ms)
+✔ claims mode rejects: fake source_id (0.6843ms)
+✔ claims mode rejects: field-less citation (0.3287ms)
+✔ claims mode rejects: quote-only match with wrong ids (0.2948ms)
+✔ claims mode rejects: right ids, altered quote (0.2985ms)
+✔ claims mode rejects: wrong collection date (0.3987ms)
+✔ claims mode rejects: guideline quote with a date that is not its version (0.774ms)
+✔ claims mode rejects: guideline paraphrase not in the chunk (0.4118ms)
+✔ claims mode rejects: patient fact citing a guideline (0.3322ms)
+✔ claims mode rejects: guideline claim citing a patient value (0.2981ms)
+✔ claims mode rejects: imperative dose instruction (0.3092ms)
+✔ claims mode rejects: second-person instruction (0.3439ms)
+✔ claims mode rejects: recommendation to act (0.3421ms)
+✔ claims mode rejects: framing with clinical content (0.5151ms)
+✔ claims mode rejects: framing smuggling a symptom (0.372ms)
+✔ claims mode rejects: unknown claim kind (0.3489ms)
+✔ framing may name a withheld drug but not state its value: The metformin dose was one thousand milligrams. (0.4626ms)
+✔ framing may name a withheld drug but not state its value: The metformin dose was at the higher dose. (0.3766ms)
+✔ framing may name a withheld drug but not state its value: Metformin was discontinued. (0.3731ms)
+✔ claims mode accepts: trailing zero (0.4593ms)
+✔ claims mode accepts: no unit spacing (0.3323ms)
+✔ claims mode accepts: typed collection date (0.3766ms)
+✔ claims mode accepts: normal flag supports within the normal range (0.6713ms)
+✔ claims mode accepts: high flag supports high (0.2943ms)
+✔ claims mode accepts: A1C named exactly as its raw test_name, citing its own result (0.2966ms)
+✔ claims mode accepts: A1C named as the combined Hemoglobin A1C alias, citing its own result (0.3053ms)
+✔ claims mode accepts: A1C named as glycated hemoglobin, citing its own result (0.3626ms)
+✔ claims mode accepts: Hb alias for the plain hemoglobin result (0.2992ms)
+✔ claims mode accepts: typed intake medication leaf (0.2691ms)
+✔ claims mode accepts: typed intake chief concern leaf (0.2825ms)
+✔ claims mode accepts: typed intake allergy leaf (0.2757ms)
+✔ claims mode accepts: citation-shaped record value (0.2662ms)
+✔ claims mode accepts: descriptive past tense is not a directive (0.2643ms)
+✔ claims mode accepts: two cited values in one claim (0.2858ms)
+✔ claims mode accepts: verbatim guideline quote with a date-format version (0.3466ms)
+✔ claims mode accepts: verbatim guideline quote with attribution (0.3163ms)
+✔ claims mode accepts: withheld drug with qualification phrasing only (0.3395ms)
+✔ claims mode verdicts are per claim, carry codes not text, and empty input fails (1.2527ms)
+✔ text mode directive check targets instructions, not descriptions (0.5604ms)
+✔ clinical action drafts are structured, explicit-source, and uncommitted (1.1333ms)
+✔ clinical action confirmation requires explicit clinician event and is idempotent (0.3617ms)
+✔ service requires the action write context and surfaces persistence failure (1.9542ms)
+✔ clinical action API drafts, confirms, reads back, cancels, and blocks unsafe routes (325.375ms)
+✔ clinical action API reports writeback failure and live mode stays write-disabled (355.7302ms)
+✔ canonical request contracts reject body authorization and malformed input (0.6851ms)
+✔ canonical follow-up and briefing responses reject missing contract fields (0.2704ms)
+✔ follow-up contract permits only the signed demo context token as an extension (0.1027ms)
+✔ follow-up contract rejects empty required strings (0.0882ms)
+✔ follow-up contract represents bounded deadline outcomes without patient content (0.2359ms)
+✔ opaque correlation IDs remain stable across stale refreshes (0.588ms)
+✔ source document contract requires a supported type, filename, and base64 content (0.2746ms)
+✔ source document contract rejects content that is not a PDF or a .scan.txt envelope (0.2059ms)
+✔ serves a conversation surface with safe follow-up prompts (234.2304ms)
+✔ every on-disk directory a src module locates via new URL(..., import.meta.url) is copied into the Docker image (6.0475ms)
+✔ the Dockerfile explicitly copies the guideline corpus directory (0.1867ms)
+✔ evaluator panel exposes operational routes and saved evidence (224.5462ms)
+Confidence object: {"mean":0.79,"min":0.78,"count":2}
+✔ extraction confidence summarizer returns nulls and 0 for empty extraction (0.6028ms)
+✔ extraction confidence summarizer returns nulls and 0 when no confidences are found (0.1361ms)
+✔ extraction confidence summarizer computes mean and min from lab results only (0.135ms)
+✔ extraction confidence summarizer computes mean and min from intake form observed count (0.1258ms)
+✔ extraction confidence summarizer combines lab and intake confidences (0.103ms)
+✔ extraction confidence summarizer rounds mean and min to 2 decimals (0.1079ms)
+✔ extraction confidence survives redaction in stored trace with a golden lab PDF (20.6577ms)
+✔ document type is detected from keyword vocabulary, and a weak signal stays undetermined (1.0794ms)
+✔ patient identity check matches, mismatches and refuses to guess (0.8007ms)
+✔ zero extracted facts is BLOCKED no_fields_extracted before retrieval (2.6577ms)
+✔ a declared type contradicted by the document text is QUALIFIED doc_type_mismatch, never READY (6.4633ms)
+✔ intake demographics that contradict the chart are BLOCKED patient_mismatch (0.6475ms)
+✔ service scan path on recorded golden OCR: table lab BLOCKED, other-patient intake BLOCKED, lab-as-intake QUALIFIED (21.794ms)
+✔ the scan workflow refuses another patient's document instead of throwing (0.8942ms)
+✔ scan traces carry allowlisted handoff summaries, not typed lab values or dates (3.3964ms)
+✔ source preview never lists a low-confidence field as verified (0.7708ms)
+✖ lab reports are identity-checked on their printed patient header (0.9888ms)
+✔ a missing chart record is never an identity match (0.0919ms)
+✔ service scan path: same name with a different DOB, unknown chart patient, and another patient's lab header (4.393ms)
+✔ a corrupt PDF is a structured document_unreadable refusal, traced as blocked, without tool stderr (0.9857ms)
+✔ HTTP scan-supervisor answers 403 for another patient's document and 422 for an unreadable PDF (232.049ms)
+✔ the server serves the committed W2 baseline instead of running the gate per request (0.5133ms)
+✔ fixture manifest is absent unless the recorder completed (11.3471ms)
+✔ embeddings fingerprint depends on the vectors, not on file formatting (0.5557ms)
+✔ live client embed prefixes text per the documented task convention and never sends taskType (1.2127ms)
+✔ live client embed accepts both the singular embedding.values and the embeddings[].values response shapes (0.6922ms)
+✔ live client rerank sends store: false and parses a steps[]-shaped interactions response (1.6706ms)
+✔ responseText reads the documented steps[] shape, the content-array step shape, and falls back to the legacy output shape (0.1182ms)
+✔ rerankFixtureHash is stable across candidate-set reordering (order is not part of the request identity) (6.7775ms)
+✔ the recorded-or-stub client never claims google/the real model when it falls back to the stub (0.972ms)
+✔ real BM25 ranks a relevant real-corpus guideline for an on-topic query, with full provenance (4.1195ms)
+✔ guideline retrieval qualifies empty or off-topic questions (0.6036ms)
+✔ the real corpus loads 20-60 chunks, each with full source metadata and no synthetic placeholders (0.3003ms)
+✔ sanitizeForExternalModel strips a name, a date of birth, and a phone number, keeping only clinical vocabulary words (0.4869ms)
+✔ the hybrid retriever never sends the raw client message to any external model: a name/DOB/phone-bearing clinician question is stripped before the embed/rerank calls (5.0914ms)
+✔ the hybrid retriever degrades to sparse-only, not a fabricated empty embed call, when nothing in the query survives sanitization (2.0046ms)
+✔ the hybrid retriever unions sparse+dense candidates, reranks, and honestly labels a stub-backed run (10.1047ms)
+✔ the hybrid retriever reports degraded: null only for a genuinely non-stub (real or recorded) client (2.4447ms)
+✔ the hybrid retriever degrades to sparse-only, never labeled hybrid, when embeddings are missing (0.8646ms)
+✔ the hybrid retriever degrades to sparse-only when no embed client is configured (2.949ms)
+✔ the hybrid retriever degrades to sparse-only when embeddings are configured but no reranker is (3.2334ms)
+✔ the hybrid retriever degrades to sparse-only, without leaking the failure detail, when the embed step throws (2.1262ms)
+✔ a reranker failure with embeddings OK fuses sparse+dense by reciprocal rank, labeled degraded: no_rerank, never a full hybrid result (2.2462ms)
+✔ a query/corpus embedding dimension mismatch degrades to sparse-only instead of silently scoring every chunk 0 and calling it hybrid (2.0997ms)
+✔ Cohere retriever embeds synthetic corpus and query, reranks, and preserves provenance (0.9683ms)
+✔ Cohere retriever requires a server-side key and sanitizes provider failures (0.501ms)
+✔ Cohere retriever does not transmit free-form unsupported user text (0.1423ms)
+✔ follow-up evidence API separates patient facts from guideline evidence (204.0166ms)
+✔ follow-up evidence never leaks a retrieval failure message, only an error code (15.8461ms)
+✔ live OpenEMR mode disables fixture context and fixture UI paths (248.5601ms)
+✔ scoreDocumentCase runs one golden case (lab-a) end to end and returns the expected shape (36.9209ms)
+✔ measureKeyMetrics on a single-document subset returns the full report shape with consistent totals (5.0058ms)
+✔ measureKeyMetrics rejects an unknown case id rather than silently skipping it (0.4178ms)
+✔ every CANONICAL_CASE_BY_DOCUMENT id names a case that actually exists in the current golden set (0.137ms)
+✔ selectSamples reads the real pdf-samples manifest and keeps only fixture-patient-001 documents (1.1476ms)
+✔ selectSamples skips (and explains) a sample belonging to a different patient fixture, from a synthetic manifest (2.2737ms)
+✔ computeLiveMetrics: model grounding rate sums verified/proposed across runs, not an average of per-run rates (0.3357ms)
+✔ computeLiveMetrics: model grounding rate is null, not 0, when no model was ever called (0.099ms)
+✔ computeLiveMetrics: composer fallback rate counts deterministic-fallback and any set model_rejected_reason, never a topped-up model answer (0.1224ms)
+✔ computeLiveMetrics: failed runs are excluded from rate/timing math but reported by count and stage (0.1383ms)
+✔ computeLiveMetrics: p50/p95 wall time and per-stage durations are computed from successful runs only (0.1871ms)
+✔ computeLiveMetrics never includes claim text, quotes, or values -- only counts, labels, and timings (0.1603ms)
+✔ alert wording flips the comparison when an alert is not firing (0.6611ms)
+✔ fake traces render preview KPIs, alert states, optional fields, and no PHI sentinels (2.5097ms)
+✔ production dashboard route has no fake banner or fixture import (189.0093ms)
+✔ every golden PDF has an OCR recording made from exactly these bytes (3.1916ms)
+﹣ live Tesseract OCR matches the committed recordings line for line (0.0872ms) # pdftoppm/tesseract/pdfinfo are not on PATH; live OCR parity runs only where they are installed (the Docker image built from the repo Dockerfile)
+✔ recorded OCR replay feeds the same post-OCR mapping and refuses PDFs it has no recording for (2.2051ms)
+✔ the production default OCR engine is the real pdftoppm + Tesseract binaries (0.3739ms)
+✔ simulated OpenEMR seam accepts matching signed identity and scope (1.2189ms)
+✔ simulated OpenEMR seam blocks missing, mismatched, and non-read contexts (0.2199ms)
+✔ fixture parity preserves coverage semantics at the OpenEMR seam (0.1985ms)
+✔ coverage-scoped retrieval excludes records from failed and timed-out groups (0.4945ms)
+✔ service requires the verified synthetic session when the seam is strict (8.4741ms)
+✔ shared HMAC vectors: the Node signer reproduces every canonical string and signature (1.3636ms)
+✔ shared context-token vector verifies with the same claims the PHP verifier expects (0.2471ms)
+✔ canonical string covers every signed field, so changing any one changes the signature (0.2383ms)
+✔ module client signs requests, adds a correlation id, and never puts bodies in errors (1.2076ms)
+✔ module client maps auth, replay, timeout and scope failures to typed errors (15.3833ms)
+✔ module client re-checks document bytes read back from OpenEMR (0.4951ms)
+✔ lab results map to LOINC rows literally; unmapped analytes are reported, not guessed (0.4627ms)
+✔ observation read-back requires every stored result, with matching code and value (0.2747ms)
+✔ module writeback maps only allowlisted demo patients and forwards launcher tokens unchanged (0.7193ms)
+✔ N1: a context is forwarded only for its own patient, and a minted token never exceeds the caller scope (0.424ms)
+✔ openemr-module persistence: upload stores the source in OpenEMR, extraction persists derived facts and lab rows, re-upload is idempotent (478.4146ms)
+✔ openemr-module persistence fails loudly when the module is unreachable (203.8479ms)
+✔ in-memory synthetic mode is labelled as such and never claims OpenEMR persistence (227.5633ms)
+✔ fixture-mode briefings label their read as the synthetic fixture, not OpenEMR (8.9836ms)
+✔ a read-scope token never writes derived facts: the response says persistence was not authorized (259.8846ms)
+✔ a failed OpenEMR read-back fails the request loudly (502), never a silent success (274.3534ms)
+✔ a different payload on an existing key is reported as payload_differs, not as a plain duplicate (14.051ms)
+✔ OpenEMR REST adapter uses only GET allowlisted routes and normalizes records (2.0323ms)
+✔ OpenEMR REST adapter fails closed without an access token (0.1271ms)
+✔ OpenEMR REST adapter requires the OpenEMR session issuer by default (0.7647ms)
+✔ OpenEMR REST adapter filters overbroad patient-history responses by patient identity (0.5329ms)
+✔ OpenEMR REST adapter rejects a patient endpoint response for another patient (0.4536ms)
+✔ OpenEMR REST adapter rejects a patient endpoint response without identity proof (0.1767ms)
+✔ OpenEMR refresh provider rotates and persists refresh tokens without exposing them to callers (16.9455ms)
+✔ Tesseract word rows group into a cited synthetic intake field (1.4269ms)
+✔ PDF OCR adapter rejects non-PDF content before invoking system tools (0.4568ms)
+✔ PDF lab schema captures name, value, unit, range, date, and abnormal status for two tests (4.2751ms)
+✔ PDF intake schema captures demographics, concern, medications, allergies, and family history (3.003ms)
+✔ abnormal-flag tokens map to the strict AbnormalFlag enum, case-insensitively (0.1522ms)
+✔ PDF lab schema maps "Yes"/"No" abnormal tokens onto the typed LabResult per test (0.557ms)
+✔ citation quote_or_value carries the verbatim OCR line, not the canonical field label (0.5953ms)
+✔ a typed LabResult cites its value line and is only as confident as its least confident field (0.3904ms)
+✔ PreVisitPreparation owns the briefing lifecycle and cache opening (9.3685ms)
+✔ PreVisitPreparation stops before synthesis and cache write when verification fails (0.3472ms)
+✔ verified fallback still serves every fixture case when the model is unavailable (6.107ms)
+✔ estimateCostUsd computes input+output cost from the price table (0.5444ms)
+✔ estimateCostUsd returns null, never a guessed price, for an unlisted model (0.4863ms)
+✔ estimateCostUsd defaults to zero tokens (0.0917ms)
+✔ every price table entry states its source and estimate flag; every claimed-confirmed price has a real URL source (0.2094ms)
+✔ isPriceEstimated reports the estimate flag and null for unlisted keys (0.0878ms)
+✔ the Gemini 3.8 Flash price-increase date and post-increase rates are recorded, not silently applied (0.0774ms)
+✔ responses provider sends configured extra body fields (Qwen enable_thinking=false) (0.8069ms)
+✔ responses provider sends no extra fields by default (0.1548ms)
+✔ server env wiring: AGENTFORGE_MODEL_ENABLE_THINKING=false reaches the synthesis provider (0.5882ms)
+✔ provider failure retries twice then falls back deterministically (0.8389ms)
+✔ configured primary outage makes readiness not ready even when fallback can serve (0.1246ms)
+✔ unsafe or ungrounded live output is rejected before display and falls back (2.1865ms)
+✔ DashScope multimodal provider uses a text content part and normalizes response usage (0.828ms)
+✔ OpenAI Responses provider uses Bailian-compatible input and output shape (0.3285ms)
+✔ OpenAI Responses readiness probe checks the provider without patient content (0.2477ms)
+✔ Qwen reranker: interface conformance, thinking off, and honest (unknown) cost (3.5808ms)
+✔ Qwen reranker rejects a candidate number outside the list instead of trusting the model JSON (0.3527ms)
+✔ Qwen reranker throws a fixed code (never the raw text) on malformed JSON (0.4747ms)
+✔ Qwen reranker tolerates a markdown-fenced JSON response (0.2356ms)
+✔ Qwen reranker throws a fixed schema-invalid code when the JSON does not match the shape (0.2889ms)
+✔ Qwen reranker never leaks an underlying request-failure message (0.2266ms)
+✔ createQwenReranker requires an endpoint and key (0.1241ms)
+✔ Gemini reranker adapter maps chunk_id/relevance_score to the id/score interface and preserves usage (0.2512ms)
+✔ createGeminiReranker requires a client exposing rerank() (0.1403ms)
+✔ Cohere reranker maps its index-based response back to candidate ids and records unknown cost (0.4864ms)
+✔ Cohere reranker requires a server-side key and never leaks a request failure message (0.2493ms)
+✔ recorded-or-stub reranker falls back to an honestly-labeled deterministic stand-in when no fixture exists (8.125ms)
+✔ createRecordingReranker writes a fixture the matching recorded-or-stub reranker then finds and replays (2.1754ms)
+✔ rerankFixtureHash depends on the reranker provider, so switching providers never reuses a fixture recorded for a different one (0.1055ms)
+✔ configuredRerankProviderAndModel defaults to qwen for W2 (0.0888ms)
+✔ configuredRerankProviderAndModel selects gemini and its default model (0.0639ms)
+✔ configuredRerankProviderAndModel honors an explicit AGENTFORGE_RERANK_MODEL override (0.0323ms)
+✔ configuredRerankProviderAndModel rejects an unrecognized provider loudly (0.063ms)
+✔ createRerankerFromEnv builds a working, honestly-named Qwen reranker when configured (0.091ms)
+✔ createRerankerFromEnv returns null (never throws) when the selected provider is unconfigured (0.0581ms)
+✔ createRerankerFromEnv builds the Gemini adapter when GEMINI_API_KEY is set (0.0838ms)
+✔ createRerankerFromEnv builds Cohere when AGENTFORGE_COHERE_API_KEY is set (0.062ms)
+✔ Qwen reranker output budget scales with the candidate count (0.4171ms)
+✔ hybrid retriever reranks at most RERANK_CANDIDATE_LIMIT candidates (3.5616ms)
+✔ redacted traces survive a service restart through the configured store (374.3228ms)
+✔ recorded OCR page dimensions survive the scan-envelope extraction round trip (6.8061ms)
+✔ golden lab preview draws every fact at its recorded pixel percentages and links to existing boxes (1.925ms)
+✔ synthetic two-page recording draws each fact only on its page using that page dimensions (0.8222ms)
+✔ rendered page filename accepts Poppler zero padding (0.1604ms)
+✔ fixture-only source preview explains that no page image is available (0.8381ms)
+✔ PDF preview without page dimensions explains that geometry is unavailable (0.818ms)
+✔ page image route enforces signed patient scope and rejects fixtures without Poppler (293.7097ms)
+﹣ page rendering, cached scope checks, invalid pages, and render failures (0.2144ms) # Skipped page-render assertions: pdfinfo and/or pdftoppm are not on PATH.
+✔ page route reports missing Poppler as 503 without exposing tool errors (206.4153ms)
+✔ renders partial qualification and exposes a cross-patient block probe (276.5026ms)
+✔ scan-form adapter extracts cited complete lab fields under the frozen contract (4.1049ms)
+✔ intake fixture per-item medication/allergy ids are mapped into the typed IntakeForm, not silently dropped (2.7901ms)
+✔ scan-form adapter qualifies missing, unreadable, and conflicting values (1.0512ms)
+✔ active workers expose inspect-act-qualify handoffs and never promote empty evidence (0.8827ms)
+✔ evidence worker awaits an async retriever instead of silently qualifying its Promise (0.1602ms)
+✔ evidence worker turns a rejecting retriever into a qualified result with an error code, not raw error text (0.1498ms)
+✔ active supervisor keeps worker handoffs inspectable and qualifies incomplete evidence (3.6958ms)
+✔ active supervisor retrieves through an injected retrievalAdapter instead of the hard-wired default (0.5473ms)
+✔ active supervisor takes the retrieval provider label from the injected retriever, not a constant (1.4978ms)
+✔ active-supervisor request validation makes message optional but still type-checked (0.3134ms)
+✔ formulateEvidenceQuery builds the query from typed abnormal labs and chief concern, appending the clinician question last (0.2417ms)
+✔ Citation requires exactly the five W2 keys and rejects the old key names (2.8591ms)
+✔ LabResult requires every listed field (1.5558ms)
+✔ IntakeForm requires every listed section, present even when empty (1.9553ms)
+✔ GuidelineEvidence requires a nested five-key citation and the score/snippet fields (1.0314ms)
+✔ .scan.txt lab and intake extraction produce citations that validate against the Citation schema (3.0911ms)
+﹣ real scan path on a sample lab PDF produces schema-valid typed LabResult objects matching the manifest (0.0633ms) # pdftoppm/tesseract are not on PATH on this machine; the PDF-OCR path is untested here (verify in CI or the container, which install poppler-utils/tesseract-ocr).
+✔ committed JSON Schema docs match what schemas.js generates today (3.8569ms)
+✔ prepares a grounded complete briefing (9.3619ms)
+✔ blocks missing signed context without patient data (0.2326ms)
+✔ qualifies partial retrieval and withholds dependent claims (0.9308ms)
+✔ service cannot expose records returned from failed or timed-out coverage groups (0.4376ms)
+✔ service never relabels an explicitly cross-patient source record (0.5348ms)
+✔ failed verification prevents synthesis, display, and cache writes (0.2943ms)
+✔ isolates follow-up conversations by patient (0.607ms)
+✔ answers follow-up topics from the patient-scoped evidence boundary (1.4093ms)
+✔ answers documented plan follow-through without inventing completion (0.6366ms)
+✔ does not invent a discrepancy when the verified evidence has none (1.3942ms)
+✔ withholds same-date conflicts and explains them in follow-up (0.4435ms)
+✔ does not treat same-timestamp values as a resolved change (0.3337ms)
+✔ blocks external providers by default for live OpenEMR adapters (0.1397ms)
+✔ records the request lifecycle with opaque trace correlation and verification/display outcomes (1.7476ms)
+✔ uses a server-owned preparation cache and records interaction latency (1.0811ms)
+✔ bounds preparation cache entries and removes expired state (0.1212ms)
+✔ stale preparation cache refreshes through a bounded fresh retrieval (0.9532ms)
+✔ stale preparation is discarded before a failed refresh (0.488ms)
+✔ fresh retrieval returns an explicit deadline outcome without patient content (50.7751ms)
+✔ fresh retrieval deadline includes patient lookup (45.842ms)
+✔ model generation uses the remaining response deadline and completes a timeout trace (31.6883ms)
+✔ retrieval failures complete a redacted failure trace before rethrowing (0.7252ms)
+✔ calendar prewarm prepares once and opens a bound cache hit (1.4259ms)
+✔ calendar prewarm fails closed for mismatched authorization and provider failure (0.3583ms)
+✔ calendar prewarm rejects work above the configured concurrency bound (0.8014ms)
+✔ simulated synthetic source documents persist, read back, and deduplicate (1.9293ms)
+✔ simulated synthetic source documents fail closed across patient scope (1.1413ms)
+✔ synthetic source upload still requires a verified signed context at the adapter seam (0.3485ms)
+✔ synthetic source persistence reports failures and the service exposes the workflow result (1.2627ms)
+✔ AgentForge UI exposes the two synthetic source-document types and upload route (0.7047ms)
+✔ AgentForge UI accepts only PDF and .scan.txt uploads, not plain .txt (0.3434ms)
+✔ synthetic scan demo fixture route serves only the tracked sample with an explicit synthetic marker (188.2871ms)
+✔ synthetic PDF sample route serves only the four fixed completed form samples (244.1647ms)
+✔ AgentForge UI keeps the isolated W2 public path for links and API calls (0.3477ms)
+✔ UI runs the scan supervisor with the write context so derived facts can persist (0.1907ms)
+✔ synthetic source document API uploads, deduplicates, reads back, and scopes records (234.419ms)
+✔ the retired legacy lab-evidence, intake-evidence and supervisor routes now return 404 (217.9256ms)
+✔ synthetic scan-form evidence API and source preview preserve page-region citations (248.5139ms)
+✔ scan-supervisor accepts an absent or empty message: the UI sends no canned query string (249.2134ms)
+✔ scan extraction responses are re-validated at the HTTP boundary and never sent unvalidated (228.2859ms)
+✔ source document API rejects malformed input and live-mode writeback (534.535ms)
+✔ decideNext: extraction_needed is the default when nothing has run yet (1.5275ms)
+✔ decideNext: extraction_cached is still an EXTRACT decision (the trace reads truthfully: an extraction happened, from cache) (0.0944ms)
+✔ decideNext: a fail-loud safety-blocking reason stops at DONE, not RETRIEVE or ANSWER (0.0745ms)
+✔ decideNext: low_confidence_retry fires once when mean confidence is below 0.7, never twice (0.1029ms)
+✔ decideNext: confidence at or above 0.7 never triggers a retry (0.1049ms)
+✔ decideNext: record_lookup_only skips RETRIEVE and goes straight to ANSWER (0.0796ms)
+✔ decideNext: an ordinary question still routes to RETRIEVE, not ANSWER (0.0693ms)
+✔ decideNext: ANSWER once facts and evidence are both ready (0.0654ms)
+✔ decideNext: max_steps_reached caps the loop regardless of any other state (0.1425ms)
+✔ isRecordLookupQuestion: matches direct value/result/level questions, not open-ended ones (0.5958ms)
+✔ isRecordLookupQuestion: guideline-seeking questions (target/goal/recommended/normal/should/abnormal) are not a record lookup (0.1111ms)
+✔ answerComposer.js re-exports the same isRecordLookupQuestion as supervisor.js (one canonical copy) (4.2766ms)
+✔ active supervisor: a shared extractionCache skips EXTRACT on the second call for the same document and OCR mode (8.2718ms)
+✔ active supervisor: a different OCR mode is not served from another mode's cache entry (1.6533ms)
+✔ active supervisor: low mean confidence triggers exactly one re-extraction with the alternate-OCR content, recorded as a decision (0.9909ms)
+✔ active supervisor: a low-confidence retry with no usable alternate content keeps the original extraction and never loops (0.7347ms)
+✔ active supervisor: a low-confidence retry with no retry seam at all is a safe no-op, not a crash (0.6118ms)
+✔ active supervisor: a pure record-lookup question skips retrieval entirely (0.4154ms)
+✔ active supervisor: an ordinary follow-up question still retrieves evidence (unchanged behavior) (0.7121ms)
+✔ active supervisor: every decision is also recorded on the observer trace, redaction-safe (codes only) (0.8132ms)
+✔ active supervisor: a retry with lower confidence than the original is discarded, not adopted (0.8675ms)
+✔ active supervisor: a retry that comes back contract-invalid (blocked) never replaces the original valid extraction (0.7935ms)
+✔ active supervisor: a retry with higher confidence is adopted and the reported ocr_mode reflects the extraction actually used (0.7447ms)
+✔ active supervisor: extractionCache is content-addressed, so a different sourceDocumentId with identical content still hits the cache (1.1948ms)
+✔ active supervisor: a cache hit still records extraction confidence on the trace (setExtraction is called) (0.8156ms)
+✔ active supervisor: extractionCache evicts the oldest entry once it exceeds its bound (50) (18.8541ms)
+
+=== Trust-Probes Evaluation Results ===
+
+Probe ID			Category					Blocked	Legit Survived
+────────────────────────────────────────────────────────────────────────────────────────────────────
+inv-value               	invented value not in facts           	✓	✓
+misquote-field          	misquoted field (real citation, ...   	✓	✓
+value-borrow            	value borrowed from another field     	✓	✓
+guideline-paraphrase    	guideline paraphrase (not verbatim)   	✓	✓
+patient-fact-citing-guideline	patient_fact citing a guideline       	✓	✓
+treatment-directive     	treatment directive (start metfo...   	✓	✓
+low-confidence          	low-confidence/needs-review fact      	✓	✓
+unsupported-negation    	unsupported negation (no allergi...   	✓	✓
+unsupported-interpretation	unsupported interpretation (crit...   	✓	✓
+uncited-claim           	uncited claim                         	✓	✓
+────────────────────────────────────────────────────────────────────────────────────────────────────
+{"adversarial_block_rate":1,"probes":10,"blocked":10,"legit_survived":10}
+
+PASSED: All 10 probes blocked adversarial claims.
+✔ test\trust-probes.test.js (139.9969ms)
+✔ fabricated-warfarin probe fails: every sentence must be anchored, not just one (2.3017ms)
+✔ a fully anchored multi-sentence answer passes (0.3988ms)
+✔ an invented number, an invented date, or a number borrowed from another fact fails (1.0361ms)
+✔ withheld fields and qualification reasons anchor names but never numbers (0.4915ms)
+✔ an unanchored model answer falls back to the deterministic template (1.1425ms)
+✔ a sentence naming a withheld-only drug may not state a value, change, or status (0.4644ms)
+✔ verifyClaims text mode gives one verdict per sentence and keeps the directive check (1.6944ms)
+✔ complete verification fails when any coverage group is unavailable (0.235ms)
+✔ verification rejects read operations outside the canonical allowlist (0.1384ms)
+✔ successful empty coverage is distinct from unavailable coverage (0.18ms)
+✔ complete verification fails when canonical coverage groups are missing (0.1149ms)
+✔ W2 gate has 50 distinct cases in every category, each documenting its failure mode (0.9695ms)
+✖ W2 gate passes the committed baseline with per-category thresholds (142.9822ms)
+✔ W2 gate blocks an injected defect instead of warning (82.307ms)
+✖ W2 gate blocks case-set drift against the committed baseline (78.1689ms)
+✔ W2 gate fails a category that drops by more than 5 points against the baseline (75.9125ms)
+✔ W2 gate report carries only codes, never the synthetic identifiers it checks for (78.6033ms)
+✔ overlapping output-capture sessions restore the real console and stdout (0.3645ms)
+✔ loosening a threshold or the case count changes the case-set hash (1.7052ms)
+ℹ tests 390
+ℹ suites 0
+ℹ pass 384
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 3
+ℹ todo 0
+ℹ duration_ms 13060.201
+
+✖ failing tests:
+
+test at test\fail-loud.test.js:137:1
+✖ lab reports are identity-checked on their printed patient header (0.9888ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      dob: null,
+  +   name: 'Hemoglobin'
+  -   name: null
+    }
+  
+      at TestContext.<anonymous> (file:///C:/Users/david/AppData/Local/Temp/claude/C--Users-david-repos-agentforge-week1/ca245a91-5065-4e4c-a995-ceba597a44f2/scratchpad/clone-ref/agentforge/test/fail-loud.test.js:145:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { name: 'Hemoglobin', dob: null },
+    expected: { name: null, dob: null },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test\w2-regression-gate.test.js:29:1
+✖ W2 gate passes the committed baseline with per-category thresholds (142.9822ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   {
+  +     critical: false,
+  +     id: 'sv-11-scan-text-lab-typed',
+  +     issues: [
+  +       'final_state_BLOCKED_expected_QUALIFIED',
+  +       'reason_missing:patient_identity_unverified'
+  +     ],
+  +     label: 'schema_valid'
+  +   }
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///C:/Users/david/AppData/Local/Temp/claude/C--Users-david-repos-agentforge-week1/ca245a91-5065-4e4c-a995-ceba597a44f2/scratchpad/clone-ref/agentforge/test/w2-regression-gate.test.js:31:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { id: 'sv-11-scan-text-lab-typed', label: 'schema_valid', critical: false, issues: [Array] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test\w2-regression-gate.test.js:46:1
+✖ W2 gate blocks case-set drift against the committed baseline (78.1689ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///C:/Users/david/AppData/Local/Temp/claude/C--Users-david-repos-agentforge-week1/ca245a91-5065-4e4c-a995-ceba597a44f2/scratchpad/clone-ref/agentforge/test/w2-regression-gate.test.js:51:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[git commit exit code: 1]
+$ git log --oneline -1
+14cfd45 docs(agentforge): W2 cost and latency report

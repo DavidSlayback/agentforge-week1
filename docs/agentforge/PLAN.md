@@ -174,6 +174,26 @@ Due "by the end of the week", which we read as the W2 final, Sunday 12:00 CT.
   browser client with PKCE and a dashboard redirect URI.
 - OAuth2 login is OpenEMR's own login and consent flow, so graders need
   OpenEMR credentials for a demo user.
+- Public clients with PKCE are supported (`AuthorizationController.php`, "force
+  PKCE for native and web apps"); registration is dynamic
+  (`/oauth2/<site>/registration`) or via `interface/smart/register-app.php`.
+  Standalone launch (`launch/patient`) and EHR launch both exist.
+- The legacy cards are Twig under `templates/patient/card/`, rendered from
+  `interface/patient_file/summary/demographics.php`; the header is pushed into
+  the nav frame by JS, not a card. There is no lab-results card today (only the
+  latest result in `labdata_fragment.php`).
+- **Medications vs Prescriptions:** FHIR `MedicationRequest` is backed by a
+  UNION of `prescriptions` and `lists` (type `medication`)
+  (`PrescriptionService.php`). Prescriptions default to `intent=order`, list
+  medications to `intent=plan`, so the two cards split on `intent`; both
+  tables have an optional intent-override column, so this is a default, not
+  a guarantee.
+- **`Patient.active` is hardcoded `true`** (`FhirPatientService.php:212`).
+  The header's "active status" must come from another signal (e.g.
+  `deceasedDateTime`), and the difference must be documented.
+- CORS (`CORSListener.php`) reflects any `Origin` with credentials allowed, so
+  a same-origin path behind Caddy avoids relying on it.
+- Recon was read-only (2026-09-24); the facts above were spot-checked in source.
 
 **Open decisions (owner, later):**
 1. **Framework.** Candidates include React + TypeScript + Vite, Angular

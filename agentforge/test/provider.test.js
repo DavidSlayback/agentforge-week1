@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DashScopeMultimodalProvider, DeterministicProvider, OpenAIResponsesProvider, ResilientProvider } from '../src/modelProvider.js';
+import { DashScopeMultimodalProvider, DeterministicProvider, OpenAICompatibleProvider, OpenAIResponsesProvider, ResilientProvider } from '../src/modelProvider.js';
+import { PRICE_TABLE } from '../src/pricing.js';
 import { verifyGeneratedText } from '../src/verifier.js';
 
 class FailingProvider {
@@ -88,6 +89,52 @@ test('OpenAI Responses provider uses Bailian-compatible input and output shape',
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+// Cost-honesty tests (W2-C10): a provider that doesn't report its own cost
+// must never fall back to a silent $0 -- it computes from pricing.js's
+// PRICE_TABLE when a priceKey is configured, else returns null (unknown).
+test('OpenAI Responses provider computes cost from PRICE_TABLE via priceKey when the response reports none', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, async json() { return { output_text: 'no usage.cost in this response', usage: { input_tokens: 1003, output_tokens: 183 } }; } });
+  try {
+    const provider = new OpenAIResponsesProvider({ endpoint: 'https://example.invalid/v1/responses', apiKey: 'k', model: 'qwen3.8-flash', priceKey: 'alibaba-qwen/qwen3.8-flash' });
+    const result = await provider.generate({ prompt: 'p' });
+    const price = PRICE_TABLE['alibaba-qwen/qwen3.8-flash'];
+    const expected = Number(((1003 / 1_000_000) * price.input_per_million_usd + (183 / 1_000_000) * price.output_per_million_usd).toFixed(8));
+    assert.equal(result.estimatedCostUsd, expected);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('OpenAI Responses provider returns null (never 0) when neither the response nor a priceKey gives a cost', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, async json() { return { output_text: 'no usage.cost, no configured price', usage: { input_tokens: 50, output_tokens: 10 } }; } });
+  try {
+    const provider = new OpenAIResponsesProvider({ endpoint: 'https://example.invalid/v1/responses', apiKey: 'k', model: 'some-unpriced-model' });
+    const result = await provider.generate({ prompt: 'p' });
+    assert.equal(result.estimatedCostUsd, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a provider-reported cost always wins over a configured priceKey (OpenRouter-style actual billing)', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, async json() { return { choices: [{ message: { content: 'reported-cost response' } }], usage: { prompt_tokens: 100, completion_tokens: 50, cost: 0.0042 } }; } });
+  try {
+    const provider = new OpenAICompatibleProvider({ endpoint: 'https://example.invalid/v1/chat/completions', apiKey: 'k', model: 'some-model', priceKey: 'alibaba-qwen/qwen3.8-flash' });
+    const result = await provider.generate({ prompt: 'p' });
+    assert.equal(result.estimatedCostUsd, 0.0042);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('deterministic provider always reports an honest, explicit $0 (no model call happened)', async () => {
+  const result = await new DeterministicProvider().generate({ patient: { display_name: 'Synthetic Patient' }, claims: [], qualification: { required: false } });
+  assert.equal(result.estimatedCostUsd, 0);
 });
 
 test('OpenAI Responses readiness probe checks the provider without patient content', async () => {
