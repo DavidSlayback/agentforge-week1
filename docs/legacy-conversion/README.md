@@ -16,7 +16,10 @@ converting it to a modern system, based on the GauntletAI lecture
   `skills/overlays/legacy-conversion/`, and it is synced into the local
   Claude and Codex skill folders (`~/.claude/skills/`, `~/.codex/skills/`)
   with david-brain's `scripts/sync-runtime-skills --authored --apply`.
-  Invoke it as `/legacy-conversion` or by asking for a legacy audit.
+  Invoke it as `/legacy-conversion`, or `/legacy-conversion requirements <doc>`
+  to scope it to a new set of requirements. The david-brain project pack
+  `packs/projects/agentforge/` holds this repo's baseline commands and
+  safety boundaries.
 
 ## The idea in one paragraph
 
@@ -37,17 +40,17 @@ Legacy source ──▶ LLM-driven audit ──▶ Bug catalog ──▶ Migrati
 
 | # | Phase | Output |
 |---|---|---|
-| 0 | **Manual recon.** Read the README, run the app, look over the file tree. Don't read source yet. | `RECON.md`, `INVENTORY.md` |
-| 1 | **AI scrape.** Start from the build manifest and map every unit and dependency. *A tree, not a critique.* | `PROJECT-MAP.md`, `project/*.md` |
+| 0 | **Manual recon.** Read the README, run the app, look over the file tree, and run the existing build, tests and linters to record what already fails. Don't read source yet. | `RECON.md`, `INVENTORY.md`, `BASELINE-ERRORS.md` |
+| 1 | **AI scrape.** Start from the build manifest and map every unit and dependency, plus what's missing (tests, CI, backups, monitoring…). When working from requirements, trace each one to the code it touches. *A tree, not a critique.* | `PROJECT-MAP.md`, `project/*.md`, `REQUIREMENTS-TRACE.md` |
 | 2 | **UI-layer audit.** Write one long-form analysis per form, page, controller, or screen. | `ui/*.md`, `UI-FLOW.md` |
 | 3 | **Module audit.** Cover the business and data logic, globals, and transaction boundaries. | `modules/*.md`, `DATA-FLOW.md` |
 | 4 | **Data audit.** Cover the schema, stored logic, seed data, reports, and config. | `data/SCHEMA.md`, `data/REPORTS.md` |
 | 5 | **Repo split.** Freeze the original source and keep the docs as their own tree, with an agent brief. | `ORIGINAL-CODE/`, `docs/`, `CLAUDE.md` / `AGENTS.md` |
 | 6 | **Deep-dive.** Verify the key claims, cross-link the docs, trace end-to-end walkthroughs, and fill gaps. | `VERIFICATION.md`, walkthroughs |
 | 7 | **Bug catalog.** Merge all findings into one list with IDs, severity, category, and mitigation. | `BUGS-MITIGATIONS.md` |
-| 8 | **Migration route.** Score 3–5 routes, choose one, and write its playbook. | `MIGRATION-OPTIONS.md`, `MIGRATION-<ROUTE>.md` |
+| 8 | **Migration route.** Score 3–5 routes; the highest score wins unless a written override explains why not. Write its playbook. | `MIGRATION-OPTIONS.md`, `MIGRATION-<ROUTE>.md` |
 | 9 | **Side quests.** Park nice-to-haves and new features outside the critical path. | `sidequests/` |
-| 10 | **Forward slice loop.** Work arc → story → slice. Each slice is fully tested and reviewed, and resolves catalog rows. | code, `arcs/`, `DEV-LOG.md` |
+| 10 | **Vertical slices.** Build a walking skeleton first, then one slice per user flow or requirement, end to end (UI → logic → data → tests). Each slice is tested, reviewed, and closes catalog rows. | code, `arcs/`, `DEV-LOG.md` |
 
 Each phase produces an artifact the next phase builds on. Don't skip phases,
 and don't loop back except to correct an artifact.
