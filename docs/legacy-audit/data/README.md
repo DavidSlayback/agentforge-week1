@@ -3,10 +3,11 @@
 | Analysis | Covers | Tier | C / H / M / L |
 |---|---|---|---|
 | [SCHEMA](SCHEMA.md) | 11 tables the port reads, soft-delete/status flags, data quality | 2 | 0 / 1* / 4 / 4 |
-| [UUID-MAPPING](UUID-MAPPING.md) | integer ids ↔ uuids; how the BFF gets `pid`/`eid` | 2 | 0 / 0† / … |
-| [CONFIG](CONFIG.md) | `globals` that change what the dashboard/API shows or allows; dev users | 2 | provisional items for David |
+| [UUID-MAPPING](UUID-MAPPING.md) | integer ids ↔ uuids; how the BFF gets `pid`/`eid` | 2 | 0 / 0† / 1 / 2 |
+| [CONFIG](CONFIG.md) | `globals` that change what the dashboard/API shows or allows; dev users | 2 | 1‡ / 1‡ / 1 / 0 |
 
 \* D-5 (no per-set soft-delete for vitals) restates the verified M-5 / U-1; it's counted once in Phase 7.
+‡ Both CONFIG items are **local-only, provisional**. Critical: the dev default `admin` account. High: the OAuth password grant is enabled (`oauth_password_grant=3`). Whether either applies to production is David's check (see below).
 † The `ListService` uuid null-guard item was downgraded High → Medium on tier-3 review. It's latent: locally 0 `lists` rows lack a uuid.
 
 ## What the build needs from this phase
