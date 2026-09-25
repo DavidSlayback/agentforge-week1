@@ -1,0 +1,288 @@
+{
+  "pid": "13",
+  "header": "Medical Record Dashboard - Zack583 Metz686\n \n \nDashboard\nHistory\nAssessments \nReport\nDocuments\nTransactions\nIssues\nLedger\nExternal Data",
+  "cards": [
+    {
+      "title": "Allergies",
+      "collapsed": false,
+      "text": "Allergic disposition (finding) (1)\nAspirin (1)",
+      "links": [
+        "Allergies"
+      ],
+      "tables": [],
+      "inScope": "allergies"
+    },
+    {
+      "title": "Medical Problems",
+      "collapsed": false,
+      "text": "Chronic sinusitis (disorder)\nRisk activity involvement (finding)\nReceived higher education (finding)\nBody mass index 30+ - obesity (finding)\nPrediabetes (finding)\nAnemia (disorder)\nLocalized, primary osteoarthritis of the hand (disorder)\nEssential hypertension (disorder)\nMetabolic syndrome X (disorder)\nVictim of intimate partner abuse (finding)\nPart-time employment (finding)\nStress (finding)",
+      "links": [
+        "Medical Problems"
+      ],
+      "tables": [],
+      "inScope": "problems"
+    },
+    {
+      "title": "Medications",
+      "collapsed": false,
+      "text": "Astemizole 10 MG Oral Tablet",
+      "links": [
+        "Medications"
+      ],
+      "tables": [],
+      "inScope": "medications"
+    },
+    {
+      "title": "Prescriptions",
+      "collapsed": false,
+      "text": "Drug\tDetails\tQty\tRefills\tFilled\nAcetaminophen 325 MG Oral Tablet \t  1.00\t\t0\t2023-02-12 20:25:42\namLODIPine 2.5 MG Oral Tablet \t  1.00\t\t0\t2020-03-01 20:06:27\nsodium fluoride 0.0272 MG/MG Oral Gel \t  1.00\t\t0\t2018-03-11 23:02:53\nNaproxen sodium 220 MG Oral Tablet \t  1.00\t\t0\t2011-05-08 20:06:27\nAstemizole 10 MG Oral Tablet \t  1.00\t\t0\t1979-08-09 20:06:27",
+      "links": [
+        "Prescriptions"
+      ],
+      "tables": [
+        [
+          "Drug",
+          "Details",
+          "Qty",
+          "Refills",
+          "Filled"
+        ]
+      ],
+      "inScope": "prescriptions"
+    },
+    {
+      "title": "Care Team",
+      "collapsed": true,
+      "text": "$(function () {\n                let editModeEnabled = false;\n                $('.datepicker').datetimepicker({\n                    timepicker: false,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n\n                function toggleEditMode(enable = true) {\n                    document.querySelectorAll('.editShow').forEach(el => el.classList.toggle('d-none', !enable));\n                    document.querySelectorAll('.viewOnly').forEach(el => el.classList.toggle('d-none', enable));\n                    editModeEnabled = enable;\n                }\n\n                const existingCareTeam = [];\n                const userOptions = \"<option value=''><\\/option><option value='8' data-physician-type='' data-physician-code=''>Jarvis, Fred<\\/option><option value='6' data-physician-type='' data-physician-code=''>Lee, Donna<\\/option><option value='10' data-physician-type='' data-physician-code=''>Provider, External<\\/option><option value='1' data-physician-type='' data-physician-code=''>Smith, Billy<\\/option><option value='4' data-physician-type='' data-physician-code=''>Stent, Ernie<\\/option><option value='5' data-physician-type='' data-physician-code=''>Stone, Fred<\\/option><option value='7' data-physician-type='' data-physician-code=''>Wallace, Barbara<\\/option>\";\n                const relatedPersonOptions = \"<option value=''><\\/option>\"; // AI-generated addition\n                const hasRelatedPersons = false; // AI-generated addition\n                const facilityOptions = \"<option value=''><\\/option><option value='3' data-npi='' data-taxonomy=''>Great Clinic<\\/option>\";\n                const roleOptions = \"<option value=''><\\/option><option value='family_medicine_specialist' data-codes='SNOMED-CT:62247001'>Family Medicine Specialist<\\/option><option value='case_manager' data-codes='SNOMED-CT:133932002'>Case Manager<\\/option><option value='caregiver' data-codes='SNOMED-CT:224931005'>Caregiver<\\/option><option value='nurse' data-codes='SNOMED-CT:224565007'>Nurse<\\/option><option value='social_worker' data-codes='SNOMED-CT:159033005'>Social Worker<\\/option><option value='pharmacist' data-codes='SNOMED-CT:46255001'>Pharmacist<\\/option><option value='specialist' data-codes='SNOMED-CT:419772000'>Specialist<\\/option><option value='other' data-codes='SNOMED-CT:106292003'>Other<\\/option><option value='physician' data-codes='SNOMED-CT:158965000'>Physician<\\/option><option value='nurse_practitioner' data-codes='SNOMED-CT:224571005'>Nurse Practitioner<\\/option><option value='physician_assistant' data-codes='SNOMED-CT:449161006'>Physician Assistant<\\/option><option value='therapist' data-codes='SNOMED-CT:224538006'>Clinical Therapist<\\/option><option value='primary_care_provider' data-codes='SNOMED-CT:446050000'>Primary Care Provider<\\/option><option value='dietitian' data-codes='SNOMED-CT:159033005'>Dietitian<\\/option><option value='mental_health' data-codes='SNOMED-CT:224597008'>Mental Health Professional<\\/option><option value='healthcare_professional' data-codes='SNOMED-CT:223366009'>Healthcare Professional<\\/option>\";\n                const statusOptions = \"<option value='proposed' >Proposed<\\/option><option value='active' selected>Active<\\/option><option value='suspended' >Suspended<\\/option><option value='inactive' >Inactive<\\/option><option value='entered-in-error' >Entered In Error<\\/option>\";\n\n                function preloadTeamRows() {\n                    if (!existingCareTeam.length) return;\n                    existingCareTeam.forEach((member, idx) => {\n                        // AI-generated member type handling - Start\n                        const memberType = member.member_type || (member.contact_id ? 'contact' : 'user');\n                        const badgeClass = memberType === 'user' ? 'bg-primary' : 'bg-info';\n                        const badgeText = memberType === 'user' ? \"Provider\" : \"Related Person\";\n                        const memberName = memberType === 'user' ? (member.user",
+      "links": [
+        "Care Team"
+      ],
+      "tables": [
+        [
+          "Type",
+          "Member",
+          "Role",
+          "Facility",
+          "Since",
+          "Status",
+          "Note",
+          "Remove"
+        ]
+      ],
+      "inScope": "care_team"
+    },
+    {
+      "title": "Treatment Intervention Preferences",
+      "collapsed": true,
+      "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No treatment intervention preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Type\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Goals, preferences, and priorities for medical treatment [Reported] (75773-2)\n                                \n                                                            \n                                    Thoughts on resuscitation (CPR) (81329-5)\n                                \n                                                            \n                                    Thoughts on intubation (81330-3)\n                                \n                                                            \n                                    Thoughts on tube feeding (81331-1)\n                                \n                                                            \n                                    Thoughts on IV fluid and support (81332-9)\n                                \n                                                            \n                                    Thoughts on antibiotics (81333-7)\n                                \n                                                            \n                                    Patient's thoughts on cardiopulmonary bypass (81336-0)\n                                \n                                                            \n                                    Patient's thoughts on mechanical ventilation (81337-8)\n                                \n                                                            \n                                    Upon death organ donation consent (81376-6)\n                                \n                                                            \n                                    Patient Healthcare goals (81378-2)\n                                \n                                                    \n                        \n                        LOINC-coded list for FHIR compliance\n                    \n\n                    \n                        Date Recorded *\n                        \n                    \n\n                    \n                        Status\n                        \n                            Final\n                            Preliminary\n                            Amended\n                        \n                    \n                \n\n                \n                    Response Type *\n                    \n                        \n                        Coded Value (from answer list)\n                    \n                    \n                        \n                        Free Text\n                    \n                    \n                        \n                        Yes/No\n                    \n                \n\n                \n                    \n                        Patient`s Preference *\n                        \n                            Select preference first...\n                        \n                        \n                        \n                    \n                \n\n                \n                    \n                        Patient`s Preference (Free Text) *\n                        \n                    \n                \n\n                \n                    \n                        Patient`s Preference *\n                        \n                            Yes\n              ",
+      "links": [
+        "Treatment Intervention Preferences"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Care Experience Preferences",
+      "collapsed": true,
+      "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No care experience preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Category\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Care experience preference (95541-9)\n                                \n                                                            \n                                    Religious or cultural beliefs (reported) (81364-2)\n                                \n                                                            \n                                    Religious/cultural affiliation contact to notify (reported) (81365-9)\n                                \n                                                            \n                                    Preferred pharmacy (103980-9)\n                                \n                                                            \n                                    Care experience preference under certain health conditions (81342-8)\n                                \n                                                            \n                                    Care experience preference at end of life (81343-6)\n                                \n                                                            \n                                    Preferred location for healthcare (81362-6)\n                                \n                                                            \n                                    Preferred healthcare professional (81363-4)\n                                \n                                                            \n                                    Patient goals, preferences & priorities for care experience (81338-6)\n                                \n                                                    \n                        \n                        LOINC-coded list for FHIR compliance\n                    \n\n                    \n                        Date Recorded *\n                        \n                    \n\n                    \n                        Status\n                        \n                            Final\n                            Preliminary\n                            Amended\n                        \n                    \n                \n\n                \n                    Response Type *\n                    \n                        \n                        Coded Value (from answer list)\n                    \n                    \n                        \n                        Free Text\n                    \n                    \n                        \n                        Yes/No\n                    \n                \n\n                \n                    \n                        Patient`s Preference *\n                        \n                            Select preference first...\n                        \n                        \n                        \n                    \n                \n\n                \n                    \n                        Patient`s Preference (Free Text) *\n                        \n                    \n                \n\n                \n                    \n                        Patient`s Preference *\n                        \n                            Yes\n                            No\n                        \n                    \n                \n\n                \n                    Ad",
+      "links": [
+        "Care Experience Preferences"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Demographics",
+      "collapsed": true,
+      "text": "Who\n            \n                        \n            \n            Contact\n            \n                        \n            \n            Choices\n            \n                        \n            \n            Employer\n            \n                        \n            \n            Stats\n            \n                        \n            \n            Misc\n            \n                        \n            \n            Related\n            \n            \n\n    \n\nTitle: \nName:Zack583    Metz686 Metz686    \nPreferred Name:\nExternal ID:13DOB:1974-02-10\nBirth Sex:MaleS.S.\nLicense/ID:Marital Status: \nUser Defined:         \nBilling Note:\nGender Identity: Sex: \nSexual Orientation: Pronouns: \nBirth Name:      \nPrevious Names:\n\nAddress:997 Durgan RestAddress Line 2:\nCity:ArlingtonState:Massachusetts \nPostal Code:02474Country: \nMother`s Name:Emergency Contact:\nEmergency Phone:Home Phone:\nWork Phone:Mobile Phone:\nContact Email:Trusted Email:\nCounty: \n\n    .address-inactive-display {\n        opacity: 0.6;\n        background-color: var(--light);\n        font-style: italic;\n    }\n\n    \n    \n                Additional Addresses\n                    \n                \n                \n            NONE\n            \n        \n        \n            \n\n    function toggleInactiveAddressesDisplay(tableId) {\n        const checkbox = document.getElementById('show_inactive_addresses_display_' + tableId);\n        const table = document.getElementById(tableId);\n\n        if (!table) {\n            console.error('Table not found:', tableId);\n            return;\n        }\n\n        const inactiveAddresses = table.querySelectorAll('.address-inactive-display');\n\n        console.log('Toggle inactive addresses:', {\n            tableId: tableId,\n            checked: checkbox.checked,\n            foundAddresses: inactiveAddresses.length\n        });\n\n        inactiveAddresses.forEach(function(address) {\n            if (checkbox.checked) {\n                address.classList.remove('d-none');\n            } else {\n                address.classList.add('d-none');\n            }\n        });\n    }\n\nProvider: Provide Since Date: \nReferring Provider: \nPharmacy:\nHIPAA Notice Received: Allow Voice Message: \nLeave Message With:Allow Mail Message: \nAllow SMS:NOAllow Email:NO\nAllow Immunization Registry Use: Allow Immunization Info Sharing: \nAllow Health Information Exchange: Allow Patient Portal: \nPrevent API Access:☐CMS Portal Login:\nImmunization Registry Status: Immunization Registry Status Effective Date: \nPublicity Code: Publicity Code Effective Date: \nProtection Indicator: Protection Indicator Effective Date: \nPatient Categories:\n\nOccupation: Employer Name:\nEmployer Address:Employer Address Line 2:\nCity:State: \nPostal Code:Country: \nIndustry: Employment Start Date: \nEmployment End Date: \n\nLanguage:English\nEthnicity:Not Hispanic or LatinoRace:White\nNationality: Family Size:\nFinancial Review Date:Monthly Income:\nHomeless, etc.Interpreter: \nInterpreter Comments:Migrant/Seasonal:\nReferral Source: VFC: \nReligion: \nTribal Affiliations: \n\nDate Deceased: \nReason Deceased:\n\nGuardian Name:Relationship: \nSex: Address:\nCity:State: \nPostal Code:Country: \nPhone:Work Phone:\nEmail:\n\n    .relation-inactive-display {\n        opacity: 0.6;\n        background-color: var(--light);\n        font-style: italic;\n    }\n    .relation-card {\n        border: 1px solid #dee2e6;\n        border-radius: 0.25rem;\n        margin-bottom: 1rem;\n        background-color: var(--white);\n    }\n    .relation-card-header {\n        background-color: var(--light);\n        padding: 0.75rem 1rem;\n        border-bottom: 1px solid #dee2e6;\n        display: flex;\n        justify-content: space-between;\n        align-items: center;\n    }\n    .relation-card-body {\n        padding: 1rem;\n    }\n    .relation-section {\n        margin-top: 1rem;\n        padding-top: 1rem;\n        border-top: 1px solid #e9ecef;\n    }\n\n    \n        \n            Related Persons\n                    \n\n                \n                \n            NO RELATED PERS",
+      "links": [
+        "Demographics",
+        "Who",
+        "Contact",
+        "Choices",
+        "Employer",
+        "Stats",
+        "Misc",
+        "Related"
+      ],
+      "tables": [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      "inScope": null
+    },
+    {
+      "title": "Billing",
+      "collapsed": true,
+      "text": "Patient Balance Due\n        0.00\n    \n    \n        Insurance Balance Due\n        0.00\n    \n    \n        Total Balance Due\n        0.00",
+      "links": [
+        "Billing"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Insurance",
+      "collapsed": true,
+      "text": "Primary\n        \n                            \n        Eligibility\n    \n\n    \n                    Nothing To Report\n\n            \n    \n        function updatePageNavigationButtonsForTarget(type, target) {\n            // update previous and next links\n            let prevLink = document.querySelector('#' + type + ' .pagination .insurance-pagination-prev');\n            let targetPolicyParentNode = target.closest('.page-item');\n            let previousElementSibling = targetPolicyParentNode.previousElementSibling;\n            if (previousElementSibling && previousElementSibling.classList.contains('insurance-pagination-item')) {\n                prevLink.closest('.page-item').classList.remove('disabled');\n                prevLink.dataset['policyId'] = previousElementSibling.querySelector('a').dataset['policyId'];\n            } else {\n                prevLink.closest('.page-item').classList.add('disabled');\n                prevLink.dataset['policyId'] = null;\n            }\n            let nextLink = document.querySelector('#' + type + ' .pagination .insurance-pagination-next');\n            if (nextLink) {\n                let nextElementSibling = targetPolicyParentNode.nextElementSibling;\n                if (nextElementSibling && nextElementSibling.classList.contains('insurance-pagination-item')) {\n                    nextLink.closest('.page-item').classList.remove('disabled');\n                    nextLink.dataset['policyId'] = nextElementSibling.querySelector('a').dataset['policyId'];\n                } else {\n                    nextLink.closest('.page-item').classList.add('disabled');\n                    nextLink.dataset['policyId'] = null;\n                }\n            }\n        }\n        function updateInsurancePaginationPane(e) {\n            e.preventDefault();\n            let policyId = e.target.dataset['policyId'];\n            let type = e.target.dataset['type'];\n            document.querySelectorAll('#' + type + ' .tab-pagination-pane').forEach(pane => {\n                pane.classList.add('d-none');\n            });\n            document.querySelector('#' + type + ' #' + type + '-' + policyId).classList.remove('d-none');\n            document.querySelectorAll('#' + type + ' .pagination .page-item').forEach(item => {\n                item.classList.remove('active');\n            });\n            e.target.parentNode.classList.add('active');\n            updatePageNavigationButtonsForTarget(type, e.target);\n        }\n\n        function triggerInsuranceNavigationAction(e) {\n            e.preventDefault();\n            let policyId = e.target.dataset['policyId'];\n            let type = e.target.dataset['type'];\n            let target = document.querySelector('#' + type + ' .pagination .insurance-pagination-item .page-link[data-policy-id=\"' + policyId + '\"]');\n            if (target) {\n                target.click();\n            }\n        }\n        document.querySelectorAll('.pagination .insurance-pagination-item').forEach(link => {\n            link.addEventListener('click', updateInsurancePaginationPane);\n        });\n        document.querySelectorAll('.pagination .insurance-pagination-link').forEach(link => {\n            link.addEventListener('click', triggerInsuranceNavigationAction);\n        });",
+      "links": [
+        "Insurance",
+        "Primary",
+        "Eligibility"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Messages",
+      "collapsed": true,
+      "text": "There are no messages on file for this patient. To add messages, please click here.",
+      "links": [
+        "Messages",
+        "To add messages, please click here"
+      ],
+      "tables": [
+        []
+      ],
+      "inScope": null
+    },
+    {
+      "title": "Patient Reminders",
+      "collapsed": true,
+      "text": "Loading...",
+      "links": [
+        "Patient Reminders"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Disclosures",
+      "collapsed": true,
+      "text": "Type\n    Provider\n    Summary\n\n    \n    There are no disclosures recorded for this patient. To record disclosures, please click here.",
+      "links": [
+        "Disclosures",
+        "here"
+      ],
+      "tables": [
+        []
+      ],
+      "inScope": null
+    },
+    {
+      "title": "Amendments",
+      "collapsed": true,
+      "text": "None",
+      "links": [
+        "Amendments"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Labs",
+      "collapsed": true,
+      "text": "Most recent lab data:  \n  \n    Procedure: Basic metabolic panel - Blood (2026-04-05 00:00:00)Encounter: 367  \n  \n  \n  Click here to view and graph all labdata.",
+      "links": [
+        "Labs",
+        "367",
+        "Click here to view and graph all labdata."
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Vitals",
+      "collapsed": false,
+      "text": "Most recent vitals from: 2018-02-25 20:06:27\n\nHeight:\t170.3 in (432.60 cm)\nPulse:\t71 per min\nRespiration:\t16 per min\nBMI:\t27 kg/m^2\nLast Updated:\t2026-09-25 15:12:11\n\nClick here to view and graph all vitals.",
+      "links": [
+        "Vitals",
+        "Click here to view and graph all vitals."
+      ],
+      "tables": [
+        []
+      ],
+      "inScope": null
+    },
+    {
+      "title": "Patient Portal / API Access",
+      "collapsed": true,
+      "text": "Portal Access\n             Allow Patient Portal in Demographics > Choices Employer \n        \n    \n\n    \n            \n        Credentials\n                                                 Create",
+      "links": [
+        "Patient Portal / API Access",
+        "Create"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Clinical Reminders",
+      "collapsed": false,
+      "text": "Loading...",
+      "links": [
+        "Clinical Reminders"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Recall",
+      "collapsed": true,
+      "text": "No Recalls",
+      "links": [
+        "Recall",
+        "No Recalls"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Appointments",
+      "collapsed": false,
+      "text": "Future Appointments\nNo Appointments\n Recurring Appointments\nNo Recurring Appointments",
+      "links": [
+        "Appointments"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Health Concerns",
+      "collapsed": true,
+      "text": "Nothing Recorded",
+      "links": [
+        "Health Concerns"
+      ],
+      "tables": [],
+      "inScope": null
+    },
+    {
+      "title": "Immunizations",
+      "collapsed": false,
+      "text": "Influenza, seasonal, inj\nzoster live\nInfluenza, seasonal, inj\nTd (adult), 5 Lf tetanus toxoid, preservative free, adsorbed\nzoster live\nInfluenza, seasonal, inj\nInfluenza, seasonal, inj\nInfluenza, seasonal, inj\nInfluenza, seasonal, inj\nCOVID-19, mRNA, LNP-S, PF, 100 mcg/0.5 mL dose\nCOVID-19, mRNA, LNP-S, PF, 100 mcg/0.5 mL dose\nInfluenza, seasonal, inj\nInfluenza, seasonal, inj",
+      "links": [
+        "Immunizations",
+        "Influenza, seasonal, inj",
+        "zoster live",
+        "Influenza, seasonal, inj",
+        "Td (adult), 5 Lf tetanus toxoid, preservative free, adsorbed",
+        "zoster live",
+        "Influenza, seasonal, inj",
+        "Influenza, seasonal, inj",
+        "Influenza, seasonal, inj",
+        "Influenza, seasonal, inj",
+        "COVID-19, mRNA, LNP-S, PF, 100 mcg/0.5 mL dose",
+        "COVID-19, mRNA, LNP-S, PF, 100 mcg/0.5 mL dose",
+        "Influenza, seasonal, inj",
+        "Influenza, seasonal, inj"
+      ],
+      "tables": [],
+      "inScope": null
+    }
+  ]
+}

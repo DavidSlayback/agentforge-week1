@@ -1,0 +1,1671 @@
+PHPStan diagnose
+Note: Using configuration file /var/www/localhost/htdocs/openemr/phpstan.neon.dist.
+PHP runtime version: 8.5.6
+PHP composer.json required version: 8.2-8.5.99
+PHP version for analysis: 8.2 (from config.platform.php in composer.json)
+
+PHPStan version: 2.1.56
+PHPStan running from:
+/var/www/localhost/htdocs/openemr/vendor/phpstan/phpstan
+
+Extension installer:
+composer/pcre: 3.3.2
+phpstan/phpstan-deprecation-rules: 2.0.4
+phpstan/phpstan-phpunit: 2.0.16
+phpstan/phpstan-strict-rules: 2.0.11
+shipmonk/phpstan-baseline-per-identifier: 2.3.0
+
+Discovered Composer project root:
+/var/www/localhost/htdocs/openemr
+
+Parallel worker creation:
+Mechanism:                 spawn (react/child-process)
+
+Note: Using configuration file /var/www/localhost/htdocs/openemr/phpstan.neon.dist.
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/main/calendar/modules/PostCalendar/pnadmin.php               
+ ------ ----------------------------------------------------------------------- 
+         Ignored error pattern #^Binary operation "\." between mixed and        
+         "',\\n\\t\\t              …" results in an error\.$# in path           
+         /var/www/localhost/htdocs/openemr/interface/main/calendar/modules/Pos  
+         tCalendar/pnadmin.php was not matched in reported errors.              
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between mixed and        
+         "'\\n\\t\\t               …" results in an error\.$# in path           
+         /var/www/localhost/htdocs/openemr/interface/main/calendar/modules/Pos  
+         tCalendar/pnadmin.php was not matched in reported errors.              
+         🪪  ignore.unmatched (non-ignorable)                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "',\r\n\t\t             …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+  355    Binary operation "." between mixed and "'\r\n\t\t              …"      
+         results in an error.                                                   
+         🪪  binaryOp.invalid                                                   
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/openemr.bootstr  
+         ap.php                                                                 
+ ------ ----------------------------------------------------------------------- 
+  5      Function agentforge_patient_menu_item may not be defined in the        
+         global namespace.                                                      
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $agentforge_patient_menu_item = function () {  
+         ... }                                                                  
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  19     Cannot call method addListener() on mixed.                             
+         🪪  method.nonObject                                                   
+  19     Variable $eventDispatcher might not be defined.                        
+         🪪  variable.undefined                                                 
+  23     Parameter #1 $object_or_class of function method_exists expects        
+         object|string, mixed given.                                            
+         🪪  argument.type                                                      
+  24     Cannot call method registerNamespaceIfNotExists() on                   
+         class-string|object.                                                   
+         🪪  method.nonObject                                                   
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ---------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/public/api.php  
+ ------ ---------------------------------------------------------------------- 
+  34     Direct instantiation of OpenEMR\Common\Logging\SystemLogger is        
+         discouraged. Use OpenEMR\BC\ServiceContainer::getLogger() instead.    
+         🪪  openemr.forbiddenInstantiation                                    
+         💡  See src/BC/ServiceContainer.php for service access patterns       
+  58     catch (Throwable) would suppress Error, which is forbidden.           
+         🪪  openemr.forbiddenCatchType                                        
+         💡  Narrow the catch to a type unrelated to the forbidden one, or     
+         re-throw (throw;) after any observation/logging so the failure        
+         propagates to the global exception handler.                           
+ ------ ---------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/public/index.ph  
+         p                                                                      
+ ------ ----------------------------------------------------------------------- 
+  9      Call to an undefined method                                            
+         OpenEMR\Common\Session\SessionWrapperFactory::getWrapper().            
+         🪪  method.notFound                                                    
+  10     Cannot call method get() on mixed.                                     
+         🪪  method.nonObject                                                   
+  10     Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  11     Cannot call method get() on mixed.                                     
+         🪪  method.nonObject                                                   
+  11     Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  27     Use QueryUtils::querySingleRow() or QueryUtils::fetchRecords()         
+         instead of sqlQuery().                                                 
+         🪪  openemr.deprecatedSqlFunction                                      
+         💡  Or use DatabaseQueryTrait in your class                            
+  28     Construct empty() is not allowed. Use more strict comparison.          
+         🪪  empty.notAllowed                                                   
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/src/Domain/Clin  
+         icalListItemInput.php                                                  
+ ------ ----------------------------------------------------------------------- 
+  72     Call to function is_int() with int<1, max> will always evaluate to     
+         true.                                                                  
+         🪪  function.alreadyNarrowedType                                       
+         💡  Because the type is coming from a PHPDoc, you can turn off this    
+         check by setting treatPhpDocTypesAsCertain: false in your phpstan.neo  
+         n.dist.                                                                
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/src/Persistence  
+         /ActorResolver.php                                                     
+ ------ ----------------------------------------------------------------------- 
+  51     Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/src/Persistence  
+         /SqlNonceStore.php                                                     
+ ------ ----------------------------------------------------------------------- 
+  31     Cannot cast mixed to int.                                              
+         🪪  cast.int                                                           
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/src/Persistence  
+         /SqlWriteLedger.php                                                    
+ ------ ----------------------------------------------------------------------- 
+  34     Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/src/Read/Docume  
+         ntReader.php                                                           
+ ------ ----------------------------------------------------------------------- 
+  31     Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  42     Call to function is_string() with string will always evaluate to       
+         true.                                                                  
+         🪪  function.alreadyNarrowedType                                       
+         💡  Because the type is coming from a PHPDoc, you can turn off this    
+         check by setting treatPhpDocTypesAsCertain: false in your phpstan.neo  
+         n.dist.                                                                
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/src/Write/Docum  
+         entWriter.php                                                          
+ ------ ----------------------------------------------------------------------- 
+  41     Parameter #1 $patient_id of method Document::createDocument() expects  
+         string, int given.                                                     
+         🪪  argument.type                                                      
+  51     Parameter #11 $foreign_reference_id of method                          
+         Document::createDocument() expects string|null, int|null given.        
+         🪪  argument.type                                                      
+  65     Call to function is_string() with string will always evaluate to       
+         true.                                                                  
+         🪪  function.alreadyNarrowedType                                       
+         💡  Because the type is coming from a PHPDoc, you can turn off this    
+         check by setting treatPhpDocTypesAsCertain: false in your phpstan.neo  
+         n.dist.                                                                
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/custom_modules/oe-module-agentforge/tests/run.php    
+ ------ ----------------------------------------------------------------------- 
+  150    Function check may not be defined in the global namespace.             
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $check = function () { ... }                   
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  152    Use of the "global" keyword is forbidden ($failures, $passes). Use     
+         dependency injection instead.                                          
+         🪪  openemr.forbiddenGlobalKeyword                                     
+         💡  If you need to modify a variable out of function scope, it can be  
+         passed by reference.                                                   
+         💡  See                                                                
+         https://phpstan.org/blog/enhancements-in-handling-parameters-passed-b  
+         y-reference for tips on further refining type safety when doing so.    
+  155    Cannot use ++ on mixed.                                                
+         🪪  postInc.type                                                       
+  157    catch (Throwable) would suppress Error, which is forbidden.            
+         🪪  openemr.forbiddenCatchType                                         
+         💡  Narrow the catch to a type unrelated to the forbidden one, or      
+         re-throw (throw;) after any observation/logging so the failure         
+         propagates to the global exception handler.                            
+  158    Cannot use ++ on mixed.                                                
+         🪪  postInc.type                                                       
+  163    Function same may not be defined in the global namespace.              
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $same = function () { ... }                    
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  170    Function throwsApiError may not be defined in the global namespace.    
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $throwsApiError = function () { ... }          
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  186    Function headersFor may not be defined in the global namespace.        
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $headersFor = function () { ... }              
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  190    Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  191    Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  192    Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  193    Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  207    Cannot access offset 'secret' on mixed.                                
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  208    Parameter #1 $secret of class                                          
+         OpenEMR\Modules\AgentForge\Http\HmacVerifier constructor expects       
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  211    Cannot access offset 'write_key_hex' on mixed.                         
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  211    Parameter #1 $secret of static method                                  
+         OpenEMR\Modules\AgentForge\Http\HmacVerifier::deriveWriteKey()         
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  214    Argument of an invalid type mixed supplied for foreach, only           
+         iterables are supported.                                               
+         🪪  foreach.nonIterable                                                
+  214    Cannot access offset 'signature_vectors' on mixed.                     
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  215    Cannot access offset 'name' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  215    Part $vector['name'] (mixed) of encapsed string cannot be cast to      
+         string.                                                                
+         🪪  encapsedStringPart.nonString                                       
+  216    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  216    Parameter #1 $json of function json_decode expects string, mixed       
+         given.                                                                 
+         🪪  argument.type                                                      
+  218    Cannot access offset 'method' on mixed.                                
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  218    Parameter #1 $method of class                                          
+         OpenEMR\Modules\AgentForge\Http\CanonicalRequest constructor expects   
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  219    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  219    Cannot access offset 'route' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  219    Parameter #2 $route of class                                           
+         OpenEMR\Modules\AgentForge\Http\CanonicalRequest constructor expects   
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  220    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  220    Cannot access offset 'site' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  220    Parameter #3 $site of class                                            
+         OpenEMR\Modules\AgentForge\Http\CanonicalRequest constructor expects   
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  221    Cannot access offset 'method' on mixed.                                
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  221    Cannot access offset 'patient_uuid' on mixed.                          
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  221    Cannot access offset 'patient_uuid' on mixed.                          
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  221    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  221    Parameter #4 $patientUuid of class                                     
+         OpenEMR\Modules\AgentForge\Http\CanonicalRequest constructor expects   
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  222    Cannot access offset 'content_sha256' on mixed.                        
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  222    Parameter #5 $contentSha256 of class                                   
+         OpenEMR\Modules\AgentForge\Http\CanonicalRequest constructor expects   
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  223    Parameter #2 $data of function hash expects string, mixed given.       
+         🪪  argument.type                                                      
+  224    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  224    Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  225    Cannot access offset 'nonce' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  225    Parameter #8 $nonce of class                                           
+         OpenEMR\Modules\AgentForge\Http\CanonicalRequest constructor expects   
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  226    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  226    Parameter #9 $query of class                                           
+         OpenEMR\Modules\AgentForge\Http\CanonicalRequest constructor expects   
+         array<string, string>, mixed given.                                    
+         🪪  argument.type                                                      
+  227    Cannot access offset 'context_token' on mixed.                         
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  229    Cannot access offset 'body_sha256' on mixed.                           
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  229    Parameter #2 $data of function hash expects string, mixed given.       
+         🪪  argument.type                                                      
+  230    Cannot access offset 'canonical' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  231    Cannot access offset 'signature' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  233    Cannot access offset 'name' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  233    Part $vector['name'] (mixed) of encapsed string cannot be cast to      
+         string.                                                                
+         🪪  encapsedStringPart.nonString                                       
+  235    Binary operation "+" between mixed and 5 results in an error.          
+         🪪  binaryOp.invalid                                                   
+  235    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  235    Cannot access offset 'method' on mixed.                                
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  235    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  235    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  235    Parameter #1 $method of method                                         
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  235    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  235    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  235    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  236    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  236    Cannot access offset 'route' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  237    Cannot access offset 'context_token' on mixed.                         
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  241    Cannot access offset 'signature_vectors' on mixed.                     
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  241    Cannot access offset 0 on mixed.                                       
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  242    Cannot access offset 'signature_vectors' on mixed.                     
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  242    Cannot access offset 1 on mixed.                                       
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  250    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  250    Parameter #3 $subject of function str_replace expects array<string>|s  
+         tring, mixed given.                                                    
+         🪪  argument.type                                                      
+  251    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  253    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  253    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  253    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  253    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  257    Binary operation "." between mixed and ' ' results in an error.        
+         🪪  binaryOp.invalid                                                   
+  257    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  257    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  257    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  257    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  257    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  257    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  261    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  262    Cannot access offset 'source_document_id' on mixed.                    
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  263    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  263    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  263    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  263    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  267    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  269    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  269    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  269    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  269    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  273    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  273    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  273    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  273    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  273    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  273    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  273    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  277    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  277    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  277    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  277    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  277    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  277    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  281    Binary operation "+" between mixed and 300 results in an error.        
+         🪪  binaryOp.invalid                                                   
+  281    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  281    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  281    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  281    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  281    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  281    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  282    Binary operation "-" between mixed and 300 results in an error.        
+         🪪  binaryOp.invalid                                                   
+  282    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  282    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  282    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  282    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  282    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  282    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  283    Binary operation "+" between mixed and 301 results in an error.        
+         🪪  binaryOp.invalid                                                   
+  283    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  283    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  283    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  283    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  283    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  283    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  284    Binary operation "-" between mixed and 400 results in an error.        
+         🪪  binaryOp.invalid                                                   
+  284    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  284    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  284    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  284    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  284    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  284    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  289    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  289    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  289    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  289    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  289    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  289    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  289    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  290    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  290    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  290    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  290    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  290    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  290    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  290    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  296    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  298    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  298    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  298    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  298    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  298    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  298    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  300    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  300    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  300    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  300    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  300    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  300    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  300    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  305    Cannot access offset 'body' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  305    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  305    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  305    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  305    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  305    Parameter #4 $rawBody of method                                        
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  305    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  306    Binary operation "+" between mixed and 600 results in an error.        
+         🪪  binaryOp.invalid                                                   
+  306    Cannot access offset 'nonce' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  306    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  306    Possibly invalid array key type mixed.                                 
+         🪪  offsetAccess.invalidOffset                                         
+  310    Cannot access offset 'query' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  311    Cannot access offset 'patient_uuid' on mixed.                          
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  312    Cannot access offset 'timestamp' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  312    Parameter #1 $vector of function headersFor expects array<string, mix  
+         ed>, mixed given.                                                      
+         🪪  argument.type                                                      
+  312    Parameter #2 $rawQuery of method                                       
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects array<mixed>, mixed given.                                     
+         🪪  argument.type                                                      
+  312    Parameter #5 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\RequestAuthenticator::authenticate()   
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  315    Cannot access offset 'context_token_vectors' on mixed.                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  315    Cannot access offset 0 on mixed.                                       
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  316    Parameter #1 $secret of class                                          
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier constructor       
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  319    Cannot access offset 'token' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  319    Cannot access offset 'verify_at' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  319    Parameter #1 $token of method                                          
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::verify()         
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  319    Parameter #2 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::verify()         
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  321    Cannot access offset                                                   
+         'acl'|'authn'|'clinician_uuid'|'expires_at'|'issuer'|'patient_uuid'|'  
+         scope' on mixed.                                                       
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  321    Cannot access offset 'expected' on mixed.                              
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  326    Cannot access offset 'expected' on mixed.                              
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  326    Cannot access offset 'expires_at' on mixed.                            
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  326    Cannot access offset 'token' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  326    Parameter #1 $token of method                                          
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::verify()         
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  326    Parameter #2 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::verify()         
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  327    Binary operation "." between 'x' and mixed results in an error.        
+         🪪  binaryOp.invalid                                                   
+  327    Cannot access offset 'token' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  327    Cannot access offset 'verify_at' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  327    Parameter #2 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::verify()         
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  328    Cannot access offset 'token' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  328    Cannot access offset 'verify_at' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  328    Parameter #1 $token of method                                          
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::verify()         
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  328    Parameter #2 $now of method                                            
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::verify()         
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  333    Parameter #2 $secret of static method                                  
+         OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier::sign() expects   
+         string, mixed given.                                                   
+         🪪  argument.type                                                      
+  369    Argument of an invalid type mixed supplied for foreach, only           
+         iterables are supported.                                               
+         🪪  foreach.nonIterable                                                
+  369    Cannot access offset 'idempotency_key_vectors' on mixed.               
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  370    Cannot access offset 'kind' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  370    Part $vector['kind'] (mixed) of encapsed string cannot be cast to      
+         string.                                                                
+         🪪  encapsedStringPart.nonString                                       
+  371    Cannot access offset 'kind' on mixed.                                  
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  371    Match expression does not handle remaining value: mixed                
+         🪪  match.unhandled                                                    
+  372    Cannot access offset 'content_sha256' on mixed.                        
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  372    Cannot access offset 'document_type' on mixed.                         
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  372    Cannot access offset 'pid' on mixed.                                   
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  372    Parameter #1 $pid of static method                                     
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forDocument()        
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  372    Parameter #1 $value of static method                                   
+         OpenEMR\Modules\AgentForge\Domain\DocumentType::from() expects         
+         int|string, mixed given.                                               
+         🪪  argument.type                                                      
+  372    Parameter #3 $contentSha256 of static method                           
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forDocument()        
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  373    Cannot access offset 'pid' on mixed.                                   
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  373    Cannot access offset 'source_document_id' on mixed.                    
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  373    Parameter #1 $pid of static method                                     
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forDerivedFacts()    
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  373    Parameter #2 $sourceDocumentId of static method                        
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forDerivedFacts()    
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  374    Cannot access offset 'pid' on mixed.                                   
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  374    Cannot access offset 'source_sha256' on mixed.                         
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  374    Parameter #1 $pid of static method                                     
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forLabResults()      
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  374    Parameter #2 $sourceSha256 of static method                            
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forLabResults()      
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  375    Cannot access offset 'list_kind' on mixed.                             
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  375    Cannot access offset 'pid' on mixed.                                   
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  375    Cannot access offset 'source_document_id' on mixed.                    
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  375    Cannot access offset 'title' on mixed.                                 
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  375    Parameter #1 $pid of static method                                     
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forListItem()        
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  375    Parameter #1 $value of static method                                   
+         OpenEMR\Modules\AgentForge\Domain\ListItemKind::from() expects         
+         int|string, mixed given.                                               
+         🪪  argument.type                                                      
+  375    Parameter #3 $sourceDocumentId of static method                        
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forListItem()        
+         expects int, mixed given.                                              
+         🪪  argument.type                                                      
+  375    Parameter #4 $title of static method                                   
+         OpenEMR\Modules\AgentForge\Domain\IdempotencyKey::forListItem()        
+         expects string, mixed given.                                           
+         🪪  argument.type                                                      
+  377    Cannot access offset 'expected' on mixed.                              
+         🪪  offsetAccess.nonOffsetAccessible                                   
+  496    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  499    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  500    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  501    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  502    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  508    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  509    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  510    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  511    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  517    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  518    Parameter #1 $body of static method                                    
+         OpenEMR\Modules\AgentForge\Domain\DocumentWriteRequest::fromBody()     
+         expects array<string, mixed>, array given.                             
+         🪪  argument.type                                                      
+  607    Function makeApi may not be defined in the global namespace.           
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $makeApi = function () { ... }                 
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  625    Function contextToken may not be defined in the global namespace.      
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $contextToken = function () { ... }            
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  639    Function call may not be defined in the global namespace.              
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $call = function () { ... }                    
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  644    Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  644    Cannot cast mixed to string.                                           
+         🪪  cast.string                                                        
+  659    Function pdfBody may not be defined in the global namespace.           
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $pdfBody = function () { ... }                 
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  667    Function derivedBody may not be defined in the global namespace.       
+         🪪  openemr.noGlobalNsFunctions                                        
+         💡  Try a closure, like $derivedBody = function () { ... }             
+         💡  A static method in an auto-loaded class works too                  
+         💡  If this MUST be a global function, use                             
+         `library/global_functions.inc.php` as a last resort.                   
+  753    Strict comparison using === between 0 and 0 will always evaluate to    
+         true.                                                                  
+         🪪  identical.alwaysTrue                                               
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   interface/modules/zend_modules/module/Carecoordination/src/Carecoordi  
+         nation/Controller/CarecoordinationController.php                       
+ ------ ----------------------------------------------------------------------- 
+         Ignored error pattern #^Argument of an invalid type mixed supplied     
+         for foreach, only iterables are supported\.$# in path                  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between 'SNOMED\-CT\:'   
+         and mixed results in an error\.$# in path                              
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between '\(' and mixed   
+         results in an error\.$# in path                                        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between '<p>' and        
+         mixed results in an error\.$# in path                                  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between '<td>' and       
+         mixed results in an error\.$# in path                                  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between '<tr             
+         class\="narr_tr"…' and mixed results in an error\.$# in path           
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between '<tr             
+         class\="se_in_9"…' and mixed results in an error\.$# in path           
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between mixed and ' '    
+         results in an error\.$# in path                                        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Binary operation "\." between                  
+         non\-falsy\-string and mixed results in an error\.$# in path           
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'BMI' on mixed\.$# in     
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'ad_fname' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'ad_lname' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'administered_date' on    
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'amid' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'begdate' on mixed\.$#    
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'body' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'bpd' on mixed\.$# in     
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'bps' on mixed\.$# in     
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'breath' on mixed\.$# in  
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'code_text' on mixed\.$#  
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'country_code' on         
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'cp_count' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'cvx_code_text' on        
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'date' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'description' on          
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'dob_raw' on mixed\.$#    
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'doc_id' on mixed\.$# in  
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'doc_type' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'document_id' on          
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'dose' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'dose_unit' on mixed\.$#  
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'drug_text' on mixed\.$#  
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'dupl_patient' on         
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'enc_count' on mixed\.$#  
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset                           
+         'encounter_diagnosis_issue' on mixed\.$# in path                       
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'enddate' on mixed\.$#    
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'ethnicity' on mixed\.$#  
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'head_circ' on mixed\.$#  
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'height' on mixed\.$# in  
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'id' on mixed\.$# in      
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'indication' on           
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'is_qrda_document' on     
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset                           
+         'is_unstructured_document' on mixed\.$# in path                        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'list_code_text' on       
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'matched_patient' on      
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'name' on array\{name\:   
+         string, index\: int, crc\: int, size\: int, mtime\: int, comp_size\:   
+         int, comp_method\: int, encryption_method\: int\}\|false\.$# in path   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'name' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'note' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'ob_count' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'oxygen_saturation' on    
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'pat_name' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'pc_catname' on           
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'pid' on mixed\.$# in     
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'provider_name' on        
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'pulse' on mixed\.$# in   
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'race' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'rate' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'rate_unit' on mixed\.$#  
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'reaction_text' on        
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'religion' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset                           
+         'represented_organization_name' on mixed\.$# in path                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'results_range' on        
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'results_text' on         
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'results_unit' on         
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'results_value' on        
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'route_display' on        
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'severity_al' on          
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'sex' on mixed\.$# in     
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'smoking' on mixed\.$#    
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'state' on mixed\.$# in   
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'status' on mixed\.$# in  
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'temperature' on          
+         mixed\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'text' on mixed\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'tmp_name' on mixed\.$#   
+         in path                                                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot access offset 'weight' on mixed\.$# in  
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot call method                             
+         updateDocumentCategoryUsingCatname\(\) on mixed\.$# in path            
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot call method updateDocumentCategory\(\)  
+         on mixed\.$# in path                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Cannot cast mixed to string\.$# in path        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Comparison operation ">" between 0 and 500     
+         is always false\.$# in path                                            
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Comparison operation ">" between 0\|'' and     
+         500 is always false\.$# in path                                        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Comparison operation ">" between int<1,        
+         max> and 0 is always true\.$# in path                                  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Construct empty\(\) is not allowed\. Use more  
+         strict comparison\.$# in path                                          
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Direct access to \$_FILES is forbidden\. Use   
+         Symfony's Request object or filter_input\(\) instead\.$# in path       
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Direct access to \$_REQUEST is forbidden\.     
+         Use Symfony's Request object or filter_input\(\) instead\.$# in path   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Expression                                     
+         "\$patientCountHash\[\$patientNameIndex\]" on a separate line does     
+         not do anything\.$# in path                                            
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Instantiation of deprecated class              
+         Laminas\\View\\Model\\JsonModel\:                                      
+         Since 2\.40\.0\. This class will be removed in 3\.0 without            
+         replacement\. Laminas\\View will no longer support                     
+                     rendering strategies in 3\.0$# in path                     
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:getCCDACo  
+         mponentsAction\(\) has no return type specified\.$# in path            
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:getEachCC  
+         DAComponentDetailsAction\(\) has no return type specified\.$# in path  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:getRevAnd  
+         ApproveAuditArray\(\) has parameter \$audit_master_id with no type     
+         specified\.$# in path                                                  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:getRevAnd  
+         ApproveAuditArray\(\) has parameter \$table_name with no type          
+         specified\.$# in path                                                  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:getRevAnd  
+         ApproveAuditArray\(\) return type has no value type specified in       
+         iterable type array\.$# in path                                        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:importAct  
+         ion\(\) has no return type specified\.$# in path                       
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:importZip  
+         Upload\(\) has no return type specified\.$# in path                    
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:importZip  
+         Upload\(\) has parameter \$request with no type specified\.$# in path  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:indexActi  
+         on\(\) should return Laminas\\View\\Model\\ViewModel but returns       
+         Laminas\\Http\\Response\.$# in path                                    
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:printZipC  
+         ontents\(\) has no return type specified\.$# in path                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:printZipC  
+         ontents\(\) has parameter \$zipLocation with no type specified\.$# in  
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:revandapp  
+         roveAction\(\) has no return type specified\.$# in path                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:sanitizeZ  
+         ip\(\) has no return type specified\.$# in path                        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:sanitizeZ  
+         ip\(\) has parameter \$zipLocation with no type specified\.$# in path  
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Method                                         
+         Carecoordination\\Controller\\CarecoordinationController\:\:uploadAct  
+         ion\(\) has no return type specified\.$# in path                       
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^PHPDoc tag @param references unknown           
+         parameter\: \$id$# in path                                             
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^PHPDoc tag @param references unknown           
+         parameter\: \$slug$# in path                                           
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#1 \$filename of method             
+         ZipArchive\:\:open\(\) expects string, mixed given\.$# in path         
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#1 \$option_id of method            
+         Carecoordination\\Model\\CarecoordinationTable\:\:getListTitle\(\)     
+         expects string\|null, mixed given\.$# in path                          
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#1 \$path of function basename      
+         expects string, mixed given\.$# in path                                
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#1 \$str of static method           
+         Application\\Listener\\Listener\:\:z_xlt\(\) expects string, mixed     
+         given\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#1 \$text of function text expects  
+         string, mixed given\.$# in path                                        
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#2 \$category_id of method          
+         Document\:\:createDocument\(\) expects int, mixed given\.$# in path    
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#3 \$subject of function            
+         str_replace expects array<string>\|string, mixed given\.$# in path     
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Parameter \#5 \$data of method                 
+         Document\:\:createDocument\(\) expects string, string\|false           
+         given\.$# in path                                                      
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Possibly invalid array key type mixed\.$# in   
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+         Ignored error pattern #^Result of method                               
+         Carecoordination\\Model\\CarecoordinationTable\:\:import\(\) \(void\)  
+         is used\.$# in path                                                    
+         /var/www/localhost/htdocs/openemr/interface/modules/zend_modules/modu  
+         le/Carecoordination/src/Carecoordination/Controller/CarecoordinationC  
+         ontroller.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   portal/patient/libs/Reporter/PatientReporter.php                       
+ ------ ----------------------------------------------------------------------- 
+         Ignored error pattern #^Binary operation "\.\=" between                
+         "select\\n\\t\\t\\t `patient…" and mixed results in an error\.$# in    
+         path                                                                   
+         /var/www/localhost/htdocs/openemr/portal/patient/libs/Reporter/Patien  
+         tReporter.php was not matched in reported errors.                      
+         🪪  ignore.unmatched (non-ignorable)                                   
+  190    Binary operation ".=" between "select\r\n\t\t\t …" and mixed results   
+         in an error.                                                           
+         🪪  assignOp.invalid                                                   
+ ------ ----------------------------------------------------------------------- 
+
+ [ERROR] Found 401 errors                                                       
+
