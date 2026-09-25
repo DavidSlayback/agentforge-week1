@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { GEMINI_RERANK_MODEL } from '../src/geminiClient.js';
+import { PRICE_TABLE } from '../src/pricing.js';
 import {
   configuredRerankProviderAndModel,
   createCohereReranker,
@@ -34,7 +35,7 @@ function fakeQwenFetch({ outputText, usage = { input_tokens: 40, output_tokens: 
 // Qwen listwise reranker
 // ---------------------------------------------------------------------------
 
-test('Qwen reranker: interface conformance, thinking off, and honest (unknown) cost', async () => {
+test('Qwen reranker: interface conformance, thinking off, and a real priced cost', async () => {
   const { bodies, fetchImpl } = fakeQwenFetch({ outputText: JSON.stringify({ results: [{ n: 1, score: 0.95 }, { n: 2, score: 0.4 }] }) });
   const reranker = createQwenReranker({ endpoint: 'https://example.test/v1/responses', apiKey: 'k', fetchImpl });
   assert.equal(reranker.name, `alibaba-qwen:${DEFAULT_QWEN_RERANK_MODEL}`);
@@ -47,9 +48,12 @@ test('Qwen reranker: interface conformance, thinking off, and honest (unknown) c
   assert.equal(usage.model, DEFAULT_QWEN_RERANK_MODEL);
   assert.equal(usage.inputTokens, 40);
   assert.equal(usage.outputTokens, 15);
-  // No official Alibaba Model Studio price for qwen3.8-flash was confirmed
-  // (pricing.js) -- cost must be recorded as unknown (null), never a silent 0.
-  assert.equal(usage.estimatedCostUsd, null);
+  // pricing.js now has a confirmed 'alibaba-qwen/qwen3.8-flash' entry (Beijing
+  // region rate, matching the deployed endpoint) -- the cost is a real
+  // computed number, not the `null` this returned before that entry existed.
+  const price = PRICE_TABLE['alibaba-qwen/qwen3.8-flash'];
+  const expectedCost = Number(((40 / 1_000_000) * price.input_per_million_usd + (15 / 1_000_000) * price.output_per_million_usd).toFixed(8));
+  assert.equal(usage.estimatedCostUsd, expectedCost);
 });
 
 test('Qwen reranker rejects a candidate number outside the list instead of trusting the model JSON', async () => {

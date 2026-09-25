@@ -144,12 +144,11 @@ const DEFAULT_RERANK_MAX_OUTPUT_TOKENS = 200;
  *     off), far less than the ~9s/~12s measured for the longer synthesis/
  *     composer generations on this same wire.
  *
- * Cost: no official Alibaba Model Studio price for `qwen3.8-flash` could be
- * confirmed from this environment (unlike the confirmed
- * `google/gemini-embedding-2` and `google/gemini-3.8-flash` entries in
- * `pricing.js`), so no `alibaba-qwen/*` entry exists in `PRICE_TABLE` and
- * `estimateCostUsd` returns `null` for it here — recorded as unknown, never
- * as a silent `$0`.
+ * Cost: `pricing.js`'s `PRICE_TABLE` has a confirmed `alibaba-qwen/<model>`
+ * entry only for the default `qwen3.8-flash` (Chinese Mainland/Beijing rate,
+ * matching the deployed endpoint region); a different `AGENTFORGE_RERANK_MODEL`
+ * falls through to `estimateCostUsd`'s `null` for an unlisted key — recorded
+ * as unknown, never as a silent `$0`.
  */
 export function createQwenReranker({ endpoint, apiKey, model = DEFAULT_QWEN_RERANK_MODEL, timeoutMs = DEFAULT_RERANK_TIMEOUT_MS, fetchImpl = globalThis.fetch, maxOutputTokens = DEFAULT_RERANK_MAX_OUTPUT_TOKENS } = {}) {
   if (typeof endpoint !== 'string' || !endpoint.trim() || typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('QWEN_RERANK_NOT_CONFIGURED');

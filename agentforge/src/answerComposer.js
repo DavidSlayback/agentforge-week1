@@ -487,7 +487,10 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
     model: outcome.result.model_name || fallback.model,
     inputTokens: outcome.result.inputTokens || 0,
     outputTokens: outcome.result.outputTokens || 0,
-    estimatedCostUsd: outcome.result.estimatedCostUsd || 0,
+    // `?? null`, not `|| 0`: a provider that can't report or price its cost
+    // returns `estimatedCostUsd: null` (modelProvider.js's `resolveCostUsd`);
+    // `|| 0` would silently turn that unknown into a free call.
+    estimatedCostUsd: outcome.result.estimatedCostUsd ?? null,
     status: composerLabel,
     model_claims_proposed: modelClaimsProposed,
     model_claims_verified: modelClaimsVerified,

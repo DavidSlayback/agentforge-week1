@@ -105,6 +105,7 @@ test('trace with no model calls has empty list and zero totals', () => {
     output_tokens: 0,
     cost_usd: 0,
     calls: 0,
+    cost_complete: true,
   });
 
   // Single model view should be empty
@@ -220,4 +221,46 @@ test('backward-compatible single model view works with dashboard', () => {
   assert.equal(completed.model?.inputTokens, 300);
   assert.equal(completed.model?.outputTokens, 150);
   assert.equal(completed.model?.estimatedCostUsd, 0.03);
+});
+
+test('a trace with one unknown-cost stage never reports a silent full/partial total as if it were complete', () => {
+  const trace = new TraceRecorder({
+    correlationId: 'corr-unknown-cost',
+    operation: 'briefing',
+  });
+
+  // Known-cost stage (e.g. Gemini embeddings, priced in pricing.js).
+  trace.recordModelUsage({ stage: 'embed', provider: 'google', model: 'gemini-embedding-2', inputTokens: 1000, outputTokens: 0, estimatedCostUsd: 0.0002 });
+  // Unknown-cost stage (e.g. a model with no confirmed price) -- estimatedCostUsd
+  // is `null`, exactly what modelProvider.js's `resolveCostUsd` and
+  // pricing.js's `estimateCostUsd` return for an unpriced call, never `0`.
+  trace.recordModelUsage({ stage: 'answer', provider: 'some-provider', model: 'unpriced-model', inputTokens: 500, outputTokens: 200, estimatedCostUsd: null });
+
+  const completed = trace.complete({ status: 'success' });
+
+  // The per-stage list keeps the real (null) value -- it is never coerced to 0.
+  assert.equal(completed.modelUsage[0].estimatedCostUsd, 0.0002);
+  assert.equal(completed.modelUsage[1].estimatedCostUsd, null);
+
+  // The trace total must not silently present a $0.0002 total as if that were
+  // the whole trace's cost -- cost_usd is null and cost_complete is false,
+  // never a bare partial number a caller could mistake for the full spend.
+  assert.equal(completed.modelTotals.cost_complete, false);
+  assert.equal(completed.modelTotals.cost_usd, null);
+  assert.equal(completed.modelTotals.input_tokens, 1500);
+  assert.equal(completed.modelTotals.output_tokens, 200);
+  assert.equal(completed.modelTotals.calls, 2);
+
+  // The backward-compatible single-model view must agree: null, not 0 and
+  // not the partial 0.0002 sum.
+  assert.equal(completed.model.estimatedCostUsd, null);
+});
+
+test('a trace where every stage has a known cost is cost_complete with a real total', () => {
+  const trace = new TraceRecorder({ correlationId: 'corr-known-cost', operation: 'briefing' });
+  trace.recordModelUsage({ stage: 'embed', provider: 'google', model: 'gemini-embedding-2', inputTokens: 1000, outputTokens: 0, estimatedCostUsd: 0.0002 });
+  trace.recordModelUsage({ stage: 'rerank', provider: 'alibaba-qwen', model: 'qwen3.8-flash', inputTokens: 100, outputTokens: 20, estimatedCostUsd: 0.00001 });
+  const completed = trace.complete({ status: 'success' });
+  assert.equal(completed.modelTotals.cost_complete, true);
+  assert.equal(completed.modelTotals.cost_usd, 0.00021);
 });

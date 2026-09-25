@@ -16,7 +16,14 @@ export function computeDashboardMetrics(traces = []) {
     if (trace.model && (finite(trace.model.inputTokens) || finite(trace.model.input_tokens) || finite(trace.model.outputTokens) || finite(trace.model.output_tokens))) return Number(trace.model.inputTokens ?? trace.model.input_tokens ?? 0) + Number(trace.model.outputTokens ?? trace.model.output_tokens ?? 0);
     return null;
   }).filter((value) => value !== null);
+  // A trace with modelTotals.cost_complete === false had at least one model
+  // call with no known cost (TraceRecorder#recordModelUsage in
+  // observability/index.js); its cost_usd/estimatedCostUsd is null, not a
+  // partial number, so it is correctly excluded here rather than silently
+  // counted as $0. `costComplete` says so explicitly instead of leaving
+  // callers to infer "some traces are missing" from a lower total.
   const costs = traces.map((trace) => trace.modelTotals && finite(trace.modelTotals.cost_usd) ? Number(trace.modelTotals.cost_usd) : finite(trace.model?.estimatedCostUsd) ? Number(trace.model.estimatedCostUsd) : finite(trace.model?.estimated_cost_usd) ? Number(trace.model.estimated_cost_usd) : null).filter((value) => value !== null);
+  const tracesWithUnknownCost = traces.filter((trace) => trace.modelTotals?.cost_complete === false).length;
   const verified = traces.map((trace) => trace.verification?.status).filter((status) => status !== undefined && status !== null);
   const passes = verified.filter((status) => ['pass', 'passed', 'verified', 'ready', 'ok'].includes(String(status).toLowerCase())).length;
   return {
@@ -25,6 +32,8 @@ export function computeDashboardMetrics(traces = []) {
     p50: percentile(.5), p95: percentile(.95), p99: percentile(.99),
     totalTokens: tokenValues.length ? tokenValues.reduce((sum, value) => sum + value, 0) : null,
     totalCost: costs.length ? costs.reduce((sum, value) => sum + value, 0) : null,
+    costComplete: tracesWithUnknownCost === 0,
+    tracesWithUnknownCost,
     verificationPassRate: verified.length ? passes / verified.length : null,
   };
 }
@@ -73,8 +82,9 @@ export function renderObservabilityPage({ previewData = null } = {}) {
     const err=traces.filter(t=>['failure','deadline-exceeded'].includes(t.status)).length;
     const tokens=traces.map(t=>{const x=t.modelTotals;if(x&&(present(x.input_tokens)||present(x.output_tokens)))return Number(x.input_tokens||0)+Number(x.output_tokens||0);const m=t.model||{};if(['inputTokens','input_tokens','outputTokens','output_tokens'].some(k=>present(m[k])))return Number(m.inputTokens??m.input_tokens??0)+Number(m.outputTokens??m.output_tokens??0);return null}).filter(x=>x!==null);
     const costs=traces.map(t=>present(t.modelTotals?.cost_usd)?Number(t.modelTotals.cost_usd):present(t.model?.estimatedCostUsd)?Number(t.model.estimatedCostUsd):present(t.model?.estimated_cost_usd)?Number(t.model.estimated_cost_usd):null).filter(x=>x!==null);
+    const unpriced=traces.filter(t=>t.modelTotals?.cost_complete===false).length;
     const ver=traces.map(t=>t.verification?.status).filter(x=>x!==undefined&&x!==null),passed=ver.filter(x=>['pass','passed','verified','ready','ok'].includes(String(x).toLowerCase())).length;
-    return {requests:traces.length,errorRate:traces.length?err/traces.length:null,p50:p(.5),p95:p(.95),p99:p(.99),tokens:tokens.length?tokens.reduce((a,b)=>a+b,0):null,cost:costs.length?costs.reduce((a,b)=>a+b,0):null,verify:ver.length?passed/ver.length:null,errors:err};
+    return {requests:traces.length,errorRate:traces.length?err/traces.length:null,p50:p(.5),p95:p(.95),p99:p(.99),tokens:tokens.length?tokens.reduce((a,b)=>a+b,0):null,cost:costs.length?costs.reduce((a,b)=>a+b,0):null,unpriced,verify:ver.length?passed/ver.length:null,errors:err};
   };
   const confidence=(t)=>{const c=t.extraction?.confidence;if(!c)return '—';return 'mean '+n(c.mean)+' · min '+n(c.min)};
   const tokenCount=(t)=>{const x=t.modelTotals;if(x&&(present(x.input_tokens)||present(x.output_tokens)))return Number(x.input_tokens||0)+Number(x.output_tokens||0);const m=t.model||{};if(['inputTokens','input_tokens','outputTokens','output_tokens'].some(k=>present(m[k])))return Number(m.inputTokens??m.input_tokens??0)+Number(m.outputTokens??m.output_tokens??0);return null};
@@ -92,7 +102,7 @@ export function renderObservabilityPage({ previewData = null } = {}) {
     return '<tr><td>'+esc(date)+'</td><td>'+esc(op)+'</td><td><span class="state '+esc(String(state).toLowerCase())+'">'+esc(state)+'</span></td><td>'+n(t.durationMs,' ms')+'</td><td>'+n(tokenCount(t))+'</td><td>'+money(cost(t))+'</td><td>'+esc(confidence(t))+'</td><td>'+n(hits(t))+'</td><td>'+esc(verify)+'</td><td><details><summary>Inspect</summary><div class="trace-detail"><h3>Stage waterfall</h3>'+stageSvg(t.stages)+'<div class="stage-list">'+(t.stages||[]).map(s=>'<div class="item"><strong>'+esc(s.name)+'</strong> · '+n(s.durationMs,' ms')+' · '+esc(s.status||'status unavailable')+'</div>').join('')+'</div><h3>Worker handoffs</h3><div class="handoffs">'+handoffs+'</div>'+ (decisions?'<h3>Supervisor decisions</h3><div class="decisions">'+decisions+'</div>':'')+'<h3>Retrieval attempts</h3><div>'+retrieval+'</div><h3>Model usage by stage</h3><div class="usage">'+usage+'</div></div></details></td></tr>';
   }).join('');
   function render(data){const traces=Array.isArray(data.traces)?data.traces:[],m=sum(traces),alerts=data.alerts||{};
-    $('kpis').innerHTML=[metric('Total requests',n(m.requests),'all time · retained traces'),metric('Error rate',pct(m.errorRate),n(m.errors)+' operational errors'),metric('p50 latency',n(m.p50,' ms'),'measured encounters'),metric('p95 latency',n(m.p95,' ms'),'measured encounters'),metric('p99 latency',n(m.p99,' ms'),'measured encounters'),metric('Total tokens',n(m.tokens),'input + output'),metric('Total cost',money(m.cost),'estimated USD'),metric('Verification pass rate',pct(m.verify),'encounters with verification status')].join('');
+    $('kpis').innerHTML=[metric('Total requests',n(m.requests),'all time · retained traces'),metric('Error rate',pct(m.errorRate),n(m.errors)+' operational errors'),metric('p50 latency',n(m.p50,' ms'),'measured encounters'),metric('p95 latency',n(m.p95,' ms'),'measured encounters'),metric('p99 latency',n(m.p99,' ms'),'measured encounters'),metric('Total tokens',n(m.tokens),'input + output'),metric('Total cost',money(m.cost),m.unpriced?'estimated USD · '+n(m.unpriced)+' trace(s) with an unpriced model excluded':'estimated USD'),metric('Verification pass rate',pct(m.verify),'encounters with verification status')].join('');
     $('alerts').innerHTML=(alerts.rules||[]).map(a=>'<div class="alert '+(a.triggered?'firing':'')+'"><div><div class="alert-name">'+esc(a.id)+'</div><div class="alert-meta">Observed '+esc(a.observed??'—')+' '+(a.triggered?esc(a.operator):(a.operator==='>'?'≤':'not '+esc(a.operator)))+' threshold '+esc(a.threshold??'—')+'</div></div><span class="pill '+(a.triggered?'firing':'')+'">'+(a.triggered?'Firing':'OK')+'</span></div>').join('')||'<div class="empty">No alert rules returned.</div>';
     const fallbacks=traces.filter(t=>t.model?.provider_fallback===true).length;const hitsTotal=traces.reduce((s,t)=>s+(hits(t)||0),0);
     $('summary').innerHTML='<strong>'+n(traces.length)+'</strong> retained traces · <strong>'+n(hitsTotal)+'</strong> retrieval hits · <strong>'+n(fallbacks)+'</strong> provider fallbacks · alert window '+(present(alerts.windowMs)?esc(n(alerts.windowMs/60000))+' min':'not specified');

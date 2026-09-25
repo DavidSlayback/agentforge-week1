@@ -94,7 +94,14 @@ const buildProvider = (mode, role = 'synthesis') => {
   // AGENTFORGE_MODEL_ENABLE_THINKING=false turns off Qwen reasoning: about 2x
   // faster with identical JSON on the composer task (measured 2026-09-24).
   const extraBody = modelExtraBodyFromEnv(process.env, prefix);
-  const options = { endpoint, apiKey, model, timeoutMs, extraBody };
+  // Cost pricing key (pricing.js's PRICE_TABLE): only the qwen lane has a
+  // confirmed per-token price today ('alibaba-qwen/<model>'). The OpenRouter
+  // lane keeps its existing behavior of trusting OpenRouter's own reported
+  // `usage.cost` per call (modelProvider.js's `resolveCostUsd` falls back to
+  // `null`, never a guessed/silent `0`, when neither a reported cost nor a
+  // priceKey is available).
+  const priceKey = mode === 'qwen' && model ? `alibaba-qwen/${model}` : null;
+  const options = { endpoint, apiKey, model, timeoutMs, extraBody, priceKey };
   const configured = openRouter || protocol === 'compatible' ? new OpenAICompatibleProvider({ ...options, siteUrl: process.env[`${prefix}${openRouter ? 'OPENROUTER_SITE_URL' : 'MODEL_SITE_URL'}`] || '', siteName: process.env[`${prefix}${openRouter ? 'OPENROUTER_SITE_NAME' : 'MODEL_SITE_NAME'}`] || 'AgentForge' }) : protocol === 'dashscope-multimodal' ? new DashScopeMultimodalProvider(options) : new OpenAIResponsesProvider(options);
   return new ResilientProvider({ primary: configured, fallback: new DeterministicProvider() });
 };

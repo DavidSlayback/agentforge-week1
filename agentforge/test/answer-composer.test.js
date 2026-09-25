@@ -321,6 +321,28 @@ test('composeGroundedAnswer records exactly one model-usage entry on the trace, 
   assert.equal(fallbackTrace.usage.length, 1);
 });
 
+// Cost-honesty regression: a provider that cannot report or price its cost
+// (modelProvider.js's `resolveCostUsd` returns `estimatedCostUsd: null` for
+// an unpriced model) must reach the trace as `null`, never coerced to `0`
+// (`outcome.result.estimatedCostUsd ?? null`, not `|| 0`, in answerComposer.js).
+test('composeGroundedAnswer records an unknown model cost as null, never a silent 0', async () => {
+  const traceStub = () => { const usage = []; return { usage, recordModelUsage: (entry) => usage.push(entry) }; };
+  const unpricedTrace = traceStub();
+  const ref = labelForCitation;
+  const unpricedPrimary = {
+    name: 'unpriced-model', model: 'unpriced-v1', async checkReady() { return true; },
+    async generate(args) {
+      const refValue = ref(args.factLabels, labResult().citation);
+      return { text: JSON.stringify({ claims: [{ kind: 'patient_fact', text: 'Hemoglobin was recorded at 13.2 g/dL on 2026-01-05, reference range 12.0-15.5, and is normal.', refs: [refValue] }] }), inputTokens: 10, outputTokens: 20, estimatedCostUsd: null };
+    },
+  };
+  const provider = new ResilientProvider({ primary: unpricedPrimary, fallback: new DeterministicAnswerComposer() });
+  await composeGroundedAnswer({ labResults: [labResult()] }, { provider, trace: unpricedTrace });
+  assert.equal(unpricedTrace.usage.length, 1);
+  assert.equal(unpricedTrace.usage[0].provider, 'unpriced-model');
+  assert.equal(unpricedTrace.usage[0].estimatedCostUsd, null);
+});
+
 // F7 review fix: an already-deterministic provider is used directly, with no
 // wasted retries or spurious errors (DeterministicProvider.generate expects
 // briefing-shaped {patient, ...} args and would throw on the composer's).

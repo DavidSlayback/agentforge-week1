@@ -1,5 +1,21 @@
 import { MAX_RETRIES } from './contracts.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
+import { estimateCostUsd } from './pricing.js';
+
+/**
+ * Cost for one model call: trust a provider-reported figure when present
+ * (`data.usage.cost` / `data.cost`, e.g. OpenRouter's per-request actual);
+ * otherwise compute it from `pricing.js`'s `PRICE_TABLE` via `priceKey`, if
+ * the caller configured one. When neither is available, the cost is
+ * genuinely unknown and this returns `null` -- never a silent `0`, which
+ * would misreport an unpriced call as free (AGENTS.md: never present an
+ * unknown as $0).
+ */
+function resolveCostUsd({ reportedCost, priceKey, inputTokens, outputTokens }) {
+  if (reportedCost !== undefined && reportedCost !== null) return Number(reportedCost);
+  if (priceKey) return estimateCostUsd(priceKey, { inputTokens, outputTokens });
+  return null;
+}
 
 async function postJson({ endpoint, apiKey, body, timeoutMs, correlationId = '', headers = {}, fetchImpl = globalThis.fetch, parseJson = true, signal: parentSignal = null }) {
   const controller = new AbortController();
@@ -47,7 +63,7 @@ export class DeterministicProvider {
  * or provider-eligibility policy.
  */
 export class OpenAICompatibleProvider {
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge', fetchImpl = globalThis.fetch }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; this.fetchImpl = fetchImpl; }
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge', fetchImpl = globalThis.fetch, priceKey = null }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; this.fetchImpl = fetchImpl; this.priceKey = priceKey; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async checkReachable() { return probeProviderEndpoint({ endpoint: this.endpoint, apiKey: this.apiKey, model: this.model, timeoutMs: Math.min(this.timeoutMs, 15000), body: { model: this.model, messages: [{ role: 'user', content: 'Return only OK.' }], temperature: 0, max_tokens: 16 }, fetchImpl: this.fetchImpl }); }
   async generate({ prompt, correlationId = '', signal, maxTokens = 300 }) {
@@ -55,13 +71,15 @@ export class OpenAICompatibleProvider {
     const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, signal, fetchImpl: this.fetchImpl, headers: { ...(this.siteUrl ? { 'HTTP-Referer': this.siteUrl } : {}), ...(this.siteName ? { 'X-Title': this.siteName } : {}) }, body: { model: this.model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: maxTokens } });
     const text = data.choices?.[0]?.message?.content;
     if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
-    return { text: text.trim(), inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
+    const inputTokens = data.usage?.prompt_tokens || 0;
+    const outputTokens = data.usage?.completion_tokens || 0;
+    return { text: text.trim(), inputTokens, outputTokens, estimatedCostUsd: resolveCostUsd({ reportedCost: data.usage?.cost ?? data.cost, priceKey: this.priceKey, inputTokens, outputTokens }) };
   }
 }
 
 /** DashScope-compatible provider; readiness checks configuration only. */
 export class DashScopeMultimodalProvider {
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch }) { this.name = 'dashscope'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; }
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch, priceKey = null }) { this.name = 'dashscope'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; this.priceKey = priceKey; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async checkReachable() {
     return probeProviderEndpoint({
@@ -79,7 +97,9 @@ export class DashScopeMultimodalProvider {
     const content = data.output?.choices?.[0]?.message?.content;
     const text = Array.isArray(content) ? content.map((item) => item.text || '').join('') : content;
     if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
-    return { text: text.trim(), inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
+    const inputTokens = data.usage?.input_tokens || 0;
+    const outputTokens = data.usage?.output_tokens || 0;
+    return { text: text.trim(), inputTokens, outputTokens, estimatedCostUsd: resolveCostUsd({ reportedCost: data.usage?.cost ?? data.cost, priceKey: this.priceKey, inputTokens, outputTokens }) };
   }
 }
 
@@ -87,7 +107,7 @@ export class DashScopeMultimodalProvider {
 export class OpenAIResponsesProvider {
   // extraBody carries provider-specific request fields, e.g. { enable_thinking: false }
   // for Qwen models whose reasoning roughly doubles latency on copy-only tasks.
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch, extraBody = {} }) { this.name = 'openai-responses'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; this.extraBody = extraBody; }
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, fetchImpl = globalThis.fetch, extraBody = {}, priceKey = null }) { this.name = 'openai-responses'; this.model = model; this.endpoint = endpoint; this.apiKey = apiKey; this.timeoutMs = timeoutMs; this.fetchImpl = fetchImpl; this.extraBody = extraBody; this.priceKey = priceKey; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async checkReachable() {
     return probeProviderEndpoint({
@@ -104,7 +124,9 @@ export class OpenAIResponsesProvider {
     const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, signal, fetchImpl: this.fetchImpl, body: { ...this.extraBody, model: this.model, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], temperature: 0, max_output_tokens: maxTokens } });
     const text = data.output_text || data.output?.flatMap((item) => item.content || []).filter((item) => item.type === 'output_text').map((item) => item.text || '').join('');
     if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
-    return { text: text.trim(), inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0, estimatedCostUsd: Number(data.usage?.cost ?? data.cost ?? 0) };
+    const inputTokens = data.usage?.input_tokens || 0;
+    const outputTokens = data.usage?.output_tokens || 0;
+    return { text: text.trim(), inputTokens, outputTokens, estimatedCostUsd: resolveCostUsd({ reportedCost: data.usage?.cost ?? data.cost, priceKey: this.priceKey, inputTokens, outputTokens }) };
   }
 }
 

@@ -44,7 +44,15 @@ class TraceRecorder {
     this.decisions = [];
     this.latency = { acknowledgementMs: null };
     this.modelUsage = [];
-    this.modelTotals = { input_tokens: 0, output_tokens: 0, cost_usd: 0, calls: 0 };
+    // `cost_complete` starts true (no calls recorded yet -- a $0 total is
+    // accurate for zero calls) and latches to false the moment any recorded
+    // call's cost is unknown (`estimatedCostUsd` null/undefined). Once false,
+    // `cost_usd` is `null` for the rest of the trace: a total that silently
+    // summed an unknown-cost stage as $0 would understate real spend without
+    // saying so (AGENTS.md: never present an unknown as $0). `cost_complete`
+    // makes the same fact explicit for any caller that wants to distinguish
+    // "no cost recorded" from "an unpriced call happened".
+    this.modelTotals = { input_tokens: 0, output_tokens: 0, cost_usd: 0, calls: 0, cost_complete: true };
   }
 
   markAcknowledged() {
@@ -75,7 +83,7 @@ class TraceRecorder {
     const redactedModel = redactPayload(model);
     const inputTokens = model.inputTokens || 0;
     const outputTokens = model.outputTokens || 0;
-    const costUsd = model.estimatedCostUsd || 0;
+    const costKnown = model.estimatedCostUsd !== null && model.estimatedCostUsd !== undefined;
 
     // Append entry to usage list
     this.modelUsage.push(redactedModel);
@@ -83,8 +91,13 @@ class TraceRecorder {
     // Update running totals
     this.modelTotals.input_tokens += inputTokens;
     this.modelTotals.output_tokens += outputTokens;
-    this.modelTotals.cost_usd += costUsd;
     this.modelTotals.calls += 1;
+    if (!costKnown) this.modelTotals.cost_complete = false;
+    // Once incomplete, cost_usd stays null for the rest of the trace -- see
+    // the constructor comment for why this is null rather than a partial sum.
+    this.modelTotals.cost_usd = this.modelTotals.cost_complete
+      ? Number(((this.modelTotals.cost_usd || 0) + Number(model.estimatedCostUsd || 0)).toFixed(8))
+      : null;
 
     // Keep derived single-model view for backward compatibility (last entry + totals)
     this.model = redactPayload({
@@ -186,6 +199,13 @@ class InMemoryTraceSink {
     const toolFailures = traces.reduce((total, trace) => total + (trace.retrieval?.attempts || []).filter((attempt) => ['failed', 'timeout'].includes(attempt.status)).length, 0);
     const retries = traces.reduce((total, trace) => total + (trace.retries?.total || 0), 0);
     const providerFallbacks = traces.filter((trace) => trace.model?.provider_fallback === true).length;
+    // A trace whose modelTotals.cost_complete is false has at least one
+    // recorded call with no known cost (TraceRecorder#recordModelUsage) --
+    // its cost_usd is null, so it contributes nothing here (never a silent
+    // 0-for-unknown). `costComplete`/`tracesWithUnknownCost` say so
+    // explicitly, so a caller never mistakes a partial sum for the full
+    // window spend.
+    const tracesWithUnknownCost = traces.filter((trace) => trace.modelTotals?.cost_complete === false).length;
     const estimatedCostUsd = traces.reduce((total, trace) => {
       if (trace.modelTotals) return total + Number(trace.modelTotals.cost_usd || 0);
       return total + Number(trace.model?.estimatedCostUsd || trace.model?.estimated_cost_usd || 0);
@@ -214,6 +234,8 @@ class InMemoryTraceSink {
       retries,
       providerFallbacks,
       estimatedCostUsd,
+      costComplete: tracesWithUnknownCost === 0,
+      tracesWithUnknownCost,
       tokens: { input: inputTokens, output: outputTokens, total: inputTokens + outputTokens },
       verificationOutcomes: traces.reduce((outcomes, trace) => { const key = trace.verification?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
       displayOutcomes: traces.reduce((outcomes, trace) => { const key = trace.display?.status || 'unknown'; outcomes[key] = (outcomes[key] || 0) + 1; return outcomes; }, {}),
@@ -541,7 +563,7 @@ function operationalTrace(trace = {}) {
     retries: { total: trace.retries?.total || 0, exhausted: Boolean(trace.retries?.exhausted) },
     model: pick(trace.model, ['provider', 'provider_name', 'model', 'model_name', 'totalTokens', 'inputTokens', 'outputTokens', 'estimatedCostUsd', 'provider_fallback', 'provider_status', 'provider_error_code']),
     modelUsage: Array.isArray(trace.modelUsage) ? trace.modelUsage.map((usage) => pick(usage, ['stage', 'provider', 'provider_name', 'model', 'model_name', 'inputTokens', 'outputTokens', 'estimatedCostUsd'])) : [],
-    modelTotals: trace.modelTotals ? pick(trace.modelTotals, ['input_tokens', 'output_tokens', 'cost_usd', 'calls']) : { input_tokens: 0, output_tokens: 0, cost_usd: 0, calls: 0 },
+    modelTotals: trace.modelTotals ? pick(trace.modelTotals, ['input_tokens', 'output_tokens', 'cost_usd', 'calls', 'cost_complete']) : { input_tokens: 0, output_tokens: 0, cost_usd: 0, calls: 0, cost_complete: true },
     coverage: pick(trace.coverage, ['status', 'groups']),
     verification: pick(trace.verification, ['status', 'evidence_grounding', 'patient_scope', 'read_only']),
     display: pick(trace.display, ['status']),
