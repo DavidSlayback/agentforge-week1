@@ -51,6 +51,6 @@ single-use; logout revokes no tokens.
 | Allergies | FHIR: severity coarsened; no raw "(1)"; `clinicalStatus` ≠ PHP rule ⚠️ | REST `/api/patient/:puuid/allergy` + client `filterActiveIssues` ✅ |
 | Medical Problems | FHIR `Condition` + client filter on abatement ⚠️ | REST `/api/patient/:puuid/medical_problem` + client filter ✅ |
 | Medications | ❌ not separable from Rx in FHIR | REST `/api/patient/:pid/medication` + client filter ✅ |
-| Prescriptions | FHIR `MedicationRequest`: mixed with meds, refills=0, no numeric dosage ⚠️ | REST `/api/prescription?pid=&source_table=prescriptions`, client sort ✅ (no refills/form) |
+| Prescriptions | FHIR `MedicationRequest`: mixed with meds, refills=0, no numeric dosage ⚠️ | REST `/api/prescription?patient_id=<pid>&source_table=prescriptions` (allow-listed keys only), client sort ✅ (no refills/form) |
 | Care Team | FHIR `CareTeam` ⚠️ (inactive members shown) | same ⚠️ |
 | Vitals | FHIR: **deleted set shown** ❌ (breaks decision 2) | REST per-encounter vitals ✅ |

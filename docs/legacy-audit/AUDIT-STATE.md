@@ -26,8 +26,8 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | 2 | UI-layer audit | **approved 2026-09-25** | `ui/README.md`, `ui/UI-FLOW.md`, `ui/DEMOGRAPHICS*.md` + 7 unit analyses |
 | 3 | Module audit | **approved 2026-09-25** (client model B) | `modules/README.md`, `modules/DATA-FLOW.md` + 10 module analyses |
 | 4 | Data audit | **approved 2026-09-25** | `data/README.md`, `data/SCHEMA.md`, `data/UUID-MAPPING.md`, `data/CONFIG.md` |
-| 5 | Repo split | **checkpoint presented 2026-09-25** (in place) | tag `legacy-baseline` → `3ccfe1d` (staging + GitHub), `AGENT-BRIEF.md`, `README.md` |
-| 6 | Deep-dive | not started | |
+| 5 | Repo split | **approved 2026-09-25** (in place) | tag `legacy-baseline` → `3ccfe1d`, `AGENT-BRIEF.md`, `README.md` |
+| 6 | Deep-dive | **checkpoint presented 2026-09-25** (code-only; live evidence deferred to the build) | `VERIFICATION.md`, `walkthroughs/*.md` (5) |
 | 7 | Bug catalog | not started | |
 | 8 | Migration route | not started | |
 | 9 | Side quests | not started | |
@@ -80,6 +80,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-25 | Phase 6 scope: **no scripted live API checks and no restricted-user checks**. Code-only walkthroughs now; live evidence comes from the build's walking skeleton, card by card. Findings stay "verified from code" until then | Scripted endpoint verification was stopped by a safety classifier; David chose options 1 + 3 |
 | 2026-09-25 | Keep `rest_api` on in production | AgentForge's live adapter needs it; M-1 isn't reachable without a `prescription` scope, and no enabled client has one |
 | 2026-09-25 | **Client model B**: the SPA is served by a thin BFF (our server, not OpenEMR's backend) holding a confidential OAuth client; tokens stay server-side; same-origin removes the CORS preflight problem; FHIR-first, standard REST per card where FHIR can't match (Allergies, Problems, Meds, Rx, Vitals) | Public clients can't get `user/` scopes (M-2); FHIR vitals serves deleted sets (M-5); preflight 404 (M-3) |
 | 2026-09-25 | Phase 2 parity decisions (David, all as recommended): (1) Prescriptions shows **all** rows, with the dead `active` filter documented; (2) Vitals shows the **correct** latest set, an intentional deviation from the join bug; (3) Allergies: highlight severe only, no re-sort (sorting is a Phase 9 side quest); (4) empty lists always say "Nothing Recorded" (no `lists_touch` in the API); (5) squad restriction and `hide_dashboard_cards` accepted as API gaps, all cards shown; (6) live security checks with a restricted local test user approved for Phase 6 | Parity = what users see today, except where that is a patient-safety bug |
@@ -133,3 +134,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 3 approved (client model B). M-1 production exposure checked by David: not reachable (no enabled client has a prescription scope); `rest_api` stays on; upstream report deferred. Phase 4: 2 sonnet auditors (schema, uuid mapping and config). Tier-3 corrections: `outcome=6` exists with a blank title; `ListService` uuid null-guard downgraded to Medium. Phase 4 checkpoint presented.
 
 - 2026-09-25 — Phase 4 approved. Phase 5 in place: annotated tag `legacy-baseline` → `3ccfe1d` pushed to staging and origin (David: yes); `AGENT-BRIEF.md` and `README.md` written; pointer added to `AGENTS.md`. Phase 5 checkpoint presented.
+
+- 2026-09-25 — Phase 5 approved. Phase 6: local confidential OAuth client registered and enabled by David; admin token captured; smoke test OK (REST + FHIR 200; `api:oemr` present in token claims though missing from the token response's `scope` string; `/api/patient?pubpid=13` ignores the filter, returns all 13). Scripted verification stopped (safety classifier); switched to code-only walkthroughs.
+
+- 2026-09-25 — Phase 6: 5 sonnet walkthroughs (sign-in + header, issue cards, prescriptions, care team, vitals). `VERIFICATION.md` compiled: 20 High/Critical-candidate claims, 4 observed live (M-3 preflight, B-14, M-2 consistency, dead REST filters). Resolved: BFF allow-lists `patient_id` for `/api/prescription`; vitals via REST per encounter carries units. Phase 6 checkpoint presented.
