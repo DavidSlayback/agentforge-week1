@@ -1,5 +1,14 @@
 # W2 regression matrix: review regressions against the rebuilt gate
 
+## Latest re-runs
+
+| Commit | Result | Notes |
+|---|---|---|
+| `131d5a3` | R0 passes; 29/29 rows fail the gate | After the lab-header fix (`a91452b`) and the answer-prompt change. No anchor drift. |
+| `dc898c6` | R0 passes; 29/29 rows fail the gate | After the answer composer moved to label references (`5ec7aa5`). No anchor drift. |
+
+The sections below record earlier runs and the re-anchoring history.
+
 ## S4–S6 integration re-run (branch `integrate/s4-s6`)
 
 Run with `node agentforge/scripts/run-regression-matrix.mjs` on the merged

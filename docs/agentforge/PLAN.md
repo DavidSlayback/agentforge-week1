@@ -106,27 +106,27 @@ requirements, not commands.
 ## Requirements matrix
 
 Class: HG = hard gate, C = core, S = submission, SF = safety, X = stretch.
-Status is as of `7ac46e9`.
+Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that observed each row on the public URL; `7ac46e9` was the starting point.
 
 | ID | Src | Requirement (paraphrase) | Class | Acceptance criterion | Status | Slice |
 |---|---|---|---|---|---|---|
-| W2-HG1 | p5 §6, "HARD GATE" | Graders inject a regression and CI must fail | HG | A GitLab MR pipeline on `main` fails for each of the 16 regressions in review G2 | FAIL | S1 |
-| W2-HG2 | p2 GATE, p5 §6 | PR-blocking hook runs 50-case gate | HG | `.gitlab-ci.yml` job `w2-gate` required on MRs; `.githooks/pre-commit` documented | FAIL | S0, S1 |
-| W2-HG3 | p3 | `./KEY_METRICS.md` with rationale | HG | At root on `main`, with measured values that cite evidence files | Partial | S12 |
-| W2-C1 | p4 §1 | `attach_and_extract` for lab_pdf and intake_form; stores the source in OpenEMR | C | The response includes the OpenEMR `document_id`; `GET /api/patient/:pid/document/:did` returns identical bytes | wired, untested live (S8; smoke not run) | S8 |
-| W2-C2 | p2, p4 §1 | Derived facts persisted as FHIR/OpenEMR records, no duplicates | C | Lab values are readable through FHIR Observation, and re-uploading the same file creates 0 new rows | wired, untested live (S8; smoke not run) | S8 |
-| W2-C3 | p4 §2 | Strict schemas with the required lab and intake fields plus validation tests | C | Zod schemas; negative tests per required field | Partial | S2 |
-| W2-C4 | p4 §3 | Sparse + dense + rerank; only top evidence goes to the answer model | C | Trace shows the BM25 candidates, Cohere dense and rerank scores, and top-k ≤ 3 sent to the answer model | wired, untested live (S5; Gemini dense + Gemini rerank per D2′ instead of Cohere, on `integrate/s4-s6`, not deployed) | S5 |
-| W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | wired, untested live (S5; 42 chunks in `agentforge/corpus/guidelines/corpus.json`, copied into the image by the `Dockerfile`, not deployed) | S5 |
-| W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | wired, untested live (S6; `decideNext` loop + `workflow.decisions[]` pass 26 unit tests and the gate on `integrate/s4-s6`, not deployed) | S6 |
-| W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | wired, untested live (S2 document/guideline citations deployed; S6 answer-claim citations pass the gate on `integrate/s4-s6`, not deployed) | S2, S6 |
-| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | wired, untested live (S4; `/v1/source-documents/:id/pages/:n.png` + server-side overlay in the source preview on `integrate/s4-s6`, not deployed) | S4 |
-| W2-C9 | p5 §6 | Categories schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs; >5% regression or below threshold fails | C | Gate thresholds documented; each category has at least one deployed-path case | Partial | S1 |
-| W2-C10 | p5 §7 | Per encounter: tool sequence, per-step latency, tokens, cost, retrieval hits, extraction confidence, eval outcome; no raw PHI | C | A real scan trace has all 7 fields non-null; the PHI scan of that trace is clean | Partial | S9 |
-| W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | wired, untested live (S6; `workflow.answer` — `patient_facts[]`/`guideline_evidence[]`, each `verifyClaims`-checked — on `integrate/s4-s6`, not deployed; no model provider configured yet, so every observed run is `composer: 'deterministic-fallback'`) | S6 |
-| W2-SF1 | p2 | Unsupported extracted facts visible; the scan may be imperfect | SF | 0 facts, a doc-type mismatch or a patient mismatch means not READY, with a reason | FAIL | S3 |
-| W2-S1 | p3 | README separates W1 and W2; branch, env vars and services are unambiguous | S | README has URLs, SHA endpoint, W1 vs W2 table, full env table | FAIL | S12 |
-| W2-S2 | p6 | `./W2_ARCHITECTURE.md` covering ingestion, graph, RAG, gate, risks, tradeoffs | S | At root; every claim matches the code at the freeze SHA | FAIL (location) | S12 |
+| W2-HG1 | p5 §6, "HARD GATE" | Graders inject a regression and CI must fail | HG | The enforced gate (`.githooks/pre-commit`, D5: no GitLab runner) fails for each injected regression | Done: regression matrix 29/29 blocked on `131d5a3`; blocked-commit transcript `evidence/W2_PRECOMMIT_BLOCK_14cfd45.txt`; `eval:gate -- --inject-defect` exits 1 on `9d4d6b5` | S1 |
+| W2-HG2 | p2 GATE, p5 §6 | PR-blocking hook runs 50-case gate | HG | `.githooks/pre-commit` runs the unit suites and the 50-case gate; `.gitlab-ci.yml` job `w2-regression-gate` mirrors it | Done (hook enforced on every commit; CI mirror has no runner, D5) | S0, S1 |
+| W2-HG3 | p3 | `./KEY_METRICS.md` with rationale | HG | At root on `main`, with measured values that cite evidence files | Done: every row measured with command and SHA (`131d5a3`, cost on `dcaa180`) | S12 |
+| W2-C1 | p4 §1 | `attach_and_extract` for lab_pdf and intake_form; stores the source in OpenEMR | C | The response includes the OpenEMR `document_id`; `GET /api/patient/:pid/document/:did` returns identical bytes | Done: live upload returns an OpenEMR `document_id`; read-back sha256 equals the source file | S8 |
+| W2-C2 | p2, p4 §1 | Derived facts persisted as FHIR/OpenEMR records, no duplicates | C | Lab values are readable through FHIR Observation, and re-uploading the same file creates 0 new rows | Done: live re-upload returns `duplicate: true` with the same id; FHIR Observation read-back verified | S8 |
+| W2-C3 | p4 §2 | Strict schemas with the required lab and intake fields plus validation tests | C | Zod schemas; negative tests per required field | Done: `schemas.test.js` rejects each missing required `LabResult`/`IntakeForm` key | S2 |
+| W2-C4 | p4 §3 | Sparse + dense + rerank; only top evidence goes to the answer model | C | Trace shows the hybrid provider (BM25 + `gemini-embedding-2` dense + Qwen listwise rerank, D2′/D10) and top-k ≤ 3 sent to the answer model | Done: live provider `hybrid:gemini-embedding-2+alibaba-qwen:qwen3.8-flash`, 3 hits, not degraded | S5 |
+| W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | Done: 42 chunks (CDC, MedlinePlus, NIDDK, USPSTF) with URL, section and version; cited live | S5 |
+| W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | Done: live `decisions[]` EXTRACT → RETRIEVE → ANSWER with reasons; `supervisor-decisions.test.js` | S6 |
+| W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | Done: exact 5 keys on live document and guideline citations; `Citation` is strict; the gate checks every answer claim | S2, S6 |
+| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | Wired, live page PNG route returns `image/png` and citations carry boxes; a browser screenshot of the drawn overlay is still an S11 item | S4 |
+| W2-C9 | p5 §6 | Categories schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs; >5% regression or below threshold fails | C | Gate thresholds documented; each category has at least one deployed-path case | Done: 5 categories, thresholds and the 5-point regression rule enforced; 50/50 on every commit | S1 |
+| W2-C10 | p5 §7 | Per encounter: tool sequence, per-step latency, tokens, cost, retrieval hits, extraction confidence, eval outcome; no raw PHI | C | A real scan trace has all 7 fields non-null; the PHI scan of that trace is clean | Partial: 6 of 7 fields live (tool sequence, stage latency, tokens, cost, retrieval hits, extraction confidence); eval outcome was a `not_run` stub, fix in progress (`fix/trace-eval`) | S9 |
+| W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | Done: live `workflow.answer` composed by `qwen3.8-flash` (`model` or `model+deterministic-topup`), patient facts and guideline evidence separated, every claim verified | S6 |
+| W2-SF1 | p2 | Unsupported extracted facts visible; the scan may be imperfect | SF | 0 facts, a doc-type mismatch or a patient mismatch means not READY, with a reason | Done: gate `safe_refusal` 12/12 (zero fields, blank page, doc-type and patient mismatch, unreadable PDF) | S3 |
+| W2-S1 | p3 | README separates W1 and W2; branch, env vars and services are unambiguous | S | README has URLs, SHA endpoint, W1 vs W2 table, full env table | Done: root README has URLs, `/health` SHA, W1 vs W2 table, env table | S12 |
+| W2-S2 | p6 | `./W2_ARCHITECTURE.md` covering ingestion, graph, RAG, gate, risks, tradeoffs | S | At root; every claim matches the code at the freeze SHA | Done: root `W2_ARCHITECTURE.md`, reconciled with the code on `dc898c6` and later | S12 |
 | W2-S3 | p6 | Cost and latency report: dev spend, projection, p50/p95, bottlenecks | S | Numbers from real traces and a price table | Done except owner numbers: `W2_COST_LATENCY.md` (14 live traces, official Qwen/Gemini prices, 100/1K/10K/100K projection, per-stage p50/p95, bottlenecks). Qwen and Vultr dev spend await the owner's console readback. | S9, S12 |
 | W2-S4 | p6 | Demo video, 3–5 min | S | Recorded from the freeze SHA | Open | S11 (H5) |
 | W1-SF1 | W1 p7 | Verification: every claim is source-attributed | SF | Verifier rejects any sentence with an unanchored clinical value; the fabricated-warfarin probe fails | Verifier done (S7, per-claim; used by S6) | S7 |
@@ -587,7 +587,7 @@ on the freeze SHA.
 
 ## Completion record
 
-**Status 2026-09-24 (late evening CT).** `main` = `/agentforge-w2` = `dcaa180`
+**Status 2026-09-24 (late evening CT).** `main` = `/agentforge-w2` = `9d4d6b5`
 (`/health` `git_sha`); `/agentforge` is frozen at `84f232b` (D8). Every
 slice below passed an independent review before merge.
 
