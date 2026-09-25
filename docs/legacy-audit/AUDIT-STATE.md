@@ -28,7 +28,7 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | 4 | Data audit | **approved 2026-09-25** | `data/README.md`, `data/SCHEMA.md`, `data/UUID-MAPPING.md`, `data/CONFIG.md` |
 | 5 | Repo split | **approved 2026-09-25** (in place) | tag `legacy-baseline` → `3ccfe1d`, `AGENT-BRIEF.md`, `README.md` |
 | 6 | Deep-dive | **approved 2026-09-25** (code-only; live evidence deferred to the build) | `VERIFICATION.md`, `walkthroughs/*.md` (5) |
-| 7 | Bug catalog | in progress: harvest (2 haiku) → dedup/severity (tier 3) | `BUGS-MITIGATIONS.md` |
+| 7 | Bug catalog | **checkpoint presented 2026-09-25** | `BUGS-MITIGATIONS.md`: 164 entries from 238 rows (2 Critical, 18 High, 61 Medium, 83 Low) |
 | 8 | Migration route | not started | |
 | 9 | Side quests | not started | |
 | 10 | Vertical slices | not started | |
@@ -92,12 +92,9 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 | 2026-09-25 | Probe patients: pid 13 (data-rich) and pid 3 (empty), from read-only SQL counts | pid 7 has no allergies; `phase0-setup.ps1` output wasn't available |
 | 2026-09-25 | Audit docs committed to the working branch only, so they survive the ephemeral container; nothing is merged, and the slides stay git-excluded | David decides at the Phase 0 checkpoint whether they merge, stay on the branch, or move |
 
-## Resume here (paused 2026-09-25 by David, travelling)
+## Resume notes
 
-- **Paused deliberately (David, before travel):** the Phase 7 catalog writer (opus) was stopped after finishing its analysis, before writing; no partial file exists. **On resume, first continue that same agent** (write step only); re-run only if that fails. It was producing `BUGS-MITIGATIONS.md` from three harvest TSVs in the session scratchpad (`harvest-ui-project-baseline.tsv` 119 rows, `harvest-modules-data.tsv` 92, `harvest-router-data.tsv` 23), plus 4 hand-listed rows (BASELINE E-10; WHATS-MISSING OpenEMR input validation and secrets; AgentForge backups).
-- **If `BUGS-MITIGATIONS.md` is missing or incomplete on resume:** re-run the harvest (2 haiku, mechanical, one TSV each, absolute output paths) and the tier-3 catalog step. The prompts follow the skill's Phase 7 procedure; check row counts against the ui/, modules/ and data/ README catalogs.
-- **On resume:** check coverage (238 rows → entries), spot-check Critical/High entries, commit, present the Phase 7 checkpoint. Then Phase 8 starts by asking David for scoring dimensions and weights, before any scoring.
-- **Local stack state:** seeds applied (pid 13 care team, notes and vitals; pid 12 deceased). The local OAuth client "Dashboard BFF (local Phase 6 verification)" is enabled. The admin token expired after 1 h; nothing depends on it. A `restricted` local user exists and is unused by agents; its password was pasted in chat, so David should rotate or delete it.
+- Paused and resumed 2026-09-25. The Phase 7 catalog agent was continued (write step only) after the pause, as planned. David is phone-only for the rest of the day: checkpoints are short, with one-word replies.
 
 ## Open questions
 
@@ -148,3 +145,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 6: 5 sonnet walkthroughs (sign-in + header, issue cards, prescriptions, care team, vitals). `VERIFICATION.md` compiled: 20 High/Critical-candidate claims, 4 observed live (M-3 preflight, B-14, M-2 consistency, dead REST filters). Resolved: BFF allow-lists `patient_id` for `/api/prescription`; vitals via REST per encounter carries units. Phase 6 checkpoint presented.
 
 - 2026-09-25 — Phase 6 approved; deceased seed applied to pid 12. Phase 7 started: findings harvest (2 haiku, to scratchpad TSV) → tier-3 dedup and final severity.
+
+- 2026-09-25 — Phase 7: catalog written by a tier-3 agent from 238 harvested rows → 164 entries (74 merged; every row in exactly one Sources line, checked by script). Critical: 5.01 (U-1, legacy vitals join) and 5.02 (M-5, FHIR vitals without a deleted filter). U-2 → High (7.01). Local-only credentials and password grant → Medium (1.05); the deploy compose requires OE_USER and OE_PASSWORD with no default (verified). Phase 7 checkpoint presented.
