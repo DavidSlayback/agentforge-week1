@@ -28,7 +28,7 @@ agree. Details are in `probe/results/{codex,claude-laptop}/BASELINE.md`.
 | PHP parse (`php -l`) | `… php-parserror` | 0 errors | 1 deprecation (E-03) |
 | PHPCS / PSR-12 | `… psr12-report` | 8 errors in 3 files | E-04 (real), E-05 (environment) |
 | ESLint | `… lint-javascript-report` | 3 errors in 3 files | E-06, all in AgentForge JS |
-| PHPStan level 10 | `… phpstan` | **401 errors** (exit 0, 15 min) | ~273 in the AgentForge module (E-11); ~128 in unchanged upstream files, 116 of them `ignore.unmatched` baseline drift (E-12) |
+| PHPStan level 10 | `… phpstan` | **401 errors** on the CRLF checkout; **274 on an LF copy**, 272 of them real | Real: 272, all in the AgentForge module (E-11). The other 129 on CRLF are line-ending artifacts (E-12, proven). The 2 LF-only errors are copy artifacts: `oe-module-dorn` references the ClaimRev module, which isn't in the git index |
 | PHP / Apache log | `… php-log`, Apache `error.log` | E-07 new during the probes | older entries predate this audit |
 | DB-backed suites (unit/services/api/e2e) | `openemr-cmd ut/st/at/et` | _not run_ | Held back until the probes were done (HANDOFF). `openemr-cmd` isn't installed on the Windows host. |
 | Runtime errors | David's run-throughs plus 2 automated probes | B-01…B-16, E-08, E-09 | |
@@ -62,10 +62,8 @@ agree. Details are in `probe/results/{codex,claude-laptop}/BASELINE.md`.
 | E-07 | Apache log | `PHP Warning: Undefined array key "version"` | `src/RestControllers/FHIR/FhirMetaDataRestController.php:85` | every `GET /fhir/metadata` (16:13 and 16:24 UTC probe runs) | Low; **relevant**: the port will call this endpoint | |
 | E-08 | Browser console | `TypeError: top.restoreSession is not a function` ×2 per load | dashboard opened by direct URL | every load (both probes) | Low (the page assumes the tabbed shell) | |
 | E-09 | Browser console | `TypeError: Cannot read properties of undefined (reading 'setPatient')` ×1 per load | same | every load | Low | |
-| E-11 | PHPStan | ~273 level-10 errors, e.g. `offsetAccess.nonOffsetAccessible` ×111 and `argument.type` ×102 in `tests/run.php`, plus `openemr.forbiddenInstantiation`, `openemr.forbiddenCatchType`, `method.notFound` in `public/` | `interface/modules/custom_modules/oe-module-agentforge/**` (51 files added by this fork, not in the baseline) | always | Medium: this fork's own code breaks the repo's static-analysis rule, and no gate runs PHPStan | |
-| E-12 | PHPStan | `Ignored error pattern … was not matched in reported errors` ×116; `binaryOp.invalid` ×12 / `assignOp.invalid` ×1 on `"select
-…"` strings | `Carecoordination/…/CarecoordinationController.php` ×113, `PostCalendar/pnadmin.php`, `portal/…/PatientReporter.php` (all unchanged from upstream) | always on this checkout | **Environment, likely**: messages include `
-` from the CRLF checkout; PHP 8.5.6 runtime is a second suspect. Unproven | n/a |
+| E-11 | PHPStan | 272 level-10 errors (LF run), e.g. `offsetAccess.nonOffsetAccessible` ×111 and `argument.type` ×102 in `tests/run.php`, plus `openemr.forbiddenInstantiation`, `openemr.forbiddenCatchType`, `method.notFound` in `public/` | `interface/modules/custom_modules/oe-module-agentforge/**` (51 files added by this fork, not in the baseline) | always | Medium: this fork's own code breaks the repo's static-analysis rule, and no gate runs PHPStan | |
+| E-12 | PHPStan | `Ignored error pattern … was not matched in reported errors` ×116; `binaryOp.invalid` ×12 and `assignOp.invalid` ×1 on multi-line SQL string literals | `Carecoordination/…/CarecoordinationController.php` ×113, `PostCalendar/pnadmin.php`, `portal/…/PatientReporter.php` (all unchanged from upstream) | always on the CRLF checkout | **Environment, proven**: the literals contain CR bytes on this disk. The LF-copy run shows 0 `ignore.unmatched` and no errors in these files | n/a |
 | E-10 | PHPUnit | 3 warnings, 1 notice | `vendor/particle/validator` ×2, `vendor/league/oauth2-server/src/CryptKey.php:74`, `src/Cqm/Qdm/BaseTypes/AbstractType.php:23` | always | Low (vendor/upstream) | |
 
 ## Missing checks
@@ -74,10 +72,10 @@ agree. Details are in `probe/results/{codex,claude-laptop}/BASELINE.md`.
   `openemr-cmd`, or `docker exec … /root/devtools ut` etc., and write test
   data to the database. They're held back until Phase 0 is approved.
 - `npm run test:js` (Jest) for OpenEMR's front end.
-- ~~LF re-run of isolated PHPUnit~~: done, 0 failures (E-01 proven). The LF
-  PHPStan re-run for E-12 is in progress.
-- Parity data for Care Team (DB-07) and Patient Notes (DB-08): 0 rows for
-  every patient, and David couldn't create any from the UI.
+- ~~LF re-runs~~: done. Isolated PHPUnit has 0 failures (E-01 proven); PHPStan
+  has 272 real errors, all in `oe-module-agentforge` (E-12 proven).
+- ~~Parity data for Care Team and Patient Notes~~: seeded on pid 13
+  (`seed/phase1-seed.sql`).
 
 ## Notes
 
