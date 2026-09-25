@@ -23,8 +23,8 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 |---|---|---|---|
 | 0 | Manual recon | **approved 2026-09-25** | `DISCOVERY-GUIDE.md`, `INVENTORY.md`, `BASELINE-ERRORS.md`, `RECON.md`, `probe/results/` |
 | 1 | AI scrape | **approved 2026-09-25** | `PROJECT-MAP.md`, `project/*.md`, `ui/DASHBOARD-MAP.md`, `api/*.md`, `REQUIREMENTS-TRACE.md`, `seed/` |
-| 2 | UI-layer audit | **checkpoint presented 2026-09-25** | `ui/README.md`, `ui/UI-FLOW.md`, `ui/DEMOGRAPHICS*.md` + 7 unit analyses |
-| 3 | Module audit | not started | |
+| 2 | UI-layer audit | **approved 2026-09-25** | `ui/README.md`, `ui/UI-FLOW.md`, `ui/DEMOGRAPHICS*.md` + 7 unit analyses |
+| 3 | Module audit | **checkpoint pending: architecture decision A/B asked 2026-09-25** | `modules/README.md`, `modules/DATA-FLOW.md` + 10 module analyses |
 | 4 | Data audit | not started | |
 | 5 | Repo split | not started (in place: `legacy-baseline` tag, to confirm) | |
 | 6 | Deep-dive | not started | |
@@ -59,16 +59,16 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - [x] T1 `src/Common/Layouts/LayoutsUtils.php` → `ui/LAYOUTS-UTILS.md`
 
 **Phase 3: modules (auth first, then read paths)**
-- [ ] T3 `src/RestControllers/AuthorizationController.php` (1,772 lines) → `modules/AUTHORIZATION-CONTROLLER.md`
-- [ ] T3 (ovr) `src/RestControllers/Subscriber/CORSListener.php` → `modules/CORS-LISTENER.md` (verify: any Origin reflected?)
-- [ ] T3 `apis/routes/_rest_routes_standard.inc.php`, `_rest_routes_fhir_r4_us_core_3_1_0.inc.php` (in-scope routes only) → `modules/API-ROUTES.md`
-- [ ] T3 `src/Services/PatientService.php`, `src/Services/FHIR/FhirPatientService.php` → `modules/PATIENT-SERVICES.md`
-- [ ] T3 (ovr) `src/Services/AllergyIntoleranceService.php`, `FHIR/FhirAllergyIntoleranceService.php` → `modules/ALLERGY-SERVICES.md`
-- [ ] T3 (ovr) `src/Services/ConditionService.php`, `FHIR/FhirConditionService.php`, `src/Services/PatientIssuesService.php` → `modules/CONDITION-SERVICES.md` (`clinical-status` param)
-- [ ] T3 (ovr) `src/Services/PrescriptionService.php`, `FHIR/FhirMedicationRequestService.php`, `src/Services/ListService.php` → `modules/MEDICATION-SERVICES.md` (UNION, refills)
-- [ ] T3 `src/Services/CareTeamService.php`, `FHIR/FhirCareTeamService.php` → `modules/CARE-TEAM-SERVICES.md`
-- [ ] T2 `src/Services/FHIR/Observation/FhirObservationVitalsService.php`, `src/Services/FHIR/FhirObservationService.php` (routing and `_sort`) → `modules/VITALS-SERVICES.md`. (`pnotes` dropped from the queue: Messages isn't ported)
-- [ ] T3 `library/classes/Controller.class.php`, `library/lists.inc.php` → `modules/LEGACY-ROUTER-AND-LISTS.md`
+- [x] T3 `src/RestControllers/AuthorizationController.php` (1,772 lines) → `modules/AUTHORIZATION-CONTROLLER.md`
+- [x] T3 (ovr) `src/RestControllers/Subscriber/CORSListener.php` → `modules/CORS-LISTENER.md` (verify: any Origin reflected?)
+- [x] T3 `apis/routes/_rest_routes_standard.inc.php`, `_rest_routes_fhir_r4_us_core_3_1_0.inc.php` (in-scope routes only) → `modules/API-ROUTES.md`
+- [x] T3 `src/Services/PatientService.php`, `src/Services/FHIR/FhirPatientService.php` → `modules/PATIENT-SERVICES.md`
+- [x] T3 (ovr) `src/Services/AllergyIntoleranceService.php`, `FHIR/FhirAllergyIntoleranceService.php` → `modules/ALLERGY-SERVICES.md`
+- [x] T3 (ovr) `src/Services/ConditionService.php`, `FHIR/FhirConditionService.php`, `src/Services/PatientIssuesService.php` → `modules/CONDITION-SERVICES.md` (`clinical-status` param)
+- [x] T3 (ovr) `src/Services/PrescriptionService.php`, `FHIR/FhirMedicationRequestService.php`, `src/Services/ListService.php` → `modules/MEDICATION-SERVICES.md` (UNION, refills)
+- [x] T3 `src/Services/CareTeamService.php`, `FHIR/FhirCareTeamService.php` → `modules/CARE-TEAM-SERVICES.md`
+- [x] T2 `src/Services/FHIR/Observation/FhirObservationVitalsService.php`, `src/Services/FHIR/FhirObservationService.php` (routing and `_sort`) → `modules/VITALS-SERVICES.md`. (`pnotes` dropped from the queue: Messages isn't ported)
+- [x] T3 `library/classes/Controller.class.php`, `library/lists.inc.php` → `modules/LEGACY-ROUTER-AND-LISTS.md`
 
 **Phase 4: data**
 - [ ] T2 schema for `patient_data`, `lists`, `prescriptions`, `care_teams`, `care_team_member`, `pnotes`, `list_options` (relevant lists) → `data/SCHEMA.md`
@@ -80,6 +80,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-25 | Phase 2 parity decisions (David, all as recommended): (1) Prescriptions shows **all** rows, with the dead `active` filter documented; (2) Vitals shows the **correct** latest set, an intentional deviation from the join bug; (3) Allergies: highlight severe only, no re-sort (sorting is a Phase 9 side quest); (4) empty lists always say "Nothing Recorded" (no `lists_touch` in the API); (5) squad restriction and `hide_dashboard_cards` accepted as API gaps, all cards shown; (6) live security checks with a restricted local test user approved for Phase 6 | Parity = what users see today, except where that is a patient-safety bug |
 | 2026-09-25 | Vitals seed approved and applied (`seed/phase1-seed-vitals.sql`: 3 sets 2024–2026 plus 1 soft-deleted set on pid 13) | 'Latest of several' and deleted-row hiding must be testable |
 | 2026-09-25 | Phase 1: DB-08 = **Vitals** (FHIR `Observation` vital-signs); Messages marked "not ported: no read API"; queue scope (29 units) and reduced tier-3 set approved; branch pushed, draft MR staging !81 | Patient notes was one of six brief options; `pnotes` has no read API by design (`ServerScopeListEntity.php:283`). Explicit requirements aren't blocked |
 | 2026-09-25 | Phase 0 approved with the four recommendations: (1) seed synthetic Care Team + notes locally (done: `seed/phase1-seed.sql`, marker `[seed:phase1]`); (2) strict parity, improvements go to Phase 9; (3) audit docs on `agentforge/w2-dashboard`; (4) LF re-run, done from an LF copy inside the container (`git checkout-index`) so David's checkout is untouched | David: "approve, fan out to cheaper agents" |
@@ -89,8 +90,11 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 ## Open questions
 
+**Blocking (Phase 3 → build): client model.** (A) public SPA, FHIR only, `patient/` scopes, one patient per login; or (B) SPA + thin BFF with a confidential client (FHIR + REST, same-origin, one login). Recommended: B. Evidence: `modules/README.md` "Per-card data source by client model".
+
 **Phase 6 verification list** (security findings from Phase 2, confirmed by reading code, not exercised live; live checks need a restricted test user, which needs David's approval):
 - U-4 Care Team save without write ACL · U-6/U-7 pre-authorization patient switch and identity JS · U-8 fragment endpoints without ACL (vitals, stats immunizations, labdata, reminders) · Rx edit list under view-only ACL · `pnotes_fragment.php` `disappearPnote` before ACL · eRx SOAP POSTs without CSRF · U-5 Care Team stored XSS
+- Phase 3 additions: M-1 authenticated SQL injection on `/api/prescription` (**do not exercise; David decides on upstream report; check `rest_api` on the public deploy**) · M-4 confidential client not authenticated at `/token` without a secret · M-9 seven `controller.php` controllers with no ACL · auth codes reusable within TTL · logout open redirect / unsigned `id_token_hint` · API error bodies leak SQL · `api_log` stores full response bodies
 
 **Phase 2 parity questions:** see the Phase 2 checkpoint (Rx all-vs-active, Vitals deleted set, allergy severity ordering, empty-state wording without `lists_touch`, inactive Care Team members, squad restriction, `hide_dashboard_cards`).
 
@@ -121,3 +125,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 1 approved (scope, tiers, push; DB-08 → Vitals). Cross-checked against `PLAN.md` W2D-1…W2D-8 and the 09-24 pre-code parity spec (`.scratch/assignments/dashboard-parity-spec.md`, gitignored): same conclusions on header active status (derive from `deceasedDateTime`) and filters. **DB-xx ↔ W2D mapping:** DB-01=W2D-1, DB-02=W2D-2, DB-03…07=W2D-3, DB-08=W2D-4, DB-09=W2D-5, DB-10=W2D-8, DB-11=W2D-7. PLAN.md stays the single plan; this audit is its evidence.
 
 - 2026-09-25 — Phase 1 approved; DB-08 → Vitals; vitals seed applied. Phase 2: 9 auditors (2 opus, 6 sonnet, 1 haiku); tier-3 verification of U-1…U-11. Phase 1 corrections applied (Rx filter, Details column, collapse default, Care Team render, Messages `Done` notes, line count). Phase 2 checkpoint presented.
+
+- 2026-09-25 — Phase 2 approved (6 parity decisions). Phase 3: 9 auditors (3 opus, 6 sonnet) plus a scoped opus re-run of medication services (the first attempt's write was stopped by a safety classifier). Verified: public-client scope restriction (port blocker), CORS preflight 404 (confirmed live with one unauthenticated OPTIONS request), SQL injection on `/api/prescription` (not exercised), FHIR vitals deleted-set exposure, CareTeam member status gap. Escalated SQLi and the A/B client-model decision to David.

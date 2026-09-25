@@ -70,7 +70,7 @@ The other 16 cards are listed in [`ui/DASHBOARD-MAP.md`](ui/DASHBOARD-MAP.md) an
 
 | Module | Path | Lines | Purpose |
 |---|---|---|---|
-| Auth server | `src/RestControllers/AuthorizationController.php` | 1,772 | OAuth2/OIDC endpoints |
+| Auth server | `src/RestControllers/AuthorizationController.php` | 1,916 | OAuth2/OIDC endpoints |
 | CORS | `src/RestControllers/Subscriber/CORSListener.php` | 70 | cross-origin headers for API |
 | Patient | `src/Services/PatientService.php`, `src/Services/FHIR/FhirPatientService.php` | 905, 976 | header data |
 | Allergies | `src/Services/AllergyIntoleranceService.php`, `FHIR/FhirAllergyIntoleranceService.php` | 337, 241 | DB-03 |
