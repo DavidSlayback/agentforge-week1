@@ -1,0 +1,88 @@
+# Patient dashboard (port of OpenEMR's PHP patient dashboard)
+
+A React + TypeScript + Vite SPA served same-origin by a Fastify BFF that holds
+a **confidential** OpenEMR OAuth client. The browser only ever holds an
+HttpOnly session cookie; OAuth tokens and the client secret stay in the BFF.
+Playbook: [`docs/legacy-audit/MIGRATION-REACT.md`](../docs/legacy-audit/MIGRATION-REACT.md);
+slices and status: [`docs/legacy-audit/arcs/ARC-01-DASHBOARD.md`](../docs/legacy-audit/arcs/ARC-01-DASHBOARD.md)
+and `docs/agentforge/PLAN.md` (W2D-1…W2D-8, the status of record).
+
+Current scope (slice 01-01-01, walking skeleton): sign-in / sign-out through
+OpenEMR's OAuth2 server, patient selection by MRN (`pubpid`) or configured demo
+link, and the persistent patient header (name, DOB with age, sex, MRN, status).
+Status is **Deceased** iff FHIR `deceasedDateTime` (or `deceasedBoolean: true`)
+is present; `Patient.active` is never read (OpenEMR hard-codes it `true`). The
+clinical cards arrive in later slices.
+
+## Layout
+
+| Folder | What | Depends on |
+|---|---|---|
+| `core/` | Pure TypeScript: branded ids, `CardResult`, DTOs, parity rules (`rules/header.ts`), formatters, the upstream allow-list (`upstreamRoutes.ts`), wire guards | nothing (lint-enforced) |
+| `bff/src/` | Fastify BFF: config, OAuth (`auth/`), OpenEMR client + response mapping (`upstream/`), use cases (`cards/`), HTTP routes and security headers (`http/`) | `core` |
+| `web/` | React SPA (`web/src`), built by Vite into `web/dist` | `core` (never `bff`, lint-enforced) |
+| `test/` | Vitest: `core`, `bff` (Fastify `inject`), `contract` (fake OpenEMR asserting exact outbound URLs), `web` (jsdom + axe), `lint` (proves the boundary rules fire); `integration/` is opt-in | — |
+
+Fixtures: `test/fixtures/shaped/` are **shaped, not recorded**: values from
+read-only SELECT on the local synthetic DB, structure from OpenEMR's FHIR/REST
+serializers (each file's `_meta` says so). `test/fixtures/hand-built/` are
+error shapes. Recorded responses go to `test/fixtures/recorded/` via the
+integration script's `--record`.
+
+## Commands
+
+```sh
+npm ci --prefix dashboard
+npm run check --prefix dashboard        # typecheck, lint, tests, build + bundle budget (the gate)
+npm run dev --prefix dashboard          # http://localhost:8790/dashboard/ (reads dashboard/.env.local)
+npm run test:integration --prefix dashboard   # opt-in; needs DASHBOARD_IT_ACCESS_TOKEN, else prints SKIPPED
+node dashboard/scripts/live-check.mjs <base-url> <sha|any> [--out file.json]   # unauthenticated checks
+```
+
+`npm run check` runs in `.githooks/pre-commit` on every commit and is mirrored
+by the `dashboard-check` job in `.gitlab-ci.yml`.
+
+## Local OAuth setup
+
+1. Register a confidential client on the local OpenEMR
+   (`POST https://localhost:9300/oauth2/default/registration`,
+   `application_type: private`) with redirect URI
+   `http://localhost:8790/dashboard/callback`, post-logout URI
+   `http://localhost:8790/dashboard/`, and the scope string in
+   `bff/src/config.ts` (`OAUTH_SCOPE`); then enable it in the local DB
+   (`oauth_clients.is_enabled = 1`).
+2. Copy `.env.example` to `.env.local` (gitignored) and fill in the client id,
+   secret and a random `DASHBOARD_SESSION_SECRET`.
+3. `npm run dev --prefix dashboard`, open `http://localhost:8790/dashboard/`,
+   and sign in with an OpenEMR user on OpenEMR's own OAuth2 login page.
+
+## Configuration
+
+`bff/src/config.ts` is the only module that reads the environment; it refuses
+to start on a missing or short secret, a public origin with a path, or a
+non-https public origin in production.
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `DASHBOARD_PUBLIC_ORIGIN` | yes | Browser-facing origin (`https://host`); builds the redirect and post-logout URIs |
+| `DASHBOARD_OAUTH_ISSUER` | yes | OpenEMR issuer = id token `iss` (`<site_addr_oath>/oauth2/default`); the browser's authorize and end-session URLs hang off it |
+| `DASHBOARD_OAUTH_CLIENT_ID` | yes | Confidential client id |
+| `DASHBOARD_OAUTH_CLIENT_SECRET` | yes | Client secret, sent on every `/token` call |
+| `DASHBOARD_SESSION_SECRET` | yes | ≥ 32 chars; signs the session cookies |
+| `DASHBOARD_OPENEMR_INTERNAL_URL` | no (`http://openemr`) | Server-side origin for `/token`, JWKS and the APIs |
+| `DASHBOARD_OPENEMR_TZ` | no (`America/Chicago`) | OpenEMR's timezone, for "today" in age calculations |
+| `DASHBOARD_DEMO_PATIENTS` | no | `label=<uuid>,…` neutral demo links |
+| `DASHBOARD_UPSTREAM_TIMEOUT_MS` | no (5000) | Per-call upstream timeout |
+| `DASHBOARD_GIT_SHA` | no | SHA fallback when `BUILD_SHA` is not stamped |
+| `PORT`, `HOST` | no (8790, 0.0.0.0) | Listen address |
+
+`/dashboard/health` reports `git_sha` from `BUILD_SHA` (stamped by
+`git archive` through `export-subst`), else `DASHBOARD_GIT_SHA`, else
+`unversioned`.
+
+## Known limits (this slice)
+
+- Sessions are in memory: a restart signs everyone out. No refresh token is
+  requested (`offline_access` is never asked for), so sessions end with the
+  1 h access token.
+- OpenEMR's logout revokes no token; the BFF destroys its own copy first.

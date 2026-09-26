@@ -1,0 +1,9 @@
+# BuildKit reads this (next to dashboard/Dockerfile) instead of a root
+# .dockerignore: the context is the repo root, but only dashboard/ is needed.
+**
+!dashboard/
+dashboard/node_modules
+dashboard/web/dist
+dashboard/.env*
+dashboard/coverage
+dashboard/test-results
