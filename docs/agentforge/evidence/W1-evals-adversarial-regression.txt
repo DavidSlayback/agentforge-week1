@@ -1,0 +1,65 @@
+W1 evals: unauthorized and ambiguous cases, deliberate-regression proof
+Base commit: 4c630f5b (branch agentforge/f-api) plus the uncommitted evals/lib/adversarial.js under test; node v24.19.0; 2026-09-26T22:12:11Z
+Each row removes one protection from agentforge/src, starts a server from the checkout (startTestServer),
+runs runAdversarialSuite against it (evals/lib/adversarial.js, with the test signing secret), and restores the file byte for byte.
+
+=== baseline (no mutation)
+{"gate_passed": true, "passed": "9/9", "failed": []}
+
+=== R1: expiry check removed from verifySignedContext
+  agentforge/src/accessContext.js
+- payload.expires_at <= now() || payload.expires_at > now() + MAX_CONTEXT_TTL_SECONDS
++ payload.expires_at > now() + MAX_CONTEXT_TTL_SECONDS
+{"gate_passed": false, "passed": "8/9", "failed": ["unauth_expired_token [BOUNDARY_NOT_ENFORCED]"]}
+
+=== R2: signature check removed from verifySignedContext
+  agentforge/src/accessContext.js
+- if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
++ (line removed)
+{"gate_passed": false, "passed": "7/9", "failed": ["unauth_tampered_token_other_patient [BOUNDARY_NOT_ENFORCED,DATA_DISCLOSED_ON_REFUSAL]", "unauth_tampered_signature [BOUNDARY_NOT_ENFORCED,DATA_DISCLOSED_ON_REFUSAL]"]}
+
+=== R3: token/patient match removed from POST /v1/briefings
+  agentforge/src/server.js
+- const token = verifiedContextFor(body); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.prepare(
++ const token = verifiedContextFor(body); if (body.demo_token && (!token)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.prepare(
+{"gate_passed": false, "passed": "8/9", "failed": ["unauth_valid_token_other_patient [BOUNDARY_NOT_ENFORCED]"]}
+
+=== R4: conversation patient-scope check removed from followUp
+  agentforge/src/preVisitPreparation.js
+- if (!cacheResult.entry || authorization.status !== 'authorized' || cacheResult.entry.patientRef !== authorization.patient_uuid 
++ if (!cacheResult.entry || authorization.status !== 'authorized' 
+{"gate_passed": false, "passed": "8/9", "failed": ["unauth_other_patient_conversation [BOUNDARY_NOT_ENFORCED,DATA_DISCLOSED_ON_REFUSAL,CROSS_PATIENT_DISCLOSURE]"]}
+
+=== R5: missing-context check removed from both layers (chart router select and authorizeRequest)
+  Note: removing only the authorizeRequest check leaves the case passing, because the chart router
+  refuses a missing context too (defense in depth); both guards must go for a token-less briefing to be served.
+  agentforge/src/chartSourceRouter.js
+- if (!isVerifiedContext(verifiedContext)) return { status: 'blocked', reason: 'server_context_missing_or_invalid' };
++ if (!verifiedContext) return { status: 'selected', adapter: this.fixtureAdapter, ...CHART_RECORD_SOURCES.fixture };
+  agentforge/src/accessContext.js
+- if (!verifiedContext || typeof request.patient_uuid !== 'string' || !request.patient_uuid || typeof request.clinician_uuid !== 'string' || !request.clinician_uuid) {
++ if (!verifiedContext) return { status: 'authorized', patient_uuid: request.patient_uuid, clinician_uuid: request.clinician_uuid, scope: 'read-briefing', source: 'regression' };   if (typeof request.patient_uuid !== 'string' || !request.patient_uuid || typeof request.clinician_uuid !== 'string' || !request.clinician_uuid) {
+{"gate_passed": false, "passed": "8/9", "failed": ["unauth_missing_token [BOUNDARY_NOT_ENFORCED,DATA_DISCLOSED_ON_REFUSAL]"]}
+
+=== R6: other-patient question check removed from followUp
+  agentforge/src/preVisitPreparation.js
+- if (mentionsOtherPatient({ message: request.message, currentPatient: cacheResult.entry.response.patient, knownPatients })) {
++ if (false) {
+{"gate_passed": false, "passed": "8/9", "failed": ["ambiguous_question_names_two_patients [BOUNDARY_NOT_ENFORCED,DATA_DISCLOSED_ON_REFUSAL]"]}
+
+=== R7: duplicate-identity qualification removed from recordTrust
+  agentforge/src/recordTrust.js
+- if (findDuplicateIdentity(list)) {
++ if (false) {
+{"gate_passed": false, "passed": "8/9", "failed": ["ambiguous_duplicate_identity [AMBIGUITY_NOT_QUALIFIED,IDENTITY_NOT_WITHHELD]"]}
+
+=== R8: comparison falls back to the current value when no prior value exists
+  agentforge/src/preVisitPreparation.js
+- const previous = entries.slice(0, -1).reverse().find((entry) => String(entry.claim.value) !== String(current.claim.value));     if (!previous || !current.claim.reassessment_documented) continue;
++ const previous = entries.slice(0, -1).reverse().find((entry) => String(entry.claim.value) !== String(current.claim.value)) || current;     if (!current.claim.reassessment_documented) continue;
+{"gate_passed": false, "passed": "8/9", "failed": ["ambiguous_what_changed_no_prior_visit [FABRICATED_CHANGE,AMBIGUITY_NOT_QUALIFIED]"]}
+
+=== after all restores
+{"gate_passed": true, "passed": "9/9", "failed": []}
+
+git status --short agentforge/src: (clean)
