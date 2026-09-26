@@ -108,10 +108,11 @@ const chart = {
   field: 'encounter.reason',
   value: 'Diabetes follow-up',
   recorded_at: '2025-06-01',
+  // A synthetic chart fact, labeled as the fixture chart labels it (never an OpenEMR read).
   citation: {
-    source_type: 'openemr_record',
+    source_type: 'synthetic_chart_fixture',
     source_id: 'enc-1',
-    page_or_section: 'OpenEMR chart record',
+    page_or_section: 'Synthetic chart fixture',
     field_or_chunk_id: 'encounter.reason',
     quote_or_value: 'Diabetes follow-up',
   },

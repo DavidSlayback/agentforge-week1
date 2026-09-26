@@ -60,3 +60,10 @@ test('the grounded answer on the fixture chart never labels a chart fact openemr
   assert.equal(citations.some((citation) => citation.source_type === 'openemr_record'), false);
   assert.ok((answer.guideline_evidence || []).every((claim) => claim.citations.every((citation) => citation.source_type === 'guideline')));
 });
+
+test('a chart record with no declared source type cannot back a patient fact', () => {
+  const untyped = { field: 'medication.metformin.status', value: 'started', source_ref: 'med-900', recorded_at: '2026-09-01T10:00:00Z' };
+  const citation = { source_type: 'openemr_record', source_id: 'med-900', page_or_section: 'medication list', field_or_chunk_id: 'medication.metformin.status', quote_or_value: 'started' };
+  const result = verifyClaims({ claims: [{ kind: 'patient_fact', text: 'Metformin was started.', citations: [citation] }], allowedValues: [untyped] });
+  assert.equal(result.status, 'failed', 'unknown origin is not silently treated as an OpenEMR record');
+});

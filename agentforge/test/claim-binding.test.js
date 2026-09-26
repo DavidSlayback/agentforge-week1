@@ -22,7 +22,8 @@ const metformin1000 = intakeLeaf('Metformin 1000 mg daily', 'current_medications
 const chiefConcern = intakeLeaf('Fatigue for two weeks', 'chief_concern');
 const allergy = intakeLeaf('Penicillin (hives)', 'allergies.0');
 const age = citation('openemr_record', 'patient-001', 'demographics.age', '42', 'demographics');
-const metforminStarted = { field: 'medication.metformin.status', value: 'started', source_ref: 'med-900', recorded_at: '2026-09-01T10:00:00Z' };
+// A chart record states its origin; an untyped record no longer defaults to an OpenEMR read.
+const metforminStarted = { source_type: 'openemr_record', field: 'medication.metformin.status', value: 'started', source_ref: 'med-900', recorded_at: '2026-09-01T10:00:00Z' };
 const metforminStartedCitation = citation('openemr_record', 'med-900', 'medication.metformin.status', 'started', 'medication list');
 const adaSnippet = 'Metformin is the preferred initial pharmacologic agent for the treatment of type 2 diabetes when not contraindicated.';
 const ada = {
