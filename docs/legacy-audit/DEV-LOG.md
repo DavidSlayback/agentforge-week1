@@ -621,3 +621,78 @@ observed.**
 ## 2026-09-26 ~06:55 CT — slice 01-06-04 deployed (a800e97) after a deploy-session reset
 
 The SSH connection dropped mid-build and the dashboard was down for about 10 minutes (other services unaffected). Recovered by restarting the previous container, then building detached on the VM. Production reports `a800e97`; the v2 OAuth client (adds `user/MedicationRequest.rs`) is live and the old client is disabled. Awaiting David's observation on this SHA.
+
+## 2026-09-26 ~07:40 CT — real-browser accessibility pass (local), five fixes (branch `agentforge/w2-dashboard`, not merged)
+
+Owner-authorized pre-freeze work. Everything ran on the **local** stack with
+synthetic patients. Status: **fixes wired and tested on the branch; not merged,
+deployed or observed on the public URL.**
+
+### Worked on
+- **Local OAuth client v2.** The local client lacked `user/MedicationRequest.rs`.
+  A new confidential client, "AgentForge Dashboard (local dev v2)", was
+  registered on the local OpenEMR with the full `OAUTH_SCOPE` and enabled
+  with `UPDATE oauth_clients SET is_enabled=1`, on the local DB only.
+  - Its id and secret went into the gitignored `dashboard/.env.local`; they
+    were never printed.
+  - The old local client is still enabled, because another checkout may use it.
+- **The pass.** `docs/legacy-audit/evidence/a11y/a11y-audit.mjs` drives
+  headless Chromium 141 through the UI only, for DASH-SYN-01, DASH-SYN-02
+  and pid 3. It signs in through OpenEMR's login with the documented local
+  dev login, read at runtime and never printed. It covers:
+  - axe-core 4.13, WCAG 2.2 AA plus best-practice, color-contrast included;
+  - a Tab and Shift+Tab walk, recording focus visibility and any overlap
+    with the sticky bar;
+  - 390 px, 320 x 568, 200 % zoom and 400 % zoom (zoom emulated as a
+    CSS-pixel viewport);
+  - sign-out by keyboard.
+
+  Before and after JSON, screenshots and the findings are in
+  `evidence/a11y/README.md`.
+- **Findings, each fixed with a test:**
+  - **K-1, blocker: sign-out answered 403.** Under
+    `Referrer-Policy: no-referrer`, Chromium sends `Origin: null` on the
+    same-origin form POST, and the logout Origin check refuses it.
+    - Fix: `strict-origin` in the header and the SPA meta tag (`f8c5ad7`).
+    - Test: `test/bff/security.test.ts`.
+    - Production (`a800e97`) likely has the same bug for Chromium users.
+      David's phone sign-out succeeded, so his browser probably sent a real
+      Origin. Not checked on the public URL.
+  - **K-2: card bodies that scroll sideways were unnamed tab stops.**
+    - Fix: while a body overflows it becomes `tabindex=0`,
+      `role=region` and `aria-label="<card>, scrolls sideways"`.
+  - **Z-1: at 400 % zoom (320 x 180) the sticky bar covered 70-86 % of the
+    viewport.**
+    - Fix: it is static on viewports 20 rem tall or less.
+  - **K-3: the scroll padding (9 rem) was smaller than the bar at 320 px
+    (155 px).**
+    - Fix: the bar measures itself and sets `--sticky-header-offset`.
+  - **A-1: demo links failed `target-size` (21 px).**
+    - Fix: at least 24 px tall, spaced.
+
+  K-2, Z-1, K-3 and A-1 are in `66260cd`, with tests in
+  `test/web/A11y.test.tsx`.
+- **After, on `66260cd`:** 0 axe violations on all five pages, all controls
+  reached, a focus indicator at every stop, nothing obscured, no horizontal
+  page scroll, and keyboard sign-out returns 303 and reaches the signed-out
+  landing page.
+- **Docs.** `MIGRATION-REACT.md` (the referrer policy), `dashboard/README.md`,
+  `PATIENT_DASHBOARD_MIGRATION.md` §1 and the arc (01-06-01).
+
+### Tests
+- The gate has 335 tests in 34 files (328 before).
+- Deliberate regressions went through the hook and were refused, then reverted
+  (`evidence/a11y/regression.txt`):
+  - K-1: the policy put back to `no-referrer` gave 2 red.
+  - K-2: dropping the region's tab stop and role gave 1 red.
+
+### Open
+- A human screen-reader pass (NVDA/JAWS, VoiceOver), and keyboard passes in
+  Firefox and Safari.
+- Real browser zoom and forced colors.
+- Merge, deploy and observe. First confirm K-1 on the public URL with a
+  Chromium browser.
+- Local dev note: a second, stale `npm run dev` tree from an earlier session
+  held port 8790 and won the BFF restart race. It served a stale SPA and the
+  old client. Both dev trees were stopped, and one clean server was run for
+  the recorded runs.

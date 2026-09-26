@@ -10,7 +10,11 @@ and `docs/agentforge/PLAN.md` (W2D-1…W2D-8, the status of record).
 Current scope. Slice 01-01-01 (walking skeleton): sign-in / sign-out through
 OpenEMR's OAuth2 server, patient selection by MRN (`pubpid`) or configured demo
 link, and the persistent patient header (name, DOB with age, sex, MRN, status;
-sticky at the top of the viewport since slice 01-06-04).
+sticky at the top of the viewport since slice 01-06-04, except on viewports
+20 rem tall or less, about 400 % zoom, where it scrolls with the page; its
+scroll padding follows its measured height). A card body that scrolls
+sideways becomes a named, focusable region while it overflows. Accessibility
+evidence: [`docs/legacy-audit/evidence/a11y/`](../docs/legacy-audit/evidence/a11y/README.md).
 Status is **Deceased** iff FHIR `deceasedDateTime` (or `deceasedBoolean: true`)
 is present; `Patient.active` is never read (OpenEMR hard-codes it `true`).
 

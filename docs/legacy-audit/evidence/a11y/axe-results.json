@@ -1,0 +1,982 @@
+{
+  "capturedAt": "2026-09-26T12:32:54.287Z",
+  "gitSha": "66260cd95fa025cc877c90b59a051d0095269b87",
+  "dashboardDirty": false,
+  "stack": "local only (http://localhost:8790/dashboard/ against the local OpenEMR)",
+  "browser": "chromium 141.0.7390.37",
+  "axeCore": "4.13.0",
+  "axeTags": [
+    "wcag2a",
+    "wcag2aa",
+    "wcag21a",
+    "wcag21aa",
+    "wcag22aa",
+    "best-practice"
+  ],
+  "pages": [
+    {
+      "page": "landing-signed-out",
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": 26,
+        "colorContrastRan": true
+      },
+      "tabOrder": [
+        "Patient Dashboard",
+        "Sign in with OpenEMR"
+      ]
+    },
+    {
+      "page": "landing-signed-in",
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": 34,
+        "colorContrastRan": true
+      },
+      "tabOrder": [
+        "a:Patient Dashboard",
+        "button:Sign out",
+        "input:input#mrn",
+        "button:Open",
+        "a:DASH-SYN-01 (data-rich)",
+        "a:DASH-SYN-02 (deceased)",
+        "a:Local pid 13 (legacy parity)",
+        "a:Local pid 3 (empty-state)",
+        "a:Local pid 12 (deceased)"
+      ]
+    },
+    {
+      "page": "dash-syn-01",
+      "note": "local pid 14, data-rich",
+      "cardStates": {
+        "allergies": "ok",
+        "problems": "ok",
+        "medications": "ok",
+        "prescriptions": "ok",
+        "care-team": "ok",
+        "vitals": "ok"
+      },
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": 38,
+        "colorContrastRan": true
+      },
+      "inventory": {
+        "interactive": [
+          "a:Patient Dashboard",
+          "button:Sign out",
+          "button:Collapse Allergies",
+          "button:Collapse Medical Problems",
+          "button:Collapse Medications",
+          "button:Collapse Prescriptions",
+          "button:Collapse Care Team",
+          "button:Collapse Vitals"
+        ],
+        "overflowingScrollers": []
+      },
+      "tabOrder": [
+        {
+          "tag": "a",
+          "label": "Patient Dashboard",
+          "card": null,
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Sign out",
+          "card": null,
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Allergies",
+          "card": "allergies",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Medical Problems",
+          "card": "problems",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Medications",
+          "card": "medications",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Prescriptions",
+          "card": "prescriptions",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Care Team",
+          "card": "care-team",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Vitals",
+          "card": "vitals",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        }
+      ],
+      "reverseCoverage": [],
+      "forwardCoverage": [],
+      "noVisibleIndicator": [],
+      "unreachable": [],
+      "signOutReachable": true,
+      "reflow": [
+        {
+          "name": "dash-syn-01-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "zoom": 1,
+          "cssViewport": "390x844",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [
+            "care-team"
+          ],
+          "stickyHeaderHeightCss": 97,
+          "stickyHeaderShareOfViewport": 0.11,
+          "scrollPaddingTop": "105px",
+          "tabStops": 9,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "div:region \"Care Team, scrolls sideways\"",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "dash-syn-01-320x568",
+          "viewport": {
+            "width": 320,
+            "height": 568
+          },
+          "zoom": 1,
+          "cssViewport": "320x568",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [
+            "prescriptions",
+            "care-team",
+            "vitals"
+          ],
+          "stickyHeaderHeightCss": 155,
+          "stickyHeaderShareOfViewport": 0.27,
+          "scrollPaddingTop": "163px",
+          "tabStops": 11,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "div:region \"Prescriptions, scrolls sideways\"",
+            "button:Collapse Care Team",
+            "div:region \"Care Team, scrolls sideways\"",
+            "button:Collapse Vitals",
+            "div:region \"Vitals, scrolls sideways\""
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "dash-syn-01-1280x720-zoom200",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "zoom": 2,
+          "cssViewport": "640x360",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 640,
+          "clientWidth": 640,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 68,
+          "stickyHeaderShareOfViewport": 0.19,
+          "scrollPaddingTop": "76px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "dash-syn-01-1280x720-zoom400",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "zoom": 4,
+          "cssViewport": "320x180",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [
+            "prescriptions",
+            "care-team",
+            "vitals"
+          ],
+          "stickyHeaderHeightCss": 155,
+          "stickyHeaderShareOfViewport": 0.86,
+          "scrollPaddingTop": "0px",
+          "tabStops": 11,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "div:region \"Prescriptions, scrolls sideways\"",
+            "button:Collapse Care Team",
+            "div:region \"Care Team, scrolls sideways\"",
+            "button:Collapse Vitals",
+            "div:region \"Vitals, scrolls sideways\""
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "static"
+        }
+      ]
+    },
+    {
+      "page": "dash-syn-02",
+      "note": "local pid 15, deceased",
+      "cardStates": {
+        "allergies": "ok",
+        "problems": "empty",
+        "medications": "empty",
+        "prescriptions": "empty",
+        "care-team": "empty",
+        "vitals": "empty"
+      },
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": 33,
+        "colorContrastRan": true
+      },
+      "inventory": {
+        "interactive": [
+          "a:Patient Dashboard",
+          "button:Sign out",
+          "button:Collapse Allergies",
+          "button:Collapse Medical Problems",
+          "button:Collapse Medications",
+          "button:Collapse Prescriptions",
+          "button:Collapse Care Team",
+          "button:Collapse Vitals"
+        ],
+        "overflowingScrollers": []
+      },
+      "tabOrder": [
+        {
+          "tag": "a",
+          "label": "Patient Dashboard",
+          "card": null,
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Sign out",
+          "card": null,
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Allergies",
+          "card": "allergies",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Medical Problems",
+          "card": "problems",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Medications",
+          "card": "medications",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Prescriptions",
+          "card": "prescriptions",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Care Team",
+          "card": "care-team",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Vitals",
+          "card": "vitals",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        }
+      ],
+      "reverseCoverage": [],
+      "forwardCoverage": [],
+      "noVisibleIndicator": [],
+      "unreachable": [],
+      "signOutReachable": true,
+      "reflow": [
+        {
+          "name": "dash-syn-02-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "zoom": 1,
+          "cssViewport": "390x844",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 126,
+          "stickyHeaderShareOfViewport": 0.15,
+          "scrollPaddingTop": "134px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "dash-syn-02-320x568",
+          "viewport": {
+            "width": 320,
+            "height": 568
+          },
+          "zoom": 1,
+          "cssViewport": "320x568",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 126,
+          "stickyHeaderShareOfViewport": 0.22,
+          "scrollPaddingTop": "134px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "dash-syn-02-1280x720-zoom200",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "zoom": 2,
+          "cssViewport": "640x360",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 640,
+          "clientWidth": 640,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 68,
+          "stickyHeaderShareOfViewport": 0.19,
+          "scrollPaddingTop": "76px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "dash-syn-02-1280x720-zoom400",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "zoom": 4,
+          "cssViewport": "320x180",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 126,
+          "stickyHeaderShareOfViewport": 0.7,
+          "scrollPaddingTop": "0px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "static"
+        }
+      ]
+    },
+    {
+      "page": "pid-3",
+      "note": "local pid 3, empty-state",
+      "cardStates": {
+        "allergies": "empty",
+        "problems": "empty",
+        "medications": "empty",
+        "prescriptions": "empty",
+        "care-team": "empty",
+        "vitals": "ok"
+      },
+      "axe": {
+        "violations": [],
+        "incomplete": [],
+        "passes": 33,
+        "colorContrastRan": true
+      },
+      "inventory": {
+        "interactive": [
+          "a:Patient Dashboard",
+          "button:Sign out",
+          "button:Collapse Allergies",
+          "button:Collapse Medical Problems",
+          "button:Collapse Medications",
+          "button:Collapse Prescriptions",
+          "button:Collapse Care Team",
+          "button:Collapse Vitals"
+        ],
+        "overflowingScrollers": []
+      },
+      "tabOrder": [
+        {
+          "tag": "a",
+          "label": "Patient Dashboard",
+          "card": null,
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Sign out",
+          "card": null,
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Allergies",
+          "card": "allergies",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Medical Problems",
+          "card": "problems",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Medications",
+          "card": "medications",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Prescriptions",
+          "card": "prescriptions",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Care Team",
+          "card": "care-team",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        },
+        {
+          "tag": "button",
+          "label": "Collapse Vitals",
+          "card": "vitals",
+          "indicator": "outline auto 1px rgb(16, 16, 16)",
+          "visible": true,
+          "focusVisible": true,
+          "coveredPx": 0
+        }
+      ],
+      "reverseCoverage": [],
+      "forwardCoverage": [],
+      "noVisibleIndicator": [],
+      "unreachable": [],
+      "signOutReachable": true,
+      "reflow": [
+        {
+          "name": "pid-3-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "zoom": 1,
+          "cssViewport": "390x844",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 390,
+          "clientWidth": 390,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 97,
+          "stickyHeaderShareOfViewport": 0.11,
+          "scrollPaddingTop": "105px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "pid-3-320x568",
+          "viewport": {
+            "width": 320,
+            "height": 568
+          },
+          "zoom": 1,
+          "cssViewport": "320x568",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 126,
+          "stickyHeaderShareOfViewport": 0.22,
+          "scrollPaddingTop": "134px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "pid-3-1280x720-zoom200",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "zoom": 2,
+          "cssViewport": "640x360",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 640,
+          "clientWidth": 640,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 68,
+          "stickyHeaderShareOfViewport": 0.19,
+          "scrollPaddingTop": "76px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "sticky"
+        },
+        {
+          "name": "pid-3-1280x720-zoom400",
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "zoom": 4,
+          "cssViewport": "320x180",
+          "pageHorizontalScroll": false,
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "offendersOutsideCardScrollers": [],
+          "cardScrollersOverflowing": [],
+          "stickyHeaderHeightCss": 126,
+          "stickyHeaderShareOfViewport": 0.7,
+          "scrollPaddingTop": "0px",
+          "tabStops": 8,
+          "tabOrder": [
+            "a:Patient Dashboard",
+            "button:Sign out",
+            "button:Collapse Allergies",
+            "button:Collapse Medical Problems",
+            "button:Collapse Medications",
+            "button:Collapse Prescriptions",
+            "button:Collapse Care Team",
+            "button:Collapse Vitals"
+          ],
+          "focusObscured": [],
+          "focusOutOfViewport": [],
+          "noVisibleIndicator": [],
+          "stickyHeaderPosition": "static"
+        }
+      ]
+    }
+  ],
+  "keyboardSignOut": {
+    "reachedAndActivated": true,
+    "logoutPostStatus": 303,
+    "logoutPostOriginHeader": "http://localhost:8790",
+    "signedOutLandingShown": true,
+    "urlPathAfter": "/dashboard/"
+  },
+  "summary": [
+    {
+      "page": "landing-signed-out",
+      "violations": [],
+      "incomplete": [],
+      "colorContrastRan": true,
+      "tabStops": 2
+    },
+    {
+      "page": "landing-signed-in",
+      "violations": [],
+      "incomplete": [],
+      "colorContrastRan": true,
+      "tabStops": 9
+    },
+    {
+      "page": "dash-syn-01",
+      "violations": [],
+      "incomplete": [],
+      "colorContrastRan": true,
+      "tabStops": 8,
+      "unreachable": [],
+      "noVisibleIndicator": [],
+      "forwardCoverage": [],
+      "reverseCoverage": [],
+      "reflow": [
+        {
+          "name": "dash-syn-01-390",
+          "css": "390x844",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 97,
+          "headerShare": 0.11,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "dash-syn-01-320x568",
+          "css": "320x568",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 155,
+          "headerShare": 0.27,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "dash-syn-01-1280x720-zoom200",
+          "css": "640x360",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 68,
+          "headerShare": 0.19,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "dash-syn-01-1280x720-zoom400",
+          "css": "320x180",
+          "hscroll": false,
+          "header": "static",
+          "headerPx": 155,
+          "headerShare": 0.86,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        }
+      ]
+    },
+    {
+      "page": "dash-syn-02",
+      "violations": [],
+      "incomplete": [],
+      "colorContrastRan": true,
+      "tabStops": 8,
+      "unreachable": [],
+      "noVisibleIndicator": [],
+      "forwardCoverage": [],
+      "reverseCoverage": [],
+      "reflow": [
+        {
+          "name": "dash-syn-02-390",
+          "css": "390x844",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 126,
+          "headerShare": 0.15,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "dash-syn-02-320x568",
+          "css": "320x568",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 126,
+          "headerShare": 0.22,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "dash-syn-02-1280x720-zoom200",
+          "css": "640x360",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 68,
+          "headerShare": 0.19,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "dash-syn-02-1280x720-zoom400",
+          "css": "320x180",
+          "hscroll": false,
+          "header": "static",
+          "headerPx": 126,
+          "headerShare": 0.7,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        }
+      ]
+    },
+    {
+      "page": "pid-3",
+      "violations": [],
+      "incomplete": [],
+      "colorContrastRan": true,
+      "tabStops": 8,
+      "unreachable": [],
+      "noVisibleIndicator": [],
+      "forwardCoverage": [],
+      "reverseCoverage": [],
+      "reflow": [
+        {
+          "name": "pid-3-390",
+          "css": "390x844",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 97,
+          "headerShare": 0.11,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "pid-3-320x568",
+          "css": "320x568",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 126,
+          "headerShare": 0.22,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "pid-3-1280x720-zoom200",
+          "css": "640x360",
+          "hscroll": false,
+          "header": "sticky",
+          "headerPx": 68,
+          "headerShare": 0.19,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        },
+        {
+          "name": "pid-3-1280x720-zoom400",
+          "css": "320x180",
+          "hscroll": false,
+          "header": "static",
+          "headerPx": 126,
+          "headerShare": 0.7,
+          "obscured": 0,
+          "offView": 0,
+          "noIndicator": 0
+        }
+      ]
+    }
+  ]
+}

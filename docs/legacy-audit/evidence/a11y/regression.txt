@@ -1,0 +1,88 @@
+Real-browser accessibility pass: deliberate-regression proofs (docs/legacy-audit/evidence/a11y/README.md)
+Date: 2026-09-26 (~12:30Z). Branch: agentforge/w2-dashboard. Both runs went through the full
+.githooks/pre-commit hook with `git commit`; both were refused (hook exit 1, HEAD unchanged) and then
+reverted with git checkout. ANSI colour codes stripped; only the failing-test part of the Dashboard
+gate section is kept (the earlier AgentForge suites, typecheck and lint passed).
+Synthetic data only: the tests use invented values ("Synthetic drug A", "Synthetic Person").
+
+======================================================================
+1. K-1, sign-out 403. Parent commit f8c5ad7 (fix(dashboard): let the sign-out POST carry a real Origin).
+Break: put the old policy back.
+  dashboard/bff/src/http/security.ts   -export const REFERRER_POLICY = 'strict-origin';
+                                       +export const REFERRER_POLICY = 'no-referrer';
+  dashboard/web/index.html             -<meta name="referrer" content="strict-origin" />
+                                       +<meta name="referrer" content="no-referrer" />
+Result: hook exit 1, commit refused (HEAD before = after = f8c5ad7). Red: 2 of 335, both in
+test/bff/security.test.ts.
+----------------------------------------------------------------------
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL   node  test/bff/security.test.ts > security headers and caching > sends CSP, a strict-origin referrer policy and nosniff everywhere, and no-store on /bff, /login, /callback, /logout
+AssertionError: expected 'no-referrer' to be 'strict-origin' // Object.is equality
+
+Expected: "strict-origin"
+Received: "no-referrer"
+
+ ❯ test/bff/security.test.ts:42:44
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL   node  test/bff/security.test.ts > security headers and caching > uses a referrer policy under which the sign-out POST carries a real Origin and no Referer carries the patient uuid
+AssertionError: expected [ 'strict-origin', 'origin' ] to include 'no-referrer'
+ ❯ test/bff/security.test.ts:57:41
+     55|     // would fix that but send the full path (the puuid) to OpenEMR, w…
+     56|     // origin. Only these two keep a real Origin on same-origin POSTs …
+     57|     expect(['strict-origin', 'origin']).toContain(REFERRER_POLICY);
+       |                                         ^
+     58|     // The SPA's own meta tag must say the same, or the document polic…
+     59|     const html = readFileSync(new URL('../../web/index.html', import.m…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 33 passed (34)
+      Tests  2 failed | 333 passed (335)
+   Start at  07:30:14
+   Duration  6.17s (transform 2.13s, setup 0ms, collect 24.76s, tests 16.45s, environment 11.84s, prepare 6.59s)
+
+======================================================================
+2. K-2, unnamed / unreachable scroll regions. Parent commit 66260cd (fix(dashboard): accessibility
+fixes from the real-browser pass).
+Break: drop the tab stop and the role from an overflowing card body.
+  dashboard/web/src/components/Card.tsx
+  -        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- ...
+  -        tabIndex={scrolls ? 0 : undefined}
+  -        role={scrolls ? 'region' : undefined}
+Result: hook exit 1, commit refused (HEAD before = after = 66260cd). Red: 1 of 335, in
+test/web/A11y.test.tsx. (The rendered-DOM dump testing-library prints is cut below.)
+----------------------------------------------------------------------
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL   web  test/web/A11y.test.tsx > a card body that scrolls sideways (finding K-2) > becomes a focusable region named after its card, so keyboard users can scroll it and screen readers announce it
+AssertionError: expected null to be '0' // Object.is equality
+
+- Expected: 
+"0"
+
++ Received: 
+null
+
+ ❯ test/web/A11y.test.tsx:79:46
+     77|     const body = container.querySelector<HTMLElement>('.card-body');
+     78|     await waitFor(() => {
+     79|       expect(body?.getAttribute('tabindex')).toBe('0');
+       |                                              ^
+     80|     });
+     81|     expect(screen.getByRole('region', { name: 'Prescriptions, scrolls …
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 33 passed (34)
+      Tests  1 failed | 334 passed (335)
+   Start at  07:31:51
+   Duration  5.88s (transform 2.14s, setup 0ms, collect 24.27s, tests 16.04s, environment 11.45s, prepare 6.50s)
