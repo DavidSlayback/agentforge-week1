@@ -471,6 +471,20 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-04-01 — Care Team card from FHIR
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `3d3d719`):**
+  **wired, tested, not yet observed.** Built and gated (258 tests in the
+  hook); the deliberate regression (the first team in Bundle order, whatever
+  its status) was refused by the hook with 6 red tests
+  (`docs/legacy-audit/evidence/slice-04-01-regression.txt`). Not merged or
+  deployed. Corrections and deviations: by the code, pid 13's
+  `participant[]` has **4** entries (3 Practitioners + 1 Organization for the
+  members' shared facility), and the card shows **3** member rows (the
+  Organization fills the Facility column); member names are read from
+  `Practitioner`, which OpenEMR serves only for users with an NPI, so
+  locally every member name is "Name unavailable"; the member rows keep the
+  API order (FHIR has no member date to sort by); empty reads "Nothing
+  Recorded" (the legacy card had no text). Details: `DEV-LOG.md`, 01-04-01
+  entry.
 - **Time box:** 2.0 h, Sat 15:45–17:45. Needs HD-3 (FHIR enabled on
   production).
 - **Goal:** the Care Team card shows the chosen team (first active by name,
@@ -489,18 +503,28 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   (including a note containing `<img src=x onerror=…>` that renders as
   literal text); fixtures; `test/integration/careTeam.it.ts`.
 - **Test gate**
-  - Contract: pid 13 gives 1 team with **3** participants, and the roles
-    "Primary Care Provider" and "Nurse" on the active members. pid 3's Bundle
-    `total: 0` gives `empty`. An empty Bundle **without** a prior successful
-    Patient read gives `error`. An `OperationOutcome` inside a 200 gives
-    `error`.
-  - Core: team selection with several teams (hand-built).
-  - Component: the XSS payload renders as text, and axe is clean.
-  - **Deliberate regression:** treat every empty Bundle as `empty`, or pick
+  - [x] Contract: pid 13 gives 1 team with **3** member rows (from 4
+    participants: 3 Practitioners + 1 Organization), and the roles
+    "Primary Care Provider" and "Nurse" on the active members ("Specialist" on
+    the inactive one). pid 3's Bundle `total: 0` gives `empty`. Without a
+    successful patient read the CareTeam search is never called and the card
+    is `error`. An `OperationOutcome` inside a 200 gives `error`
+    (`test/contract/careTeam.test.ts`).
+  - [x] Core: team selection with several teams (hand-built), identical for
+    every Bundle order (`test/core/careTeam.test.ts`).
+  - [x] Component: the XSS payload renders as text, and axe is clean
+    (`test/web/CareTeamCard.test.tsx`; the payload is in the team name and
+    member cells, since Note is not on the wire).
+  - [x] **Deliberate regression:** treat every empty Bundle as `empty`, or pick
     the first team regardless of status. Expected red: the "empty bundle
-    without a patient read → error" case, or the team-selection case.
+    without a patient read → error" case, or the team-selection case. Done
+    (first team regardless of status): 6 red, commit refused, reverted.
 - **Live evidence** (`walkthroughs/CARE-TEAM.md` (e))
-  - [ ] Port, pid 13: 1 CareTeam, `participant[]` = 3.
+  - [ ] Port, pid 13: 1 CareTeam, `participant[]` = 4 by the code (3
+    Practitioners + 1 Organization); the card shows 3 member rows.
+  - [ ] Port, pid 13: the Practitioner reads return 404 (no NPI on the seeded
+    users), so the Member column reads "Name unavailable" and the names note
+    shows; Facility reads the facility name.
   - [ ] No status-like key on any participant (a grep of the recorded
     response, done in the integration run).
   - [ ] Roles read "Primary Care Provider" and "Nurse".

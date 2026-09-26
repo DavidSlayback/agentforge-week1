@@ -657,7 +657,7 @@ and integration expectations; the arc repeats them per slice.
 | Problems | **13** of 39 rows, `begdate` ascending | "Nothing Recorded" | — |
 | Medications | **1** of 5 rows, title only | "Nothing Recorded" (the upstream response is 404 with an empty body) | — |
 | Prescriptions | **5** rows in order 66, 65, 64, 63, 62; Refills "Not available via API"; no " in <form>" suffix | 200 `[]` → "None" (the legacy Rx text) | — |
-| Care Team | **1** team, **3** participants (the legacy card shows 2: documented break 5.05); roles "Primary Care Provider" and "Nurse" on the active members | Bundle `total: 0` → "Nothing Recorded" | — |
+| Care Team | **1** team, **3** member rows from 4 participants (3 Practitioners + 1 Organization, the facility; the legacy card shows 2: documented break 5.05); roles "Primary Care Provider" and "Nurse" on the active members | Bundle `total: 0` → "Nothing Recorded" | — |
 | Vitals | set **27** (2026-04-05) from encounter 367; **never set 28** (deleted) | set **14** (2014-02-01), encounter 12 (not empty) | — |
 
 ### 6.3 What each slice must prove (the "done" bar, AGENTS.md)

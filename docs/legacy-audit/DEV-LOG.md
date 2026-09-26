@@ -58,6 +58,50 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-25 — Arc 01 / Story 01-04 / Slice 01-04-01 — Care Team card from FHIR
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `3d3d719`; no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-3 (Care Team card) from FHIR `CareTeam` with a user-context token (production FHIR is enabled, owner 2026-09-25).
+Legacy behavior replaced: `walkthroughs/CARE-TEAM.md`, `templates/patient/card/manage_care_team.html.twig` (view mode; the port is read-only).
+Layers touched: core (`ids` `ResourceUuid`, `rules/careTeam` `chooseCareTeam` + `careTeamStatusTitle` + `parseRelativeReference`, `dto` `CareTeamDto`/`CareTeamMemberRow`, `guards` `isCareTeamDto`, `upstreamRoutes` + a `reference` binding kind) · bff (`upstream/schemas/careTeam`, `cards/careTeam`, `http/routes`) · web (`cards/CareTeamCard`, `App`, `styles.css`) · tests · README.
+Upstream routes added to the allow-list: `fhir.careteam.search` (`/fhir/CareTeam`, query key exactly `patient` = the puuid; scope `user/CareTeam.rs`, ACL `patients/med`), `fhir.practitioner.read` and `fhir.organization.read` (`/fhir/Practitioner/{id}`, `/fhir/Organization/{id}`; one `resourceUuid` path parameter taken from the CareTeam response, no query keys; scopes `user/Practitioner.rs` / `user/Organization.rs`, ACL `admin/users`; `patientBinding: 'reference'`, which the allow-list test restricts to `*.read` routes with exactly one uuid parameter). All three scopes were already in `OAUTH_SCOPE`.
+Catalog IDs: 2.02 (no `innerHTML`: JSX escaping, tested with a payload), 8.04, 8.05, 8.07, 7.14 (empty text added), 7.15 (names from the API, not a `<select>`), 8.15 (rows keyed by position), 5.05 / M-6 (inactive members shown), 4.07, 6.03.
+Deliberate regression: pick the first team regardless of status → expected red: the team-selection cases.
+Acceptance check (a user can do this): pid 13 shows the care team with its members and roles, the inactive member included, as the documented API gap requires.
+
+### Worked on
+- BFF `/dashboard/bff/patients/:puuid/care-team`: `rest.patient.read` → `fhir.careteam.search?patient=<puuid>` (Bundle; `total: 0` is empty only after that read) → every team's `subject` must be `Patient/<puuid>` → `chooseCareTeam` → member rows from Practitioner/RelatedPerson participants (a member reference that is not `Type/<uuid>`, or a Patient member, is `SCHEMA_MISMATCH`) → at most 20 name reads in parallel (`fhir.practitioner.read` per member, `fhir.organization.read` per distinct `onBehalfOf`).
+- `chooseCareTeam`: skip `entered-in-error`, order by name case-insensitively with a missing name first (MySQL collation and NULL order), then the exact name, then the resource `id`; the first `active` team, else the first. The same team for every Bundle order (tested over all permutations).
+- DTO: one `CareTeamDto` row per card (`teamName`, `statusTitle` from the 5 `Care_Team_Status` titles, `members`); members `{type: 'Provider' | 'Related Person', name | null, role, facility | null, since}`. Status and Note are not on the wire.
+- SPA `CareTeamCard` under Prescriptions, the legacy order: team name with a status badge, then Type, Member, Role, Facility, Since, Status, Note; Status and Note cells read "Not available via API"; a null name or facility reads "Name unavailable".
+- Fixtures (shaped, not recorded): `fhir.careteam.search`, `fhir.practitioner.read:<id>` (404, body `[]`) and `fhir.organization.read:<id>` (200) added to `patient-13` (1 team, 4 participants), `dash-syn-01` (1 team, admin as member, 2 participants), `patient-3` and `dash-syn-02` (`total: 0`). Hand-built `fhir-practitioner-200.json` (synthetic name) for the success path.
+- Integration script: member counts (pid 13: 3, pid 3: empty, DASH-SYN-01: 1), printing counts only.
+
+### Decisions
+- **Deterministic team choice** (owner asked for it to be deterministic and documented): the legacy second key, `ctm.date_created`, is not in the FHIR resource, so the tiebreak after the name is the resource `id`. This can differ from the legacy card only when two non-error teams have the same name; no seeded patient has two teams.
+- **Organization participants are not member rows.** `getCareTeamFacilities()` turns each member's facility into a participant; the legacy card has no such rows, so the port uses them only for the Facility column.
+- **Names are best-effort, the card is not.** Both name routes need `admin/users`, and `PractitionerService::search()` serves only users with a non-empty NPI. None of the seeded care-team users has one (read-only SELECT on `users`), so locally every member name is "Name unavailable" and the card says why in a note. Production (pid 7/8) is not known. A failed name read never fails the card (MIGRATION-REACT §2.4). The REST alternative (`GET /api/user/:uuid`) serves any user but needs a `user/user.r` scope the client does not have; adding it is an owner decision (client re-registration), not made here.
+- **Member order is the API's** (providers, then related persons); FHIR has no member date to reproduce the legacy `ORDER BY ctm.date_created`.
+- **Empty is "Nothing Recorded"** (owner decision): the legacy card had no empty text at all (7.14). A chosen team with no member participants says "No members listed."
+- **Patient read first, `rest.patient.read`**, like every other card, rather than `fhir.patient.read` as the playbook table named: it is the same precondition (the patient exists and this user may read it) and keeps one patient-resolution path.
+- RelatedPerson names are not read (no allow-listed route); no seeded patient has a related-person member.
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commit `3d3d719`): 258 tests, all passing (+29): unit 92 (`careTeam` 8 new, `upstreamRoutes` +1) · contract 59 (`careTeam` 11 new) · BFF 54 (`cardRoutes` +1; log redaction now also drives the care-team card with a resolved Practitioner name and checks every team id, team name, member name and facility name is absent from the log) · lint-boundary 3 · component 50 (`CareTeamCard` 8 new, 6 with axe, 0 violations). Typecheck 0, lint 0, bundle 71.7 kB gzip JS.
+- Deliberate regression: `chooseCareTeam()` returns `teams[0]` (Bundle order, any status) → the hook refused the commit (exit 1, HEAD unchanged) with 6 red, including contract `several teams (hand-built): the card shows the first active team by name, whatever the Bundle order` and unit `breaks a name tie by resource id, so the result is the same for every Bundle order` → reverted. Output: `docs/legacy-audit/evidence/slice-04-01-regression.txt`.
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows 1 team, 3 member rows (the inactive specialist included) with roles "Primary Care Provider", "Nurse", "Specialist", Member "Name unavailable" and Facility named; pid 3 "Nothing Recorded"; grep the recorded Bundle for any participant status key (expect none).
+- **Member names (owner decision):** either give the seeded care-team users an NPI (data, local and production), or add `user/user.r` to the client and read `GET /api/user/:uuid` (config + one allow-listed route). Until then the Member column is honest but empty.
+- The Practitioner/Organization 403 path for a non-admin clinician is tested in contract only (a 403 read → "Name unavailable"); not testable live with the admin role.
+
 ## 2026-09-25 — Arc 01 / Story 01-03 / Slice 01-03-01 — Prescriptions card, allow-listed
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `959482e`; no merge SHA yet
