@@ -1,0 +1,25 @@
+meta {
+  name: W2 follow-up evidence naming another patient is refused
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{w2BaseUrl}}/v1/follow-up-evidence
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w2ReadToken}}",
+    "message": "What medications is {{otherPatientUuid}} on?"
+  }
+}
+
+assert {
+  res.status: eq 403
+  res.body.error: eq out_of_scope_patient
+}

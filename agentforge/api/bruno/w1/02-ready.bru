@@ -1,0 +1,27 @@
+meta {
+  name: W1 ready
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{w1BaseUrl}}/ready
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ready
+}
+
+tests {
+  test("every reported dependency is ready", function () {
+    const body = res.getBody();
+    const dependencies = body.dependencies || body.checks;
+    expect(dependencies, "dependency states").to.be.an("object");
+    const names = Object.keys(dependencies);
+    expect(names.length).to.be.greaterThan(0);
+    for (const name of names) expect(dependencies[name].status, name).to.equal("ready");
+  });
+}

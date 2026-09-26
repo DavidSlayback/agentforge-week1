@@ -1,0 +1,31 @@
+meta {
+  name: W1 briefing without a token fails closed
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{w1BaseUrl}}/v1/briefings
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "case_id": "complete_return_visit",
+    "clinician_uuid": "{{clinicianUuid}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.disposition: eq blocked
+  res.body.patient: isNull
+}
+
+tests {
+  test("discloses no claims", function () {
+    expect(res.getBody().claims).to.have.lengthOf(0);
+  });
+}

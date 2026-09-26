@@ -1,0 +1,21 @@
+meta {
+  name: W2 source-document context (write token)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/source-document-context?patient_uuid={{patientUuid}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.scope: eq write-source-document
+  res.body.synthetic_only: eq true
+}
+
+script:post-response {
+  bru.setVar("w2WriteToken", res.getBody().demo_token);
+}

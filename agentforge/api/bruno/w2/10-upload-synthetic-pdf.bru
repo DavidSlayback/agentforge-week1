@@ -1,0 +1,38 @@
+meta {
+  name: W2 upload a one-page synthetic PDF (for the page image)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{w2BaseUrl}}/v1/source-documents
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w2WriteToken}}",
+    "document_type": "lab_pdf",
+    "filename": "bruno-synthetic-page.pdf",
+    "content_base64": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA1OSA+PgpzdHJlYW0KQlQgL0YxIDE4IFRmIDcyIDcyMCBUZCAoU1lOVEhFVElDIFRFU1QgUEFHRSAtIE5PIFBISSkgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAwMDAwMDAzNTAgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo0MjAKJSVFT0YK"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq persisted
+}
+
+script:post-response {
+  bru.setVar("pdfSourceDocumentId", res.getBody().source_document.id);
+}
+
+docs {
+  A hand-built one-page PDF with the text "SYNTHETIC TEST PAGE - NO PHI".
+  The safe script sandbox cannot pass binary response bytes between
+  requests, so the page-image check uploads this inline PDF instead of the
+  /v1/demo-scan-pdf samples. It is never scanned (no model cost).
+}

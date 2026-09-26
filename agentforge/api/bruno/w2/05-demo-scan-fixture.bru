@@ -1,0 +1,24 @@
+meta {
+  name: W2 synthetic scan sample
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/demo-scan-fixture
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.synthetic_only: eq true
+  res.body.document_type: eq lab_pdf
+}
+
+script:post-response {
+  const body = res.getBody();
+  bru.setVar("sampleFilename", body.filename);
+  bru.setVar("sampleDocumentType", body.document_type);
+  bru.setVar("sampleContentBase64", body.content_base64);
+}

@@ -1,0 +1,25 @@
+meta {
+  name: W2 scan-form evidence
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/source-documents/{{sourceDocumentId}}/scan-form-evidence?patient_uuid={{patientUuid}}&demo_token={{w2ReadToken}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.synthetic_only: eq true
+  res.body.source_document.id: eq {{sourceDocumentId}}
+}
+
+tests {
+  test("every source-preview row carries page_or_section", function () {
+    const rows = res.getBody().source_preview;
+    expect(rows.length).to.be.greaterThan(0);
+    for (const row of rows) expect(row.page_or_section, row.field_id).to.be.a("string");
+  });
+}

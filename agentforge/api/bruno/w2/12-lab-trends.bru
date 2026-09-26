@@ -1,0 +1,17 @@
+meta {
+  name: W2 lab trends
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/patients/{{patientUuid}}/lab-trends?demo_token={{w2ReadToken}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq read
+  res.body.patient_uuid: eq {{patientUuid}}
+}

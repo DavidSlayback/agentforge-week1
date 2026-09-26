@@ -1,0 +1,21 @@
+meta {
+  name: W2 alerts
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/alerts
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("returns a recognized alert status", function () {
+    expect(["ok", "firing"]).to.include(res.getBody().status);
+  });
+}
