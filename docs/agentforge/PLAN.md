@@ -286,6 +286,14 @@ the dashboard from it and confirm both `/health` SHAs. Extend
 `LEDGER.md`. Take screenshots of the overlay, the trend chart and the critic
 trace.
 
+**E7 deploy notes (2026-09-26, dashboard session hand-off plus a read of `deploy.sh` on `main`):**
+- Command: `AGENTFORGE_DEPLOY_SERVICES="dashboard agentforge-w2" deploy/vultr/deploy.sh` from the freeze SHA. It builds both images detached on the VM (log under `/tmp/agentforge-deploy-<stamp>/`), replaces both containers (`up -d --no-deps`) only if every build succeeds, then requires both `/health` endpoints to report the SHA. Two services in one run has not been exercised live yet.
+- W1 is safe: `agentforge` is `image: agentforge-w1:84f232b` with no `build:`, and `compose build <services>` builds only the named services.
+- If E4 or E5 change `oe-module-agentforge/table.sql`, set `AGENTFORGE_DEPLOY_APPLY_MODULE_SQL=1`. If the live smoke after the deploy doesn't see the new `DocumentType` case (a stale PHP opcache), redeploy with `AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1`.
+- Before the deploy, write `AGENTFORGE_CRITIC_MODEL` (chosen by `benchmark-critic-models.mjs` inside the container) into `/opt/agentforge-week1/.env`. Values are never printed.
+- Production state that must not change: `rest_fhir_api=1`; the dashboard client is "Patient Dashboard BFF (production, v2 scopes)"; ACL 28 (`grader` view on admin/users); DASH-SYN-01/02 are pids 7/8 (`docs/legacy-audit/AUDIT-STATE.md`).
+- Tag the freeze SHA after both health checks pass (`w2-final`), replacing the dashboard session's held `w2-dashboard-final`.
+
 **Owner items (Sun 08:00–11:30):** Qwen and Vultr dev-spend numbers for
 `W2_COST_LATENCY.md`; the demo video from the frozen SHA, now also showing
 the critic and the trend chart; the social post; the submission link pointed
