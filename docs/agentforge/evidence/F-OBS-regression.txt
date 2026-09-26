@@ -1,0 +1,182 @@
+F-OBS deliberate-regression proof (2026-09-26 17:06 CDT, base cdc8a5ab on branch agentforge/f-obs). Each mutation is applied alone, the covering tests are run, and the file is reverted with git checkout. Test output is filtered to the TAP result lines.
+
+=== R1: the W2 trace file goes back into the container filesystem (/tmp), no volume ===
+diff --git a/deploy/vultr/docker-compose.yml b/deploy/vultr/docker-compose.yml
+index 4a815561..87790c36 100644
+--- a/deploy/vultr/docker-compose.yml
++++ b/deploy/vultr/docker-compose.yml
+@@ -206,7 +206,7 @@ services:
+       # the newest AGENTFORGE_TRACE_LIMIT traces for at most the retention
+       # window (7 days here; the server default is 24 h). Traces are redacted
+       # before they are written (observability/index.js).
+-      AGENTFORGE_TRACE_PATH: /data/w2-traces.json
++      AGENTFORGE_TRACE_PATH: /tmp/agentforge-w2-traces.json
+       AGENTFORGE_TRACE_LIMIT: ${AGENTFORGE_W2_TRACE_LIMIT:-500}
+       AGENTFORGE_TRACE_RETENTION_MS: ${AGENTFORGE_W2_TRACE_RETENTION_MS:-604800000}
+       # Alerts are evaluated in the background at this interval; each rule's
+
+$ node --test --test-reporter=tap agentforge/test/w2-trace-volume.test.js
+not ok 1 - the W2 trace file lives on a declared named volume, not in the container filesystem
+ok 2 - the W2 store is bounded and the new settings are explicit
+ok 3 - the frozen W1 service keeps its original trace configuration
+# pass 2
+# fail 1
+
+=== R2: the OpenEMR module client ignores the request id and mints its own ===
+diff --git a/agentforge/src/openemrModuleClient.js b/agentforge/src/openemrModuleClient.js
+index a6c4c70c..94c74f36 100644
+--- a/agentforge/src/openemrModuleClient.js
++++ b/agentforge/src/openemrModuleClient.js
+@@ -108,7 +108,7 @@ export class OpenEMRModuleClient {
+     const fullQuery = { route, site: this.site, ...query };
+     const bodyText = body === null ? '' : JSON.stringify(body);
+     const { headers } = signRequest({ secret: this.secret, method, query: fullQuery, body: bodyText, contextToken, timestamp: this.now(), nonce: this.nonce() });
+-    const correlationId = requestCorrelationId || this.correlationId();
++    const correlationId = this.correlationId();
+     const url = new URL(this.baseUrl);
+     for (const [key, value] of Object.entries(fullQuery)) url.searchParams.set(key, value);
+     const controller = new AbortController();
+
+$ node --test --test-reporter=tap agentforge/test/correlation-propagation.test.js
+not ok 1 - one scan request carries its correlation id into getCase, token refresh, embed, rerank and every module call
+ok 2 - without a request id the scan trace keeps its own id and the module client mints one per call
+not ok 3 - module errors carry the request id
+ok 4 - a failed token refresh carries the request id
+# pass 2
+# fail 2
+
+=== R3: the background alert monitor is never started (alerts only on GET /v1/alerts again) ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6aa4c9e8..01f644ce 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -622,4 +622,4 @@ const server = http.createServer(async (req, res) => {
+     if (error?.name === 'OpenEMRModuleError') { console.error('AgentForge OpenEMR module call failed', { code: error.code, status: error.status, correlation_id: error.correlationId || correlationId }); return json(res, error.httpStatus, { error: error.code.toLowerCase() }); }
+     console.error('AgentForge request failed', { correlation_id: correlationId, code: error?.code || null }, error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
+ });
+-server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => { alertMonitor.start(); console.log('AgentForge listening'); });
++server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => { console.log('AgentForge listening'); });
+
+$ node --test --test-reporter=tap --test-name-pattern=background agentforge/test/f-obs-server.test.js
+not ok 1 - alerts are evaluated in the background and a transition is logged once, with codes only
+# pass 0
+# fail 1
+
+=== R4: /ready no longer probes the OpenEMR module ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6aa4c9e8..7bbe36e1 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -272,7 +272,7 @@ const readiness = createReadinessChecker({
+   // A real write next to the trace file, not only an access-bit check.
+   trace: { checkReady: async () => traceSink.health().status === 'ok' && await traceSink.probeWritable() },
+   // The OpenEMR module (persistence) and Langfuse (export) only when configured.
+-  ...(openemrModuleReadiness ? { openemrModule: openemrModuleReadiness } : {}),
++
+   ...(langfuseReadiness ? { langfuse: langfuseReadiness } : {}),
+   // A missing/unreadable corpus/guidelines/corpus.json no longer crashes the
+   // process (guidelineEvidence.js resolves it lazily and degrades to
+
+$ node --test --test-reporter=tap --test-name-pattern=module agentforge/test/f-obs-server.test.js
+not ok 1 - /ready probes the OpenEMR module in openemr-module mode and names it when it fails
+# pass 0
+# fail 1
+
+=== R5: the trace cap is hard-coded back to 100 ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6aa4c9e8..98e82606 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -233,7 +233,7 @@ const serviceExternalProviderAllowed = !(liveOpenEMR || liveReadsEnabled) || !ha
+ // volume so traces survive a container replacement. /v1/traces and the
+ // dashboard show everything retained, so the limit is also their cap.
+ const traceLimit = positiveIntegerFromEnv(process.env.AGENTFORGE_TRACE_LIMIT, DEFAULT_TRACE_LIMIT, 'AGENTFORGE_TRACE_LIMIT');
+-const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: traceLimit, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
++const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
+ const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
+ const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
+ // Alerts are evaluated in the background every AGENTFORGE_ALERT_EVAL_INTERVAL_MS
+
+$ node --test --test-reporter=tap --test-name-pattern=cap agentforge/test/f-obs-server.test.js
+not ok 1 - the trace cap is AGENTFORGE_TRACE_LIMIT: 500 by default, configurable, reported by /v1/metrics
+# pass 0
+# fail 1
+
+=== Reverted: git status of the mutated files ===
+(empty = all reverted)
+
+Scope note: these regressions are caught by the unit suites that .githooks/pre-commit runs (npm test --prefix agentforge, node --test observability/test). The 50-case gate and the extension suite grade answers and do not exercise these operational paths; both passed unchanged on cdc8a5ab (50 and 40 cases).
+
+Review fixes (round 2), 2026-09-26 17:27 CDT, base af10adff plus the coalescing-test timeout committed with this file. Same method: one mutation at a time, covering tests, git checkout.
+
+=== R6 (fix 1): a corrupt trace file throws at startup again (crash loop on a persistent volume) ===
+diff --git a/observability/index.js b/observability/index.js
+index c21e0e5d..f2bd5a31 100644
+--- a/observability/index.js
++++ b/observability/index.js
+@@ -263,7 +263,7 @@ class FileTraceSink extends InMemoryTraceSink {
+     this.pendingWrites = 0;
+     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+     this.lastPersistError = null;
+-    this.traces = this.loadOrRecover();
++    this.traces = this.readFromDisk();
+     this.prune(this.clock());
+   }
+ 
+
+$ sh -c node --test --test-reporter=tap --test-name-pattern='trace file' observability/test/f-obs.test.js; node --test --test-reporter=tap --test-name-pattern='corrupt trace file' agentforge/test/f-obs-server.test.js
+not ok 1 - a truncated trace file is moved aside and the store starts empty and not ready until a write succeeds
+not ok 2 - a empty trace file is moved aside and the store starts empty and not ready until a write succeeds
+# pass 0
+# fail 2
+not ok 1 - a corrupt trace file on the volume does not crash the service: it is moved aside and /ready says so
+# pass 0
+# fail 1
+
+=== R7 (fix 2): concurrent probes are no longer coalesced (no in-flight sharing) ===
+diff --git a/observability/index.js b/observability/index.js
+index c21e0e5d..957f6dcc 100644
+--- a/observability/index.js
++++ b/observability/index.js
+@@ -634,7 +634,7 @@ function cachedCheck(check, { ttlMs = 30000, now = () => Date.now() } = {}) {
+   return () => {
+     const at = now();
+     if (cached && at - cached.checkedAt < ttlMs) return Promise.resolve(cached.value);
+-    if (inFlight) return inFlight;
++
+     let started;
+     try { started = Promise.resolve(check()); } catch (error) { started = Promise.reject(error); }
+     inFlight = started.then((value) => {
+
+$ sh -c node --test --test-reporter=tap --test-name-pattern=coalesces observability/test/f-obs.test.js; node --test --test-reporter=tap --test-name-pattern='OpenEMR module in openemr-module' agentforge/test/f-obs-server.test.js
+not ok 1 - cachedCheck coalesces concurrent calls into one probe per window
+# pass 0
+# fail 0
+not ok 1 - /ready probes the OpenEMR module in openemr-module mode and names it when it fails
+# pass 0
+# fail 1
+
+=== R8 (fix 3): any plain token is accepted again as the request id (name-like values persisted and forwarded) ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6400d211..e70a075c 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -355,7 +355,7 @@ async function readJsonBody(req) {
+ // and the server mints `af-<uuid>`. The id is echoed on the response, names
+ // the scan trace, rides on every outbound call the request makes, and
+ // appears in this server's error logs.
+-const ACCEPTED_CORRELATION_ID = /^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-f]{16,64})$/;
++const ACCEPTED_CORRELATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+ const requestCorrelationId = (req) => {
+   const header = req.headers['x-correlation-id'];
+   return typeof header === 'string' && ACCEPTED_CORRELATION_ID.test(header) ? header : `af-${randomUUID()}`;
+
+$ node --test --test-reporter=tap --test-name-pattern=correlation id is echoed agentforge/test/f-obs-server.test.js
+not ok 1 - the request correlation id is echoed, and a scan trace is filed under it
+# pass 0
+# fail 1
+
+=== Reverted: git status of the mutated files ===
+(empty = all reverted)
+
+Note on R7: the unit test ends by its 5 s timeout (19 uncoalesced probes are never released), which node reports as "not ok" and counts as cancelled, not failed; the HTTP test fails outright (20 module calls instead of 1).

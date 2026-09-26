@@ -170,11 +170,11 @@ export function createLiveGeminiClient({ apiKey, fetchImpl = globalThis.fetch, e
   if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('GEMINI_API_KEY_REQUIRED');
   if (typeof fetchImpl !== 'function') throw new Error('FETCH_UNAVAILABLE');
 
-  async function embed(text, taskType, { title } = {}) {
+  async function embed(text, taskType, { title, correlationId = '' } = {}) {
     const response = await fetchWithGeminiRetry({
       fetchImpl,
       url: EMBED_ENDPOINT(embedModel),
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey, ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
       body: JSON.stringify({ model: `models/${embedModel}`, content: { parts: [{ text: embedInputText(text, taskType, title) }] }, outputDimensionality }),
       timeoutMs: embedTimeoutMs,
     });
@@ -195,13 +195,13 @@ export function createLiveGeminiClient({ apiKey, fetchImpl = globalThis.fetch, e
   // rerank model this client happens to also expose (kept for the
   // `createGeminiReranker` adapter in `reranker.js`, not for embedding use).
 
-  async function rerank(query, candidates) {
+  async function rerank(query, candidates, { correlationId = '' } = {}) {
     const prompt = buildRerankPrompt(query, candidates);
     const schema = rerankSchema(candidates);
     const response = await fetchWithGeminiRetry({
       fetchImpl,
       url: GENERATION_ENDPOINT,
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey, ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
       // store: false — this is a per-request rerank call over guideline text,
       // not a user-facing conversation; it must not be retained server-side
       // as interaction history.

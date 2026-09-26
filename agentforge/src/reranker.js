@@ -110,10 +110,10 @@ function parseListwiseRerankResponse(rawText, candidates) {
  */
 export function createGeminiReranker(geminiClient) {
   if (!geminiClient || typeof geminiClient.rerank !== 'function') throw new Error('GEMINI_RERANK_CLIENT_REQUIRED');
-  async function rerank(query, candidates) {
+  async function rerank(query, candidates, { correlationId = '' } = {}) {
     // geminiClient.rerank has no `signal`/abort parameter today; its own
     // `rerankTimeoutMs` (geminiClient.js) is the only bound on this call.
-    const { results, usage } = await geminiClient.rerank(query, candidates);
+    const { results, usage } = await geminiClient.rerank(query, candidates, { correlationId });
     return { results: results.map((result) => ({ id: result.chunk_id, score: result.relevance_score })), usage };
   }
   return Object.freeze({ name: `google:${GEMINI_RERANK_MODEL}`, rerank });
@@ -154,13 +154,13 @@ export function createQwenReranker({ endpoint, apiKey, model = DEFAULT_QWEN_RERA
   if (typeof endpoint !== 'string' || !endpoint.trim() || typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('QWEN_RERANK_NOT_CONFIGURED');
   const provider = new OpenAIResponsesProvider({ endpoint, apiKey, model, timeoutMs, fetchImpl, extraBody: { enable_thinking: false } });
 
-  async function rerank(query, candidates, { signal } = {}) {
+  async function rerank(query, candidates, { signal, correlationId = '' } = {}) {
     const prompt = buildListwiseRerankPrompt(query, candidates);
     let generated;
     try {
       // Each {"id","score"} entry costs roughly 15-20 tokens; a fixed budget
       // truncated the JSON for longer candidate lists.
-      generated = await provider.generate({ prompt, maxTokens: Math.max(maxOutputTokens, 40 + 12 * candidates.length), signal });
+      generated = await provider.generate({ prompt, maxTokens: Math.max(maxOutputTokens, 40 + 12 * candidates.length), signal, correlationId });
     } catch {
       // Never the underlying error's message: it may carry endpoint/host
       // detail that must not reach a trace or an API response (matches
@@ -207,7 +207,7 @@ export function createCohereReranker({ apiKey, fetchImpl = globalThis.fetch, bas
   if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('COHERE_API_KEY_REQUIRED');
   if (typeof fetchImpl !== 'function') throw new Error('FETCH_UNAVAILABLE');
 
-  async function rerank(query, candidates, { signal: parentSignal } = {}) {
+  async function rerank(query, candidates, { signal: parentSignal, correlationId = '' } = {}) {
     const controller = new AbortController();
     const abortFromParent = () => controller.abort(parentSignal?.reason);
     if (parentSignal?.aborted) abortFromParent();
@@ -217,7 +217,7 @@ export function createCohereReranker({ apiKey, fetchImpl = globalThis.fetch, bas
     try {
       response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/v2/rerank`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', 'x-client-name': 'AgentForge' },
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', 'x-client-name': 'AgentForge', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
         body: JSON.stringify({ model, query, documents: candidates.map((candidate) => candidate.text), top_n: candidates.length }),
         signal: controller.signal,
       });

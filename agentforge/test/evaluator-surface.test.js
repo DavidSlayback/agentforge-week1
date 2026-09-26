@@ -28,7 +28,7 @@ test('evaluator panel exposes operational routes and saved evidence', async () =
   const dashboard = await fetch(`http://127.0.0.1:${port}/observability`).then((response) => response.text());
   for (const id of ['kpis', 'alerts', 'summary', 'traces', 'updated', 'pause']) assert.match(dashboard, new RegExp(`id="${id}"`));
   assert.match(dashboard, /Recent encounters/);
-  assert.match(dashboard, /all-time retained trace set/i);
+  assert.match(dashboard, /retained trace set: the newest AGENTFORGE_TRACE_LIMIT traces/i);
   assert.match(dashboard, /10000/);
   assert.doesNotMatch(dashboard, /minute window/);
   assert.doesNotMatch(dashboard, /FAKE DATA/);

@@ -239,7 +239,8 @@ narrative behind each group.
 | `AGENTFORGE_PREPARATION_CACHE_TTL_MS` / `AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS` / `AGENTFORGE_MAX_PREWARM_JOBS` / `AGENTFORGE_PREWARM_DEADLINE_MS` / `AGENTFORGE_RECORD_DELAY_MS` | Briefing cache and prewarm tuning (Week 1 lane, shared) | see `server.js` | No | No |
 | `AGENTFORGE_SCAN_DEADLINE_MS` | End-to-end deadline for one `/v1/scan-supervisor` request (`agentforge-w2` only) | `25000` | No | No |
 | `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` | Explicit approval to let external services (answer model, critic, embed/rerank, external OCR) see a live OpenEMR read (live mode, and `AGENTFORGE_OPENEMR_LIVE_READS=on` requests). Without it such a request makes no outbound call | `false` | No | No |
-| `AGENTFORGE_TRACE_PATH` / `AGENTFORGE_TRACE_RETENTION_MS` | Redacted trace file location/retention | `/tmp/agentforge/traces.json` / 24h | No | No |
+| `AGENTFORGE_TRACE_PATH` / `AGENTFORGE_TRACE_RETENTION_MS` | Redacted trace file location/retention. The `agentforge-w2` compose service writes `/data/w2-traces.json` on the `w2tracevolume` named volume and keeps 7 days (`AGENTFORGE_W2_TRACE_RETENTION_MS`), so traces survive a redeploy | `/tmp/agentforge/traces.json` / 24h | No | No |
+| `AGENTFORGE_TRACE_LIMIT` | Most traces the store keeps (oldest dropped first); `/v1/traces` and `/observability` show all retained traces, so this is their cap. Must be a positive integer or the process exits. `agentforge-w2` reads it from `AGENTFORGE_W2_TRACE_LIMIT` | `500` | No | No |
 | `AGENTFORGE_EVAL_REPORT_PATH` | Overrides which committed eval report `/evals` serves | committed default | No | No |
 | `AGENTFORGE_GIT_SHA` | Overrides the SHA `/health` reports | derived at build | No (Yes for `/health` proof) | No |
 
@@ -305,7 +306,27 @@ narrative behind each group.
 | Name | Purpose | Default | Required? | Secret? |
 |---|---|---|---|---|
 | `AGENTFORGE_ALERT_P95_MS` / `AGENTFORGE_ALERT_ERROR_RATE` / `AGENTFORGE_ALERT_TOOL_FAILURE_RATE` / `AGENTFORGE_ALERT_WINDOW_MS` | Dashboard alert thresholds | `2000` / `0.05` / `0.02` / 5 min; the `agentforge-w2` compose service sets `AGENTFORGE_ALERT_P95_MS=30000` (the `KEY_METRICS.md` p95 target; override with `AGENTFORGE_W2_ALERT_P95_MS`) | No | No |
-| `LANGFUSE_BASE_URL` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_TIMEOUT_MS` / `LANGFUSE_MAX_PENDING_EXPORTS` | Optional self-hosted Langfuse export (all three of the first must be set together) | disabled | No | Secret key: yes |
+| `AGENTFORGE_ALERT_EVAL_INTERVAL_MS` | How often the server evaluates the alert rules in the background (also on every `GET /v1/alerts`). Each rule's `ok`/`firing` change is logged once, as one JSON line with codes only (`agentforge_alert_transition`, rule id, states, window). Must be a positive integer | `60000` | No | No |
+| `LANGFUSE_BASE_URL` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_TIMEOUT_MS` / `LANGFUSE_MAX_PENDING_EXPORTS` | Optional self-hosted Langfuse export (all three of the first must be set together). When set, `/ready` also probes `GET <base>/api/public/health` and reports `langfuse` | disabled | No | Secret key: yes |
+
+`/ready` answers 503 and lists the failing dependency names in `failing`,
+with a `reason` code where one is known. It checks the configuration, the
+chart source, the model, the trace store (`traceStore`: its state plus a real
+write), the guideline corpus, the OpenEMR module's signed `health` route when
+`AGENTFORGE_PERSISTENCE_MODE=openemr-module` (`openemrModule`, reason = the
+module error code), and Langfuse when it is configured. The write, module and
+Langfuse probes are cached for 30 s, and concurrent `/ready` calls share one
+in-flight probe. A trace file that does not parse at startup is renamed to
+`<name>.corrupt-<ms>.json`, the store starts empty, one
+`agentforge_trace_store_recovered` line is logged, and `traceStore` reports
+`TRACE_STORE_CORRUPT` until the next trace is written.
+
+Every response carries an `x-correlation-id` header. A caller's value is used
+only when it is a UUID or 16-64 lowercase hex characters; anything else is
+dropped (not logged, stored or forwarded) and the server mints `af-<uuid>`.
+The id names the scan trace, is sent on every outbound call the request makes
+(OpenEMR REST reads and token refresh, guideline embed and rerank, OpenEMR
+module), and appears in the server's error logs.
 
 **Test-only** (never set in a deployed environment): `AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE`, `AGENTFORGE_TEST_INVALID_ANSWER`, `AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION`, `AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE` — force specific failure paths in tests.
 

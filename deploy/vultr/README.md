@@ -144,6 +144,49 @@ Lab read-back uses OpenEMR's FHIR Observation service in-process
 API was enabled on 2026-09-25 for the patient dashboard port; this proof does
 not use it.
 
+## Week 2 trace store, alerts and readiness (F-OBS)
+
+- **Traces survive a deploy.** `agentforge-w2` writes its redacted trace store
+  to `/data/w2-traces.json` on the named volume `w2tracevolume` (Compose
+  names it `vultr_w2tracevolume` when run from `deploy/vultr/`). It is
+  separate from the frozen W1 `tracevolume`. The store keeps the newest
+  `AGENTFORGE_W2_TRACE_LIMIT` traces (default 500) for at most
+  `AGENTFORGE_W2_TRACE_RETENTION_MS` (default 604800000, 7 days); the file is
+  rewritten on each trace, so it stays a few MB. Compose creates the volume on
+  the first `up` after this change. Traces held in the old `/tmp` path are not
+  migrated. `docker volume rm vultr_w2tracevolume` deletes all W2 traces.
+- **Background alerts.** The server evaluates the alert rules every
+  `AGENTFORGE_ALERT_EVAL_INTERVAL_MS` (default 60000) and logs each rule's
+  ok/firing change once, as a JSON line with codes only:
+  `docker compose --env-file /opt/agentforge-week1/.env logs agentforge-w2 | grep agentforge_alert_transition`.
+- **Readiness.** `/agentforge-w2/ready` now also calls the OpenEMR module's
+  signed `health` route and writes a probe file to the trace volume. A failing
+  dependency gives 503 with its name in `failing` and a `reason` code (for
+  example `openemrModule` with `OPENEMR_MODULE_TIMEOUT`). Probes are cached for
+  30 s and concurrent calls share one probe, so `/ready` traffic costs at most
+  one signed module call per 30 s. Because `/ready` depends on OpenEMR, the
+  service has `depends_on: openemr (healthy)` and a 60 s healthcheck start
+  period. The `proxy` waits only for `agentforge-w2` to start, not to be
+  healthy, so a module outage never keeps Caddy down. Langfuse is probed only
+  if its variables are set; the `agentforge-w2` block does not pass them today.
+- **Corrupt trace file.** If `/data/w2-traces.json` does not parse at startup
+  (for example truncated), the service still starts: the file is renamed to
+  `w2-traces.corrupt-<ms>.json` on the volume, one
+  `agentforge_trace_store_recovered` line is logged (no content), and
+  `/ready` reports `traceStore` `TRACE_STORE_CORRUPT` until the next trace is
+  written. Delete the `.corrupt-*` file once inspected.
+- **Correlation ids.** Each response carries `x-correlation-id`: the caller's
+  value only when it is a UUID or 16-64 lowercase hex characters, else a
+  server-minted `af-<uuid>` (a rejected value is not stored or forwarded).
+  The scan trace in `/v1/traces` has the same `correlationId`, and module,
+  OpenEMR REST and model calls send it as `x-correlation-id`.
+
+No operator step is required: all four settings have defaults, and the
+optional overrides go in `/opt/agentforge-week1/.env`. After the deploy,
+check `/agentforge-w2/ready` (`traceStore` and `openemrModule` ready),
+`/agentforge-w2/v1/metrics` (`traceLimit: 500`), and that the trace count in
+`/agentforge-w2/v1/traces` is not reset by the next deploy.
+
 ## Week 2 live chart reads from an OpenEMR session (E9)
 
 `agentforge-w2` keeps `AGENTFORGE_OPENEMR_MODE: synthetic`, so the public demo
@@ -593,7 +636,9 @@ LANGFUSE_TIMEOUT_MS=3000
 ```
 
 The exporter is fail-safe: the local redacted trace file remains authoritative,
-and Langfuse outage does not change readiness or the synthetic response path.
+and a Langfuse outage does not change the synthetic response path. When the
+three variables are set, `/ready` probes `GET <base>/api/public/health` and
+answers 503 with `langfuse` in `failing` while it is down.
 Do not expose the Langfuse API or credentials through Caddy until its Compose
 version, network policy, retention, backup, and dashboard readback have been
 approved and verified. The repository contains a pinned, unactivated artifact

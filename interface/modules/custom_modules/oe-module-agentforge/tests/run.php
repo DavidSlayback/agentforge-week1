@@ -782,6 +782,16 @@ check('dispatcher: store is idempotent and ACL-checked with write rights', funct
     same(['patients/docs/write', 'patients/docs/write'], $acl->checks);
 });
 
+// F-OBS: agentforge-w2's /ready probes this route (openemr-module persistence).
+check('dispatcher: health answers ok to a signed request with no context token, and touches no chart data', function (): void {
+    [$api, , $chart, $acl] = makeApi();
+    [$status, $body] = call($api, 'GET', ['route' => 'health'], null, null);
+    same([200, 'ok', 'openemr-module'], [$status, $body['status'], $body['persistence_boundary']]);
+    same([[], [], []], [$chart->writes, $chart->reads, $acl->checks]);
+    [$status, $body] = call($api, 'GET', ['route' => 'health'], null, null, 'wrong-hmac-secret');
+    same([401, 'signature_invalid'], [$status, $body['error']]);
+});
+
 check('dispatcher: ACL denial blocks the write and the read (requireAcl is enforced)', function (): void {
     [$api, , $chart, $acl] = makeApi();
     $acl->allow = false;

@@ -203,7 +203,7 @@ export function renderLabTrendSection(trends, links = {}) {
  * read-scoped signed token for exactly this patient. Returns false when the
  * request is not for this route.
  */
-export async function handleLabTrendRoute(req, res, { service, verifyToken, json, html, basePath = '', errorStatus }) {
+export async function handleLabTrendRoute(req, res, { service, verifyToken, json, html, basePath = '', errorStatus, correlationId = null }) {
   const match = req.method === 'GET' ? req.url.match(/^\/v1\/patients\/([^/?]+)\/lab-trends(\/chart)?(?:\?.*)?$/) : null;
   if (!match) return false;
   let patient_uuid;
@@ -212,7 +212,7 @@ export async function handleLabTrendRoute(req, res, { service, verifyToken, json
   const token = verifyToken(demo_token);
   if (!token || token.patient_uuid !== patient_uuid) { json(res, 403, { error: 'invalid_demo_context' }); return true; }
   try {
-    const result = await service.readLabTrends({ patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+    const result = await service.readLabTrends({ patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, correlationId });
     if (result.status !== 'read') { json(res, 403, { error: result.reason }); return true; }
     if (match[2]) html(res, renderLabTrendSection(result, { basePath, patient_uuid, demo_token }));
     else json(res, 200, result);

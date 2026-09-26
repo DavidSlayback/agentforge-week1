@@ -334,7 +334,9 @@ export function createGeminiHybridGuidelineRetriever({
     };
   }
 
-  async function retrieve(query, { topK = 3 } = {}) {
+  // `correlationId` is the calling request's id; it rides on the embed and
+  // rerank calls (never into the query text or a trace value).
+  async function retrieve(query, { topK = 3, correlationId = '' } = {}) {
     const trimmed = String(query || '').trim();
     // No retrieval work of any kind ran (not even a BM25 search), so this is
     // never labeled hybrid, even when embedClient/reranker are configured.
@@ -357,7 +359,7 @@ export function createGeminiHybridGuidelineRetriever({
       // Unexpanded on purpose (see DEFAULT_CONTEXTUAL_RETRIEVAL): the rerank
       // pool, and so the recorded rerank requests, stay as they were.
       const sparseCandidates = bm25.search(trimmed, { topK: candidateCount });
-      const embedResult = await embedClient.embed(sanitizedQuery, 'RETRIEVAL_QUERY');
+      const embedResult = await embedClient.embed(sanitizedQuery, 'RETRIEVAL_QUERY', { correlationId });
       const queryVector = embedResult.values;
       embedUsage = embedResult.usage;
       if (!Array.isArray(queryVector) || !queryVector.length) throw new Error('EMBED_RESPONSE_INVALID');
@@ -400,7 +402,7 @@ export function createGeminiHybridGuidelineRetriever({
       // a listwise LLM reranker handles long lists poorly, and 23 candidates
       // overflowed Qwen's output budget live (RERANK_JSON_INVALID, 2026-09-24).
       const rerankPool = reciprocalRankFusion(candidates).sort((left, right) => right.fusedScore - left.fusedScore).slice(0, RERANK_CANDIDATE_LIMIT);
-      const rerankOutcome = await reranker.rerank(sanitizedQuery, rerankPool.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })));
+      const rerankOutcome = await reranker.rerank(sanitizedQuery, rerankPool.map((candidate) => ({ id: candidate.document.source_id, text: chunkText(candidate.document) })), { correlationId });
       rerankResults = rerankOutcome.results;
       rerankUsage = rerankOutcome.usage;
     } catch {

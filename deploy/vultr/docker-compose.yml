@@ -136,11 +136,12 @@ services:
       openemr:
         condition: service_healthy
 
-  # Week 2 surface. The chart stays the synthetic fixture (no OAuth token mount,
-  # no persistent volume, no live provider secrets), but uploads and derived
-  # facts are persisted in OpenEMR through oe-module-agentforge on the internal
-  # network (AGENTFORGE_PERSISTENCE_MODE=openemr-module), only for the
-  # allowlisted synthetic patients mapped below.
+  # Week 2 surface. The public demo's chart stays the synthetic fixture (E9
+  # live reads are opt-in below), uploads and derived facts are persisted in
+  # OpenEMR through oe-module-agentforge on the internal network
+  # (AGENTFORGE_PERSISTENCE_MODE=openemr-module), only for the allowlisted
+  # synthetic patients mapped below, and redacted traces persist on the
+  # w2tracevolume named volume.
   agentforge-w2:
     restart: unless-stopped
     build:
@@ -200,7 +201,17 @@ services:
       AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS: ${AGENTFORGE_GEMINI_SCAN_TIMEOUT_MS:-45000}
       AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT: ${AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT:-12}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      AGENTFORGE_TRACE_PATH: /tmp/agentforge-w2-traces.json
+      # F-OBS: the trace store is on the named volume w2tracevolume (mounted
+      # at /data below), so traces survive a container replacement. It keeps
+      # the newest AGENTFORGE_TRACE_LIMIT traces for at most the retention
+      # window (7 days here; the server default is 24 h). Traces are redacted
+      # before they are written (observability/index.js).
+      AGENTFORGE_TRACE_PATH: /data/w2-traces.json
+      AGENTFORGE_TRACE_LIMIT: ${AGENTFORGE_W2_TRACE_LIMIT:-500}
+      AGENTFORGE_TRACE_RETENTION_MS: ${AGENTFORGE_W2_TRACE_RETENTION_MS:-604800000}
+      # Alerts are evaluated in the background at this interval; each rule's
+      # ok/firing change is logged once as a JSON line with codes only.
+      AGENTFORGE_ALERT_EVAL_INTERVAL_MS: ${AGENTFORGE_ALERT_EVAL_INTERVAL_MS:-60000}
       # W1-C3: the 2000 ms server default fires on every W2 scan (p50 11.1 s,
       # p95 22.1 s). 30000 ms is the KEY_METRICS.md p95 target for time to a
       # grounded answer. The frozen W1 service keeps its own default.
@@ -240,10 +251,18 @@ services:
       # Same server-only OAuth token cache as the Week 1 block; only a service
       # that reads the live chart opens it (W1 runs the synthetic mode).
       - ../../secrets/openemr-token.json:/run/secrets/agentforge-openemr-token.json
+      # Trace store (AGENTFORGE_TRACE_PATH above); separate from W1's tracevolume.
+      - w2tracevolume:/data
     expose:
       - "8788"
+    # /ready probes the OpenEMR module (openemr-module persistence), so this
+    # service waits for OpenEMR on a full `up`, and gets a start period.
+    depends_on:
+      openemr:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'node', '-e', "fetch('http://localhost:8788/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      start_period: 60s
       interval: 30s
       timeout: 5s
       retries: 3
@@ -307,8 +326,10 @@ services:
         condition: service_healthy
       agentforge:
         condition: service_healthy
+      # Started, not healthy: agentforge-w2's /ready depends on the OpenEMR
+      # module, and a module outage must never keep Caddy from starting.
       agentforge-w2:
-        condition: service_healthy
+        condition: service_started
 
 volumes:
   logvolume01: {}
@@ -317,6 +338,7 @@ volumes:
   caddy_data: {}
   caddy_config: {}
   tracevolume: {}
+  w2tracevolume: {}
 
 networks:
   agentforge-observability:
