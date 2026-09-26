@@ -18,7 +18,8 @@
  *   4. The operator pastes that whole redirect URL back within a minute
  *      (OpenEMR codes expire after 60 s). A bare code is refused: `state`
  *      must be checked. It exchanges the code with the PKCE verifier and the
- *      client secret (https only).
+ *      client secret (https, or the Docker-internal http://openemr token
+ *      endpoint the service itself uses).
  *   5. It checks who authorized: the id token's `sub` must equal the
  *      expected user's `users.uuid` (`--expect-user-uuid`, from the
  *      read-only SQL in the runbook), and its `preferred_username`, when
@@ -39,7 +40,13 @@
  * AGENTFORGE_OPENEMR_CLIENT_SECRET, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH.
  * Required flags: --redirect-uri <exact registered redirect URI>,
  * --expect-user <username>, --expect-user-uuid <that user's users.uuid>.
- * Optional: --authorize-url (default: the token URL with /token → /authorize),
+ * Required: --authorize-url (or AGENTFORGE_OPENEMR_AUTHORIZE_URL), the
+ * PUBLIC https authorize endpoint the clinician's browser opens, e.g.
+ * `https://<canonical-host>/oauth2/default/authorize`. It is never derived
+ * from the token URL, which in production is the Docker-internal
+ * `http://openemr/oauth2/default/token` (INTERNAL_HTTP_TOKEN_ORIGIN, the only
+ * plain-http origin accepted, for the server-to-server exchange only).
+ * Optional:
  * --scope "<space separated>" (default: DEFAULT_SCOPE), --service-url (the
  * running-service probe, default http://agentforge-w2:8788/health).
  */
@@ -48,6 +55,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
+import { tokenUrlIssue } from '../src/openemrAdapter.js';
 
 /** The read routes OpenEMRRestAdapter calls, plus a refresh token. `user/document.rs` is no longer needed: notes are not read (F-LIVE). */
 export const REQUIRED_SCOPES = Object.freeze(['openid', 'offline_access', 'api:oemr', 'user/patient.rs', 'user/encounter.rs', 'user/medical_problem.rs', 'user/allergy.rs', 'user/medication.rs']);
@@ -72,12 +80,15 @@ export function requireHttps(value, name) {
   return url;
 }
 
-export function authorizeUrlFor(tokenUrl) {
-  const url = requireHttps(tokenUrl, 'TOKEN_URL');
-  if (!/\/token$/.test(url.pathname)) throw new Error('AUTHORIZE_URL_REQUIRED: the token URL does not end in /token; pass --authorize-url');
-  url.pathname = url.pathname.replace(/\/token$/, '/authorize');
-  url.search = '';
-  return url.toString();
+/**
+ * The token endpoint: https, or the Docker-internal `http://openemr` origin
+ * the service itself uses (src/openemrAdapter.js#INTERNAL_HTTP_TOKEN_ORIGIN).
+ */
+export function requireTokenUrl(value) {
+  const issue = tokenUrlIssue(value);
+  if (issue === 'OPENEMR_TOKEN_URL_NOT_HTTPS') throw new Error('TOKEN_URL_NOT_HTTPS: only https or the Docker-internal http://openemr is accepted');
+  if (issue) throw new Error('TOKEN_URL_INVALID: not a usable URL');
+  return new URL(value);
 }
 
 export function buildAuthorizeUrl({ authorizeUrl, clientId, redirectUri, scope = DEFAULT_SCOPE, state, nonce, challenge }) {
@@ -106,7 +117,7 @@ export function parseRedirectInput(input, { expectedState, redirectUri }) {
 
 /** Exchange the code at the token endpoint (client_secret_post, as the refresh provider authenticates). */
 export async function exchangeCode({ tokenUrl, clientId, clientSecret, redirectUri, code, verifier, fetchImpl = globalThis.fetch, timeoutMs = 15000 }) {
-  requireHttps(tokenUrl, 'TOKEN_URL');
+  requireTokenUrl(tokenUrl);
   const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret, code_verifier: verifier });
   const response = await fetchImpl(tokenUrl, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' }, body: body.toString(), signal: AbortSignal.timeout(timeoutMs) });
   let payload = {};
@@ -199,11 +210,12 @@ export async function runAuthorization({ env = process.env, argv = [], prompt, l
   const redirectUri = args['redirect-uri'] || env.AGENTFORGE_OPENEMR_REDIRECT_URI;
   const expectUser = args['expect-user'];
   const expectUserUuid = args['expect-user-uuid'];
-  const missing = [['AGENTFORGE_OPENEMR_TOKEN_URL', tokenUrl], ['AGENTFORGE_OPENEMR_CLIENT_ID', clientId], ['AGENTFORGE_OPENEMR_CLIENT_SECRET', clientSecret], ['AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH', cachePath], ['--redirect-uri', redirectUri], ['--expect-user', expectUser], ['--expect-user-uuid', expectUserUuid]].filter(([, value]) => !value).map(([name]) => name);
+  const authorizeBase = args['authorize-url'] || env.AGENTFORGE_OPENEMR_AUTHORIZE_URL;
+  const missing = [['AGENTFORGE_OPENEMR_TOKEN_URL', tokenUrl], ['AGENTFORGE_OPENEMR_CLIENT_ID', clientId], ['AGENTFORGE_OPENEMR_CLIENT_SECRET', clientSecret], ['AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH', cachePath], ['--authorize-url', authorizeBase], ['--redirect-uri', redirectUri], ['--expect-user', expectUser], ['--expect-user-uuid', expectUserUuid]].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) throw new Error(`CONFIG_MISSING: ${missing.join(', ')}`);
   if (!UUID.test(expectUserUuid)) throw new Error('EXPECT_USER_UUID_INVALID: pass the users.uuid from the runbook SQL');
-  requireHttps(tokenUrl, 'TOKEN_URL');
-  const authorizeBase = args['authorize-url'] || authorizeUrlFor(tokenUrl);
+  requireTokenUrl(tokenUrl);
+  // The clinician's browser opens this one: always the public https URL.
   requireHttps(authorizeBase, 'AUTHORIZE_URL');
   if (await probeService(args['service-url'] || DEFAULT_SERVICE_PROBE_URL)) throw new Error('SERVICE_RUNNING: agentforge-w2 answers; stop it first (it caches the old refresh token and would write it back), then recreate it after this helper');
   const pkce = createPkcePair(random);

@@ -311,8 +311,8 @@ test('launch token is single-use: the first load opens a launch session, a repla
   } finally { await stack.stop(); }
 });
 
-test('live reads on with a plain-http OpenEMR token URL: refused like a missing setting (/ready 503, live requests refused), never sent', async () => {
-  const stack = await startStack(18980, 'on', { AGENTFORGE_OPENEMR_ACCESS_TOKEN: '', AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr/oauth2/default/token', AGENTFORGE_OPENEMR_CLIENT_ID: 'read-client', AGENTFORGE_OPENEMR_CLIENT_SECRET: 'synthetic-secret', AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: path.join(mkdtempSync(path.join(os.tmpdir(), 'agentforge-token-')), 'token.json') });
+test('live reads on with a plain-http OpenEMR token URL other than the Docker-internal http://openemr: refused like a missing setting (/ready 503, live requests refused), never sent', async () => {
+  const stack = await startStack(18980, 'on', { AGENTFORGE_OPENEMR_ACCESS_TOKEN: '', AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr.evil/oauth2/default/token', AGENTFORGE_OPENEMR_CLIENT_ID: 'read-client', AGENTFORGE_OPENEMR_CLIENT_SECRET: 'synthetic-secret', AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: path.join(mkdtempSync(path.join(os.tmpdir(), 'agentforge-token-')), 'token.json') });
   try {
     const ready = await fetch(`${stack.base}/ready`);
     assert.equal(ready.status, 503);
@@ -320,5 +320,16 @@ test('live reads on with a plain-http OpenEMR token URL: refused like a missing 
     const briefing = await (await post(stack.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
     assert.deepEqual(briefing.qualification.reasons, ['openemr_live_reads_not_configured']);
     assert.equal(stack.rest.requests.length, 0);
+  } finally { await stack.stop(); }
+});
+
+test('live reads on with production\'s Docker-internal token URL (http://openemr): accepted as configured, not refused as insecure', async () => {
+  const stack = await startStack(18981, 'on', { AGENTFORGE_OPENEMR_ACCESS_TOKEN: '', AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr/oauth2/default/token', AGENTFORGE_OPENEMR_CLIENT_ID: 'read-client', AGENTFORGE_OPENEMR_CLIENT_SECRET: 'synthetic-secret', AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: path.join(mkdtempSync(path.join(os.tmpdir(), 'agentforge-token-')), 'token.json') });
+  try {
+    const ready = await (await fetch(`${stack.base}/ready`)).json();
+    assert.equal(ready.dependencies.openemrLiveReadsConfiguration.status, 'ready', 'the internal http://openemr token URL counts as configured');
+    const session = await launch(stack.base);
+    const briefing = await (await post(stack.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
+    assert.equal(JSON.stringify(briefing).includes('openemr_live_reads_not_configured'), false);
   } finally { await stack.stop(); }
 });

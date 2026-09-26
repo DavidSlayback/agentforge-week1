@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, tokenUrlIssue } from '../src/openemrAdapter.js';
+import { INTERNAL_HTTP_TOKEN_ORIGIN, OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, tokenUrlIssue } from '../src/openemrAdapter.js';
 import { clinicalFact, clinicalLabel } from '../src/clinicalLanguage.js';
 import { validateRetrievalResult } from '../src/contracts.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
@@ -172,14 +172,21 @@ test('F-LIVE medication dose: a dose field when the row has one, else "dose not 
   assert.equal(clinicalFact({ field: 'medication.lisinopril.dose', value: '10 mg daily' }), 'Lisinopril is recorded at 10 mg daily', 'a real dose keeps the fixture wording');
 });
 
-test('F-LIVE token URL: the refresh provider sends the client secret and refresh token over https only', async () => {
-  assert.equal(tokenUrlIssue('https://openemr/oauth2/default/token'), null, 'the Compose default (Docker-internal https) is accepted');
-  assert.equal(tokenUrlIssue('https://host.example/oauth2/default/token'), null);
-  assert.equal(tokenUrlIssue('http://openemr/oauth2/default/token'), 'OPENEMR_TOKEN_URL_NOT_HTTPS');
+test('F-LIVE token URL: the refresh provider sends the client secret and refresh token over https or the Docker-internal http://openemr only', async () => {
+  assert.equal(INTERNAL_HTTP_TOKEN_ORIGIN, 'http://openemr');
+  for (const ok of ['http://openemr/oauth2/default/token', 'http://openemr:80/oauth2/default/token', 'https://openemr/oauth2/default/token', 'https://host.example/oauth2/default/token']) assert.equal(tokenUrlIssue(ok), null, ok);
+  for (const bad of ['http://evil/oauth2/default/token', 'http://openemr.evil/oauth2/default/token', 'http://openemr:8080/oauth2/default/token', 'http://openemr./oauth2/default/token', 'http://10.0.0.5/oauth2/default/token']) assert.equal(tokenUrlIssue(bad), 'OPENEMR_TOKEN_URL_NOT_HTTPS', bad);
+  assert.equal(tokenUrlIssue('http://user:pw@openemr/oauth2/default/token'), 'OPENEMR_TOKEN_URL_INVALID');
   assert.equal(tokenUrlIssue('not a url'), 'OPENEMR_TOKEN_URL_INVALID');
   let calls = 0;
-  const provider = new OpenEMRRefreshTokenProvider({ tokenUrl: 'http://openemr/oauth2/default/token', clientId: 'c', clientSecret: 's', fetchImpl: async () => { calls += 1; throw new Error('must not be called'); } });
-  provider.state = { refresh_token: 'refresh-1', expires_at: 0 };
-  await assert.rejects(provider.getAccessToken(), /OPENEMR_TOKEN_URL_NOT_HTTPS/);
+  const refused = new OpenEMRRefreshTokenProvider({ tokenUrl: 'http://openemr.evil/oauth2/default/token', clientId: 'c', clientSecret: 's', fetchImpl: async () => { calls += 1; throw new Error('must not be called'); } });
+  refused.state = { refresh_token: 'refresh-1', expires_at: 0 };
+  await assert.rejects(refused.getAccessToken(), /OPENEMR_TOKEN_URL_NOT_HTTPS/);
   assert.equal(calls, 0, 'nothing was sent');
+  // Production's value: the refresh goes to the Docker-internal endpoint.
+  const urls = [];
+  const internal = new OpenEMRRefreshTokenProvider({ tokenUrl: 'http://openemr/oauth2/default/token', clientId: 'c', clientSecret: 's', fetchImpl: async (url) => { urls.push(url); return { ok: true, status: 200, async json() { return { access_token: 'access-2', expires_in: 3600 }; } }; } });
+  internal.state = { refresh_token: 'refresh-1', expires_at: 0 };
+  assert.equal(await internal.getAccessToken(), 'access-2');
+  assert.deepEqual(urls, ['http://openemr/oauth2/default/token']);
 });

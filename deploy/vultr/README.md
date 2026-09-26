@@ -340,11 +340,18 @@ SHA. Values are never printed.
         -v /opt/agentforge-week1/secrets:/run/agentforge-secrets \
         -e AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH=/run/agentforge-secrets/openemr-token.json \
         agentforge-w2 node scripts/openemr-authorize-read-client.mjs \
+        --authorize-url 'https://<canonical-host>/oauth2/default/authorize' \
         --redirect-uri '<registered redirect URI>' \
         --expect-user grader --expect-user-uuid '<uuid from 2>'
       ```
-      It refuses a token or authorize URL that is not https, then prints an
-      authorize URL.
+      (on production today, `<canonical-host>` is
+      `dtstest.64.177.10.182.nip.io`). `--authorize-url` is required and
+      must be the **public https** URL, because David's (phone) browser
+      opens it; it is never derived from the token URL. The code exchange
+      itself goes to the service's own `AGENTFORGE_OPENEMR_TOKEN_URL`, which
+      on production is the Docker-internal `http://openemr/...` (see
+      below). It refuses an authorize URL that is not https and any other
+      plain-http token URL, then prints the authorize URL.
    5. *David:* open the URL, sign in on OpenEMR's OAuth login page as
       `grader`, leave every scope ticked, click **Authorize**. The browser
       lands on the redirect URI with `?code=…&state=…`; copy the whole
@@ -372,14 +379,19 @@ user/encounter.rs user/medical_problem.rs user/allergy.rs user/medication.rs`
 (`--scope` overrides it). `user/document.rs` is dropped: notes are no longer
 read. OpenEMR intersects the request with the client's registered scopes.
 
-The service refuses a token URL that is not https: live reads stay off
-(`/ready` 503, `openemr_live_reads_not_configured`) and the log names
-`AGENTFORGE_OPENEMR_TOKEN_URL (must be https)`. There is no plain-http
-exception: the documented value is the public
-`https://<canonical-host>/oauth2/default/token`, and the W1 Compose default is
-`https://openemr/oauth2/default/token` (Docker-internal, still https). The
-`.env` value was not read for this change; check it starts with `https://`
-before deploying.
+**Token URL transport.** Production's `AGENTFORGE_OPENEMR_TOKEN_URL` is the
+Docker-internal `http://openemr/oauth2/default/token` (checked by the
+coordinator on 2026-09-26, scheme and host only). `openemr` is the Compose
+service name, so the refresh (client secret and refresh token) stays on the
+Docker bridge network and never leaves the VM. That exact origin
+(`INTERNAL_HTTP_TOKEN_ORIGIN` in `agentforge/src/openemrAdapter.js`: scheme
+http, host `openemr`, port absent or 80, no credentials) is the only
+plain-http token URL the service and the helper accept; any https URL is also
+accepted. Any other http URL (`http://evil`, `http://openemr.evil`,
+`http://openemr:8080`) is refused: live reads stay off (`/ready` 503,
+`openemr_live_reads_not_configured`) and the log names
+`AGENTFORGE_OPENEMR_TOKEN_URL (must be https)`. The `.env` examples above
+show the public https form, which also works.
 
 **Live mapping (F-LIVE).** A medication's dose reads "dose not available
 from this OpenEMR route": the route returns `lists` rows, which have no dose

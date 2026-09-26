@@ -703,13 +703,17 @@ body field; a copied claims object is refused):
   `comments` (where the seed puts "10 mg daily") becomes a separate
   `medication.<name>.comment` fact, rendered "Lisinopril
   instructions/comment: …", never as a dose. Both cite the same OpenEMR row.
-- **OAuth transport (F-LIVE).** `OpenEMRRefreshTokenProvider` refuses a
-  token URL that is not https (`OPENEMR_TOKEN_URL_NOT_HTTPS`), and the
-  service treats such a URL like a missing setting (`/ready` 503, live
-  requests refused). No plain-http host is allowed: the documented value is
-  the public https URL and the Compose default for W1 is
-  `https://openemr/…`. The re-authorization helper refuses http authorize
-  and token URLs, refuses a bare code (state must match), writes the cache
+- **OAuth transport (F-LIVE).** `OpenEMRRefreshTokenProvider` accepts a
+  token URL that is https or exactly the Docker-internal `http://openemr`
+  origin (`INTERNAL_HTTP_TOKEN_ORIGIN`: port absent or 80, no credentials),
+  and refuses every other http URL (`OPENEMR_TOKEN_URL_NOT_HTTPS`); the
+  service treats a refused URL like a missing setting (`/ready` 503, live
+  requests refused). Production uses `http://openemr/oauth2/default/token`:
+  `openemr` is the Compose service name, so the refresh stays on the Docker
+  bridge network and never leaves the VM. The re-authorization helper uses
+  the same token-URL rule for the code exchange, but requires the public
+  https authorize URL (`--authorize-url`, the one the clinician's browser
+  opens; never derived from the token URL), refuses a bare code (state must match), writes the cache
   only when the id token's `sub` is the expected user's `users.uuid`
   (`--expect-user`, `--expect-user-uuid`), writes it atomically at mode
   0600, and refuses to run while `agentforge-w2` answers.

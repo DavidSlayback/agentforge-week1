@@ -405,8 +405,10 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   replayed link answers 401, a launch token on the API 403. (4)
   `scripts/openemr-authorize-read-client.mjs`: auth code + PKCE as `grader`,
   writes the provider's token cache; runbook step 7 in
-  `deploy/vultr/README.md`. Security review follow-ups: https-only token
-  and authorize URLs (the provider too), the cache is written only when the
+  `deploy/vultr/README.md`. Security review follow-ups: token URLs must be
+  https or exactly the Docker-internal `http://openemr` (production's value;
+  the provider too), the authorize URL must be the public https URL
+  (`--authorize-url`), the cache is written only when the
   id token's `sub` is the expected user's `users.uuid`, atomic 0600 write,
   bare codes refused, refuses to run while `agentforge-w2` is up. Needs David's sign-in; the client's registered
   redirect URI is read on the VM (not in the repo). Evidence:

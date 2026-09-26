@@ -163,18 +163,27 @@ export class OpenEMRRestAdapter {
 }
 
 /**
+ * The one plain-http origin a token URL may use. Production's
+ * AGENTFORGE_OPENEMR_TOKEN_URL is `http://openemr/oauth2/default/token`
+ * (coordinator check, 2026-09-26): `openemr` is the Compose service name, so
+ * that request stays on the Docker bridge network between the two containers
+ * and never leaves the VM. Only this exact origin passes: scheme http, host
+ * `openemr`, default port (absent or 80), no credentials in the URL. Any
+ * other http URL (another host, `openemr.<domain>`, another port) is refused.
+ */
+export const INTERNAL_HTTP_TOKEN_ORIGIN = 'http://openemr';
+
+/**
  * Why a token URL may not carry the client secret and refresh token, or null
- * when it may. Only https is accepted. There is no plain-http exception: the
- * documented production value is the public `https://<host>/oauth2/default/token`
- * (deploy/vultr/README.md) and the Compose default for the W1 service is the
- * Docker-internal `https://openemr/oauth2/default/token`; neither is http.
+ * when it may: https, or the Docker-internal INTERNAL_HTTP_TOKEN_ORIGIN.
  */
 export function tokenUrlIssue(tokenUrl) {
-  try {
-    return new URL(tokenUrl).protocol === 'https:' ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
-  } catch {
-    return 'OPENEMR_TOKEN_URL_INVALID';
-  }
+  let url;
+  try { url = new URL(tokenUrl); } catch { return 'OPENEMR_TOKEN_URL_INVALID'; }
+  if (url.username || url.password) return 'OPENEMR_TOKEN_URL_INVALID';
+  if (url.protocol === 'https:') return null;
+  // WHATWG URL drops the default port, so `http://openemr:80` has origin `http://openemr` too.
+  return url.origin === INTERNAL_HTTP_TOKEN_ORIGIN ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
 }
 
 /** Cache and refresh OAuth credentials used only for GET chart reads. */
@@ -216,7 +225,7 @@ export class OpenEMRRefreshTokenProvider {
 
   async refresh({ correlationId = '' } = {}) {
     if (!this.tokenUrl || !this.clientId || !this.clientSecret) throw Object.assign(new Error('OPENEMR_TOKEN_PROVIDER_NOT_CONFIGURED'), { code: 'OPENEMR_TOKEN_PROVIDER_NOT_CONFIGURED' });
-    // The refresh sends the client secret and the refresh token: never over plain http.
+    // The refresh sends the client secret and the refresh token: https, or the Docker-internal origin only.
     const urlIssue = tokenUrlIssue(this.tokenUrl);
     if (urlIssue) throw Object.assign(new Error(urlIssue), { code: urlIssue });
     const controller = new AbortController();

@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { authorizedUserMatches, authorizeUrlFor, buildAuthorizeUrl, createPkcePair, exchangeCode, parseRedirectInput, runAuthorization, serviceIsRunning, tokenCacheFrom, writeTokenCache, REQUIRED_SCOPES } from '../scripts/openemr-authorize-read-client.mjs';
+import { authorizedUserMatches, buildAuthorizeUrl, createPkcePair, exchangeCode, parseRedirectInput, requireTokenUrl, runAuthorization, serviceIsRunning, tokenCacheFrom, writeTokenCache, REQUIRED_SCOPES } from '../scripts/openemr-authorize-read-client.mjs';
 import { OpenEMRRefreshTokenProvider } from '../src/openemrAdapter.js';
 
 // TEST-ONLY fake OpenEMR token endpoint: it answers the authorization_code
@@ -30,7 +30,8 @@ function fakeTokenEndpoint({ scope = GRANTED, refresh = true, idClaims = { sub: 
   return { state, fetchImpl };
 }
 
-const env = (cachePath, tokenUrl = 'https://openemr.example/oauth2/default/token') => ({ AGENTFORGE_OPENEMR_TOKEN_URL: tokenUrl, AGENTFORGE_OPENEMR_CLIENT_ID: CLIENT.id, AGENTFORGE_OPENEMR_CLIENT_SECRET: CLIENT.secret, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: cachePath });
+// Production shape: the exchange goes to the Docker-internal token endpoint, the browser to the public authorize URL.
+const env = (cachePath, tokenUrl = 'http://openemr/oauth2/default/token') => ({ AGENTFORGE_OPENEMR_TOKEN_URL: tokenUrl, AGENTFORGE_OPENEMR_AUTHORIZE_URL: 'https://openemr.example/oauth2/default/authorize', AGENTFORGE_OPENEMR_CLIENT_ID: CLIENT.id, AGENTFORGE_OPENEMR_CLIENT_SECRET: CLIENT.secret, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: cachePath });
 const ARGV = ['--redirect-uri', REDIRECT, '--expect-user', 'grader', '--expect-user-uuid', GRADER_UUID];
 
 /** Drive the whole flow: the "browser" returns the redirect URL for the authorize URL the script printed. */
@@ -66,13 +67,13 @@ test('PKCE: an S256 challenge of a 43-character verifier (RFC 7636 appendix B ve
   assert.equal(createPkcePair().verifier.length, 43);
 });
 
-test('authorize URL: https only; code flow with S256, state, the exact redirect URI and the read scopes', async () => {
-  const authorizeUrl = authorizeUrlFor('https://host.example/oauth2/default/token');
-  assert.equal(authorizeUrl, 'https://host.example/oauth2/default/authorize');
-  assert.throws(() => authorizeUrlFor('https://host.example/oauth2/default/other'), /AUTHORIZE_URL_REQUIRED/);
-  assert.throws(() => authorizeUrlFor('http://openemr/oauth2/default/token'), /TOKEN_URL_NOT_HTTPS/);
-  assert.throws(() => buildAuthorizeUrl({ authorizeUrl: 'http://host.example/oauth2/default/authorize', clientId: 'c', redirectUri: REDIRECT, state: 's', nonce: 'n', challenge: 'ch' }), /AUTHORIZE_URL_NOT_HTTPS/);
-  await assert.rejects(exchangeCode({ tokenUrl: 'http://host.example/oauth2/default/token', clientId: 'c', clientSecret: 's', redirectUri: REDIRECT, code: 'x', verifier: 'v', fetchImpl: async () => { throw new Error('must not be called'); } }), /TOKEN_URL_NOT_HTTPS/);
+test('URLs: the authorize URL is https only (the browser opens it); the token URL is https or exactly the Docker-internal http://openemr', async () => {
+  const authorizeUrl = 'https://host.example/oauth2/default/authorize';
+  assert.throws(() => buildAuthorizeUrl({ authorizeUrl: 'http://openemr/oauth2/default/authorize', clientId: 'c', redirectUri: REDIRECT, state: 's', nonce: 'n', challenge: 'ch' }), /AUTHORIZE_URL_NOT_HTTPS/);
+  for (const ok of ['http://openemr/oauth2/default/token', 'http://openemr:80/oauth2/default/token', 'https://host.example/oauth2/default/token']) assert.equal(requireTokenUrl(ok).pathname, '/oauth2/default/token', ok);
+  for (const bad of ['http://evil/oauth2/default/token', 'http://openemr.evil/oauth2/default/token', 'http://openemr:8080/oauth2/default/token', 'http://evil.example/openemr/oauth2/default/token']) assert.throws(() => requireTokenUrl(bad), /TOKEN_URL_NOT_HTTPS/, bad);
+  assert.throws(() => requireTokenUrl('http://user:pw@openemr/oauth2/default/token'), /TOKEN_URL_INVALID/);
+  await assert.rejects(exchangeCode({ tokenUrl: 'http://openemr.evil/oauth2/default/token', clientId: 'c', clientSecret: 's', redirectUri: REDIRECT, code: 'x', verifier: 'v', fetchImpl: async () => { throw new Error('must not be called'); } }), /TOKEN_URL_NOT_HTTPS/);
   const url = new URL(buildAuthorizeUrl({ authorizeUrl, clientId: 'c', redirectUri: REDIRECT, state: 's', nonce: 'n', challenge: 'ch' }));
   assert.deepEqual(Object.fromEntries(url.searchParams), { response_type: 'code', client_id: 'c', redirect_uri: REDIRECT, scope: REQUIRED_SCOPES.join(' '), state: 's', nonce: 'n', code_challenge: 'ch', code_challenge_method: 'S256' });
   assert.equal(REQUIRED_SCOPES.includes('offline_access'), true);
@@ -104,7 +105,7 @@ test('exchange as the expected user: writes the provider cache atomically (0600)
     const [call] = endpoint.state.calls;
     assert.equal(call.method, 'POST');
     assert.equal(call.contentType, 'application/x-www-form-urlencoded');
-    assert.equal(call.url, 'https://openemr.example/oauth2/default/token');
+    assert.equal(call.url, 'http://openemr/oauth2/default/token', 'the exchange goes to the Docker-internal token endpoint');
     const cache = JSON.parse(await readFile(cachePath, 'utf8'));
     assert.deepEqual(cache, { access_token: 'access-NEW-secret', refresh_token: 'refresh-NEW-secret', expires_at: 1_000_000 + 3_600_000, scope: GRANTED });
     if (process.platform !== 'win32') assert.equal(result.mode, '0600');
@@ -136,9 +137,16 @@ test('another user authorized (admin instead of grader), or no id token: refused
 test('refusals before anything is sent: http token URL, running service, missing or malformed expected user', async () => {
   await withCache(async ({ cachePath, original }) => {
     const endpoint = fakeTokenEndpoint();
-    await assert.rejects(run({ cachePath, endpoint, envOverride: { AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr/oauth2/default/token' } }), /TOKEN_URL_NOT_HTTPS/);
-    await assert.rejects(run({ cachePath, endpoint, argv: [...ARGV, '--authorize-url', 'http://openemr.example/oauth2/default/authorize'] }), /AUTHORIZE_URL_NOT_HTTPS/);
+    await assert.rejects(run({ cachePath, endpoint, envOverride: { AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr.evil/oauth2/default/token' } }), /TOKEN_URL_NOT_HTTPS/);
+    await assert.rejects(run({ cachePath, endpoint, envOverride: { AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr:8080/oauth2/default/token' } }), /TOKEN_URL_NOT_HTTPS/);
+    await assert.rejects(run({ cachePath, endpoint, argv: [...ARGV, '--authorize-url', 'http://openemr/oauth2/default/authorize'] }), /AUTHORIZE_URL_NOT_HTTPS/);
+    await assert.rejects(run({ cachePath, endpoint, envOverride: { AGENTFORGE_OPENEMR_AUTHORIZE_URL: '' } }), /CONFIG_MISSING: --authorize-url/, 'never derived from the internal token URL');
     await assert.rejects(run({ cachePath, endpoint, probeService: async () => true }), /SERVICE_RUNNING/);
+    // The public token endpoint works too.
+    const publicEndpoint = fakeTokenEndpoint();
+    await run({ cachePath, endpoint: publicEndpoint, envOverride: { AGENTFORGE_OPENEMR_TOKEN_URL: 'https://openemr.example/oauth2/default/token' } });
+    assert.equal(publicEndpoint.state.calls[0].url, 'https://openemr.example/oauth2/default/token');
+    await writeFile(cachePath, original);
     await assert.rejects(run({ cachePath, endpoint, argv: ['--redirect-uri', REDIRECT] }), /CONFIG_MISSING: --expect-user, --expect-user-uuid/);
     await assert.rejects(run({ cachePath, endpoint, argv: ['--redirect-uri', REDIRECT, '--expect-user', 'grader', '--expect-user-uuid', 'grader'] }), /EXPECT_USER_UUID_INVALID/);
     assert.equal(endpoint.state.calls.length, 0, 'nothing reached the token endpoint');
@@ -159,7 +167,7 @@ test('exchange refused or incomplete grant: nothing is written', async () => {
     await assert.rejects(run({ cachePath, endpoint: fakeTokenEndpoint({ refresh: false }) }), /REFRESH_TOKEN_MISSING/);
     await assert.rejects(run({ cachePath, endpoint: fakeTokenEndpoint({ scope: 'openid offline_access api:oemr user/patient.rs' }) }), /SCOPES_MISSING: user\/encounter\.rs user\/medical_problem\.rs user\/allergy\.rs user\/medication\.rs/);
     assert.equal(await readFile(cachePath, 'utf8'), original);
-    await assert.rejects(runAuthorization({ env: {}, argv: [], log: () => {}, prompt: async () => '' }), /CONFIG_MISSING: AGENTFORGE_OPENEMR_TOKEN_URL, AGENTFORGE_OPENEMR_CLIENT_ID, AGENTFORGE_OPENEMR_CLIENT_SECRET, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, --redirect-uri, --expect-user, --expect-user-uuid/);
+    await assert.rejects(runAuthorization({ env: {}, argv: [], log: () => {}, prompt: async () => '' }), /CONFIG_MISSING: AGENTFORGE_OPENEMR_TOKEN_URL, AGENTFORGE_OPENEMR_CLIENT_ID, AGENTFORGE_OPENEMR_CLIENT_SECRET, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, --authorize-url, --redirect-uri, --expect-user, --expect-user-uuid/);
     assert.throws(() => tokenCacheFrom({ refresh_token: 'r', scope: GRANTED }), /TOKEN_RESPONSE_INVALID/);
   });
 });
