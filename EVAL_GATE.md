@@ -200,16 +200,20 @@ still blocks commits.
   anemia chunk first, and the low hemoglobin on `gen-lab-d-flags` gets no
   anemia guideline in the top 3. Regression proof:
   `docs/agentforge/evidence/E3-retrieval-regression.txt`.
-- Critic cases (E2, `extensionCases/critic.js`), eight of them:
+- Critic cases (E2, `extensionCases/critic.js`), nine of them:
   `x2-critic-rejects-uncited-statement`, `x2-critic-rejects-unsafe-directive`,
   `x2-critic-keeps-clean-answer`, `x2-critic-ignores-added-or-rewritten-claims`,
-  `x2-critic-budget-skip-labeled`, `x2-critic-invalid-json-failed`,
-  `x2-critic-disabled-labeled` and `x2-critic-no-phi`. They run the real scan
+  `x2-critic-rejected-fact-not-reinserted`, `x2-critic-budget-skip-labeled`,
+  `x2-critic-invalid-json-failed`, `x2-critic-disabled-labeled` and
+  `x2-critic-no-phi`. They run the real scan
   path with a fake critic model (`scriptedFakeCritic`) that rejects exactly the
   claim a case planted. The planted claims pass `verifyClaims`, so they ship
-  if the critic step is skipped or accepts everything. These cases test the
+  if the critic step is skipped or accepts everything. The not-reinserted case
+  vetoes every claim citing the chart's lisinopril facts and fails if a claim
+  citing them comes back or if `critic_rejected` differs from what was removed.
+  These cases test the
   veto wiring, labels and trace, not a real model's judgment; that is what
-  `scripts/benchmark-critic-models.mjs` measures. Regression proof:
+`scripts/benchmark-critic-models.mjs` measures. Regression proof:
   `docs/agentforge/evidence/E2-critic-regression.txt`.
 - To rebaseline: `npm run eval:extensions --prefix agentforge --
   --update-baseline`. As with the golden gate, it refuses unless every

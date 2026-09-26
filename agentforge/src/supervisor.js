@@ -16,7 +16,10 @@ export const DECISIONS = Object.freeze({ EXTRACT: 'EXTRACT', RETRIEVE: 'RETRIEVE
 /** The `critic_status` each critic-skipping DONE reason ships with (E2). */
 export const CRITIC_SKIP_STATUS = Object.freeze({ critic_disabled: 'disabled', critic_skipped_budget: 'skipped_budget', no_claims_to_review: 'skipped_no_claims' });
 
-const DEFAULT_MAX_STEPS = 6;
+// EXTRACT, one low-confidence retry, RETRIEVE, ANSWER, CRITIQUE and DONE take
+// six decisions; the seventh is a spare, so the longest normal path never
+// ends on `max_steps_reached`.
+export const DEFAULT_MAX_STEPS = 7;
 const LOW_CONFIDENCE_RETRY_THRESHOLD = 0.7;
 const EXTRACTION_CACHE_LIMIT = 50;
 

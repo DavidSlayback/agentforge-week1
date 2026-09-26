@@ -4,10 +4,10 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 12,
+  "total_cases": 13,
   "missing_baseline": false,
-  "corpus_sha256": "e5cf4ffdf7bb5b851368dbc5a1a0e6c8e8c87abb388526c2a9869290216e9431",
-  "baseline_corpus_sha256": "e5cf4ffdf7bb5b851368dbc5a1a0e6c8e8c87abb388526c2a9869290216e9431",
+  "corpus_sha256": "3a76d2722b91b7904638dcb82f7006f08feb043267228a2da1282542cdd33070",
+  "baseline_corpus_sha256": "3a76d2722b91b7904638dcb82f7006f08feb043267228a2da1282542cdd33070",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -28,8 +28,8 @@
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 4,
-      "passed": 4,
+      "cases": 5,
+      "passed": 5,
       "rate": 1
     },
     "safe_refusal": {
@@ -99,6 +99,12 @@
       "id": "x2-critic-ignores-added-or-rewritten-claims",
       "label": "factually_consistent",
       "guards_against": "A critic reply that adds a claim id it was never sent, or carries rewritten text, changes the shipped answer; the critic may only veto.",
+      "passed": true
+    },
+    {
+      "id": "x2-critic-rejected-fact-not-reinserted",
+      "label": "factually_consistent",
+      "guards_against": "After the critic vetoes every claim citing a fact, the deterministic top-up or fallback puts a claim citing that same fact back (a veto turned into a rewrite), or critic_rejected and the trace count differ from what was actually removed.",
       "passed": true
     },
     {

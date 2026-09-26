@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { InMemoryTraceSink } from '../../observability/index.js';
-import { partitionAnswerInputs } from '../src/answerComposer.js';
+import { composeGroundedAnswer, partitionAnswerInputs } from '../src/answerComposer.js';
 import {
   CRITIC_REASON_CODES, applyCriticVerdicts, buildCriticPrompt, buildCriticRequest, createCriticProviderFromEnv,
-  criticTraceSummary, parseCriticVerdicts, runCriticWorker,
+  criticAppliedSummary, criticTraceSummary, isIdentityField, parseCriticVerdicts, runCriticWorker,
 } from '../src/critic.js';
 import { criticCases, scriptedFakeCritic } from '../src/extensionCases/critic.js';
 import { computeRuntimeEvaluation } from '../src/runtimeEvaluation.js';
 import { GroundedAnswerResult, parseOrIssues } from '../src/schemas.js';
-import { DECISIONS, decideNext, runActiveSupervisor } from '../src/supervisor.js';
+import { DECISIONS, DEFAULT_MAX_STEPS, decideNext, runActiveSupervisor } from '../src/supervisor.js';
 import { harness, kase, loadGoldenFixtures, runScenario, scan, withCapturedOutput } from '../src/w2RegressionGate.js';
 
 /**
@@ -168,21 +168,74 @@ test('applyCriticVerdicts: the critic only removes claims; kept claims are byte-
   assert.ok(parseOrIssues(GroundedAnswerResult, applied).ok);
 });
 
-test('applyCriticVerdicts: a gap left by a veto is refilled by the composer top-up, but a vetoed text is never re-added', () => {
-  const parts = partitionAnswerInputs({ patientFacts: [
-    { field: 'medication.lisinopril.dose', citation: citation('medication.lisinopril.dose', '10 mg daily') },
-    { field: 'encounter.reason', citation: citation('encounter.reason', 'blood-pressure follow-up') },
-  ] });
+const lisinoprilParts = () => partitionAnswerInputs({ patientFacts: [
+  { field: 'medication.lisinopril.dose', citation: citation('medication.lisinopril.dose', '10 mg daily') },
+  { field: 'encounter.reason', citation: citation('encounter.reason', 'blood-pressure follow-up') },
+  { field: 'note.plan_follow_through', citation: citation('note.plan_follow_through', 'home blood-pressure log reviewed at return visit') },
+] });
+
+test('applyCriticVerdicts: a fact cited by a rejected claim never comes back through the top-up, whatever the text', () => {
   const modelClaim = factClaim('medication.lisinopril.dose', 'The patient has to be taking lisinopril 10 mg daily.', '10 mg daily');
   const deterministicClaim = factClaim('encounter.reason', 'The chart records encounter reason as blood-pressure follow-up.', 'blood-pressure follow-up');
-  const answer = answerWith([modelClaim, deterministicClaim]);
-  const rejectBoth = { output_status: 'reviewed', verdicts: [{ index: 0, verdict: 'reject', reason: 'UNSAFE_ACTION' }, { index: 1, verdict: 'reject', reason: 'UNCITED' }] };
-  const applied = applyCriticVerdicts(answer, rejectBoth, parts);
-  // The model's directive is replaced by the deterministic template claim for
-  // the same chart fact; the vetoed deterministic text itself stays out.
-  assert.deepEqual(applied.patient_facts.map((claim) => claim.text), ['The chart records medication lisinopril dose as 10 mg daily.']);
-  assert.equal(applied.composer, 'model+deterministic-topup');
+  const noteClaim = factClaim('note.plan_follow_through', 'The chart records note plan follow through as home blood-pressure log reviewed at return visit.', 'home blood-pressure log reviewed at return visit');
+  const answer = answerWith([modelClaim, deterministicClaim, noteClaim]);
+  const rejectTwo = { output_status: 'reviewed', verdicts: [{ index: 0, verdict: 'reject', reason: 'UNSAFE_ACTION' }, { index: 1, verdict: 'reject', reason: 'UNCITED' }, { index: 2, verdict: 'keep', reason: null }] };
+  const applied = applyCriticVerdicts(answer, rejectTwo, lisinoprilParts());
+  // Both vetoed facts are gone: no claim citing them ships, not even the
+  // deterministic template for the lisinopril dose.
+  assert.deepEqual(applied.patient_facts, [noteClaim]);
+  assert.ok(!applied.patient_facts.some((claim) => claim.citations.some((item) => ['medication.lisinopril.dose', 'encounter.reason'].includes(item.field_or_chunk_id))));
   assert.equal(applied.critic_rejected, 2);
+  assert.equal(applied.critic_topup_unreviewed, 0);
+  assert.equal(applied.composer, 'model');
+});
+
+test('applyCriticVerdicts: rejecting every claim ships no claims; there is no fallback that restores them', () => {
+  const answer = answerWith([factClaim('medication.lisinopril.dose', 'The patient has to be taking lisinopril 10 mg daily.', '10 mg daily')]);
+  const applied = applyCriticVerdicts(answer, { output_status: 'reviewed', verdicts: [{ index: 0, verdict: 'reject', reason: 'UNSAFE_ACTION' }] }, partitionAnswerInputs({ patientFacts: [{ field: 'medication.lisinopril.dose', citation: citation('medication.lisinopril.dose', '10 mg daily') }] }));
+  assert.deepEqual(applied.patient_facts, []);
+  assert.equal(applied.critic_rejected, 1);
+  assert.equal(applied.critic_topup_unreviewed, 0);
+});
+
+test('applyCriticVerdicts: a top-up for a fact no rejected claim cited is counted as unreviewed, and shows in the trace summary', () => {
+  // The answer never covered the note fact; after a veto the top-up fills
+  // that gap, and the added claim is counted, not called reviewed.
+  const answer = answerWith([factClaim('medication.lisinopril.dose', 'The patient has to be taking lisinopril 10 mg daily.', '10 mg daily'), factClaim('encounter.reason', 'The chart records encounter reason as blood-pressure follow-up.', 'blood-pressure follow-up')]);
+  const handoff = { output_status: 'reviewed', provider: 'fake', model: 'fake', verdicts: [{ index: 0, verdict: 'reject', reason: 'UNSAFE_ACTION' }, { index: 1, verdict: 'keep', reason: null }], redacted_metrics: { claims_reviewed: 2, claims_kept: 1, claims_rejected: 1, claims_not_sent: 0 } };
+  const applied = applyCriticVerdicts(answer, handoff, lisinoprilParts());
+  assert.deepEqual(applied.patient_facts.map((claim) => claim.citations[0].field_or_chunk_id), ['encounter.reason', 'note.plan_follow_through']);
+  assert.equal(applied.critic_rejected, 1);
+  assert.equal(applied.critic_topup_unreviewed, 1);
+  assert.equal(applied.composer, 'model+deterministic-topup');
+  const summary = criticAppliedSummary(handoff, applied);
+  assert.equal(summary.claims_rejected, 1);
+  assert.equal(summary.claims_topup_unreviewed, 1);
+  const evaluation = computeRuntimeEvaluation({ workflow: { final_state: 'READY', readiness: 'ready', qualification: { reasons: [] }, answer: applied } }).evaluation;
+  assert.ok(evaluation.issues.includes('critic_topup_unreviewed'));
+  assert.equal(evaluation.status, 'needs_review');
+});
+
+test('isIdentityField: patient identity fields only; lab and medication name fields are not identity', () => {
+  for (const field of ['patient.name', 'patient.date_of_birth', 'patient.phone', 'demographics.dob', 'demographics.name', 'patient.address']) assert.equal(isIdentityField(field), true, field);
+  for (const field of ['lab.a1c.test_name', 'lab.hgb.value', 'medication.name', 'medications', 'medication.lisinopril.dose', 'chief_concern', 'allergies', 'encounter.reason']) assert.equal(isIdentityField(field), false, field);
+});
+
+test('runCriticWorker: held-back identity claims are counted; all held back is skipped_identity_only, never reviewed', async () => {
+  const identityClaim = { kind: 'patient_fact', text: 'Name: Test Patient One.', citations: [{ ...citation('intake-1', 'Name: Test Patient One', 'document'), field_or_chunk_id: 'patient.name' }] };
+  const mixed = await runCriticWorker({ answer: answerWith([identityClaim, ...twoClaimAnswer().patient_facts]), provider: fakeCriticModel(), timeoutMs: 1000 });
+  assert.equal(mixed.output_status, 'reviewed');
+  assert.equal(mixed.redacted_metrics.claims_not_sent, 1);
+  const mixedApplied = applyCriticVerdicts(answerWith([identityClaim, ...twoClaimAnswer().patient_facts]), mixed, null);
+  assert.equal(mixedApplied.critic_claims_not_sent, 1);
+  const provider = fakeCriticModel();
+  const onlyIdentity = await runCriticWorker({ answer: answerWith([identityClaim]), provider, timeoutMs: 1000 });
+  assert.equal(onlyIdentity.output_status, 'skipped_identity_only');
+  assert.equal(provider.prompts.length, 0);
+  const applied = applyCriticVerdicts(answerWith([identityClaim]), onlyIdentity, null);
+  assert.equal(applied.critic_status, 'skipped_identity_only');
+  assert.ok(parseOrIssues(GroundedAnswerResult, applied).ok);
+  assert.equal(computeRuntimeEvaluation({ workflow: { final_state: 'READY', readiness: 'ready', qualification: { reasons: [] }, answer: applied } }).evaluation.status, 'needs_review');
 });
 
 test('applyCriticVerdicts: any status but reviewed ships the answer unchanged, labeled with that status', () => {
@@ -261,6 +314,21 @@ test('active supervisor: a disabled critic labels the answer disabled and record
   assert.equal(result.final_state === 'READY' || result.final_state === 'QUALIFIED', true);
 });
 
+test('active supervisor: a low-confidence retry followed by a critic run finishes with a spare step (no max_steps_reached)', async () => {
+  const lowEnvelope = Buffer.from(envelope.toString('utf8').replace(/confidence=0\.95/g, 'confidence=0.50'));
+  const critic = {
+    enabled: true, disabledReason: null, budgetOk: () => true,
+    run: async (answer) => ({ handoff: { worker: 'critic-worker', output_status: 'reviewed', verdicts: [], usage: null }, answer: { ...answer, critic_status: 'reviewed', critic_rejected: 0 }, summary: { status: 'reviewed' } }),
+    skip: () => { throw new Error('skip must not be called'); },
+  };
+  const reextractWithAlternateOcr = async () => ({ content: envelope, ocrMode: 'psm4' });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-critic-retry', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: lowEnvelope, query: 'documented glycemic values medication adherence', reextractWithAlternateOcr, composeAnswer: async () => twoClaimAnswer(), critic });
+  assert.deepEqual(result.decisions.map((decision) => decision.reason), ['extraction_needed', 'low_confidence_retry', 'evidence_needed', 'facts_and_evidence_ready', 'answer_needs_review', 'critique_reviewed']);
+  assert.ok(result.decisions.length < DEFAULT_MAX_STEPS, 'the longest normal path leaves a spare step');
+  assert.equal(result.answer.critic_status, 'reviewed');
+  assert.ok(!result.qualification.reasons.includes('max_steps_reached'));
+});
+
 // --- the deployed service path ---------------------------------------------
 
 /** Run one golden scan through the real service with the given overrides (E0's `service_overrides`). */
@@ -307,6 +375,20 @@ test('service: the critic trace and request carry no synthetic identifiers or cl
   for (const identifier of [form.name, form.dob, form.phone, form.chief_concern, ...form.current_medications, ...form.allergies]) assert.ok(!traceText.includes(identifier), 'identifier in trace');
   for (const claim of [...run.result.workflow.answer.patient_facts, ...run.result.workflow.answer.guideline_evidence]) assert.ok(!traceText.includes(claim.text), 'claim text in trace');
 });
+
+const withoutCriticFields = ({ critic_status: _status, critic_rejected: _rejected, critic_claims_not_sent: _notSent, critic_topup_unreviewed: _topup, ...rest }) => rest;
+
+for (const [doc, type] of [['lab-a', 'lab_pdf'], ['intake-a', 'intake_form']]) {
+  test(`service: with the critic disabled, the ${doc} answer is identical to composing without the critic step`, async () => {
+    const { value: run } = await withCapturedOutput(() => runScenario(scan(doc, type)));
+    const workflow = run.result.workflow;
+    assert.equal(workflow.answer.critic_status, 'disabled');
+    const chart = await run.h.service.retrievePatientChartFacts(run.result.source_document.patient_ref);
+    const direct = await composeGroundedAnswer({ labResults: workflow.typed_outputs.extraction.lab_results || [], intakeForm: workflow.typed_outputs.extraction.intake_form || null, guidelineEvidence: workflow.typed_outputs.evidence?.guideline_evidence || [], patientFacts: chart.patient_facts, question: scan(doc, type).query }, { provider: null });
+    assert.deepEqual(withoutCriticFields(workflow.answer), direct);
+    assert.equal(workflow.answer.critic_rejected, 0);
+  });
+}
 
 test('harness: the gate harness honors service_overrides for the critic (E0 seam)', () => {
   const critic = scriptedFakeCritic();

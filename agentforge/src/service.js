@@ -9,7 +9,7 @@ import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './p
 import { PreVisitPreparation } from './preVisitPreparation.js';
 import { recordBelongsToPatient } from './recordScope.js';
 import { composeGroundedAnswer, DeterministicAnswerComposer, partitionAnswerInputs } from './answerComposer.js';
-import { applyCriticVerdicts, criticNotRunSummary, criticTraceSummary, DEFAULT_CRITIC_TIMEOUT_MS, runCriticWorker } from './critic.js';
+import { applyCriticVerdicts, criticAppliedSummary, criticNotRunSummary, DEFAULT_CRITIC_TIMEOUT_MS, runCriticWorker } from './critic.js';
 import { computeRuntimeEvaluation } from './runtimeEvaluation.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
@@ -233,9 +233,10 @@ export class AgentForgeService {
         budgetOk: () => !deadline.signal.aborted && this.scanDeadlineMs - (this.now() - requestStartedAt) >= this.criticTimeoutMs,
         run: async (answer) => {
           const handoff = await runCriticWorker({ answer, provider: this.criticProvider, timeoutMs: this.criticTimeoutMs, signal: deadline.signal, now: this.now });
-          return { handoff, answer: applyCriticVerdicts(answer, handoff, answerParts), summary: criticTraceSummary(handoff) };
+          const applied = applyCriticVerdicts(answer, handoff, answerParts);
+          return { handoff, answer: applied, summary: criticAppliedSummary(handoff, applied) };
         },
-        skip: (answer, status, reason) => ({ answer: { ...answer, critic_status: status, critic_rejected: 0 }, summary: criticNotRunSummary(status, reason) }),
+        skip: (answer, status, reason) => ({ answer: { ...answer, critic_status: status, critic_rejected: 0, critic_claims_not_sent: 0, critic_topup_unreviewed: 0 }, summary: criticNotRunSummary(status, reason) }),
       };
       const workflow = await runActiveSupervisor({
         sourceDocumentId: source.source_document.id,

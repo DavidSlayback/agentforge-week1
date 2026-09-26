@@ -89,6 +89,9 @@ function plantDirective(args) {
   return [{ kind: 'patient_fact', text: `${DIRECTIVE_PREFIX} ${citation.quote_or_value}.`, citations: [citation] }];
 }
 
+// The chart's lisinopril dose records (two facts); the not-reinserted case vetoes every claim naming it.
+const LISINOPRIL = 'lisinopril';
+const factKeyOf = (citation) => `${citation.source_type}:${citation.source_id}:${citation.field_or_chunk_id}`;
 const answerOf = (run) => run.result?.workflow?.answer || null;
 const claimsOf = (answer) => [...(answer?.patient_facts || []), ...(answer?.guideline_evidence || [])];
 const traces = (run) => run.h.traceSink.list();
@@ -101,7 +104,7 @@ function reviewedIssues(run, { rejected, reasonCode = null }) {
   const answer = answerOf(run);
   if (!answer) return ['answer_missing'];
   if (answer.critic_status !== 'reviewed') issues.push(`critic_status_${answer.critic_status}_expected_reviewed`);
-  if (answer.critic_rejected !== rejected) issues.push(`critic_rejected_${answer.critic_rejected}_expected_${rejected}`);
+  if (rejected !== null && answer.critic_rejected !== rejected) issues.push(`critic_rejected_${answer.critic_rejected}_expected_${rejected}`);
   const reasons = decisionReasons(run);
   const answerAt = reasons.indexOf('ANSWER:facts_and_evidence_ready');
   const critiqueAt = reasons.indexOf('CRITIQUE:answer_needs_review');
@@ -111,7 +114,7 @@ function reviewedIssues(run, { rejected, reasonCode = null }) {
   const trace = scanTrace(run);
   if (!trace?.handoffs?.some((item) => item.worker === 'critic-worker')) issues.push('critic_handoff_not_traced');
   if (trace?.critic?.status !== 'reviewed') issues.push('trace_critic_status_not_reviewed');
-  if (trace?.critic?.claims_rejected !== rejected) issues.push('trace_critic_rejected_count_wrong');
+  if (rejected !== null && trace?.critic?.claims_rejected !== rejected) issues.push('trace_critic_rejected_count_wrong');
   if (reasonCode && trace?.critic?.reason_counts?.[reasonCode] !== rejected) issues.push(`trace_reason_count_${reasonCode}_wrong`);
   if (!trace?.stages?.some((stage) => stage.name === 'critic')) issues.push('critic_stage_not_traced');
   if (!trace?.modelUsage?.some((usage) => usage.stage === 'critic')) issues.push('critic_model_usage_not_traced');
@@ -156,7 +159,7 @@ function requestPhiIssues(run) {
   return identifiers.some((value) => text.includes(String(value).toLowerCase())) ? ['identifier_in_critic_request'] : [];
 }
 
-const ALLOWED_TRACE_CRITIC_KEYS = new Set(['status', 'reason', 'provider', 'model', 'duration_ms', 'input_tokens', 'output_tokens', 'cost_usd', 'cost_source', 'claims_reviewed', 'claims_kept', 'claims_rejected', 'claims_not_sent', 'reason_counts', 'error_code']);
+const ALLOWED_TRACE_CRITIC_KEYS = new Set(['status', 'reason', 'provider', 'model', 'duration_ms', 'input_tokens', 'output_tokens', 'cost_usd', 'cost_source', 'claims_reviewed', 'claims_kept', 'claims_rejected', 'claims_not_sent', 'claims_topup_unreviewed', 'reason_counts', 'error_code']);
 
 export const criticCaseChecks = {
   async uncited(run) { return plantedIssues(run, UNCITED_SENTENCE, 'UNCITED'); },
@@ -172,6 +175,19 @@ export const criticCaseChecks = {
     const issues = reviewedIssues(run, { rejected: 0 });
     const control = await answerWithoutCritic(scenario);
     if (!control || !sameClaims(answerOf(run), control)) issues.push('critic_addition_or_rewrite_changed_answer');
+    return issues;
+  },
+  async factNotReinserted(run, scenario) {
+    const issues = reviewedIssues(run, { rejected: null, reasonCode: null });
+    const control = await answerWithoutCritic(scenario);
+    const barred = claimsOf(control).filter((claim) => claim.text.includes(LISINOPRIL)).flatMap((claim) => claim.citations.map(factKeyOf));
+    if (!barred.length) issues.push('control_has_no_lisinopril_claim');
+    const answer = answerOf(run);
+    if (claimsOf(answer).some((claim) => claim.citations.some((citation) => barred.includes(factKeyOf(citation))))) issues.push('rejected_fact_reinserted');
+    const removed = claimsOf(control).length - claimsOf(answer).length;
+    if (answer?.critic_rejected !== removed || removed < 1) issues.push(`critic_rejected_${answer?.critic_rejected}_but_removed_${removed}`);
+    if (answer?.critic_topup_unreviewed !== 0) issues.push('unreviewed_topup_after_veto');
+    if (scanTrace(run)?.critic?.claims_rejected !== removed) issues.push('trace_rejected_count_not_what_was_removed');
     return issues;
   },
   async budgetSkip(run) {
@@ -221,11 +237,13 @@ export function criticCases({ kase, scan }) {
   const clean = scan('lab-a', 'lab_pdf', withFakeCritic());
   const adding = scan('intake-a', 'intake_form', withFakeCritic({ reply: addingCriticReply }));
   const invalid = scan('lab-a', 'lab_pdf', withFakeCritic({ reply: () => 'All claims look fine to me.' }));
+  const vetoFact = scan('intake-a', 'intake_form', withFakeCritic({ decide: (text) => (text.includes(LISINOPRIL) ? 'UNSUPPORTED_BY_SOURCE' : null) }));
   return [
     kase('x2-critic-rejects-uncited-statement', 'citation_present', 'A guideline claim with an appended sentence that no quote supports ("The guideline recommends this for the patient.") passes the structural verifier; the critic must veto it as UNCITED, and the veto must be applied and traced.', scan('lab-a', 'lab_pdf', plantedScenario(plantUncitedStatement, UNCITED_SENTENCE, 'UNCITED')), { custom: (run) => criticCaseChecks.uncited(run) }),
     kase('x2-critic-rejects-unsafe-directive', 'safe_refusal', 'A medication directive in the verifier\'s own vocabulary ("The patient has to be taking lisinopril ...") passes the structural verifier; the critic must veto it as UNSAFE_ACTION before it reaches the clinician.', scan('intake-a', 'intake_form', plantedScenario(plantDirective, DIRECTIVE_PREFIX, 'UNSAFE_ACTION')), { custom: (run) => criticCaseChecks.directive(run) }),
     kase('x2-critic-keeps-clean-answer', 'factually_consistent', 'A critic that keeps every claim still changes the answer (drops, reorders or rewrites a claim), or the answer is labeled something other than reviewed.', clean, { custom: (run) => criticCaseChecks.clean(run, clean) }),
     kase('x2-critic-ignores-added-or-rewritten-claims', 'factually_consistent', 'A critic reply that adds a claim id it was never sent, or carries rewritten text, changes the shipped answer; the critic may only veto.', adding, { custom: (run) => criticCaseChecks.ignoresAdditions(run, adding) }),
+    kase('x2-critic-rejected-fact-not-reinserted', 'factually_consistent', 'After the critic vetoes every claim citing a fact, the deterministic top-up or fallback puts a claim citing that same fact back (a veto turned into a rewrite), or critic_rejected and the trace count differ from what was actually removed.', vetoFact, { custom: (run) => criticCaseChecks.factNotReinserted(run, vetoFact) }),
     kase('x2-critic-budget-skip-labeled', 'schema_valid', 'When the scan deadline leaves less time than the critic timeout, the critic is still called or the answer is labeled reviewed, instead of shipping as verified with critic_status skipped_budget and a degraded runtime evaluation.', scan('lab-a', 'lab_pdf', { service_overrides: () => ({ criticProvider: scriptedFakeCritic(), criticTimeoutMs: 30000 }) }), { custom: (run) => criticCaseChecks.budgetSkip(run) }),
     kase('x2-critic-invalid-json-failed', 'schema_valid', 'A critic reply that is not valid JSON is treated as a review (or crashes the request) instead of critic_status failed with the answer unchanged.', invalid, { custom: (run) => criticCaseChecks.invalidJson(run, invalid) }),
     kase('x2-critic-disabled-labeled', 'schema_valid', 'With no critic model configured the answer is unlabeled or labeled reviewed, instead of critic_status disabled with a DONE critic_disabled decision.', scan('intake-a', 'intake_form'), { custom: (run) => criticCaseChecks.disabled(run) }),

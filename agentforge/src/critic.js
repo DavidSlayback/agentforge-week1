@@ -34,7 +34,8 @@
  * patient reference, document id, name, date of birth or phone. The composer
  * already keeps demographics out of every claim (answerComposer.js, F8); a
  * claim whose citation names an identity field is still not sent (defense in
- * depth) and is counted in `claims_not_sent`. Traces carry counts, reason
+ * depth) and is counted in `claims_not_sent`; if every claim is held back the
+ * status is `skipped_identity_only`. Traces carry counts, reason
  * codes, tokens, cost and duration only, never claim text.
  */
 import { deterministicTopUpClaims } from './answerComposer.js';
@@ -50,8 +51,20 @@ export const CRITIC_PROVIDERS = Object.freeze(['openrouter']);
 const CRITIC_MAX_TOKENS = 600;
 const OPENROUTER_DEFAULT_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
-/** A citation field that names patient identity data; such a claim is never sent to the critic model. */
-const IDENTITY_FIELD = /(?:^|[._\s-])(?:name|dob|date_of_birth|birth_?date|phone|telephone|address|email|mrn|ssn|sex|gender)(?:[._\s-]|$)/i;
+/**
+ * Citation fields that name patient identity data; a claim citing one is
+ * never sent to the critic model. Matched by whole field-id segment, so an
+ * ordinary lab or medication field (`lab.a1c.test_name`, `medication.name`)
+ * is not caught: a bare `name` segment counts only under a patient,
+ * demographics or identity parent (`patient.name`, the intake form's field).
+ */
+const IDENTITY_SEGMENTS = new Set(['dob', 'date_of_birth', 'birth_date', 'birthdate', 'phone', 'telephone', 'phone_number', 'address', 'street_address', 'email', 'mrn', 'ssn', 'patient_name', 'full_name']);
+const IDENTITY_PARENTS = new Set(['patient', 'demographics', 'identity']);
+
+export function isIdentityField(fieldOrChunkId) {
+  const segments = String(fieldOrChunkId || '').toLowerCase().split(/[.[\]\s]+/).filter(Boolean);
+  return segments.some((segment, index) => IDENTITY_SEGMENTS.has(segment) || (segment === 'name' && index > 0 && IDENTITY_PARENTS.has(segments[index - 1])));
+}
 
 /** OpenRouter chat-completions client labeled `openrouter` in traces. */
 export class OpenRouterCriticProvider extends OpenAICompatibleProvider {
@@ -105,7 +118,7 @@ export function answerClaims(answer) {
   return [...(answer?.patient_facts || []), ...(answer?.guideline_evidence || [])];
 }
 
-const hasIdentityCitation = (claim) => (claim?.citations || []).some((citation) => IDENTITY_FIELD.test(String(citation?.field_or_chunk_id || '')));
+const hasIdentityCitation = (claim) => (claim?.citations || []).some((citation) => isIdentityField(citation?.field_or_chunk_id));
 
 /**
  * The critic request: `items` is `[{ id, index, kind, text, quotes }]` for
@@ -200,7 +213,7 @@ function errorCodeFor(error, { deadlineSignal, timedOut }) {
  *   now: Clock for the duration measurement.
  *
  * Returns a worker handoff. `output_status` is `reviewed`, `failed` or
- * `skipped_no_claims`; `verdicts` holds `{ index, verdict, reason }` (claim
+ * `skipped_no_claims` / `skipped_identity_only`; `verdicts` holds `{ index, verdict, reason }` (claim
  * index and codes only); `usage` is the model call's usage entry when a call
  * was made. Never throws for a provider or parse failure.
  */
@@ -215,8 +228,11 @@ export async function runCriticWorker({ answer, provider, timeoutMs = DEFAULT_CR
     return { claims_reviewed: verdicts.length, claims_kept: verdicts.length - rejected, claims_rejected: rejected, claims_not_sent: request.notSent, reason_counts: reasonCounts, ...extra };
   };
   if (!request.items.length) {
-    steps.push({ name: 'qualify', decision: 'no_claims_to_review' });
-    return { ...base, output_status: 'skipped_no_claims', steps, verdicts: [], usage: null, error_code: null, duration_ms: 0, redacted_metrics: metrics() };
+    // Every claim was held back by the identity guard: nothing was reviewed,
+    // and that is a different fact from an answer with no claims at all.
+    const status = request.notSent ? 'skipped_identity_only' : 'skipped_no_claims';
+    steps.push({ name: 'qualify', decision: status });
+    return { ...base, output_status: status, steps, verdicts: [], usage: null, error_code: null, duration_ms: 0, redacted_metrics: metrics() };
   }
 
   const prompt = buildCriticPrompt(request.items);
@@ -270,25 +286,38 @@ export async function runCriticWorker({ answer, provider, timeoutMs = DEFAULT_CR
   return { ...base, output_status: 'reviewed', steps, verdicts, usage, error_code: null, duration_ms: durationMs, redacted_metrics: metrics(verdicts, { ignored_entries: parsed.ignoredEntries }) };
 }
 
+const factKey = (citation) => (citation ? `${citation.source_type}:${citation.source_id}:${citation.field_or_chunk_id}` : null);
+
 /**
  * Apply a critic handoff to the answer. Only a `reviewed` handoff changes
- * claims: each rejected claim is removed by index. A fact or guideline chunk
- * the vetoes left uncovered is refilled through the composer's own top-up
- * (`deterministicTopUpClaims`), except that a top-up claim identical to one
- * the critic rejected is never re-added. Any other status ships the answer
- * unchanged, labeled with that status.
+ * claims: each rejected claim is removed by index, and every fact or
+ * guideline chunk a rejected claim cited is barred from coming back. The
+ * composer's deterministic top-up (`deterministicTopUpClaims`) may still fill
+ * a gap for a fact no rejected claim cited; such a claim was added after the
+ * critic ran, so it is counted in `critic_topup_unreviewed`, never as
+ * reviewed. There is no other fallback: if the vetoes remove every claim,
+ * the answer ships with none. Any other status ships the answer unchanged,
+ * labeled with that status.
+ *
+ * Answer metadata (all counts): `critic_rejected` is exactly the number of
+ * claims removed from what ships; `critic_claims_not_sent` is claims kept
+ * without review because the identity guard held them back;
+ * `critic_topup_unreviewed` is claims added after the critic ran.
  *
  * `parts` is `partitionAnswerInputs(...)` for the same inputs the answer was
  * composed from (answerComposer.js).
  */
 export function applyCriticVerdicts(answer, handoff, parts = null) {
   const status = handoff?.output_status;
-  if (status !== 'reviewed') return { ...answer, critic_status: CRITIC_STATUS_VALUES.includes(status) ? status : 'failed', critic_rejected: 0 };
+  const notSent = handoff?.redacted_metrics?.claims_not_sent || 0;
+  if (status !== 'reviewed') return { ...answer, critic_status: CRITIC_STATUS_VALUES.includes(status) ? status : 'failed', critic_rejected: 0, critic_claims_not_sent: notSent, critic_topup_unreviewed: 0 };
   const claims = answerClaims(answer);
   const rejected = new Set(handoff.verdicts.filter((verdict) => verdict.verdict === 'reject').map((verdict) => verdict.index));
   const survivors = claims.filter((_, index) => !rejected.has(index));
-  const rejectedTexts = new Set(claims.filter((_, index) => rejected.has(index)).map((claim) => claim.text));
-  const topup = rejected.size && parts ? deterministicTopUpClaims(parts, survivors).filter((claim) => !rejectedTexts.has(claim.text)) : [];
+  const barredFacts = new Set(claims.filter((_, index) => rejected.has(index)).flatMap((claim) => (claim.citations || []).map(factKey)));
+  const topup = rejected.size && parts
+    ? deterministicTopUpClaims(parts, survivors).filter((claim) => !(claim.citations || []).some((citation) => barredFacts.has(factKey(citation))))
+    : [];
   const shipped = [...survivors, ...topup];
   return {
     ...answer,
@@ -296,7 +325,9 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
     patient_facts: shipped.filter((claim) => claim.kind === 'patient_fact'),
     guideline_evidence: shipped.filter((claim) => claim.kind === 'guideline'),
     critic_status: 'reviewed',
-    critic_rejected: rejected.size,
+    critic_rejected: claims.length - survivors.length,
+    critic_claims_not_sent: notSent,
+    critic_topup_unreviewed: topup.length,
   };
 }
 
@@ -322,12 +353,19 @@ export function criticTraceSummary(handoff) {
     claims_kept: metrics.claims_kept || 0,
     claims_rejected: metrics.claims_rejected || 0,
     claims_not_sent: metrics.claims_not_sent || 0,
+    claims_topup_unreviewed: 0,
     reason_counts: metrics.reason_counts || emptyReasonCounts(),
     error_code: handoff?.error_code || null,
   };
 }
 
+/** The trace summary for an applied handoff: `claims_rejected` and
+ * `claims_topup_unreviewed` come from what actually ships, not the verdicts. */
+export function criticAppliedSummary(handoff, appliedAnswer) {
+  return { ...criticTraceSummary(handoff), claims_rejected: appliedAnswer.critic_rejected || 0, claims_topup_unreviewed: appliedAnswer.critic_topup_unreviewed || 0 };
+}
+
 /** The trace's `critic` block when the critic never ran (disabled, budget, no claims). */
 export function criticNotRunSummary(status, reason) {
-  return { status, reason, provider: null, model: null, duration_ms: 0, input_tokens: 0, output_tokens: 0, cost_usd: null, cost_source: 'no_call', claims_reviewed: 0, claims_kept: 0, claims_rejected: 0, claims_not_sent: 0, reason_counts: emptyReasonCounts(), error_code: null };
+  return { status, reason, provider: null, model: null, duration_ms: 0, input_tokens: 0, output_tokens: 0, cost_usd: null, cost_source: 'no_call', claims_reviewed: 0, claims_kept: 0, claims_rejected: 0, claims_not_sent: 0, claims_topup_unreviewed: 0, reason_counts: emptyReasonCounts(), error_code: null };
 }

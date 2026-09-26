@@ -584,7 +584,7 @@ function operationalTrace(trace = {}) {
     // `kind: 'runtime_encounter'`) -- fixed status/reason codes only.
     evaluation: pick(trace.evaluation, ['status', 'caseType', 'outcome', 'kind', 'final_state', 'stop_reason', 'qualification_reasons', 'issues', 'read_back', 'critic_status']),
     // E2 critic step: codes, counts, tokens, cost and duration only.
-    critic: pick(trace.critic, ['status', 'reason', 'provider', 'model', 'duration_ms', 'input_tokens', 'output_tokens', 'cost_usd', 'cost_source', 'claims_reviewed', 'claims_kept', 'claims_rejected', 'claims_not_sent', 'reason_counts', 'error_code']),
+    critic: pick(trace.critic, ['status', 'reason', 'provider', 'model', 'duration_ms', 'input_tokens', 'output_tokens', 'cost_usd', 'cost_source', 'claims_reviewed', 'claims_kept', 'claims_rejected', 'claims_not_sent', 'claims_topup_unreviewed', 'reason_counts', 'error_code']),
     cache: pick(trace.cache, ['status']),
     status: trace.status,
   };

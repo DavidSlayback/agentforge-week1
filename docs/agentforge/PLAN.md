@@ -141,7 +141,7 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | Out of scope (D8) | — |
 | W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | Out of scope (D8) | — |
 | X-1 | W2 p5 | Click-to-source UI with a simple document preview | C (D12) | Built (S4); observed on the public URL: a citation's link highlights its box on the page image | Observed live on `521af47` (`evidence/E1-click-to-source-live.md`); gated by extension cases `x1-*` (E0). Re-observe on the freeze SHA (E7) | S4, E1 |
-| X-2 | W2 p5 | Critic agent that rejects uncited claims or unsafe action suggestions | C (D12) | An LLM critic node in the supervisor graph can only veto claims; its decision and reason are traced; the gate fails when it is removed or ignored | Wired, not observed live: `critic.js` + CRITIQUE decision on branch `agentforge/e2-critic`; 8 extension cases with a fake critic model; regression proof `evidence/E2-critic-regression.txt`. Disabled on the VM until `AGENTFORGE_CRITIC_MODEL` is set (model chosen by `scripts/benchmark-critic-models.mjs`) | E2 |
+| X-2 | W2 p5 | Critic agent that rejects uncited claims or unsafe action suggestions | C (D12) | An LLM critic node in the supervisor graph can only veto claims; its decision and reason are traced; the gate fails when it is removed or ignored | Wired, not observed live: `critic.js` + CRITIQUE decision on branch `agentforge/e2-critic`; 9 extension cases with a fake critic model; regression proof `evidence/E2-critic-regression.txt`. Disabled on the VM until `AGENTFORGE_CRITIC_MODEL` is set (model chosen by `scripts/benchmark-critic-models.mjs`) | E2 |
 | X-3 | W2 p5 | Third document type (referral fax or medication list) | C (D12) | `medication_list` end to end: upload, OpenEMR storage, strict schema, cited extraction, fail-loud checks, gate cases | Not built | E4 |
 | X-4 | W2 p5 | Lab trend chart widget from extracted Observation data | C (D12) | Chart of one test over ≥ 2 collection dates, read back from OpenEMR (not from the upload response) | Not built | E5 |
 | X-5 | W2 p6 | Contextual retrieval improvements | C (D12) | Chunking, query rewriting or domain filters, kept only if a labeled retrieval benchmark improves | Query expansion built on `agentforge/e3-retrieval` (BM25 recall@3 0.886 → 0.939, MRR@3 0.879 → 0.909); applies only to BM25-alone ranking (`local-lexical`, hybrid `sparse_only` fallback), not the normal hybrid path; extension cases fail when it is off. Headers measured, no change, off. Not merged or observed live | E3 |
@@ -229,9 +229,15 @@ Add a unit test that every citation link's `href` equals an existing box id
   `composeAnswer` seam), so ANSWER → CRITIQUE → DONE are real `decideNext`
   decisions; direct callers without the seam are unchanged. Statuses:
   `reviewed`, `failed`, `disabled`, `skipped_budget`, plus
-  `skipped_no_claims` for an answer with no claims (never labeled reviewed).
-  A veto that leaves a gap reuses the composer's deterministic top-up, never
-  re-adding a vetoed text. Gate cases use a scripted fake critic model, not
+  `skipped_no_claims` for an answer with no claims and
+  `skipped_identity_only` when every claim cites a patient-identity field
+  (never labeled reviewed).
+  Review fixes (2026-09-26): a rejection bars every fact the rejected claim
+  cited, so the top-up can never turn a veto into a rewrite; a later top-up
+  for an unrelated gap is counted as `critic_topup_unreviewed`;
+  `critic_rejected` is what was actually removed; the identity hold-back
+  matches patient-identity fields only; `DEFAULT_MAX_STEPS` is 7 so the
+  retry + critic path keeps a spare step. Gate cases use a scripted fake critic model, not
   recorded fixtures: they prove the veto wiring; model judgment is the
   benchmark's job. The planted claims are ones `verifyClaims` lets through (a
   guideline quote plus "The guideline recommends this for the patient.";
