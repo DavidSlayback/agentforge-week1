@@ -106,3 +106,77 @@ not ok 1 - the trace cap is AGENTFORGE_TRACE_LIMIT: 500 by default, configurable
 (empty = all reverted)
 
 Scope note: these regressions are caught by the unit suites that .githooks/pre-commit runs (npm test --prefix agentforge, node --test observability/test). The 50-case gate and the extension suite grade answers and do not exercise these operational paths; both passed unchanged on cdc8a5ab (50 and 40 cases).
+
+Review fixes (round 2), 2026-09-26 17:27 CDT, base af10adff plus the coalescing-test timeout committed with this file. Same method: one mutation at a time, covering tests, git checkout.
+
+=== R6 (fix 1): a corrupt trace file throws at startup again (crash loop on a persistent volume) ===
+diff --git a/observability/index.js b/observability/index.js
+index c21e0e5d..f2bd5a31 100644
+--- a/observability/index.js
++++ b/observability/index.js
+@@ -263,7 +263,7 @@ class FileTraceSink extends InMemoryTraceSink {
+     this.pendingWrites = 0;
+     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+     this.lastPersistError = null;
+-    this.traces = this.loadOrRecover();
++    this.traces = this.readFromDisk();
+     this.prune(this.clock());
+   }
+ 
+
+$ sh -c node --test --test-reporter=tap --test-name-pattern='trace file' observability/test/f-obs.test.js; node --test --test-reporter=tap --test-name-pattern='corrupt trace file' agentforge/test/f-obs-server.test.js
+not ok 1 - a truncated trace file is moved aside and the store starts empty and not ready until a write succeeds
+not ok 2 - a empty trace file is moved aside and the store starts empty and not ready until a write succeeds
+# pass 0
+# fail 2
+not ok 1 - a corrupt trace file on the volume does not crash the service: it is moved aside and /ready says so
+# pass 0
+# fail 1
+
+=== R7 (fix 2): concurrent probes are no longer coalesced (no in-flight sharing) ===
+diff --git a/observability/index.js b/observability/index.js
+index c21e0e5d..957f6dcc 100644
+--- a/observability/index.js
++++ b/observability/index.js
+@@ -634,7 +634,7 @@ function cachedCheck(check, { ttlMs = 30000, now = () => Date.now() } = {}) {
+   return () => {
+     const at = now();
+     if (cached && at - cached.checkedAt < ttlMs) return Promise.resolve(cached.value);
+-    if (inFlight) return inFlight;
++
+     let started;
+     try { started = Promise.resolve(check()); } catch (error) { started = Promise.reject(error); }
+     inFlight = started.then((value) => {
+
+$ sh -c node --test --test-reporter=tap --test-name-pattern=coalesces observability/test/f-obs.test.js; node --test --test-reporter=tap --test-name-pattern='OpenEMR module in openemr-module' agentforge/test/f-obs-server.test.js
+not ok 1 - cachedCheck coalesces concurrent calls into one probe per window
+# pass 0
+# fail 0
+not ok 1 - /ready probes the OpenEMR module in openemr-module mode and names it when it fails
+# pass 0
+# fail 1
+
+=== R8 (fix 3): any plain token is accepted again as the request id (name-like values persisted and forwarded) ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6400d211..e70a075c 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -355,7 +355,7 @@ async function readJsonBody(req) {
+ // and the server mints `af-<uuid>`. The id is echoed on the response, names
+ // the scan trace, rides on every outbound call the request makes, and
+ // appears in this server's error logs.
+-const ACCEPTED_CORRELATION_ID = /^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-f]{16,64})$/;
++const ACCEPTED_CORRELATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+ const requestCorrelationId = (req) => {
+   const header = req.headers['x-correlation-id'];
+   return typeof header === 'string' && ACCEPTED_CORRELATION_ID.test(header) ? header : `af-${randomUUID()}`;
+
+$ node --test --test-reporter=tap --test-name-pattern=correlation id is echoed agentforge/test/f-obs-server.test.js
+not ok 1 - the request correlation id is echoed, and a scan trace is filed under it
+# pass 0
+# fail 1
+
+=== Reverted: git status of the mutated files ===
+(empty = all reverted)
+
+Note on R7: the unit test ends by its 5 s timeout (19 uncoalesced probes are never released), which node reports as "not ok" and counts as cancelled, not failed; the HTTP test fails outright (20 module calls instead of 1).

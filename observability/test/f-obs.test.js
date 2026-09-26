@@ -168,7 +168,8 @@ test('an explicit restore of a corrupt backup still fails loudly', async () => {
   }
 });
 
-test('cachedCheck coalesces concurrent calls into one probe per window', async () => {
+// The timeout turns a lost coalescing (19 probes never released) into a failure, not a hang.
+test('cachedCheck coalesces concurrent calls into one probe per window', { timeout: 5000 }, async () => {
   let now = 0;
   let calls = 0;
   let release;
