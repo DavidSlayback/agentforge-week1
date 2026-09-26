@@ -224,7 +224,7 @@ narrative behind each group.
 | `AGENTFORGE_FIXTURES` | Path to the synthetic fixture patient set | built-in path | No | No |
 | `AGENTFORGE_PREPARATION_CACHE_TTL_MS` / `AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS` / `AGENTFORGE_MAX_PREWARM_JOBS` / `AGENTFORGE_PREWARM_DEADLINE_MS` / `AGENTFORGE_RECORD_DELAY_MS` | Briefing cache and prewarm tuning (Week 1 lane, shared) | see `server.js` | No | No |
 | `AGENTFORGE_SCAN_DEADLINE_MS` | End-to-end deadline for one `/v1/scan-supervisor` request (`agentforge-w2` only) | `25000` | No | No |
-| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` | Explicit approval to let a real model see live OpenEMR chart data | `false` | No | No |
+| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` | Explicit approval to let a real model see live OpenEMR chart data (live mode, and `AGENTFORGE_OPENEMR_LIVE_READS=on` requests) | `false` | No | No |
 | `AGENTFORGE_TRACE_PATH` / `AGENTFORGE_TRACE_RETENTION_MS` | Redacted trace file location/retention | `/tmp/agentforge/traces.json` / 24h | No | No |
 | `AGENTFORGE_EVAL_REPORT_PATH` | Overrides which committed eval report `/evals` serves | committed default | No | No |
 | `AGENTFORGE_GIT_SHA` | Overrides the SHA `/health` reports | derived at build | No (Yes for `/health` proof) | No |
@@ -240,12 +240,14 @@ narrative behind each group.
 | `AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS` | Allowlisted OpenEMR patient UUIDs the demo may write to | none | Yes for module mode | No (contains no PHI, but treat as sensitive config) |
 | `AGENTFORGE_DEMO_ACTOR_USERNAME` | OpenEMR username demo writes are attributed to | none | Yes for module mode | No |
 | `AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP` | Fixture-patient-id → OpenEMR patient UUID mapping | none | Yes for module mode | No |
+| `AGENTFORGE_SERVICE_URL` | `openemr` container: where the "Prepare for visit" launcher link points. Production: the public W2 path, `https://<host>/agentforge-w2` (the browser follows it) | `http://127.0.0.1:8787` | Yes in Compose | No |
 
-**Live OpenEMR chart read (Week 1 lane, `AGENTFORGE_OPENEMR_MODE=live`)**
+**Live OpenEMR chart read.** `AGENTFORGE_OPENEMR_MODE=live` reads every request from OpenEMR (Week 1 lane). In the synthetic mode, `AGENTFORGE_OPENEMR_LIVE_READS=on` reads OpenEMR only for requests whose verified token was minted by the OpenEMR launcher (`agentforge-w2`, `W2_ARCHITECTURE.md` §3f); the rows below then apply to it as well.
 
 | Name | Purpose | Default | Required? | Secret? |
 |---|---|---|---|---|
 | `AGENTFORGE_OPENEMR_MODE` | `synthetic` (default) or `live` | `synthetic` | No | No |
+| `AGENTFORGE_OPENEMR_LIVE_READS` | `on` or `off`. Synthetic mode only: `on` reads the real chart for OpenEMR-launcher tokens (issuer `openemr-module`, authn `openemr-session`); `off` refuses them with `openemr_live_reads_disabled`, never a fixture fallback. Any other value stops startup | `off` | No | No |
 | `AGENTFORGE_OPENEMR_BASE_URL` | OpenEMR base URL | none | Yes for live mode | No |
 | `AGENTFORGE_OPENEMR_ACCESS_TOKEN` | Static access token (test/manual use) | none | No | Yes |
 | `AGENTFORGE_OPENEMR_TOKEN_URL` / `AGENTFORGE_OPENEMR_CLIENT_ID` / `AGENTFORGE_OPENEMR_CLIENT_SECRET` | OAuth refresh-token flow for a server-only read token | none | Yes for live mode | Client secret: yes |

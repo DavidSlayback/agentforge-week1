@@ -209,6 +209,29 @@ services:
       AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: ${AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS:?AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS is required}
       # fixture-patient-NNN=<OpenEMR patient uuid>; every target must be allowlisted.
       AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: ${AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP:?AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP is required}
+      # E9 live chart reads (agentforge/src/chartSourceRouter.js). The chart
+      # mode above stays synthetic: the public demo's own tokens always read
+      # the fixture chart. A request whose verified token was minted by the
+      # OpenEMR launcher (issuer openemr-module, authn openemr-session) reads
+      # the real chart through the OpenEMR REST API when this is `on`; with
+      # `off` (the default) it is refused with openemr_live_reads_disabled and
+      # never served from fixtures. The REST reads use the server-held OAuth
+      # refresh token (read scopes) in the mounted cache file below.
+      AGENTFORGE_OPENEMR_LIVE_READS: ${AGENTFORGE_OPENEMR_LIVE_READS:-off}
+      AGENTFORGE_OPENEMR_BASE_URL: ${AGENTFORGE_OPENEMR_BASE_URL:-http://openemr}
+      AGENTFORGE_OPENEMR_TOKEN_URL: ${AGENTFORGE_OPENEMR_TOKEN_URL:-}
+      AGENTFORGE_OPENEMR_CLIENT_ID: ${AGENTFORGE_OPENEMR_CLIENT_ID:-}
+      AGENTFORGE_OPENEMR_CLIENT_SECRET: ${AGENTFORGE_OPENEMR_CLIENT_SECRET:-}
+      AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: /run/secrets/agentforge-openemr-token.json
+      AGENTFORGE_OPENEMR_TIMEOUT_MS: ${AGENTFORGE_OPENEMR_TIMEOUT_MS:-5000}
+      # Without `true`, an answer built from a live OpenEMR read uses the
+      # deterministic composer and no critic, and a live briefing is blocked
+      # (live_external_provider_not_approved). The public demo is unaffected.
+      AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED: ${AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED:-false}
+    volumes:
+      # Same server-only OAuth token cache as the Week 1 block; only a service
+      # that reads the live chart opens it (W1 runs the synthetic mode).
+      - ../../secrets/openemr-token.json:/run/secrets/agentforge-openemr-token.json
     expose:
       - "8788"
     healthcheck:

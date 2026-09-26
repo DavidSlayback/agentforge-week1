@@ -338,6 +338,29 @@ cost and latency), and the README grader path. Add a W1-debt list to
 `W2_ARCHITECTURE.md` §4: each item marked resolved (with commit) or accepted
 (with reason). Correct this plan's stale completion record.
 
+**E9 — Real OpenEMR chart reads through a module-launched session.** Owner:
+"We never will have PHI in this thing. But we will want to have all the
+wiring that would handle it." The data stays synthetic; the code path is the
+real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
+- **Status (2026-09-26, E9 lane):** implemented and tested, not deployed.
+  The chart adapter is chosen per request from the HMAC-verified claims only
+  (`chartSourceRouter.js`): launcher tokens (`openemr-module` /
+  `openemr-session`) read `OpenEMRRestAdapter` when
+  `AGENTFORGE_OPENEMR_LIVE_READS=on`, else they are refused with
+  `openemr_live_reads_disabled`; demo tokens read fixtures. Labels: briefing
+  `operations`, citation `source_type` (E8's scheme, cherry-picked), scan
+  `chart_source`, trace `adapter`, UI badge. The launcher now mints a
+  `write-source-document` token (docs write ACL + allowlist), passes the
+  username to ACL checks and the user's uuid as `clinician_uuid` (both were
+  wrong before). Seed: `deploy/vultr/seed/agentforge-live-chart-*.sql`
+  (patient `AF-LIVE-01`), tested on the local dev stack (8.2.0-dev, not
+  8.0.0). Evidence: `chart-source-router.test.js`, `live-chart-http.test.js`,
+  `x9-live-chart-*` extension cases,
+  `docs/agentforge/evidence/E9-live-chart-regression.txt`. Not done: seed and
+  env on the VM, the OAuth refresh-token check, observation as `grader`
+  (runbook in `deploy/vultr/README.md`). Known gaps: no medication dose from
+  `lists`; the document route 404s without `path`, so `notes` fails.
+
 **E7 — Freeze and prove (Sun 06:00–08:00).** One SHA on `main`. Deploy W2 and
 the dashboard from it and confirm both `/health` SHAs. Extend
 `w2-live-acceptance.mjs` with checks for the critic decision in the trace, a

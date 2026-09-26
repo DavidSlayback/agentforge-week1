@@ -79,7 +79,9 @@ next section says exactly where that line sits.
 >   derived facts, lab rows and lab-trend reads do go through real OpenEMR
 >   (the module, HMAC, the write ledger, the FHIR Observation read-back).
 >   Real chart reads for a clinician session launched from OpenEMR (E9,
->   `docs/agentforge/PLAN.md` D13) are in progress, not done.
+>   `docs/agentforge/PLAN.md` D13, §3f) are wired, with live reads off by
+>   default (`AGENTFORGE_OPENEMR_LIVE_READS`); the chart they read is a
+>   seeded synthetic patient too.
 > - **Week 1 is frozen** at `84f232b`, on its own route (`/agentforge`) and
 >   its own pinned image. Nothing in this document changes it.
 > - **There is no GitLab CI runner.** The enforced gate is the tracked
@@ -569,6 +571,46 @@ the request deadline on one real run. The lesson that generalizes: never
 make an LLM echo long identifiers or exact quotes back — give it short
 labels (a candidate number, a fact tag) and resolve them to the real values
 server-side, where a bug is a rejected id, not a truncated response.
+
+### (f) Chart sources: fixture and live OpenEMR
+
+The scan answer's "patient record" facts and the briefing come from one of
+two chart adapters, chosen per request by `chartSourceRouter.js` from the
+HMAC-verified context token and nothing else (no query parameter, header or
+body field; a copied claims object is refused):
+
+| Token (verified claims) | Minted by | Chart read | Citation `source_type` | Label |
+|---|---|---|---|---|
+| `issuer: synthetic-demo`, `authn: synthetic` | the public demo (`/v1/demo-context` and friends) | `FixtureAdapter`, `docs/agentforge/fixtures/clinical-cases.json` | `synthetic_chart_fixture` | Chart source: synthetic fixture |
+| `issuer: openemr-module`, `authn: openemr-session` | the module launcher (`oe-module-agentforge/public/index.php`) from a logged-in OpenEMR session, after the ACL checks | `OpenEMRRestAdapter`, OpenEMR standard REST API (GET only, server-held OAuth read token) | `openemr_record` | Chart source: OpenEMR (live) |
+
+- With `AGENTFORGE_OPENEMR_LIVE_READS=off` (the default), a launcher token
+  is refused with `openemr_live_reads_disabled` (a blocked briefing, a 403
+  scan). It is never served from the fixture chart.
+- The source is visible everywhere: the briefing's `operations` entry
+  (`retrieve_openemr_read` or `retrieve_synthetic_fixture_read`), each
+  chart citation's `source_type`, a `chart_source` object on scan responses
+  (and `retrieval.chart_source` on follow-up evidence), the trace's
+  per-group retrieval `adapter` (`openemr` or `fixture`), and a badge on the
+  page.
+- Every REST row must name the requested patient (uuid or pid), or it is
+  dropped (`rowBelongsToPatient`).
+- The launcher also hands over a `write-source-document` token when the user
+  has document write ACL and the patient is on
+  `AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS`. The module and the W2 service apply
+  that allowlist to every issuer, so a real session cannot write to any
+  other patient.
+- A live read is subject to `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED`:
+  without it, that answer uses the deterministic composer and no critic, and
+  a live briefing is blocked (`live_external_provider_not_approved`).
+- Known gaps in the live mapping: OpenEMR `lists` rows carry no dose, so a
+  medication fact reads `active` or `ended <date>`, not "10 mg daily"; the
+  document route needs a `path` and returns 404, so the `notes` group is
+  reported as failed and the briefing is qualified.
+- Evidence: `agentforge/test/chart-source-router.test.js`,
+  `agentforge/test/live-chart-http.test.js`, the `x9-live-chart-*` extension
+  cases, and `docs/agentforge/evidence/E9-live-chart-regression.txt`. The
+  seeded patient and the operator steps are in `deploy/vultr/README.md`.
 
 ## 4. Tradeoffs
 
