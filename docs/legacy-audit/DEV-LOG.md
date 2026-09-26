@@ -745,9 +745,12 @@ deploy.**
 - It is added to `.githooks/pre-commit` and mirrored as the `deploy-script`
   job in `.gitlab-ci.yml` (alpine, with `git` and `coreutils`). The CI job has
   never run, because the project has no runner.
-- **Deliberate regressions**, run by hand against the test and not committed:
-  - dropping the keepalive options gave 1 red;
-  - putting back the old attached `up -d --build` step gave 5 red.
+- **Deliberate regressions**, none committed:
+  - dropping the keepalive options gave 1 red, run by hand. It was then
+    committed through the hook, which refused it (exit 1, HEAD unchanged at
+    `b3a3b91`), and reverted;
+  - putting back the old attached `up -d --build` step gave 5 red, run by
+    hand.
 - `sh -n deploy/vultr/deploy.sh` passes. shellcheck is not installed here, so
   the script was reviewed by hand:
   - the remote command strings and `$services` are deliberately expanded on
