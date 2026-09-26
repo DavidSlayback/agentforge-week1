@@ -39,8 +39,10 @@ describe('readBuildSha', () => {
     expect(readBuildSha(placeholder, { DASHBOARD_GIT_SHA: 'main' })).toBe('unversioned');
     expect(readBuildSha(join(dir, 'missing'), {})).toBe('unversioned');
   });
-  it('the checked-in BUILD_SHA is the export-subst placeholder (never a guessed value)', () => {
-    expect(readBuildSha(DEFAULT_BUILD_SHA_PATH, {})).toBe('unversioned');
+  it('BUILD_SHA is the export-subst placeholder in a checkout, or a full commit SHA in a git-archive build (never a guessed value)', () => {
+    // A working-tree checkout holds `$Format:%H$` (read as 'unversioned'); `git archive`
+    // (deploy.sh) stamps the real 40-hex commit, which is what production must report.
+    expect(readBuildSha(DEFAULT_BUILD_SHA_PATH, {})).toMatch(/^(unversioned|[0-9a-f]{40})$/);
   });
 });
 
