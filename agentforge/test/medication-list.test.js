@@ -348,3 +348,9 @@ test('an intake with a "Current medications (name, dose, frequency, route)" tabl
   // A real medication list that also names allergies stays a medication list.
   assert.equal(detectDocumentType(`${MEDLIST_TEXT}\nAllergies: Penicillin`).detected, 'medication_list');
 });
+
+test('a MedicationItem citation must carry its bounding box (required here, unlike a guideline citation)', () => {
+  const { bounding_box: _box, ...withoutBox } = citation;
+  assert.equal(parseOrIssues(MedicationItem, { ...validItem, citation: withoutBox }).ok, false);
+  assert.equal(parseOrIssues(MedicationItem, validItem).ok, true);
+});

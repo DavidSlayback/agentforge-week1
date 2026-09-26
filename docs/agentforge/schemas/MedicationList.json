@@ -782,7 +782,8 @@
               "source_id",
               "page_or_section",
               "field_or_chunk_id",
-              "quote_or_value"
+              "quote_or_value",
+              "bounding_box"
             ],
             "additionalProperties": false
           }

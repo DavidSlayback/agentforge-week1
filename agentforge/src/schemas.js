@@ -147,8 +147,9 @@ export const MedicationPart = z.discriminatedUnion('status', [
  *
  * `name` is always observed: a row whose drug name could not be read is not
  * typed as a medication at all (it is reported as a typed issue instead).
- * `citation` is the five-key document citation of the printed row, with its
- * bounding box.
+ * `citation` is the five-key document citation of the printed row. Its
+ * `bounding_box` is required here (optional on `Citation` in general, since
+ * guideline citations have none): every row is read from a located line.
  */
 export const MedicationItem = z.object({
   name: z.object({ status: z.literal('observed'), value: z.string().min(1), confidence: z.number().min(0).max(1) }).strict(),
@@ -156,7 +157,7 @@ export const MedicationItem = z.object({
   unit: MedicationPart,
   frequency: MedicationPart,
   route: MedicationPart,
-  citation: Citation,
+  citation: Citation.required({ bounding_box: true }),
 }).strict();
 
 /**
