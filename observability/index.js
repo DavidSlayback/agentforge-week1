@@ -114,6 +114,10 @@ class TraceRecorder {
   setCache(value) { this.cache = redactPayload(value); }
   setExtraction(value) { this.extraction = redactPayload(value); }
   setEvaluation(value) { this.evaluation = redactPayload(value); }
+  /** E2 critic step (agentforge/src/critic.js): status, provider/model,
+   * duration, tokens, cost and verdict counts/reason codes -- never claim
+   * text. Redacted like every other payload for defense in depth. */
+  setCritic(value) { this.critic = redactPayload(value); }
 
   complete({ status, deadlineOutcome = 'not_applicable' }) {
     const completedAt = this.clock();
@@ -152,6 +156,7 @@ class TraceRecorder {
       display: this.display || {},
       extraction: this.extraction || { status: 'not_requested', confidence: null },
       evaluation: this.evaluation || { status: 'not_recorded' },
+      critic: this.critic || { status: 'not_recorded' },
       cache: this.cache || { status: 'not_used' },
       status,
     });
@@ -577,7 +582,9 @@ function operationalTrace(trace = {}) {
     // (preVisitPreparation.js); `kind` through `read_back` are the
     // scan-supervisor per-encounter runtime evaluation (runtimeEvaluation.js,
     // `kind: 'runtime_encounter'`) -- fixed status/reason codes only.
-    evaluation: pick(trace.evaluation, ['status', 'caseType', 'outcome', 'kind', 'final_state', 'stop_reason', 'qualification_reasons', 'issues', 'read_back']),
+    evaluation: pick(trace.evaluation, ['status', 'caseType', 'outcome', 'kind', 'final_state', 'stop_reason', 'qualification_reasons', 'issues', 'read_back', 'critic_status']),
+    // E2 critic step: codes, counts, tokens, cost and duration only.
+    critic: pick(trace.critic, ['status', 'reason', 'provider', 'model', 'duration_ms', 'input_tokens', 'output_tokens', 'cost_usd', 'cost_source', 'claims_reviewed', 'claims_kept', 'claims_rejected', 'claims_not_sent', 'reason_counts', 'error_code']),
     cache: pick(trace.cache, ['status']),
     status: trace.status,
   };

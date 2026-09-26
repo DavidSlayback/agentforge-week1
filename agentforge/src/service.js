@@ -8,12 +8,13 @@ import { extractScanForm } from './scanFormAdapter.js';
 import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './pdfScanAdapter.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 import { recordBelongsToPatient } from './recordScope.js';
-import { composeGroundedAnswer, DeterministicAnswerComposer } from './answerComposer.js';
+import { composeGroundedAnswer, DeterministicAnswerComposer, partitionAnswerInputs } from './answerComposer.js';
+import { applyCriticVerdicts, criticNotRunSummary, criticTraceSummary, DEFAULT_CRITIC_TIMEOUT_MS, runCriticWorker } from './critic.js';
 import { computeRuntimeEvaluation } from './runtimeEvaluation.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000 }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000, criticProvider = null, criticTimeoutMs = DEFAULT_CRITIC_TIMEOUT_MS, criticDisabledReason = null, now = () => Date.now() }) {
     this.adapter = chartAdapter;
     // null keeps the pdfScanAdapter default (real pdftoppm + Tesseract).
     this.ocrEngine = ocrEngine;
@@ -37,6 +38,14 @@ export class AgentForgeService {
     // once it fires, the answer is composed deterministically
     // (`model_rejected_reason: 'deadline'`) rather than hanging the request.
     this.scanDeadlineMs = scanDeadlineMs;
+    // E2 critic (critic.js): an LLM that can only veto answer claims. `null`
+    // means disabled, and every scan answer is labeled `critic_status:
+    // 'disabled'` with `criticDisabledReason`. It runs only when the time
+    // left before `scanDeadlineMs` is at least `criticTimeoutMs`.
+    this.criticProvider = criticProvider;
+    this.criticTimeoutMs = criticTimeoutMs;
+    this.criticDisabledReason = criticDisabledReason;
+    this.now = now;
     this.scanProvider = scanProvider;
     this.scanPreparations = new Map();
     // Backs the supervisor's `extraction_cached` decision: one extraction
@@ -164,6 +173,7 @@ export class AgentForgeService {
     // a slow retry or a slow model cannot hang the request indefinitely --
     // once it fires, both fall back to their safe, synchronous defaults.
     const deadline = new AbortController();
+    const requestStartedAt = this.now();
     const deadlineTimer = setTimeout(() => deadline.abort(new Error('SCAN_DEADLINE_EXCEEDED')), this.scanDeadlineMs);
     try {
       trace?.startStage('source_preparation');
@@ -192,6 +202,41 @@ export class AgentForgeService {
       const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
       const pageCountMatch = contentText.match(/page_count=(\d+)/);
       const targetPatient = await this.patientDemographics?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
+      // F8 review fix: honor allowExternalLiveProvider the same way briefings
+      // do -- a live OpenEMR chart with no explicit external-provider approval
+      // never reaches a real model for the answer (or the critic) either.
+      const liveExternalBlocked = this.chartAdapter?.name === 'openemr-rest' && !this.allowExternalLiveProvider;
+      let answerParts = null;
+      const composeAnswer = async ({ extraction, evidence }) => {
+        trace?.startStage('answer');
+        let answer = null;
+        try {
+          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref).catch(() => ({ patient_facts: [] }));
+          const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [] };
+          answerParts = partitionAnswerInputs(inputs);
+          const liveProviderBlocked = liveExternalBlocked && this.answerProvider && this.answerProvider.name !== 'deterministic' && this.answerProvider.name !== 'deterministic-answer-composer';
+          answer = await composeGroundedAnswer(
+            { ...inputs, question: query },
+            { provider: liveProviderBlocked ? new DeterministicAnswerComposer() : this.answerProvider, trace, correlationId: trace?.correlationId || '', signal: deadline.signal },
+          );
+          return answer;
+        } finally {
+          trace?.finishStage('answer', { status: answer ? answer.composer : 'failed' });
+        }
+      };
+      const criticEnabled = Boolean(this.criticProvider) && !liveExternalBlocked;
+      const critic = {
+        enabled: criticEnabled,
+        disabledReason: this.criticProvider ? 'live_external_provider_not_approved' : (this.criticDisabledReason || 'critic_model_not_configured'),
+        // Remaining scan budget, measured from the start of this request; the
+        // critic never widens the deadline, it is skipped instead.
+        budgetOk: () => !deadline.signal.aborted && this.scanDeadlineMs - (this.now() - requestStartedAt) >= this.criticTimeoutMs,
+        run: async (answer) => {
+          const handoff = await runCriticWorker({ answer, provider: this.criticProvider, timeoutMs: this.criticTimeoutMs, signal: deadline.signal, now: this.now });
+          return { handoff, answer: applyCriticVerdicts(answer, handoff, answerParts), summary: criticTraceSummary(handoff) };
+        },
+        skip: (answer, status, reason) => ({ answer: { ...answer, critic_status: status, critic_rejected: 0 }, summary: criticNotRunSummary(status, reason) }),
+      };
       const workflow = await runActiveSupervisor({
         sourceDocumentId: source.source_document.id,
         documentType: source.source_document.document_type,
@@ -210,6 +255,10 @@ export class AgentForgeService {
           const alternate = await this.prepareScanSource(source, { ocrMode: ALTERNATE_OCR_MODE });
           return { content: alternate.content, ocrMode: ALTERNATE_OCR_MODE };
         } : null,
+        // E2: ANSWER composes inside the supervisor loop, so its decision
+        // can route on to CRITIQUE (or a labeled DONE) like any other step.
+        composeAnswer,
+        critic,
       });
       if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
       // F6 review fix: remember which OCR mode this document's workflow
@@ -217,22 +266,6 @@ export class AgentForgeService {
       // extraction's boxes, not always the initial default.
       if (workflow.ocr_mode) this.resolvedOcrMode.set(source.source_document.id, workflow.ocr_mode);
       for (const handoff of workflow.handoffs || []) trace?.recordHandoff(traceSafeHandoff(handoff));
-      if (workflow.readiness !== 'stopped') {
-        trace?.startStage('answer');
-        try {
-          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref).catch(() => ({ patient_facts: [] }));
-          // F8 review fix: honor allowExternalLiveProvider the same way
-          // briefings do -- a live OpenEMR chart with no explicit external-
-          // provider approval never reaches a real model for the answer either.
-          const liveProviderBlocked = this.chartAdapter?.name === 'openemr-rest' && !this.allowExternalLiveProvider && this.answerProvider && this.answerProvider.name !== 'deterministic' && this.answerProvider.name !== 'deterministic-answer-composer';
-          workflow.answer = await composeGroundedAnswer(
-            { labResults: workflow.typed_outputs.extraction?.lab_results || [], intakeForm: workflow.typed_outputs.extraction?.intake_form || null, guidelineEvidence: workflow.typed_outputs.evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [], question: query },
-            { provider: liveProviderBlocked ? new DeterministicAnswerComposer() : this.answerProvider, trace, correlationId: trace?.correlationId || '', signal: deadline.signal },
-          );
-        } finally {
-          trace?.finishStage('answer', { status: workflow.answer ? workflow.answer.composer : 'failed' });
-        }
-      }
       // The per-encounter runtime evaluation (W2 PRD §7 "eval outcome"),
       // distinct from the offline golden-set gate (`npm run eval:gate`) --
       // see runtimeEvaluation.js for the exact status rule and why OpenEMR

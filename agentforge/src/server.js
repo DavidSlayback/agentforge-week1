@@ -12,6 +12,7 @@ import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest } from './contracts.js';
 import { DeterministicAnswerComposer } from './answerComposer.js';
+import { createCriticProviderFromEnv } from './critic.js';
 import { GroundedAnswerResult, parseOrIssues } from './schemas.js';
 import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
@@ -119,6 +120,10 @@ const answerProvider = new ResilientProvider({ primary: provider instanceof Resi
 // Optional cheap interactive lane. It is deliberately opt-in so the existing
 // Qwen-only deployment remains unchanged until a model and budget are approved.
 const conversationProvider = conversationProviderMode ? buildProvider(conversationProviderMode, 'conversation') : null;
+// E2 critic (critic.js): an LLM through the OpenRouter lane that can only veto
+// answer claims. AGENTFORGE_CRITIC_MODEL has no default; unset, the critic is
+// disabled and every scan answer is labeled critic_status: disabled.
+const criticConfig = createCriticProviderFromEnv(process.env);
 const openEMRMode = process.env.AGENTFORGE_OPENEMR_MODE || 'synthetic';
 const liveOpenEMR = openEMRMode === 'live';
 const validOpenEMRMode = openEMRMode === 'synthetic' || openEMRMode === 'live';
@@ -191,7 +196,7 @@ const chartAdapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env
 const persistenceMode = process.env.AGENTFORGE_PERSISTENCE_MODE || 'in-memory-synthetic';
 if (!['in-memory-synthetic', 'openemr-module'].includes(persistenceMode)) throw new Error('AGENTFORGE_PERSISTENCE_MODE must be in-memory-synthetic or openemr-module');
 const writeback = persistenceMode === 'openemr-module' ? createOpenEMRModuleWritebackFromEnv(process.env) : liveOpenEMR ? null : new SyntheticWriteback({ ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}), ...(syntheticClinicalActionStore ? { clinicalActionStore: syntheticClinicalActionStore } : {}) });
-const hasExternalProvider = [provider, conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
+const hasExternalProvider = [provider, conversationProvider, criticConfig.provider].some((candidate) => candidate && candidate.name !== 'deterministic');
 const liveExternalProviderAllowed = !liveOpenEMR || !hasExternalProvider || process.env.AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED === 'true';
 // FileTraceSink redacts before persistence and listing; these endpoints expose
 // operational metadata, not raw briefing or chart content.
@@ -199,7 +204,7 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000) });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000), criticProvider: criticConfig.provider, criticTimeoutMs: criticConfig.timeoutMs, criticDisabledReason: criticConfig.disabledReason });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.

@@ -335,6 +335,51 @@ function citationKey(citation) {
 }
 
 /**
+ * Split the composer's raw inputs into what an answer may cite and what is
+ * held back for human review: lab results and intake leaves under
+ * `LOW_CONFIDENCE_THRESHOLD`, and chart records with no citation, go to
+ * `needsReview`. Exported so the critic step (`critic.js`) reuses exactly
+ * this rule when it tops up a gap its vetoes left, instead of re-deriving it.
+ */
+export function partitionAnswerInputs({ labResults = [], intakeForm = null, guidelineEvidence = [], patientFacts = [] } = {}) {
+  const needsReview = [];
+  const verifiedLabResults = [];
+  for (const result of labResults) {
+    if (typeof result.confidence === 'number' && result.confidence < LOW_CONFIDENCE_THRESHOLD) needsReview.push({ kind: 'lab_result', field: result.citation?.field_or_chunk_id || result.test_name, reason: 'low_confidence' });
+    else verifiedLabResults.push(result);
+  }
+  const intakeLeaves = collectIntakeLeaves(intakeForm);
+  const verifiedIntakeCitations = [];
+  for (const leaf of intakeLeaves) {
+    if (typeof leaf.confidence === 'number' && leaf.confidence < LOW_CONFIDENCE_THRESHOLD) needsReview.push({ kind: 'intake_field', field: leaf.citation?.field_or_chunk_id || 'intake_field', reason: 'low_confidence' });
+    else if (leaf.citation) verifiedIntakeCitations.push(leaf.citation);
+  }
+  const patientFactCitations = [];
+  for (const fact of patientFacts) {
+    if (!fact.citation) { needsReview.push({ kind: 'patient_record', field: fact.field || 'patient_record', reason: 'missing_citation' }); continue; }
+    patientFactCitations.push(fact.citation);
+  }
+  return { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence };
+}
+
+/**
+ * The F1 top-up: a deterministic claim for every fact or guideline chunk in
+ * `parts` (from `partitionAnswerInputs`) that no claim in `claims` cites.
+ * Deterministic claims are built from the typed facts themselves, so they
+ * verify by construction. Used by the composer (gaps the model left) and by
+ * the critic step (gaps its vetoes left).
+ */
+export function deterministicTopUpClaims({ verifiedLabResults = [], verifiedIntakeCitations = [], patientFactCitations = [], guidelineEvidence = [] }, claims = []) {
+  const covered = new Set(claims.flatMap((claim) => (claim.citations || []).map((citation) => citationKey(citation))));
+  return [
+    ...verifiedLabResults.filter((result) => !covered.has(citationKey(result.citation))).map(labResultClaim),
+    ...verifiedIntakeCitations.filter((citation) => !covered.has(citationKey(citation))).map(intakeFieldClaim),
+    ...patientFactCitations.filter((citation) => !covered.has(citationKey(citation))).map(fieldValueClaim),
+    ...guidelineEvidence.filter((evidence) => !covered.has(citationKey(evidence.citation))).map(guidelineClaim),
+  ];
+}
+
+/**
  * Compose the W2 grounded answer.
  *
  * Args:
@@ -362,23 +407,7 @@ function citationKey(citation) {
  * contract the server validates before ever sending `workflow.answer`.
  */
 export async function composeGroundedAnswer({ labResults = [], intakeForm = null, guidelineEvidence = [], patientFacts = [], question = '' } = {}, { provider, trace = null, correlationId = '', signal } = {}) {
-  const needsReview = [];
-  const verifiedLabResults = [];
-  for (const result of labResults) {
-    if (typeof result.confidence === 'number' && result.confidence < LOW_CONFIDENCE_THRESHOLD) needsReview.push({ kind: 'lab_result', field: result.citation?.field_or_chunk_id || result.test_name, reason: 'low_confidence' });
-    else verifiedLabResults.push(result);
-  }
-  const intakeLeaves = collectIntakeLeaves(intakeForm);
-  const verifiedIntakeCitations = [];
-  for (const leaf of intakeLeaves) {
-    if (typeof leaf.confidence === 'number' && leaf.confidence < LOW_CONFIDENCE_THRESHOLD) needsReview.push({ kind: 'intake_field', field: leaf.citation?.field_or_chunk_id || 'intake_field', reason: 'low_confidence' });
-    else if (leaf.citation) verifiedIntakeCitations.push(leaf.citation);
-  }
-  const patientFactCitations = [];
-  for (const fact of patientFacts) {
-    if (!fact.citation) { needsReview.push({ kind: 'patient_record', field: fact.field || 'patient_record', reason: 'missing_citation' }); continue; }
-    patientFactCitations.push(fact.citation);
-  }
+  const { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations } = partitionAnswerInputs({ labResults, intakeForm, guidelineEvidence, patientFacts });
 
   const allowedValues = [...verifiedLabResults, ...verifiedIntakeCitations, ...guidelineEvidence, ...patientFactCitations];
   // F1 review fix 2026-09-24: label every fact/chunk once so the prompt and
@@ -464,13 +493,7 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
   // claim) gets those specific gaps filled deterministically, rather than
   // shipping a thinner answer than the facts on hand support.
   if (composerLabel === 'model') {
-    const covered = new Set(outcome.verified.flatMap((claim) => claim.citations.map((citation) => citationKey(citation))));
-    const topup = [
-      ...verifiedLabResults.filter((result) => !covered.has(citationKey(result.citation))).map(labResultClaim),
-      ...verifiedIntakeCitations.filter((citation) => !covered.has(citationKey(citation))).map(intakeFieldClaim),
-      ...patientFactCitations.filter((citation) => !covered.has(citationKey(citation))).map(fieldValueClaim),
-      ...guidelineEvidence.filter((evidence) => !covered.has(citationKey(evidence.citation))).map(guidelineClaim),
-    ];
+    const topup = deterministicTopUpClaims({ verifiedLabResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence }, outcome.verified);
     if (topup.length) {
       outcome = { ...outcome, verified: [...outcome.verified, ...topup] };
       composerLabel = 'model+deterministic-topup';

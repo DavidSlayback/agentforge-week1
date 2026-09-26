@@ -134,7 +134,12 @@ function summarizeAnswerVerification(answer) {
 // (needs_review, qualified_not_ready, claims_dropped) are the safety design
 // working: a human is asked to look, or the verifier removed an unsupported
 // claim, and the shipped answer is still fully verified.
-const DEGRADING_ISSUES = new Set(['answer_missing', 'read_back_failed']);
+// E2: a critic that was configured but failed, or was skipped because the
+// scan deadline left too little time, means the designed review did not
+// happen -- degraded. A critic veto (`critic_rejected_claims`) is the safety
+// design working, like `claims_dropped`; a disabled critic adds no issue but
+// is reported as `critic_status`.
+const DEGRADING_ISSUES = new Set(['answer_missing', 'read_back_failed', 'critic_failed', 'critic_skipped_budget']);
 const REVIEW_ISSUES = new Set(['needs_review', 'qualified_not_ready']);
 
 /** Closed status set for a non-blocked encounter: degraded > needs_review > passed. */
@@ -173,6 +178,10 @@ export function computeRuntimeEvaluation({ workflow, readBack = null } = {}) {
   if ((answer?.needs_review || []).length > 0) issues.push('needs_review');
   if (finalState === 'QUALIFIED') issues.push('qualified_not_ready');
   if (readBack && readBack.verified === false) issues.push('read_back_failed');
+  const criticStatus = answer?.critic_status ?? null;
+  if (criticStatus === 'failed') issues.push('critic_failed');
+  if (criticStatus === 'skipped_budget') issues.push('critic_skipped_budget');
+  if ((answer?.critic_rejected || 0) > 0) issues.push('critic_rejected_claims');
 
   return {
     evaluation: {
@@ -183,6 +192,7 @@ export function computeRuntimeEvaluation({ workflow, readBack = null } = {}) {
       qualification_reasons: qualificationReasons,
       issues,
       read_back: readBackSummary,
+      ...(criticStatus ? { critic_status: criticStatus } : {}),
     },
     verification,
   };

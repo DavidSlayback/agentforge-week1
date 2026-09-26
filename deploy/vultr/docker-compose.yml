@@ -170,6 +170,18 @@ services:
       # F6 review fix: per-scan-request deadline (source OCR retry + answer
       # composer provider call share one AbortSignal against this budget).
       AGENTFORGE_SCAN_DEADLINE_MS: ${AGENTFORGE_SCAN_DEADLINE_MS:-25000}
+      # E2 critic (critic.js): an LLM through the OpenRouter lane that can only
+      # veto answer claims. The model is left empty here on purpose (set on the
+      # VM); empty means the critic is disabled and every answer is labeled
+      # critic_status: disabled. It runs only when the scan deadline above
+      # leaves at least AGENTFORGE_CRITIC_TIMEOUT_MS.
+      AGENTFORGE_CRITIC_PROVIDER: ${AGENTFORGE_CRITIC_PROVIDER:-openrouter}
+      AGENTFORGE_CRITIC_MODEL: ${AGENTFORGE_CRITIC_MODEL:-}
+      AGENTFORGE_CRITIC_TIMEOUT_MS: ${AGENTFORGE_CRITIC_TIMEOUT_MS:-4000}
+      AGENTFORGE_OPENROUTER_ENDPOINT: ${AGENTFORGE_OPENROUTER_ENDPOINT:-https://openrouter.ai/api/v1/chat/completions}
+      AGENTFORGE_OPENROUTER_API_KEY: ${AGENTFORGE_OPENROUTER_API_KEY:-}
+      AGENTFORGE_OPENROUTER_SITE_URL: ${AGENTFORGE_OPENROUTER_SITE_URL:-}
+      AGENTFORGE_OPENROUTER_SITE_NAME: ${AGENTFORGE_OPENROUTER_SITE_NAME:-AgentForge}
       AGENTFORGE_RAG_PROVIDER: gemini-hybrid
       # Reranker seam (owner decision 2026-09-24): the Gemini free-tier key
       # above exhausts itself on the listwise rerank alone (20 requests/day,
