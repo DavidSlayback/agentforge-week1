@@ -99,7 +99,7 @@ D12). The State column is current and is updated as each item lands.
 | PR-blocking eval CI and an observable deployed demo | Core | Built: pre-commit gate (§3e), `/observability` |
 | Critic agent that rejects uncited claims or unsafe action suggestions | Extension (§4) | Built, not yet observed live: an LLM critic that can only veto claims (`critic.js`, §3b). It runs after `verifyClaims` (§3d), which stays the authority, and can remove a claim as `UNCITED`, `UNSUPPORTED_BY_SOURCE` or `UNSAFE_ACTION`, never add or rewrite one. It is off until `AGENTFORGE_CRITIC_MODEL` is set on the VM (every answer then says `critic_status: disabled`). The extension suite checks the veto wiring with a fake critic model (`EVAL_GATE.md`); a real model's judgment is measured by `scripts/benchmark-critic-models.mjs`, not by the gate. |
 | Click-to-source UI with a simple document preview | Extension | Built: the scan result shows the PDF pages with a box per cited field; a citation's "View source region" link highlights its box (`ui.js`, `renderScanSourcePreview`). The page-image route is checked live (`docs/agentforge/evidence/LEDGER.md`, W2-C8); the drawn overlay has not yet been observed on the public URL. |
-| A third document type (referral fax, medication list) | Extension | `medication_list` built on branch `agentforge/e4-medlist` (§3a): typed `MedicationList`, three-way type detection, module storage, 14 `x3-*` extension cases (`npm run eval:extensions`). Not yet deployed or observed on the public URL. |
+| A third document type (referral fax, medication list) | Extension | `medication_list` built on branch `agentforge/e4-medlist` (§3a): typed `MedicationList`, three-way type detection, module storage, 15 `x3-*` extension cases (`npm run eval:extensions`). Not yet deployed or observed on the public URL. |
 | Lab trend chart from extracted Observation data | Extension | Not built. Extracted labs are persisted and readable as FHIR `Observation` (§3a), which is the data such a chart would use. |
 | Contextual retrieval improvements (better chunking, query rewriting, domain filters) | Extension | Query rewriting built and measured (§3c): lab test names are expanded into condition words for BM25. It changes results only where BM25 alone ranks (the `local-lexical` provider and the hybrid `sparse_only` fallback), not the normal hybrid path. Two extension cases guard it. Contextual chunk headers were measured and changed nothing, so they are off. No domain filter. Not yet observed on the public URL. |
 
@@ -167,9 +167,13 @@ dose, unit, frequency and route (`pdfScanAdapter.js` `parseMedicationRow`).
 Every part cites the verbatim row line with its box and carries that line's
 confidence; a part the row does not show is `not_found_on_form` and keeps the
 extraction from being `complete` (`typedExtraction.js`
-`buildTypedMedicationList`, Zod `MedicationList`). Type detection scores lab,
-intake and medication-list vocabulary and claims a type only with a two-hit
-margin over both others, so any declared-versus-detected mismatch is
+`buildTypedMedicationList`, Zod `MedicationList`). So does a line that reads
+like a drug row but has no usable row label, or a gap in the row numbers: a
+dropped drug is never `READY`. Type detection scores lab, intake and
+medication-list vocabulary and claims a type only with a two-hit margin over
+both others; medication-list words count only when the page has a list
+anchor (title, prescriber, list date, numbered rows), so an intake with a
+medication table stays an intake. Any declared-versus-detected mismatch is
 `QUALIFIED doc_type_mismatch`; the printed name and DOB are checked against
 the chart like an intake form. The source PDF and a derived-facts JSON are
 stored through the module (`DocumentType::MedicationList`), idempotently.

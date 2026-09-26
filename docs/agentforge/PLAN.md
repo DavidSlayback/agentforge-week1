@@ -293,13 +293,20 @@ Add a unit test that every citation link's `href` equals an existing box id
   refused, and no PHI in logs.
 - Circuit breaker: if the module side isn't green by Sat 18:00, ship the
   document storage plus derived-facts JSON only, and document that.
-- Status (2026-09-26 ~09:00 CT, branch `agentforge/e4-medlist` on
-  `bc53c976`): **implemented and gated, not merged or deployed.** All bullets
+- Status (2026-09-26 ~09:10 CT, branch `agentforge/e4-medlist` rebased on
+  `250a881c`, after E2/E3/E6): **implemented and gated, not merged or deployed.** All bullets
   above are done; the circuit breaker was not needed. Decisions: the golden
   PDFs sit in a separate `extension-manifest.json` so the 50-case hash is
   unchanged (`63e8c8eb…`); a row part the list does not show is
   `not_found_on_form` plus a typed issue (never `complete`); the module's
   `clinical-list-items` accepts only `medication` items from a medication list.
+  Review fixes: a drug-like line with no usable row label, or a gap in the row
+  numbers, keeps the list QUALIFIED `extraction_incomplete` (`x3-sr-07`);
+  medication-list words count toward detection only with a list anchor (title,
+  prescriber, list date, numbered rows), so an intake with a medication table
+  stays `intake_form`; a medication row citation must carry its box. The
+  medication-list answer runs inside E2's ANSWER -> CRITIQUE step through
+  `partitionAnswerInputs`.
   Open (same as intake, A3): the Node clinical-action lane does not call
   `clinical-list-items`, so confirmed medications are not yet written from the
   UI; nothing is auto-written. Evidence: `docs/agentforge/evidence/E4-medlist-regression.txt`.
