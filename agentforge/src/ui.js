@@ -298,6 +298,9 @@ button:disabled{opacity:.6;cursor:wait}
       // patient-record facts from guideline evidence"), each claim already
       // verified against its own citations before the server ever sent it.
       const answer = workflow.workflow.answer;
+      // W1-SF4: a question naming another patient gets no answer; the
+      // document's own extraction above is unaffected.
+      if (workflow.answer_refusal) { const refusal = document.createElement('p'); refusal.className = 'qualification blocked'; refusal.textContent = 'Answer refused (' + workflow.answer_refusal.reason + '): the question names a different patient. No chart data was used.'; sourceStatus.append(document.createTextNode(' '), refusal); }
       if (answer) {
         const answerPanel = document.createElement('details');
         answerPanel.open = true;

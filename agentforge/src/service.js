@@ -7,6 +7,8 @@ import { traceSafeHandoff } from './activeWorkers.js';
 import { extractScanForm } from './scanFormAdapter.js';
 import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './pdfScanAdapter.js';
 import { chartRecordCitationSource } from './chartSource.js';
+import { mentionsOtherPatient } from './patientMentions.js';
+import { findUntrustedNarrative } from './recordTrust.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 import { recordBelongsToPatient } from './recordScope.js';
 import { composeGroundedAnswer, DeterministicAnswerComposer, partitionAnswerInputs } from './answerComposer.js';
@@ -242,6 +244,11 @@ export class AgentForgeService {
       // do -- a live OpenEMR chart with no explicit external-provider approval
       // never reaches a real model for the answer (or the critic) either.
       const liveExternalBlocked = this.chartAdapter?.name === 'openemr-rest' && !this.allowExternalLiveProvider;
+      // W1-SF4: a question naming another patient gets no answer. The
+      // document's own extraction still runs and is stored; only the answer
+      // is refused, and the question is not sent to retrieval either.
+      const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref);
+      const answerQuery = answerRefused ? '' : query;
       let answerParts = null;
       const composeAnswer = async ({ extraction, evidence }) => {
         trace?.startStage('answer');
@@ -250,11 +257,13 @@ export class AgentForgeService {
           const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref).catch(() => ({ patient_facts: [] }));
           const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, medicationList: extraction?.medication_list || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [] };
           answerParts = partitionAnswerInputs(inputs);
+          const withheldReview = (chart.withheld_patient_fields || []).map((item) => ({ kind: 'patient_record', field: item.field, reason: `${item.reason}_withheld` }));
           const liveProviderBlocked = liveExternalBlocked && this.answerProvider && this.answerProvider.name !== 'deterministic' && this.answerProvider.name !== 'deterministic-answer-composer';
           answer = await composeGroundedAnswer(
-            { ...inputs, question: query },
+            { ...inputs, question: answerQuery },
             { provider: liveProviderBlocked ? new DeterministicAnswerComposer() : this.answerProvider, trace, correlationId: trace?.correlationId || '', signal: deadline.signal },
           );
+          if (withheldReview.length) answer = { ...answer, needs_review: [...answer.needs_review, ...withheldReview] };
           return answer;
         } finally {
           trace?.finishStage('answer', { status: answer ? answer.composer : 'failed' });
@@ -280,7 +289,7 @@ export class AgentForgeService {
         layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'),
         pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1),
         content,
-        query,
+        query: answerQuery,
         observer: trace,
         documentText: pdf ? prepared.ocrText : contentText,
         targetPatient,
@@ -294,7 +303,7 @@ export class AgentForgeService {
         } : null,
         // E2: ANSWER composes inside the supervisor loop, so its decision
         // can route on to CRITIQUE (or a labeled DONE) like any other step.
-        composeAnswer,
+        composeAnswer: answerRefused ? null : composeAnswer,
         critic,
       });
       if (pdf) workflow.typed_outputs.extraction.provider = prepared.provider;
@@ -311,7 +320,7 @@ export class AgentForgeService {
       trace?.setEvaluation(evaluation);
       trace?.setVerification(verification);
       trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
-      return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
+      return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(answerRefused ? { answer_refusal: { disposition: 'blocked', reason: 'out_of_scope_patient' } } : {}), ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
     } catch (error) {
       trace?.complete({ status: 'failure' });
       throw error;
@@ -363,11 +372,16 @@ export class AgentForgeService {
     const item = await this.chartAdapter.getCase(patientRef, caseId);
     const retrieved = await this.chartAdapter.retrieve(item);
     const validation = validateRetrievalResult(retrieved);
-    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid', patient_facts: [], failed_patient_groups: [] };
+    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid', patient_facts: [], failed_patient_groups: [], withheld_patient_fields: [] };
     // Label the citation by the adapter that actually read the record: a
     // fixture read is never cited as an OpenEMR record (chartSource.js).
     const citationSource = chartRecordCitationSource(this.chartAdapter);
-    const patientFacts = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage)).map((record) => {
+    const scopedRecords = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage));
+    // Narrative that addresses an automated reader is withheld, never cited,
+    // so injected text reaches neither the answer model nor the display.
+    const untrustedFields = findUntrustedNarrative(scopedRecords);
+    const withheldPatientFields = untrustedFields.map((field) => ({ field, reason: 'untrusted_narrative' }));
+    const patientFacts = scopedRecords.filter((record) => !untrustedFields.includes(record.field)).map((record) => {
       const quote = record.value === null || record.value === undefined ? '' : String(record.value).trim();
       const citation = record.source_ref && record.field && quote
         ? { source_type: citationSource.source_type, source_id: record.source_ref, page_or_section: citationSource.page_or_section, field_or_chunk_id: record.field, quote_or_value: quote }
@@ -375,16 +389,20 @@ export class AgentForgeService {
       return { source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author, citation };
     });
     const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
-    return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups };
+    return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups, withheld_patient_fields: withheldPatientFields };
   }
 
   async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
     const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    // W1-SF4: a question naming another patient is refused before any chart
+    // read, so neither patient's data is disclosed.
+    if (await this.questionNamesOtherPatient(request.message, authorization.patient_uuid)) return { status: 'blocked', disposition: 'blocked', reason: 'out_of_scope_patient' };
     const chart = await this.retrievePatientChartFacts(authorization.patient_uuid, request.case_id);
     if (chart.status !== 'ready') return { status: 'blocked', reason: chart.reason };
     const patientFacts = chart.patient_facts;
     const failedGroups = chart.failed_patient_groups;
+    const withheldFields = chart.withheld_patient_fields || [];
     let guideline;
     try {
       guideline = await this.guidelineRetriever.retrieve(request.message, { topK });
@@ -394,7 +412,19 @@ export class AgentForgeService {
       // provider error string) that must not reach an API response or trace.
       guideline = { status: 'qualified', provider: this.guidelineRetriever.name || 'unknown', evidence: [], issues: ['guideline_retrieval_failed'] };
     }
-    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || this.guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups }, qualification: { required: Boolean(failedGroups.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...guideline.issues] } };
+    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || this.guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups, withheld_patient_fields: withheldFields }, qualification: { required: Boolean(failedGroups.length || withheldFields.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...withheldFields.map((item) => `${item.reason}:${item.field}`), ...guideline.issues] } };
+  }
+
+  /**
+   * True when `message` names a patient other than `patientRef` (W1-SF4; see
+   * patientMentions.js). Uses the chart adapter's patient list when it has
+   * one; live OpenEMR REST has none, so only identifier shapes are checked.
+   */
+  async questionNamesOtherPatient(message, patientRef) {
+    if (!String(message ?? '').trim()) return false;
+    const knownPatients = typeof this.chartAdapter?.listPatientIdentifiers === 'function' ? this.chartAdapter.listPatientIdentifiers() : [];
+    const demographics = await this.patientDemographics?.getPatientDemographics?.(patientRef) ?? null;
+    return mentionsOtherPatient({ message, currentPatient: { patient_ref: patientRef, display_name: demographics?.name }, knownPatients });
   }
 
   prepare(...args) { return this.preparation.prepare(...args); }

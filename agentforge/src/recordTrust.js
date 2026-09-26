@@ -6,9 +6,10 @@ import { coverageGroupForField } from './contracts.js';
  * Every signal is read from the retrieved records themselves (field, value,
  * recorded_at, author, source_ref), the same fields a live OpenEMR record
  * carries. Nothing here reads a fixture's eval expectations, case ids, or
- * case names. Each finding becomes a qualification reason; only a duplicate
- * identity is also withheld, because two identity records cannot both be
- * shown as "the patient".
+ * case names. Each finding becomes a qualification reason. Two findings are
+ * also withheld: a duplicate identity, because two identity records cannot
+ * both be shown as "the patient", and narrative that contains instructions,
+ * so injected text never reaches the model or the display (fail safe).
  */
 
 /**
@@ -39,6 +40,8 @@ const NARRATIVE_INSTRUCTION_PATTERNS = Object.freeze([
 ]);
 
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
+// An unparseable date is a missing date: it cannot be dated or compared.
+const hasDate = (value) => hasText(value) && Number.isFinite(Date.parse(value));
 const isIdentityRecord = (record) => coverageGroupForField(record.field) === 'identity';
 
 /** Fields whose newest record is older than the field type's freshness window. */
@@ -55,12 +58,13 @@ export function findStaleFields(records, referenceTime) {
 }
 
 /**
- * Clinical fields with a record that lacks an author or a recorded date. The
+ * Clinical fields with a record that lacks an author or a parseable recorded
+ * date. The
  * identity row is demographic registration data, not an authored clinical
  * assertion, so it is exempt.
  */
 export function findMissingProvenance(records) {
-  const fields = records.filter((record) => !isIdentityRecord(record) && (!hasText(record.author) || !hasText(record.recorded_at))).map((record) => record.field);
+  const fields = records.filter((record) => !isIdentityRecord(record) && (!hasText(record.author) || !hasDate(record.recorded_at))).map((record) => record.field);
   return [...new Set(fields)];
 }
 
@@ -90,6 +94,8 @@ export function assessRecordTrust({ records, referenceTime }) {
   }
   reasons.push(...findStaleFields(list, referenceTime).map((field) => `stale:${field}`));
   reasons.push(...findMissingProvenance(list).map((field) => `provenance_missing:${field}`));
-  reasons.push(...findUntrustedNarrative(list).map((field) => `untrusted_narrative:${field}`));
+  const narrative = findUntrustedNarrative(list);
+  reasons.push(...narrative.map((field) => `untrusted_narrative:${field}`));
+  withheldFields.push(...narrative);
   return { reasons, withheldFields };
 }

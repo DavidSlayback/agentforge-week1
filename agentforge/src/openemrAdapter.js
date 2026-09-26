@@ -27,6 +27,10 @@ export class OpenEMRRestAdapter {
     this.name = 'openemr-rest';
   }
 
+  // No `listPatientIdentifiers()`: this adapter cannot list patients, so the
+  // other-patient question check (patientMentions.js) sees only identifier
+  // shapes (synthetic refs, UUIDs) here, never another patient's name or MRN.
+
   /** Validate caller context; this adapter does not establish or bind a
    * clinician's OpenEMR session to the request identity. */
   authorize(request, verifiedContext = null, options = {}) {

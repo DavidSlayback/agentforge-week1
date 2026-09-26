@@ -18,14 +18,17 @@ export class FixtureAdapter {
   /**
    * Every synthetic patient's identifiers, for refusing a follow-up question
    * that names a different patient: ref, display name, and the chart ids
-   * (`pid`) on its identity records.
+   * (`pid`, `pubpid`, `mrn`) on its identity records.
    */
   listPatientIdentifiers() {
     const byRef = new Map();
     for (const item of this.cases) {
       const entry = byRef.get(item.patient.patient_ref) || { patient_ref: item.patient.patient_ref, names: [], record_ids: [] };
       entry.names.push(item.patient.display_name);
-      for (const record of item.records) if (record.field === 'identity' && record.value?.pid) entry.record_ids.push(String(record.value.pid));
+      for (const record of item.records) {
+        if (record.field !== 'identity' || !record.value || typeof record.value !== 'object') continue;
+        for (const key of ['pid', 'pubpid', 'mrn']) if (record.value[key]) entry.record_ids.push(String(record.value[key]));
+      }
       byRef.set(item.patient.patient_ref, entry);
     }
     return [...byRef.values()];
