@@ -121,6 +121,14 @@ not struck through, because the legacy bug remains.
 ### Slice 01-01-01 — Walking skeleton: sign-in via BFF + persistent header, deployed
 
 - [ ] **Merged** · [ ] **Observed on the public URL**
+- **Status (2026-09-25, local part, branch `agentforge/w2-dashboard`):**
+  implemented and gated (`npm run check --prefix dashboard` in
+  `.githooks/pre-commit` since `12de1be`; deliberate regression shown red,
+  `docs/legacy-audit/evidence/slice-01-regression.txt`). Sign-in and the
+  header are **wired, tested, not yet observed**: the compose service, Caddy
+  route and `deploy.sh` health loop are committed but not merged or deployed,
+  and no interactive sign-in has happened yet (the owner signs in; agents
+  may not type credentials). Details: `DEV-LOG.md`, entry of 2026-09-25.
 - **Time box:** 6.5 h in two parts.
   - Local part: Fri 19:00–23:30. Milestone: local sign-in and the pid 13
     header work, and the hook is green.
@@ -197,22 +205,31 @@ not struck through, because the legacy bug remains.
     `Patient.active`. Expected red: the pid 12 "Deceased" test and the
     `active: false` case. Capture the output, then revert.
 - **Live evidence to collect** (`walkthroughs/SIGN-IN-AND-HEADER.md` (e))
-  - [ ] Local: `/authorize` carries the confidential `client_id`, S256,
+  - [x] Local: `/authorize` carries the confidential `client_id`, S256,
     `state` and `nonce`, and reaches the OAuth2 login page (not the core
-    login).
+    login). Observed 2026-09-25 without credentials: the BFF's `/login`
+    302 → `https://localhost:9300/oauth2/default/authorize` (307) →
+    `/oauth2/default/provider/login`, page title "OpenEMR Authorization".
   - [ ] Local: login and consent → 302 to `/dashboard/callback` with `code`
     and the matching `state`. The BFF `/token` call includes the secret and
-    returns an access token and an id token.
+    returns an access token and an id token. **Wired, tested, not yet
+    observed**: `test/bff/auth.test.ts` covers it against a mocked token
+    endpoint and JWKS; needs the owner's local sign-in.
   - [ ] Local: pid 13 header shows name, DOB, sex, MRN, **Active**, with no
     missing-field fallback. pid 3 shows the same completeness and **Active**.
-    pid 12 shows **Deceased**.
+    pid 12 shows **Deceased**. **Tested against shaped fixtures, not yet
+    observed** (`test/core/header.test.ts`, `test/contract/header.test.ts`;
+    `npm run test:integration` checks it live once a token exists).
   - [ ] Local: `GET /api/patient/:puuid` for pid 13 returns `pid` (the
-    "resolve pid once" claim).
+    "resolve pid once" claim). Tested (contract test asserts pid 13 is
+    resolved from the shaped REST fixture); not yet observed live.
   - [ ] Local: after sign-out, a replay of the old access token (integration
     test, not the browser) gets `400 "Refresh Token revoked or logged out"`.
     The BFF session is gone either way.
-  - [ ] Review item: the client secret appears only in the BFF config. Grep
-    `web/dist` for it and for `client_secret` and expect zero hits.
+  - [x] Review item: the client secret appears only in the BFF config. Grep
+    `web/dist` for it and for `client_secret` and expect zero hits. Done
+    2026-09-25 against the local client's secret: zero hits for both; no
+    committed file contains it (it lives in the gitignored `dashboard/.env.local`).
   - [ ] Public: `live-check.mjs` passes. `/dashboard/health`
     `git_sha` = the merge SHA, and `deploy.sh`'s health loop printed
     `OK: /dashboard reports <sha>`.
