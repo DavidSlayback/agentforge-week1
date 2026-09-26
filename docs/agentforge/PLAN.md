@@ -144,7 +144,7 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | X-2 | W2 p5 | Critic agent that rejects uncited claims or unsafe action suggestions | C (D12) | An LLM critic node in the supervisor graph can only veto claims; its decision and reason are traced; the gate fails when it is removed or ignored | Not built | E2 |
 | X-3 | W2 p5 | Third document type (referral fax or medication list) | C (D12) | `medication_list` end to end: upload, OpenEMR storage, strict schema, cited extraction, fail-loud checks, gate cases | Not built | E4 |
 | X-4 | W2 p5 | Lab trend chart widget from extracted Observation data | C (D12) | Chart of one test over ≥ 2 collection dates, read back from OpenEMR (not from the upload response) | Not built | E5 |
-| X-5 | W2 p6 | Contextual retrieval improvements | C (D12) | Chunking, query rewriting or domain filters, kept only if a labeled retrieval benchmark improves | Not built | E3 |
+| X-5 | W2 p6 | Contextual retrieval improvements | C (D12) | Chunking, query rewriting or domain filters, kept only if a labeled retrieval benchmark improves | Query expansion built on `agentforge/e3-retrieval` (BM25 recall@3 0.886 → 0.939, MRR@3 0.879 → 0.909); applies only to BM25-alone ranking (`local-lexical`, hybrid `sparse_only` fallback), not the normal hybrid path; extension cases fail when it is off. Headers measured, no change, off. Not merged or observed live | E3 |
 | W2-S5 | p3 | W1 technical debt "documented and resolved before adding new surface area" | S | Every W1 debt item listed with resolved / accepted-with-reason | Partly: trust-critical debt fixed (S7); the rest is out of scope (D8), no single list | E6 |
 
 Out of scope: role model, LLM tool-calling, and handwriting or
@@ -240,6 +240,17 @@ Add a unit test that every citation link's `href` equals an existing box id
 - Re-record the retrieval fixtures. The before/after numbers go in
   `KEY_METRICS.md`. If neither change improves the benchmark, report that, and
   X-5 counts as attempted and measured, not done.
+- **Result (2026-09-26, `ace4ff62`):** (a) headers changed no ranking (BM25
+  already indexed title and section; the embeddings were already built from
+  them), so they are off and no re-embedding is needed. (b) query expansion
+  kept, BM25 only, with a skip rule when the query already names the
+  condition; it is kept out of the hybrid rerank pool, so **no fixture
+  re-recording is needed** (expanding the pool lowered pool recall and would
+  change 5 of the 14 gate rerank requests). The expansion lists and the skip rule were
+  chosen on the same 22 queries; there is no held-out set. Evidence:
+  `W2_ARCHITECTURE.md` §3c, `KEY_METRICS.md`,
+  `docs/agentforge/evidence/E3-retrieval-regression.txt`. Open: observe on the
+  public URL (needs a `sparse_only` request or the `local-lexical` provider).
 
 **E4 — Third document type, `medication_list` (X-3). 5 h, the widest change.**
 - Contracts: add it to `SCAN_DOCUMENT_TYPES`; a strict Zod `MedicationList`

@@ -192,6 +192,14 @@ still blocks commits.
   and fails if a cited field has no box, or if a "View source region" link
   doesn't land on its box. Regression proof:
   `docs/agentforge/evidence/E0-extension-gate-regression.txt`.
+- `x5-retrieval-lexical-hgb-question` and
+  `x5-retrieval-hybrid-fallback-both-findings` (E3, `retrieval.js`) run a
+  scan through the `local-lexical` retriever and through the deployed hybrid
+  retriever with a failing embed call (its `sparse_only` fallback). They fail
+  if the lab-test query expansion is off: the hgb question no longer ranks an
+  anemia chunk first, and the low hemoglobin on `gen-lab-d-flags` gets no
+  anemia guideline in the top 3. Regression proof:
+  `docs/agentforge/evidence/E3-retrieval-regression.txt`.
 - To rebaseline: `npm run eval:extensions --prefix agentforge --
   --update-baseline`. As with the golden gate, it refuses unless every
   threshold is met.

@@ -39,6 +39,7 @@ it lets through really lead back to their evidence.
 | **Abnormal-finding recall** | Of the abnormal or flagged lab results and key intake items in the truth files (chief concern, current medications, allergies), the share that appear as verified answer claims *or* are listed under **needs review**. Silently dropping one counts as a miss. | ≥ 95% | **94.7%** (18/19). **Misses target.** The one miss is the table-layout lab: it is refused loudly (`no_fields_extracted`), not dropped silently. A form for another patient, correctly BLOCKED `patient_mismatch`, is excluded (3 items). | `npm run eval:metrics --prefix agentforge` (offline, deterministic composer). |
 | **Extraction accuracy** | Typed lab fields matching the hand-written truth on value, unit, reference range, collection date **and** abnormal flag, plus intake fields matching the truth. Also reported: the share of fields routed to review. | ≥ 98% | **93.6%** (44/47). **Misses target.** Intake 35/35; labs 9/12. Misses: the table-layout lab (2 results, refused) and a noisy scan whose A1C OCR cannot read (the gate asserts it is not invented). Review share: 3/32 fields. | `npm run eval:metrics --prefix agentforge` (offline, 13 golden documents). |
 | **Model grounding rate** | Raw model answer claims that pass verification before anything is dropped. Reported together with the **composer fallback rate** (answers that fell back to the deterministic template). | ≥ 80% grounded; ≤ 20% fallback | **100% grounded** (121/121 model claims); **0% fallback** (0/12). Before the prompt fix: 60% (81/135) and 8% (1/12) on `a91452b`. | `measure-live-metrics.mjs`, `qwen3.8-flash`, 4 golden PDFs × 3 runs on the public URL. Small sample. If either target is missed, that triggers switching from Qwen to OpenRouter. |
+| **Guideline retrieval quality** (E3) | Recall@3 (hits in the top 3 over min(3, relevant chunks)), MRR@3 and hit@1 on 22 labeled queries from the golden documents' findings, chief concerns and clinician questions. | Improves with no query worse | **BM25 stage (22/22 queries): recall@3 0.886 → 0.939, MRR@3 0.879 → 0.909, hit@1 0.773 → 0.818** after query expansion. Full recorded hybrid pipeline (7/22 measurable): recall@3 0.905, MRR@3 1.000, unchanged, because the expansion is kept out of the hybrid rerank pool. Chunk headers: no change. | `node agentforge/scripts/benchmark-retrieval.mjs` (offline) on `ace4ff62`. The BM25 numbers cover the `local-lexical` provider and the hybrid `sparse_only` fallback, not the normal hybrid path. |
 | **Time to grounded answer** *(optional)* | p50 and p95 from upload to grounded answer, with per-stage durations (OCR, retrieval, answer). | p95 ≤ 30 s | **p50 11.1 s, p95 22.1 s** (12 runs). Per-stage split not captured by the script; a single trace showed OCR ~6 s and retrieval ~3.5 s. | `measure-live-metrics.mjs` on the public URL, wall time from the request. |
 
 Why these: **recall** asks whether it finds what matters. **Accuracy** asks
@@ -65,7 +66,8 @@ Values are filled in only from a named command run on a named commit. This
 file is updated when the release commit is frozen.
 
 All values above were measured on `131d5a3` (2026-09-24), except the
-"before" grounding figures, which are from `a91452b`. Synthetic data only.
+"before" grounding figures, which are from `a91452b`, and guideline retrieval
+quality, measured on `ace4ff62` (2026-09-26). Synthetic data only.
 
 - **Offline:** `npm run eval:trust-probes` and `npm run eval:metrics`
   (`--prefix agentforge`). The offline answer uses the deterministic composer,

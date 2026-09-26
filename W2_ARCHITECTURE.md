@@ -101,7 +101,7 @@ D12). The State column is current and is updated as each item lands.
 | Click-to-source UI with a simple document preview | Extension | Built: the scan result shows the PDF pages with a box per cited field; a citation's "View source region" link highlights its box (`ui.js`, `renderScanSourcePreview`). The page-image route is checked live (`docs/agentforge/evidence/LEDGER.md`, W2-C8); the drawn overlay has not yet been observed on the public URL. |
 | A third document type (referral fax, medication list) | Extension | Not built. Two types that work reliably come first (PRD, "Common Pitfalls"). |
 | Lab trend chart from extracted Observation data | Extension | Not built. Extracted labs are persisted and readable as FHIR `Observation` (§3a), which is the data such a chart would use. |
-| Contextual retrieval improvements (better chunking, query rewriting, domain filters) | Extension | Not built as such. The retrieval query is assembled from the extracted abnormal labs and chief concern and cut down to corpus vocabulary (§3c), but that step exists for PHI safety, not retrieval quality. |
+| Contextual retrieval improvements (better chunking, query rewriting, domain filters) | Extension | Query rewriting built and measured (§3c): lab test names are expanded into condition words for BM25. It changes results only where BM25 alone ranks (the `local-lexical` provider and the hybrid `sparse_only` fallback), not the normal hybrid path. Two extension cases guard it. Contextual chunk headers were measured and changed nothing, so they are off. No domain filter. Not yet observed on the public URL. |
 
 ## 3. How it works
 
@@ -259,6 +259,46 @@ reranker failed — the already-paid-for dense signal is kept via
 reciprocal-rank fusion rather than thrown away), or `stub` (the pipeline ran
 its full shape, but a step used the deterministic test/gate stand-in because
 no matching recorded fixture existed).
+
+**Contextual retrieval (E3, X-5).** `node agentforge/scripts/benchmark-retrieval.mjs`
+scores 22 labeled queries (`agentforge/test/fixtures/retrieval-benchmark.json`,
+built from the golden documents' findings, chief concerns and clinician
+questions) offline, with no key. Only BM25 can be scored on all 22. The
+dense, `no_rerank` and full hybrid stages are scored only where a recorded
+Gemini embed (and, for the full pipeline, a recorded Qwen rerank) exists for
+that exact request: 7 of the 22. A query without a recording is counted as
+unmeasured, not scored from the stub.
+
+- *Query rewriting, kept.* `retrievalContext.js#queryExpansionTerms` adds the
+  condition words for each lab test the query names (A1C adds diabetes,
+  prediabetes, glucose and sugar; hgb or hemoglobin adds anemia, hematocrit
+  and iron), from `RETRIEVAL_QUERY_EXPANSIONS` in `clinicalVocabulary.js`. A
+  test's words are skipped when the query already names its condition.
+  Without that rule the expansion outweighed a question's own words ("How
+  often should HbA1c be repeated…" lost its answer from first place). The
+  added words come from a fixed list, never from the query, and are used
+  only by the local BM25 search. BM25 on the 22 queries: recall@3 0.886 →
+  0.939, MRR@3 0.879 → 0.909, hit@1 0.773 → 0.818, with no query worse.
+- *Where it applies.* It changes the answer only when BM25 ranks alone: the
+  `local-lexical` provider and the hybrid retriever's `sparse_only` fallback
+  (embed call failed or no embeddings). The hybrid rerank pool keeps the
+  unexpanded BM25 ranking on purpose. Expanding it lowered pool recall@12
+  (1.000 → 0.976) on the 7 measurable queries, and it would have changed 5 of
+  the 14 rerank requests the gate replays from recorded fixtures. In the
+  normal deployed hybrid path, the expansion therefore changes nothing: the
+  embed text, the rerank text, the rerank pool and the corpus embeddings are
+  the same as before, and no fixture needs re-recording.
+- *Contextual chunk headers, not kept.* Indexing a `publisher | title |
+  section` header changed no BM25 ranking. BM25 already indexed title and
+  section, and the corpus embeddings were already built from title, section
+  and text with the title passed to Gemini, so re-embedding (42 requests, one
+  per chunk; `build-corpus-embeddings.mjs` does not batch) would buy nothing.
+- *Domain filter: not built.* The benchmark gave no case it would fix.
+
+Guarded by `x5-retrieval-lexical-hgb-question` and
+`x5-retrieval-hybrid-fallback-both-findings` in the extension suite; turning
+the expansion off fails both
+(`docs/agentforge/evidence/E3-retrieval-regression.txt`).
 
 ### (d) Verification and the grounded answer
 
