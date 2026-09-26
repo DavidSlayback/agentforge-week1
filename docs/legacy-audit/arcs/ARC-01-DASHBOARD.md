@@ -630,9 +630,16 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
     superseding this slice's original pid 13/3/12 plan — DASH-SYN-01/02 give
     the same header/deceased/data-rich coverage pid 12/13 would have) —
     `docs/legacy-audit/evidence/parity/`. One genuinely unintended difference
-    was found and documented, not fixed: Allergies 500s live for both
-    DASH-SYN-01 and DASH-SYN-02 (see that README's Findings section and
-    `DEV-LOG.md` 01-06-01).
+    was found and documented: Allergies 500s live for both DASH-SYN-01 and
+    DASH-SYN-02 (legacy `AllergyIntoleranceService::search()` emits a raw
+    binary uuid column that breaks JSON encoding whenever an allergy is
+    authored by a real user). Owner approved a seed-data workaround same day
+    (`lists.user = NULL` for these rows, local and production) — Allergies
+    now loads and matches legacy for both patients, re-verified live. The
+    underlying code defect is unchanged and still live for any allergy
+    authored by a real user; not fixed as application code, per this slice's
+    scope. See that README's Findings section and `DEV-LOG.md` 01-06-01 plus
+    its same-day follow-up entry.
   - [ ] The drills map to the documented states, and no upstream text is ever
     rendered. **Not done this pass** — only live states were observed, not
     the synthetic 401/403/200-with-errors/404-empty drills; still open.

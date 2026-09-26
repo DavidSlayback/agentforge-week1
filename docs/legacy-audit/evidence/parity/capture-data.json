@@ -369,9 +369,9 @@
       "cards": [
         {
           "id": "allergies",
-          "state": "error",
+          "state": "ok",
           "rows": 0,
-          "text": "Allergies\nCollapse\nAllergies\n\nCouldn't load Allergies. Reference 58ede197-b17c-46be-99f9-3d9e6b86f4a2 (UPSTREAM_STATUS)."
+          "text": "Allergies\nCollapse\nAllergies\nPenicillin (Severe)"
         },
         {
           "id": "problems",
@@ -411,9 +411,9 @@
       "cards": [
         {
           "id": "allergies",
-          "state": "error",
+          "state": "ok",
           "rows": 0,
-          "text": "Allergies\nCollapse\nAllergies\n\nCouldn't load Allergies. Reference ca9f153e-696e-4854-b815-b02a4bef94fa (UPSTREAM_STATUS)."
+          "text": "Allergies\nCollapse\nAllergies\nSulfa drugs (Moderate)"
         },
         {
           "id": "problems",
@@ -501,5 +501,6 @@
         4521
       ]
     }
-  }
+  },
+  "recapturedAllergiesAt": "2026-09-26T04:15:41.403Z"
 }

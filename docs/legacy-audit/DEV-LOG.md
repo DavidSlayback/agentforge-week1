@@ -58,6 +58,53 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-26 (later) — Arc 01 / Story 01-06 / Slice 01-06-01 — Allergies finding: seed workaround, re-verified
+
+**Status:** ready-for-commit (evidence + docs only; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` · **SHA:** no merge SHA yet
+
+Correction/follow-up to the 01-06-01 entry directly below (that entry is left
+unchanged per the append-only convention).
+
+### Worked on
+- Owner approved a seed-data workaround for the Allergies finding below: the
+  DASH-SYN-01/DASH-SYN-02 allergy rows now have `lists.user = NULL` (local and
+  production), instead of `user='admin'`.
+- Re-ran the headless Playwright capture for the **port side only**,
+  DASH-SYN-01 and DASH-SYN-02 (pid 3 and the legacy screenshots untouched —
+  legacy was never affected). Replaced `port-dash-syn-01.png`,
+  `port-dash-syn-02.png` and their `capture-data.json` entries.
+- Updated `docs/legacy-audit/evidence/parity/README.md`: Allergies now shows
+  as matching legacy for both patients (DASH-SYN-01: Penicillin (Severe)
+  highlighted, Latex still hidden by the outcome filter; DASH-SYN-02: Sulfa
+  drugs, not highlighted). The Findings section keeps the defect documented
+  — reworded to "legacy API defect, worked around in seed data (allergies
+  authored by no user); still present for any allergy authored by a real
+  user" — rather than deleting it now that the symptom is gone for these two
+  patients.
+
+### Result
+- **Allergies now loads successfully for both DASH-SYN-01 and DASH-SYN-02.**
+  Confirmed live, same method as before: `data-state="ok"`, rendered text
+  matches the legacy card exactly for both patients.
+- The underlying `AllergyIntoleranceService::search()` defect (raw-binary
+  `practitioner_uuid`/`organization_uuid` breaking `json_encode()`) is
+  **unchanged** — it is only unreachable now for these two seeded patients
+  because their allergy rows no longer have an authoring user that resolves
+  through the `users`/`facility` join. It remains live for any patient whose
+  allergy list has a row authored by a real user.
+
+### Tests
+- No `dashboard/` code changed; hook run covers the evidence-folder commit as
+  before (docs/evidence only).
+
+### Open questions / follow-ups
+- Same as the original 01-06-01 entry (drills, a11y pass, `api_log_option`
+  check not done in either pass), plus: decide whether
+  `AllergyIntoleranceService::search()` gets a real code fix upstream at some
+  point, independent of the seed workaround, since the defect still affects
+  any real (non-seeded) patient with an allergy authored by a user with a
+  matching `users`/`facility` row.
+
 ## 2026-09-26 — Arc 01 / Story 01-06 / Slice 01-06-01 — Parity evidence and hardening
 
 **Status:** ready-for-commit (evidence + docs only; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` · **SHA:** no merge SHA yet
