@@ -12,10 +12,11 @@ instead of one long function.
 Upload flows through a server-side format check (PDF or a `.scan.txt` test
 envelope, nothing else), into OpenEMR via the HMAC-authenticated
 `oe-module-agentforge`, through local Tesseract OCR, into a Zod-typed
-`LabResult`/`IntakeForm`, and out as either derived facts (persisted, with a
+`LabResult`/`IntakeForm`/`MedicationList`, and out as either derived facts (persisted, with a
 FHIR read-back) or a fail-loud refusal. A supervisor (`decideNext`) decides
-when to extract, when to retrieve guideline evidence, and when the answer is
-ready, logging its reason at every step. Evidence retrieval is a real hybrid
+when to extract, when to retrieve guideline evidence, when an LLM critic
+reviews the answer, and when the answer is ready, logging its reason at every
+step. Evidence retrieval is a real hybrid
 pipeline — BM25 sparse search unioned with dense embeddings, reranked, and
 cut at a relevance threshold — over a 42-chunk corpus of verbatim public
 guideline text. The answer composer asks a hosted model for grounded claims,
@@ -23,13 +24,13 @@ but the model's output is never trusted directly: every claim is
 independently re-derived from exactly the facts and guideline text it cites
 (structural claim binding, not an LLM judging its own homework), and a claim
 that fails is dropped, with a deterministic, template-built answer standing
-in when too much is dropped. A 50-case eval gate, enforced by a pre-commit
-hook (there is no CI runner on this GitLab project), blocks any commit that
-regresses schema validity, citation completeness, factual consistency, safe
+in when too much is dropped. A 50-case eval gate plus a 34-case extension
+suite, both enforced by a pre-commit hook (there is no CI runner on this
+GitLab project), block any commit that regresses schema validity, citation completeness, factual consistency, safe
 refusal, or PHI-in-logs by more than five points.
 
 The key decisions, and what they cost: the supervisor is a hand-rolled state
-machine, not LangGraph, because four states with logged reasons are easier to
+machine, not LangGraph, because five states with logged reasons are easier to
 audit than a graph library's abstractions for a scope this small — see
 Tradeoffs. Reranking runs on Qwen (`qwen3.8-flash`, thinking off), not
 Gemini, because the Gemini key is free-tier (20 requests/day) and a listwise
@@ -54,8 +55,9 @@ next section says exactly where that line sits.
 > - **Synthetic data only.** Every patient, document, and lab value in this
 >   system is fabricated for evaluation. No real PHI has ever been processed,
 >   uploaded, or stored here.
-> - **OCR tuned to fixed form layouts.** Local Tesseract reads the two label
->   layouts this project's fixtures use (`Label: value` lines). A different
+> - **OCR tuned to fixed form layouts.** Local Tesseract reads the label
+>   layouts this project's fixtures use (`Label: value` lines, and numbered
+>   `Medication 1:` rows on a medication list). A different
 >   layout — a table, a handwritten form, a real-world scan — extracts
 >   nothing and the document is refused or qualified; it is not guessed at.
 > - **Lab read-back does not use the OpenEMR FHIR HTTP API.** It calls
@@ -69,6 +71,15 @@ next section says exactly where that line sits.
 > - **Lab results are persisted as preliminary (`prelim`).** They are
 >   unreviewed AI extraction pending clinician review, and OpenEMR's FHIR
 >   mapper reports them as `status: unknown`, never `final`.
+> - **The public demo's chart is a synthetic fixture.** The no-login demo
+>   (synthetic-demo tokens, `fixture-patient-NNN`) reads chart facts from
+>   `docs/agentforge/fixtures/clinical-cases.json` through `FixtureAdapter`,
+>   not from OpenEMR, and answers label them "Synthetic chart fixture"
+>   (`source_type: synthetic_chart_fixture`, `chartSource.js`). Uploads,
+>   derived facts, lab rows and lab-trend reads do go through real OpenEMR
+>   (the module, HMAC, the write ledger, the FHIR Observation read-back).
+>   Real chart reads for a clinician session launched from OpenEMR (E9,
+>   `docs/agentforge/PLAN.md` D13) are in progress, not done.
 > - **Week 1 is frozen** at `84f232b`, on its own route (`/agentforge`) and
 >   its own pinned image. Nothing in this document changes it.
 > - **There is no GitLab CI runner.** The enforced gate is the tracked
@@ -83,25 +94,24 @@ next section says exactly where that line sits.
 The PRD's "Core Deliverables" list (p. 5–6) puts ten items under one heading
 with the same bullet. Elsewhere the same PRD calls this "a controlled
 expansion of the Week 1 agent into two document types, two workers, and one
-regression gate" (p. 4). It also says "A critic agent is extension work, not
-core" (§4), and it closes by saying the best submissions "feel narrower than
-the original spec and stronger because of it". We read the first five items
-as core and the last five as extensions, and we built the core first. On
-2026-09-26 the owner decided to build all ten (`docs/agentforge/PLAN.md`,
-D12). The State column is current and is updated as each item lands.
+regression gate" (p. 4). We read the first five items as core and the last
+five as extensions, and built the core first. On 2026-09-26 the owner decided
+to build all ten (`docs/agentforge/PLAN.md`, D12), and all ten are built and
+deployed. Each "observed live" entry below names the SHA it was seen on; the
+release freeze (E7, pending) re-observes every item on one SHA.
 
 | PRD item | Our reading | State |
 |---|---|---|
-| Two document types: lab PDF and intake form | Core | Built and live (§3a) |
-| One supervisor and two workers | Core | Built and live (§3b) |
-| Basic hybrid RAG plus rerank | Core | Built and live (§3c) |
+| Two document types: lab PDF and intake form | Core | Built and live (§3a); live acceptance 16/16 on `521af47` (`docs/agentforge/evidence/LEDGER.md`) |
+| One supervisor and two workers | Core | Built and live (§3b); decision sequence observed in `LEDGER.md` W2-C6 |
+| Basic hybrid RAG plus rerank | Core | Built and live (§3c); `LEDGER.md` W2-C4 |
 | 50-case golden dataset with boolean rubrics | Core | Built (§3e, `EVAL_GATE.md`) |
 | PR-blocking eval CI and an observable deployed demo | Core | Built: pre-commit gate (§3e), `/observability` |
-| Critic agent that rejects uncited claims or unsafe action suggestions | Extension (§4) | Built, not yet observed live: an LLM critic that can only veto claims (`critic.js`, §3b). It runs after `verifyClaims` (§3d), which stays the authority, and can remove a claim as `UNCITED`, `UNSUPPORTED_BY_SOURCE` or `UNSAFE_ACTION`, never add or rewrite one. It is off until `AGENTFORGE_CRITIC_MODEL` is set on the VM (every answer then says `critic_status: disabled`). The extension suite checks the veto wiring with a fake critic model (`EVAL_GATE.md`); a real model's judgment is measured by `scripts/benchmark-critic-models.mjs`, not by the gate. |
-| Click-to-source UI with a simple document preview | Extension | Built: the scan result shows the PDF pages with a box per cited field; a citation's "View source region" link highlights its box (`ui.js`, `renderScanSourcePreview`). The page-image route is checked live (`docs/agentforge/evidence/LEDGER.md`, W2-C8); the drawn overlay has not yet been observed on the public URL. |
-| A third document type (referral fax, medication list) | Extension | `medication_list` built on branch `agentforge/e4-medlist` (§3a): typed `MedicationList`, three-way type detection, module storage, 15 `x3-*` extension cases (`npm run eval:extensions`). Not yet deployed or observed on the public URL. |
-| Lab trend chart from extracted Observation data | Extension | Built, not yet observed on the public URL: after a lab scan the UI shows a server-rendered SVG chart per test (`labTrend.js`), drawn only from the lab Observations read back from OpenEMR (§3a), never from the upload response. Each point links to its source document's preview. One result shows a "one result so far" state; different units are charted separately. Five extension cases guard it (`EVAL_GATE.md`). |
-| Contextual retrieval improvements (better chunking, query rewriting, domain filters) | Extension | Query rewriting built and measured (§3c): lab test names are expanded into condition words for BM25. It changes results only where BM25 alone ranks (the `local-lexical` provider and the hybrid `sparse_only` fallback), not the normal hybrid path. Two extension cases guard it. Contextual chunk headers were measured and changed nothing, so they are off. No domain filter. Not yet observed on the public URL. |
+| X-1 Click-to-source UI with a simple document preview | Extension | Observed live on `521af47`: the lab-a preview had 12 citation links and 12 boxes, every link targets a box, and clicking the A1c citation highlighted its box (`docs/agentforge/evidence/E1-click-to-source-live.md`). Gated by `x1-*` extension cases. |
+| X-2 Critic agent that rejects uncited claims or unsafe action suggestions | Extension | Observed live on `e56eab86` with `openai/gpt-4.1-nano`: the UI showed "critic: reviewed", and the trace had one `CRITIQUE` decision and a critic duration of 1182 ms (`docs/agentforge/evidence/E2-critic-live.md`). The critic can only veto claims (§3b); `verifyClaims` stays the authority. Nine `x2-*` cases check the veto wiring with a fake critic model; the model choice came from `scripts/benchmark-critic-models.mjs` (`E2-critic-model-benchmark.json`). |
+| X-3 A third document type (medication list) | Extension | Observed live on `d952660b`: "Medication list · Layout A" reached READY with 19 cited fields and a reviewed critic; two low-OCR-confidence medications went to "Needs review"; the OpenEMR ledger shows the `medication_list` and derived-facts writes (`docs/agentforge/evidence/E4-E5-E8-live.md`). 15 `x3-*` cases. |
+| X-4 Lab trend chart from extracted Observation data | Extension | Observed live on `e0f9eb35`: after lab uploads, "Lab trends" showed A1C and hemoglobin charts read back from OpenEMR's FHIR Observation service, each point linked to its source (`E4-E5-E8-live.md`). Five `x4-*` cases. |
+| X-5 Contextual retrieval improvements | Extension | Built and deployed since `e56eab86` (MR !96), fallback path only: BM25 query expansion raised recall@3 from 0.886 to 0.939 on 22 labeled queries (§3c, `KEY_METRICS.md`). It changes results only when BM25 ranks alone (`local-lexical`, or the hybrid `sparse_only` fallback), so it is not observable on the public URL unless the Gemini embed call fails. The normal hybrid path is unchanged on purpose. Two `x5-*` cases fail when it is off (`docs/agentforge/evidence/E3-retrieval-regression.txt`). |
 
 ## 3. How it works
 
@@ -159,8 +169,9 @@ workflow state throws. Only a `READY` or `QUALIFIED` workflow persists a
 derived-facts JSON document and, for a lab PDF, one
 `procedure_order`/`_report` plus one `procedure_result` per LOINC-mapped
 result, all marked `prelim`. Read-back is OpenEMR's own FHIR Observation
-service called in-process (`read_path: openemr-fhir-service-in-process`) —
-the deployment's `/fhir` HTTP API stays disabled, so this is not that API.
+service called in-process (`read_path: openemr-fhir-service-in-process`),
+not the `/fhir` HTTP API. That API was enabled on 2026-09-25 for the
+dashboard port; the read-back does not depend on it.
 
 **Medication lists (`medication_list`, the third type).** The label map reads
 the header lines (patient name, DOB, list date, prescriber or source) and
@@ -245,15 +256,17 @@ it also names a guideline-seeking word (target, recommended, threshold,
 normal, abnormal, should) — "What is the target A1C value?" still retrieves
 evidence.
 
-The two workers: `runExtractionWorker` (`activeWorkers.js`) wraps the OCR →
+There are three workers. The PRD's two come first: `runExtractionWorker`
+(`activeWorkers.js`, traced as `scan-form-extraction-worker`) wraps the OCR →
 label-map → typed-extraction pipeline behind a fixed input/output contract;
-`runEvidenceWorker` formulates its own query from this document's abnormal
+`runEvidenceWorker` (traced as `evidence-retrieval-worker`) formulates its own query from this document's abnormal
 lab results and intake chief concern (a client-supplied `message` is only
 ever appended, never sent as the query verbatim) and calls the injected
 guideline retriever. A pure record-lookup question skips it entirely — no
 guideline call is made when the answer needs none. Every retrieval attempt
 is recorded on the trace with the provider that actually answered (which may
-have degraded mid-call), never a static label.
+have degraded mid-call), never a static label. The third worker is the
+critic (traced as `critic-worker`), described next.
 
 The critic worker (`critic.js#runCriticWorker`, E2) is an LLM critic that can
 only veto claims. It gets each shipped claim's text and the `quote_or_value`
@@ -390,7 +403,7 @@ the expansion off fails both
 
 ```mermaid
 flowchart TD
-    F[Typed facts + top-3 guideline evidence<br/>+ OpenEMR chart facts] --> P{Model configured<br/>and not past deadline?}
+    F[Typed facts + top-3 guideline evidence<br/>+ chart facts] --> P{Model configured<br/>and not past deadline?}
     P -- no --> DET[Deterministic composer:<br/>builds claims from facts directly]
     P -- yes --> M[Model returns claims<br/>citing short labels F1.. / G1..]
     M --> MAT[Server resolves labels to the<br/>exact 5-key citations; unknown label dropped]
@@ -406,7 +419,10 @@ flowchart TD
 judging its own output: each claim's citation must resolve by exact
 `source_id` + `field_or_chunk_id` to an allowed fact, and the claim text
 must then be derivable from exactly what that citation points to.
-`patient_fact` claims may cite only `document`/`openemr_record` sources;
+`patient_fact` claims may cite only patient-record sources: `document`,
+`openemr_record` (a chart read through `OpenEMRRestAdapter`) or
+`synthetic_chart_fixture` (a chart read from the synthetic fixtures, which is
+what the public demo uses; `chartSource.js`);
 every cited value must appear verbatim (normalized for case, spacing, and
 unit formatting); every other word must be a neutral reporting word or come
 from the cited value itself (a closed vocabulary); an interpretive word
@@ -462,6 +478,21 @@ finding. The result separates `patient_facts` from `guideline_evidence`, per
 the assignment's "separate patient-record facts from guideline evidence."
 The server validates this exact shape before persisting anything derived —
 an invalid answer is a 500, never an unvalidated write.
+
+**Questions that name another patient (E8).** The briefing follow-up, the
+scan answer and `/v1/follow-up-evidence` check the question text
+(`patientMentions.js`). A question that names another patient is refused as
+blocked `out_of_scope_patient`, with no chart read and no model call; a scan
+still extracts and stores its document, and only the answer is refused. With
+the fixture adapter (the public demo) the check matches ids (patient refs,
+chart ids and UUIDs, separators normalized) and another patient's full,
+capitalized name in either order. With the live OpenEMR adapter it matches
+id patterns only: that adapter has no patient list, so another patient's
+name or MRN is not detected there. A chart note that contains instructions
+is withheld from the model and from the display (`untrusted_narrative`).
+Tests: `cross-patient-question.test.js`, `answer-paths-scope.test.js` and
+the extension case `x8-scope-other-patient-question`; regression proof in
+`docs/agentforge/evidence/E8-w1-trust-regression.txt`.
 
 ### (e) Eval gate
 
@@ -541,11 +572,12 @@ server-side, where a bug is a rejected id, not a truncated response.
 
 ## 4. Tradeoffs
 
-**Hand-rolled supervisor vs. LangGraph.** *Chose:* a four-state pure function
-(`decideNext`) called in a loop, with every decision pushed to a trace array.
+**Hand-rolled supervisor vs. LangGraph.** *Chose:* a pure function
+(`decideNext`) over five states (EXTRACT, RETRIEVE, ANSWER, CRITIQUE, DONE),
+called in a loop, with every decision pushed to a trace array.
 *Gave up:* LangGraph's built-in state persistence, streaming, and ecosystem
-of pre-built nodes; adding a fifth worker means extending this loop by hand,
-not composing a library primitive. *When we'd switch:* if the graph grows
+of pre-built nodes; adding a worker means extending this loop by hand, not
+composing a library primitive (the critic was added this way). *When we'd switch:* if the graph grows
 past a handful of states with real branching (parallel workers, retries with
 backoff policies, human-in-the-loop interrupts), a pure function stops being
 easier to audit than a library built for exactly that, and the trade
@@ -557,12 +589,16 @@ number-level matching — no second model call, no judge prompt. *Gave up:*
 semantic entailment. The checker cannot tell that "1,000 mg" and "1 g" are
 the same value, cannot resolve "last week" against a stored date, and can be
 fooled by a claim that juxtaposes two true cited facts in a misleading
-order. *When we'd switch:* if the fail-closed number/unit gaps above start
-rejecting a meaningful share of genuinely correct claims in practice (not
-observed yet — the current fallback path absorbs every current rejection
-into a deterministic answer), an LLM-as-judge layered *on top of*, not
-instead of, structural binding would close that gap without giving up the
-never-fooled-by-fluent-language property.
+order. *What we added:* an LLM critic layered *on top of*, not instead of,
+structural binding (E2, §3b). It can only remove claims, so it cannot
+reintroduce what the verifier rejected; it covers gaps the verifier has
+(fixed directive patterns, the verbatim-guideline exemption), not the
+number/unit gaps above. *When we'd go further:* if those fail-closed
+number/unit gaps start rejecting a meaningful share of genuinely correct
+claims in practice (not observed yet; the fallback path absorbs every
+current rejection into a deterministic answer), a model check that can
+*accept* a claim the verifier rejected would be the next step, and it would
+need its own benchmark first.
 
 **Local Tesseract OCR vs. a VLM.** *Chose:* `pdftoppm` + Tesseract, tuned to
 the two label layouts these fixtures use, because it is free, runs
@@ -598,7 +634,53 @@ not the primary write path.
 | Answer composer | `qwen3.8-flash`, thinking off (`AGENTFORGE_MODEL_*`) | Deterministic composer on invalid JSON, provider error, all-claims-unverified, or a per-request deadline (`AGENTFORGE_SCAN_DEADLINE_MS`, default 25 s). Not `qwen3.8-max`: OCR (~6 s) + retrieval (~3.5 s) leave too little of the budget for the larger model's ~2x latency. |
 | Dense retrieval | `gemini-embedding-2` (Gemini, free tier) | `degraded: sparse_only` if the key, the precomputed embeddings file, or the embed call itself is missing/fails. |
 | Reranker | `qwen3.8-flash` via the `Reranker` interface (`AGENTFORGE_RERANK_PROVIDER=qwen`) | `degraded: no_rerank` (sparse+dense reciprocal-rank fusion) if only the reranker fails; a real Cohere adapter exists behind the same interface for a later swap. |
+| Critic | `openai/gpt-4.1-nano` via OpenRouter (`AGENTFORGE_CRITIC_MODEL`, set on the VM; `AGENTFORGE_CRITIC_TIMEOUT_MS=2500` there, compose default 4000). Chosen by `benchmark-critic-models.mjs` (`docs/agentforge/evidence/E2-critic-live.md`). | Runs only if at least the critic timeout remains of the 25 s scan budget, else `critic_status: skipped_budget`. A provider error, timeout or invalid JSON is `failed`. Either way the answer ships as the verifier left it, never labeled reviewed. Unset model: `disabled`. |
 | OCR | Tesseract 5.5.2 + `pdftoppm`, local, in-process | None — this is the only extraction path; an unreadable document is refused (`document_unreadable`, HTTP 422), not retried against another engine. |
+
+### Week 1 debt
+
+The PRD asks for Week 1 debt to be "documented and resolved before adding new
+surface area". This table lists all 25 items from the Week 1 review
+(`.scratch/assignments/REVIEW_2026-09-24.md` §2, audited on `0a1f3e06` and
+updated for E8 on `fd6c959b`). Status is for the W2 route (`/agentforge-w2`).
+Totals: 11 resolved, 4 partly resolved, 10 accepted.
+
+| # | Item | Status on W2 | Evidence | Frozen W1 route (`84f232b`) |
+|---|---|---|---|---|
+| 1 | Verifier used `.some`, so invented sentences passed | Resolved | `verifier.js` checks every clinical sentence (`UNANCHORED_CLAIM`); `claimBinding.js` binds every W2 claim; `verifier.test.js` warfarin probe | Still `.some` |
+| 2 | Production code read the eval answer key (`expected`) | Resolved (E8) | Briefing trust derived from record data (`recordTrust.js`); `test/no-eval-oracle.test.js` walks the import graph from `server.js` | Still reads it |
+| 3 | No clinical domain rules | Accepted (D8) | No `clinicalRules.js`; abnormal flags come from the document | Same |
+| 4 | No LLM tool calling; follow-ups routed by regex | Accepted (D4) | `decideNext` is deterministic by design (§4) | Same |
+| 5 | Fixture chart data labeled as an OpenEMR read | Resolved (E8) | `chartSource.js`: fixture facts cite `synthetic_chart_fixture`, "Synthetic chart fixture"; `chart-citation-source.test.js` | Still reports an OpenEMR read (`retrieve_openemr_read`) |
+| 6 | `/ready` does not probe OpenEMR or observability | Accepted (D8) | `FixtureAdapter.checkReady` returns true; Langfuse not configured on W2 | Same |
+| 7 | Unauthenticated token minting and ops endpoints; one role | Accepted (D4, D8) | `/v1/demo-context`, `/v1/source-document-context`, `/v1/traces`, `/v1/metrics`, `/v1/alerts` need no auth (`server.js`); the planned ops token was not built. Writes stay limited to the allowlisted synthetic patients | Same |
+| 8 | A question naming another patient was answered | Resolved (E8) | Refused as `out_of_scope_patient` on every answer path (§3d); ids and full names on fixtures, id patterns only on live OpenEMR; `x8-scope-other-patient-question` | Not fixed |
+| 9 | Correlation id missing from several calls and logs | Accepted (D8) | Chart retrieval and model calls carry it; getCase, token refresh, retriever and module client do not | Same |
+| 10 | Hand-rolled schemas; outputs unvalidated | Partly | W2 contracts are strict Zod (`schemas.js`); W1 briefing contracts and `getCase` output are not | Same |
+| 11 | Cost always $0 | Resolved | `pricing.js`; unknown cost is `null`; traces record `cost_usd` (`W2_COST_LATENCY.md`) | Still $0 |
+| 12 | Langfuse gets one flat span | Accepted (D8) | Not configured on W2 | Same |
+| 13 | Dashboard: 100-trace cap, no polling, wrong window label | Partly | 10 s polling, p99 and the real window label added; the cap remains | Not fixed |
+| 14 | p95 alert at 2 s fires on every scan | Resolved (E8) | W2 compose sets `AGENTFORGE_ALERT_P95_MS=30000`; live `/v1/alerts` on `fd6c959b`: observed 21228 ms, not triggered | Still 2 s |
+| 15 | Load test: no p99, 8% timeouts, stale commit | Accepted (D8) | W2 has latency samples (`W2_COST_LATENCY.md`), no load test | Same |
+| 16 | Cost analysis has no LLM spend | Partly | Measured per-scan model cost in `W2_COST_LATENCY.md`; dev spend is pending the owner's console readback | Same |
+| 17 | API collection is a localhost PowerShell script | Accepted (D8) | `agentforge/api/collection.ps1`; no Bruno/Postman file | Same |
+| 18 | Alerts computed only on request | Accepted | `evaluateAlerts` runs inside `GET /v1/alerts` | Same |
+| 19 | Evals never test unauthorized or ambiguous cases | Partly | The W2 gates cover cross-patient scans and questions (`EVAL_GATE.md`); the W1 `evals/` runner is unchanged; no ambiguous-question case | Same |
+| 20 | Missing BP question dumps evidence instead of "not documented" | Accepted | No "not documented" handling | Same |
+| 21 | `AUDIT.md`, `ARCHITECTURE.md`, `USER.md` not at the root | Resolved (MR !99) | All at the repo root | n/a (docs) |
+| 22 | Root `USERS.md` was a stale planning draft | Resolved (MR !99) | Replaced with the current version | n/a |
+| 23 | `START_HERE.md` said nothing was built | Resolved | Rewritten as an index (`40cd32a2`) | n/a |
+| 24 | `ARCHITECTURE.md` contradicted the code | Resolved (MR !99) | Contradictions fixed | n/a |
+| 25 | SSH user and key path published in docs | Resolved | `git grep` on `main` finds neither; the old text remains in git history | n/a |
+
+Why some items are accepted: D4 put the role model and LLM tool-calling out of
+scope, and D8 limited Week 1 work to trust-critical debt that W2 depends on
+(`docs/agentforge/PLAN.md`). The accepted items are operational (auth on
+demo and ops routes, readiness probes, tracing, load testing, API collection)
+or are W1 features W2 does not build on (domain rules, tool calling). The
+frozen `/agentforge` route keeps all of its Week 1 debt, including the `.some`
+verifier and $0 cost: it is the W1 submission snapshot, image-only, and
+`/agentforge-w2` supersedes it.
 
 ## 5. Risks
 
@@ -615,6 +697,6 @@ not the primary write path.
 
 - [`KEY_METRICS.md`](KEY_METRICS.md) — north-star and supporting metrics, guardrails, and their measurement sources.
 - [`EVAL_GATE.md`](EVAL_GATE.md) — full rubric, thresholds, and known limits of the 50-case gate.
-- [`docs/agentforge/PLAN.md`](docs/agentforge/PLAN.md) — the decision record (D1-D11) and execution slices this document describes.
+- [`docs/agentforge/PLAN.md`](docs/agentforge/PLAN.md) — the decision record (D1–D13) and execution slices this document describes.
 - [`docs/agentforge/evidence/W2_REGRESSION_MATRIX.md`](docs/agentforge/evidence/W2_REGRESSION_MATRIX.md) — the 29-row regression proof.
 - [`deploy/vultr/README.md`](deploy/vultr/README.md) — deployment topology, secrets, and every optional provider lane.
