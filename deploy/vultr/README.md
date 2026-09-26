@@ -214,6 +214,7 @@ SHA. Values are never printed.
    `openemr_live_reads_not_configured`. `grader` needs read access to
    `patients/demo`, `patients/med`, `patients/docs`, `encounters/notes` and
    `encounters/auth_a` (and `patients/docs` write for uploads).
+3b. **Enable the module in OpenEMR** (once). The patient-menu item "Prepare for visit" appears only when the module is enabled: Admin → Modules → Manage Modules → AgentForge → Enable, or `UPDATE modules SET mod_active=1 WHERE mod_directory='oe-module-agentforge'`. On production it had been installed on 2026-09-17 but left disabled until 2026-09-26. The module's own API endpoints work either way.
 4. **Recreate the containers** so they see the env: `agentforge-w2` (deploy)
    and `openemr` (changed `AGENTFORGE_SERVICE_URL` and allowlist):
    `AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1 AGENTFORGE_DEPLOY_SERVICES="dashboard agentforge-w2" deploy/vultr/deploy.sh`

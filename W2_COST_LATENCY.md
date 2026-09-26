@@ -105,8 +105,9 @@ only stage that scales with our own CPU.
 | Item | Spend | Source |
 |---|---|---|
 | Gemini API | **$0** | Free-tier key (20 requests/day cap hit during W2; that is why reranking moved to Qwen) |
-| Qwen (Alibaba Model Studio) | **~$1–2 at most (Fermi)**; exact figure pending the owner's console | Development used on the order of hundreds to low thousands of calls at ~2.6k tokens each: under ~5M tokens, about $1 at Singapore list price even if all of it were billed; the 1M-token free quota and a token plan may cover part of it |
-| Vultr VM (OpenEMR + MariaDB + Caddy + W1 + W2 on one host) | Pending the owner's billing readback | 2 vCPU / 4 GB / 80 GB instance; W1 recorded $1.36 charged and $28.64 credit remaining (`docs/agentforge/COST_MODEL.md`) |
+| Qwen (Alibaba Model Studio) | **~$1–2 at most (estimate)**; the provider console is not accessible to the owner (the key belongs to a plan they do not administer), so this stays an estimate from logged usage and list prices | Development used on the order of hundreds to low thousands of calls at ~2.6k tokens each: under ~5M tokens, about $1 at Singapore list price even if all of it were billed; the 1M-token free quota and a token plan may cover part of it |
+| Vultr VM (OpenEMR + MariaDB + Caddy + W1 + W2 on one host) | **≈ $7 used of a $30 prepaid credit** (owner's billing readback, 2026-09-26) | 2 vCPU / 4 GB / 80 GB instance; W1 recorded $1.36 charged and $28.64 credit remaining (`docs/agentforge/COST_MODEL.md`) |
+| OpenRouter (critic, `openai/gpt-4.1-nano`) | **< $0.05** | The model benchmark cost $0.022 across 75 calls (`docs/agentforge/evidence/E2-critic-model-benchmark.json`), plus live reviews at ~$0.00006 each |
 | AI coding assistants | Owner's subscriptions; not attributed per project | — |
 
 ## 6. Projected production cost

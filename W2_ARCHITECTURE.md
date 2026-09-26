@@ -78,10 +78,13 @@ next section says exactly where that line sits.
 >   (`source_type: synthetic_chart_fixture`, `chartSource.js`). Uploads,
 >   derived facts, lab rows and lab-trend reads do go through real OpenEMR
 >   (the module, HMAC, the write ledger, the FHIR Observation read-back).
->   Real chart reads for a clinician session launched from OpenEMR (E9,
->   `docs/agentforge/PLAN.md` D13, §3f) are wired, with live reads off by
->   default (`AGENTFORGE_OPENEMR_LIVE_READS`); the chart they read is a
->   seeded synthetic patient too.
+>   A clinician session launched from OpenEMR (E9, `docs/agentforge/PLAN.md`
+>   D13, §3f) reads the chart through OpenEMR's REST API instead. It is live
+>   on production only for the designated synthetic patient `AF-LIVE-01`, and
+>   was observed on `b942391f` as `grader`
+>   (`docs/agentforge/evidence/E9-live-chart-live.md`). Problems and
+>   allergies show as unconfirmed there, because of the OpenEMR 8.0.0 finding
+>   in §3f.
 > - **Week 1 is frozen** at `84f232b`, on its own route (`/agentforge`) and
 >   its own pinned image. Nothing in this document changes it.
 > - **There is no GitLab CI runner.** The enforced gate is the tracked
