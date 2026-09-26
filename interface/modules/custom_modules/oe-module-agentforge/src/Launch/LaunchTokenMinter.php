@@ -40,16 +40,45 @@ final readonly class LaunchTokenMinter
     }
 
     /**
-     * Which tokens this launch may carry. Reading needs chart read ACL. The
-     * write-source-document token also needs document write ACL and a patient
-     * on the write allowlist; the module and the W2 service re-check both.
+     * The ACOs the OpenEMR REST routes OpenEMRRestAdapter reads enforce
+     * (apis/routes/_rest_routes_standard.inc.php): patient (demographics),
+     * medical_problem, medication, allergy, document and encounter. Those
+     * reads run as the service's OAuth identity, so the signed-in user must
+     * hold every one of them before any token is minted.
+     *
+     * @var list<array{string, string}>
      */
-    public static function grant(bool $chartReadAcl, bool $documentWriteAcl, bool $patientOnWriteAllowlist): LaunchGrant
+    public const REQUIRED_READ_ACOS = [
+        ['patients', 'demo'],
+        ['patients', 'med'],
+        ['patients', 'docs'],
+        ['encounters', 'notes'],
+        ['encounters', 'auth_a'],
+    ];
+
+    /**
+     * Which tokens this launch may carry.
+     *
+     * - Every REQUIRED_READ_ACOS entry, for the signed-in user; else None.
+     * - The patient on the live allowlist (AGENTFORGE_LIVE_PATIENT_UUIDS, the
+     *   designated synthetic patients); else NotDesignated.
+     * - Upload also needs patients/docs write and the write allowlist
+     *   (AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS); the module API and the W2
+     *   service enforce both allowlists again.
+     *
+     * @param callable(string, string, string): bool $aclCheck section, value, return value ('' = any)
+     */
+    public static function grant(callable $aclCheck, bool $patientOnLiveAllowlist, bool $patientOnWriteAllowlist): LaunchGrant
     {
-        if (!$chartReadAcl) {
-            return LaunchGrant::None;
+        foreach (self::REQUIRED_READ_ACOS as [$section, $value]) {
+            if (!$aclCheck($section, $value, '')) {
+                return LaunchGrant::None;
+            }
         }
-        return $documentWriteAcl && $patientOnWriteAllowlist ? LaunchGrant::ReadAndUpload : LaunchGrant::ReadOnly;
+        if (!$patientOnLiveAllowlist) {
+            return LaunchGrant::NotDesignated;
+        }
+        return $aclCheck('patients', 'docs', 'write') && $patientOnWriteAllowlist ? LaunchGrant::ReadAndUpload : LaunchGrant::ReadOnly;
     }
 
     public function mint(string $patientUuid, string $clinicianUuid, LaunchScope $scope, int $now): string

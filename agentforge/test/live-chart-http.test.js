@@ -168,7 +168,8 @@ test('live reads off: a module session fails loudly with openemr_live_reads_disa
 
 test('live reads without external-provider approval: nothing leaves the process; the public demo and an approved live read do call out', async () => {
   const models = await startRecordingModelServer();
-  const modelEnv = (approved) => ({
+  const modelEnv = (approved, designated = [LIVE_PATIENT]) => ({
+    AGENTFORGE_LIVE_PATIENT_UUIDS: designated.join(','),
     AGENTFORGE_PROVIDER_MODE: 'qwen', AGENTFORGE_MODEL_PROTOCOL: 'compatible', AGENTFORGE_MODEL_ENDPOINT: `${models.url}/qwen/chat/completions`, AGENTFORGE_MODEL_API_KEY: 'synthetic-key', AGENTFORGE_MODEL: 'synthetic-model',
     AGENTFORGE_CRITIC_MODEL: 'synthetic-critic', AGENTFORGE_OPENROUTER_ENDPOINT: `${models.url}/openrouter/chat/completions`, AGENTFORGE_OPENROUTER_API_KEY: 'synthetic-key',
     AGENTFORGE_RERANK_PROVIDER: 'qwen', AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED: approved ? 'true' : 'false',
@@ -193,6 +194,16 @@ test('live reads without external-provider approval: nothing leaves the process;
     assert.ok(models.requests.length > 0, 'the fixture chart path does reach the model endpoint');
     assert.ok(demo.demo_token);
   } finally { await unapproved.stop(); }
+  // Approval alone is not enough: the patient must be designated (AGENTFORGE_LIVE_PATIENT_UUIDS).
+  const beforeUndesignated = models.requests.length;
+  const undesignated = await startStack(18976, 'on', modelEnv(true, [OTHER_PATIENT]));
+  try {
+    const { scan, scanned } = await uploadAndScan(undesignated.base, moduleToken(LIVE_PATIENT, 'write-source-document'));
+    assert.equal(scan.status, 200);
+    assert.equal(scanned.workflow.answer.critic_status, 'skipped_not_approved');
+    assert.equal(scanned.chart_source.designated_patient, false);
+    assert.equal(models.requests.length, beforeUndesignated, 'an approved but undesignated live patient made outbound model requests');
+  } finally { await undesignated.stop(); }
   const before = models.requests.length;
   const approved = await startStack(18975, 'on', modelEnv(true));
   try {
@@ -201,4 +212,42 @@ test('live reads without external-provider approval: nothing leaves the process;
     assert.notEqual(scanned.workflow.answer.critic_status, 'skipped_not_approved');
     assert.ok(models.requests.length > before, 'with approval the live read reaches the model endpoint');
   } finally { await approved.stop(); await models.close(); }
+});
+
+test('live pages and responses: honest data labels, no-store and no-referrer, tokens stripped from the address bar', async () => {
+  const stack = await startStack(18977, 'on', { AGENTFORGE_LIVE_PATIENT_UUIDS: LIVE_PATIENT });
+  try {
+    const { base } = stack;
+    const read = moduleToken(LIVE_PATIENT);
+    const pageResponse = await fetch(`${base}/?demo_token=${encodeURIComponent(read)}`);
+    assert.equal(pageResponse.headers.get('cache-control'), 'no-store');
+    assert.equal(pageResponse.headers.get('referrer-policy'), 'no-referrer');
+    const page = await pageResponse.text();
+    assert.match(page, /id="data-origin">Live OpenEMR chart \(synthetic patient\)</);
+    assert.match(page, /history\.replaceState\(/);
+    const demoPage = await (await fetch(`${base}/`)).text();
+    assert.match(demoPage, /id="data-origin">Synthetic demonstration only</);
+    const { scan, scanned } = await uploadAndScan(base, moduleToken(LIVE_PATIENT, 'write-source-document'));
+    assert.equal(scan.headers.get('cache-control'), 'no-store');
+    assert.equal(scan.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(scanned.synthetic_only, false, 'a live read is never labeled synthetic_only');
+    assert.equal(scanned.chart_source.designated_patient, true);
+    const evidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: read, message: 'blood pressure' })).json();
+    assert.equal(evidence.synthetic_only, false);
+    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
+    const demoEvidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: 'fixture-patient-001', clinician_uuid: demo.clinician_uuid, demo_token: demo.demo_token, message: 'blood pressure' })).json();
+    assert.equal(demoEvidence.synthetic_only, true);
+  } finally { await stack.stop(); }
+});
+
+test('live reads on without OpenEMR access settings: /ready is 503 and live requests are refused, loudly', async () => {
+  const stack = await startStack(18978, 'on', { AGENTFORGE_OPENEMR_ACCESS_TOKEN: '' });
+  try {
+    const ready = await fetch(`${stack.base}/ready`);
+    assert.equal(ready.status, 503);
+    assert.equal((await ready.json()).dependencies.openemrLiveReadsConfiguration.status === 'ready', false);
+    const briefing = await (await post(stack.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: moduleToken(LIVE_PATIENT) })).json();
+    assert.deepEqual(briefing.qualification.reasons, ['openemr_live_reads_not_configured']);
+    assert.equal(stack.rest.requests.length, 0);
+  } finally { await stack.stop(); }
 });

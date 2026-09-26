@@ -319,7 +319,9 @@ export function validateFollowUpEvidenceResponse(value) {
   if (!isRecord(value)) return { valid: false, issues: ['response_must_be_object'] };
   unknownFields(issues, value, ['status', 'synthetic_only', 'patient_facts', 'guideline_evidence', 'retrieval', 'qualification']);
   if (value.status !== 'ready') issues.push('status_invalid');
-  if (value.synthetic_only !== true) issues.push('synthetic_only_is_required');
+  // E9: a live OpenEMR read is labeled by its chart_source, never as synthetic.
+  const liveRead = isRecord(value.retrieval) && value.retrieval.chart_source === 'openemr_live';
+  if (value.synthetic_only !== !liveRead) issues.push(liveRead ? 'synthetic_only_must_be_false_for_live_read' : 'synthetic_only_is_required');
   if (!Array.isArray(value.patient_facts)) issues.push('patient_facts_must_be_array');
   if (!Array.isArray(value.guideline_evidence)) issues.push('guideline_evidence_must_be_array');
   else for (const [index, evidence] of value.guideline_evidence.entries()) {

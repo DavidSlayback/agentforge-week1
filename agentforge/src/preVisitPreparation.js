@@ -6,7 +6,7 @@ import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 import { assessRecordTrust } from './recordTrust.js';
 import { chartReadOrigin, chartRecordCitationSource, isLiveChartRead } from './chartSource.js';
 import { mentionsOtherPatient } from './patientMentions.js';
-import { resolveChartAdapter } from './chartSourceRouter.js';
+import { liveEgressAllowed, resolveChartAdapter } from './chartSourceRouter.js';
 
 // A neutral trace label shared by fixture and live paths. The source origin is
 // intentionally not implied by this cache revision.
@@ -15,7 +15,7 @@ const CACHE_SCHEDULE_REVISION = 'agentforge-calendar-v1';
 
 /** Owns the authenticated preparation, briefing, cache, and follow-up lifecycle. */
 export class PreVisitPreparation {
-  constructor({ adapter, provider, conversationProvider = null, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, now = () => Date.now() }) {
+  constructor({ adapter, provider, conversationProvider = null, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, livePatientAllowlist = new Set(), maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, now = () => Date.now() }) {
     this.adapter = adapter;
     this.now = now;
     this.provider = provider;
@@ -24,6 +24,7 @@ export class PreVisitPreparation {
     this.cache = cache;
     this.freshRetrievalDeadlineMs = freshRetrievalDeadlineMs;
     this.allowExternalLiveProvider = allowExternalLiveProvider;
+    this.livePatientAllowlist = livePatientAllowlist;
     this.maxPrewarmJobs = Number.isFinite(maxPrewarmJobs) && maxPrewarmJobs > 0 ? Math.floor(maxPrewarmJobs) : 8;
     this.prewarmDeadlineMs = Number.isFinite(prewarmDeadlineMs) && prewarmDeadlineMs > 0 ? prewarmDeadlineMs : 8000;
     this.prewarmJobs = new Map();
@@ -55,7 +56,7 @@ export class PreVisitPreparation {
     const chart = resolveChartAdapter(this.adapter, verifiedContext);
     trace?.startStage('authorization');
     trace?.finishStage('authorization', { status: 'success' });
-    const liveProviderBlocked = isLiveChartRead(chart) && !this.allowExternalLiveProvider && [this.provider, this.conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
+    const liveProviderBlocked = isLiveChartRead(chart) && !liveEgressAllowed({ approved: this.allowExternalLiveProvider, livePatientAllowlist: this.livePatientAllowlist }, authorization.patient_uuid) && [this.provider, this.conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
     if (liveProviderBlocked) {
       const result = blockedResult(id, 'live_external_provider_not_approved');
       trace?.setDisplay({ status: 'withheld' });

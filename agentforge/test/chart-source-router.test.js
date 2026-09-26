@@ -85,6 +85,29 @@ test('router: the patient id decides nothing; a synthetic-demo token naming an O
   assert.equal(requests.length, 0, 'a synthetic token never reaches OpenEMR');
 });
 
+test('scan: a token without a chart-read scope never picks or reads the live chart', async () => {
+  const requests = [];
+  const { router } = makeRouter({ requests });
+  const service = makeService(router);
+  const actionContext = verifySignedContext(issueSignedContext({ patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID, scope: 'write-clinical-action', acl: 'write', issuer: 'openemr-module', authn: 'openemr-session', secret }), secret);
+  const result = await service.runActiveSupervisorForDocument('openemr-doc-1', { patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID }, { verifiedContext: actionContext });
+  assert.deepEqual(result, { status: 'blocked', reason: 'chart_read_scope_invalid' });
+  const otherPatient = await service.runActiveSupervisorForDocument('openemr-doc-1', { patient_uuid: OTHER_PATIENT, clinician_uuid: CLINICIAN_UUID }, { verifiedContext: moduleContext() });
+  assert.equal(otherPatient.status, 'blocked');
+  assert.equal(requests.length, 0);
+});
+
+test('egress: approval alone is not enough; the verified patient must be designated', async () => {
+  const { liveEgressAllowed } = await import('../src/chartSourceRouter.js');
+  const allow = new Set([LIVE_PATIENT]);
+  assert.equal(liveEgressAllowed({ approved: true, livePatientAllowlist: allow }, LIVE_PATIENT), true);
+  assert.equal(liveEgressAllowed({ approved: true, livePatientAllowlist: allow }, LIVE_PATIENT.toUpperCase()), true);
+  assert.equal(liveEgressAllowed({ approved: true, livePatientAllowlist: allow }, OTHER_PATIENT), false);
+  assert.equal(liveEgressAllowed({ approved: false, livePatientAllowlist: allow }, LIVE_PATIENT), false);
+  assert.equal(liveEgressAllowed({ approved: true, livePatientAllowlist: new Set() }, LIVE_PATIENT), false);
+  assert.equal(liveEgressAllowed({ approved: true }, LIVE_PATIENT), false);
+});
+
 test('router: reading without resolving the request adapter fails loudly', () => {
   const { router } = makeRouter();
   assert.throws(() => router.getCase(LIVE_PATIENT), /CHART_SOURCE_CONTEXT_REQUIRED/);

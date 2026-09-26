@@ -7,7 +7,7 @@ import { traceSafeHandoff } from './activeWorkers.js';
 import { extractScanForm } from './scanFormAdapter.js';
 import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './pdfScanAdapter.js';
 import { chartReadOrigin, chartRecordCitationSource, isLiveChartRead } from './chartSource.js';
-import { resolveChartAdapter, selectChartSource } from './chartSourceRouter.js';
+import { CHART_READ_SCOPES, liveEgressAllowed, resolveChartAdapter, selectChartSource } from './chartSourceRouter.js';
 import { mentionsOtherPatient } from './patientMentions.js';
 import { findUntrustedNarrative } from './recordTrust.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
@@ -20,7 +20,7 @@ import { buildLabTrends } from './labTrend.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000, criticProvider = null, criticTimeoutMs = DEFAULT_CRITIC_TIMEOUT_MS, criticDisabledReason = null, now = () => Date.now() }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, livePatientAllowlist = new Set(), maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000, criticProvider = null, criticTimeoutMs = DEFAULT_CRITIC_TIMEOUT_MS, criticDisabledReason = null, now = () => Date.now() }) {
     this.adapter = chartAdapter;
     // null keeps the pdfScanAdapter default (real pdftoppm + Tesseract).
     this.ocrEngine = ocrEngine;
@@ -39,6 +39,9 @@ export class AgentForgeService {
     // briefings -- a live OpenEMR chart adapter with no explicit external-
     // provider approval forces the deterministic composer, never a real model.
     this.allowExternalLiveProvider = allowExternalLiveProvider;
+    // E9: the designated synthetic patients whose live reads may leave the
+    // process when allowExternalLiveProvider is set (liveEgressAllowed).
+    this.livePatientAllowlist = livePatientAllowlist;
     // F6 review fix: a per-scan-request deadline. Its AbortSignal is passed to
     // the low-confidence OCR retry and to the answer composer's provider call;
     // once it fires, the answer is composed deterministically
@@ -66,7 +69,7 @@ export class AgentForgeService {
     // boxes, not silently default back to the initial mode.
     this.resolvedOcrMode = new Map();
     this.traceSink = traceSink;
-    this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs, now });
+    this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, livePatientAllowlist, maxPrewarmJobs, prewarmDeadlineMs, now });
     // Preserve the established facade access used by callers and tests while
     // keeping cache ownership inside the preparation module.
     this.cache = this.preparation.cache;
@@ -205,13 +208,19 @@ export class AgentForgeService {
     // it never falls back to the fixture chart.
     const chartSelection = selectChartSource(this.chartAdapter, verifiedContext);
     if (chartSelection.status !== 'selected') return { status: 'blocked', reason: chartSelection.reason };
+    // The token must itself be allowed to read this patient's chart (a read
+    // or write-source-document scope, the same patient and clinician) before
+    // it picks and reads a live chart.
+    const chartAuthorization = this.authorizeChartRead(request, verifiedContext);
+    if (chartAuthorization.status !== 'authorized') return { status: 'blocked', reason: chartAuthorization.reason };
     const chartReader = chartSelection.adapter;
-    const chartRead = { chart_source: chartSelection.chart_source, label: chartSelection.label, status: 'not_read', reason: null };
+    const livePatient = isLiveChartRead(chartReader);
+    const chartRead = { chart_source: chartSelection.chart_source, label: chartSelection.label, status: 'not_read', reason: null, ...(livePatient ? { designated_patient: this.isDesignatedLivePatient(chartAuthorization.patient_uuid) } : {}) };
     // F8 review fix, extended by E9: a live OpenEMR read with no explicit
     // external-provider approval makes no outbound call at all: no answer
     // model, no critic, no external OCR, and a local-only guideline
     // retriever (no embed or rerank call).
-    const liveExternalBlocked = isLiveChartRead(chartReader) && !this.allowExternalLiveProvider;
+    const liveExternalBlocked = livePatient && !this.liveEgressAllowedFor(chartAuthorization.patient_uuid);
     const guidelineRetriever = liveExternalBlocked ? localLexicalGuidelineRetriever : this.guidelineRetriever;
     let source;
     try {
@@ -246,7 +255,7 @@ export class AgentForgeService {
           trace?.setEvaluation(evaluation);
           trace?.setVerification(verification);
           trace?.complete({ status: 'blocked' });
-          return { status: 'unreadable', synthetic_only: true, reason: 'document_unreadable', final_state: 'BLOCKED', source_document: source.source_document };
+          return { status: 'unreadable', synthetic_only: !livePatient, reason: 'document_unreadable', final_state: 'BLOCKED', source_document: source.source_document };
         }
         throw error;
       }
@@ -351,7 +360,9 @@ export class AgentForgeService {
       trace?.setEvaluation(evaluation);
       trace?.setVerification(verification);
       trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
-      return { status: 'completed', synthetic_only: true, source_document: source.source_document, chart_source: chartRead, workflow, ...(answerRefused ? { answer_refusal: { disposition: 'blocked', reason: 'out_of_scope_patient' } } : {}), ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
+      // A live read is not vouched synthetic by this service; the label says
+      // what was read (chart_source, designated_patient).
+      return { status: 'completed', synthetic_only: !livePatient, source_document: source.source_document, chart_source: chartRead, workflow, ...(answerRefused ? { answer_refusal: { disposition: 'blocked', reason: 'out_of_scope_patient' } } : {}), ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
     } catch (error) {
       trace?.complete({ status: 'failure' });
       throw error;
@@ -441,7 +452,7 @@ export class AgentForgeService {
     const withheldFields = chart.withheld_patient_fields || [];
     // E9: a live read without external-provider approval makes no outbound
     // call, so the question is ranked by the local retriever only.
-    const guidelineRetriever = isLiveChartRead(resolveChartAdapter(this.chartAdapter, verifiedContext)) && !this.allowExternalLiveProvider ? localLexicalGuidelineRetriever : this.guidelineRetriever;
+    const guidelineRetriever = isLiveChartRead(resolveChartAdapter(this.chartAdapter, verifiedContext)) && !this.liveEgressAllowedFor(authorization.patient_uuid) ? localLexicalGuidelineRetriever : this.guidelineRetriever;
     let guideline;
     try {
       guideline = await guidelineRetriever.retrieve(request.message, { topK });
@@ -451,7 +462,7 @@ export class AgentForgeService {
       // provider error string) that must not reach an API response or trace.
       guideline = { status: 'qualified', provider: guidelineRetriever.name || 'unknown', evidence: [], issues: ['guideline_retrieval_failed'] };
     }
-    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups, withheld_patient_fields: withheldFields, chart_source: chart.chart_source }, qualification: { required: Boolean(failedGroups.length || withheldFields.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...withheldFields.map((item) => `${item.reason}:${item.field}`), ...guideline.issues] } };
+    return { status: 'ready', synthetic_only: chart.chart_source !== 'openemr_live', patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups, withheld_patient_fields: withheldFields, chart_source: chart.chart_source }, qualification: { required: Boolean(failedGroups.length || withheldFields.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...withheldFields.map((item) => `${item.reason}:${item.field}`), ...guideline.issues] } };
   }
 
   /**
@@ -484,7 +495,23 @@ export class AgentForgeService {
   externalEgressFor(verifiedContext) {
     const selection = selectChartSource(this.chartAdapter, verifiedContext);
     if (selection.status !== 'selected') return { status: 'blocked', reason: selection.reason };
-    return { status: 'selected', allowed: !isLiveChartRead(selection.adapter) || this.allowExternalLiveProvider };
+    return { status: 'selected', allowed: !isLiveChartRead(selection.adapter) || this.liveEgressAllowedFor(verifiedContext?.patient_uuid) };
+  }
+
+  /** Approval flag and the designated-patient allowlist, both required (chartSourceRouter.js#liveEgressAllowed). */
+  liveEgressAllowedFor(patientRef) {
+    return liveEgressAllowed({ approved: this.allowExternalLiveProvider, livePatientAllowlist: this.livePatientAllowlist }, patientRef);
+  }
+
+  isDesignatedLivePatient(patientRef) {
+    return typeof patientRef === 'string' && Boolean(this.livePatientAllowlist?.has(patientRef.toLowerCase()));
+  }
+
+  /** Read authorization for the chart a context names: a chart-read scope, same patient and clinician (E9). */
+  authorizeChartRead(request, verifiedContext) {
+    if (!CHART_READ_SCOPES.includes(verifiedContext?.scope)) return { status: 'blocked', reason: verifiedContext ? 'chart_read_scope_invalid' : 'server_context_missing_or_invalid' };
+    if (typeof this.chartAdapter?.authorize !== 'function') return { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    return this.chartAdapter.authorize(request, verifiedContext, { requiredScope: verifiedContext.scope, requiredAcl: verifiedContext.acl });
   }
 
   authorizeWriteback(request, verifiedContext, options = {}) {

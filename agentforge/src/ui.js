@@ -20,7 +20,7 @@ const SYNTHETIC_DEMO_PATIENTS = [
   ['fixture-patient-dup', 'Test Duplicate · duplicate identity'],
 ];
 
-export function renderAgentForgePage({ token = '', payload = null, publicBasePath = '', liveOpenEMR = false, writeToken = '', chartSource = null } = {}) {
+export function renderAgentForgePage({ token = '', payload = null, publicBasePath = '', liveOpenEMR = false, writeToken = '', chartSource = null, designatedPatient = false } = {}) {
   const patient = payload?.patient_uuid || '';
   // E9: a page opened from the OpenEMR module launcher carries a verified
   // openemr-session context. Its patient, clinician and write token come from
@@ -33,6 +33,11 @@ export function renderAgentForgePage({ token = '', payload = null, publicBasePat
   const defaultChartSource = liveOpenEMR ? CHART_RECORD_SOURCES.openemr : CHART_RECORD_SOURCES.fixture;
   const chartSourceLabel = chartSource?.label || defaultChartSource.label;
   const chartSourceValue = chartSource?.chart_source || defaultChartSource.chart_source;
+  // The header says what the page reads: the synthetic demo, or the live
+  // OpenEMR chart of a designated synthetic patient (the launcher mints live
+  // tokens only for those; AGENTFORGE_LIVE_PATIENT_UUIDS).
+  const liveChartPage = (chartSource?.chart_source || chartSourceValue) === CHART_RECORD_SOURCES.openemr.chart_source;
+  const dataBadge = liveChartPage ? (designatedPatient ? 'Live OpenEMR chart (synthetic patient)' : 'Live OpenEMR chart') : 'Synthetic demonstration only';
   const chartOperationLabels = Object.fromEntries(Object.values(CHART_RECORD_SOURCES).map((source) => [source.operation, [source.chart_source, source.label]]));
   const scriptJson = (value) => JSON.stringify(value).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026');
   const patientControl = payload
@@ -82,7 +87,7 @@ button:disabled{opacity:.6;cursor:wait}
 </style>
 </head>
 <body><main id="agentforge-app">
-<header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge">Synthetic demonstration only</span></div>
+<header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge" id="data-origin">${escapeHtml(dataBadge)}</span></div>
 <div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div></header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
@@ -99,6 +104,9 @@ button:disabled{opacity:.6;cursor:wait}
 (() => {
   const basePath = location.pathname.startsWith('/agentforge-w2') ? '/agentforge-w2' : location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
   const state = { conversationId: null, patient: null, demoToken: ${JSON.stringify(token).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026')}, writeToken: ${scriptJson(writeToken)} };
+  // E9: the launch tokens stay in memory only; strip them from the address
+  // bar and history so they are not bookmarked, shared or kept in history.
+  try { const launchUrl = new URL(location.href); if (launchUrl.searchParams.has('demo_token') || launchUrl.searchParams.has('write_token')) { launchUrl.searchParams.delete('demo_token'); launchUrl.searchParams.delete('write_token'); history.replaceState(null, '', launchUrl.pathname + (launchUrl.search || '') + launchUrl.hash); } } catch {}
   const chartSourceBadge = document.getElementById('chart-source');
   // Provenance comes from each response: the briefing's read operation, or the scan's chart_source.
   const showChartSource = (value, label) => { if (!chartSourceBadge || !label) return; chartSourceBadge.dataset.chartSource = value; chartSourceBadge.textContent = 'Chart source: ' + label; };

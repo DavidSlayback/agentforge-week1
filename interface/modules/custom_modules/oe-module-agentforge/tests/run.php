@@ -389,11 +389,32 @@ const LAUNCH_VECTOR_NOW = 1790000000;
 const LAUNCH_VECTOR_CLINICIAN = '6f1e2d3c-4b5a-4968-8776-655443322110';
 const LAUNCH_VECTOR_WRITE_TOKEN = 'eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6IjZmMWUyZDNjLTRiNWEtNDk2OC04Nzc2LTY1NTQ0MzMyMjExMCIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoib3BlbmVtci1tb2R1bGUiLCJhdXRobiI6Im9wZW5lbXItc2Vzc2lvbiIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAyODB9.yr7Os9mQ3I_ACdI8E3N6LV0l44pTFn4yZvKamK4d6bc';
 
-check('launcher grant: no read ACL mints nothing; write needs write ACL and the allowlist', function (): void {
-    same(LaunchGrant::None, LaunchTokenMinter::grant(false, true, true), 'no read acl');
-    same(LaunchGrant::ReadOnly, LaunchTokenMinter::grant(true, false, true), 'no write acl');
-    same(LaunchGrant::ReadOnly, LaunchTokenMinter::grant(true, true, false), 'not allowlisted');
-    same(LaunchGrant::ReadAndUpload, LaunchTokenMinter::grant(true, true, true), 'write acl and allowlisted');
+/**
+ * @param list<string> $held "section/value" or "section/value/return" entries
+ * @return callable(string, string, string): bool
+ */
+function fakeAcl(array $held): callable
+{
+    return static fn(string $section, string $value, string $returnValue): bool => in_array($returnValue === '' ? "$section/$value" : "$section/$value/$returnValue", $held, true);
+}
+
+check('launcher grant: every ACO the REST reads enforce is required (demo, med, docs, encounters notes and auth_a)', function (): void {
+    same([['patients', 'demo'], ['patients', 'med'], ['patients', 'docs'], ['encounters', 'notes'], ['encounters', 'auth_a']], LaunchTokenMinter::REQUIRED_READ_ACOS, 'aco list');
+    $all = ['patients/demo', 'patients/med', 'patients/docs', 'encounters/notes', 'encounters/auth_a'];
+    foreach ($all as $missing) {
+        same(LaunchGrant::None, LaunchTokenMinter::grant(fakeAcl(array_values(array_diff($all, [$missing]))), true, true), "without $missing");
+    }
+    same(LaunchGrant::ReadOnly, LaunchTokenMinter::grant(fakeAcl($all), true, true), 'all read acos, no docs write');
+});
+
+check('launcher grant: only designated (live-allowlisted) patients; upload also needs docs write and the write allowlist', function (): void {
+    $read = ['patients/demo', 'patients/med', 'patients/docs', 'encounters/notes', 'encounters/auth_a'];
+    $write = [...$read, 'patients/docs/write'];
+    same(LaunchGrant::NotDesignated, LaunchTokenMinter::grant(fakeAcl($write), false, true), 'not designated');
+    same(LaunchGrant::ReadOnly, LaunchTokenMinter::grant(fakeAcl($write), true, false), 'not on the write allowlist');
+    same(LaunchGrant::ReadOnly, LaunchTokenMinter::grant(fakeAcl($read), true, true), 'no docs write');
+    same(LaunchGrant::ReadAndUpload, LaunchTokenMinter::grant(fakeAcl($write), true, true), 'designated, write acl, write allowlist');
+    same(LaunchGrant::None, LaunchTokenMinter::grant(fakeAcl(['patients/docs/write']), true, true), 'write without read');
 });
 
 check('launcher tokens: openemr-module / openemr-session claims, scope-matched acl, TTL under 300 s', function () use ($patient): void {

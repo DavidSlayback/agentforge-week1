@@ -8,7 +8,7 @@ import { FixtureAdapter } from './fixtureAdapter.js';
 import { ChartSourceRouter, describeLaunchChartSource, parseLiveReads } from './chartSourceRouter.js';
 import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
-import { createOpenEMRModuleWritebackFromEnv } from './openemrModuleWriteback.js';
+import { createOpenEMRModuleWritebackFromEnv, parseUuidAllowlist } from './openemrModuleWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest } from './contracts.js';
@@ -135,6 +135,9 @@ const validOpenEMRMode = openEMRMode === 'synthetic' || openEMRMode === 'live';
 // default) such a request is refused with openemr_live_reads_disabled, never
 // served from fixtures. The public demo's own tokens always read fixtures.
 const liveReadsEnabled = parseLiveReads(process.env.AGENTFORGE_OPENEMR_LIVE_READS);
+// The designated synthetic patients (AGENTFORGE_LIVE_PATIENT_UUIDS): a live
+// read may leave the process only for them, and only with the approval flag.
+const livePatientAllowlist = parseUuidAllowlist(process.env.AGENTFORGE_LIVE_PATIENT_UUIDS || '');
 if (liveReadsEnabled && liveOpenEMR) throw new Error('AGENTFORGE_OPENEMR_LIVE_READS applies to the synthetic OpenEMR mode only; the live mode already reads every request from OpenEMR');
 const scanProviderMode = process.env.AGENTFORGE_SCAN_PROVIDER_MODE || 'local';
 if (!['local', 'gemini'].includes(scanProviderMode)) throw new Error('AGENTFORGE_SCAN_PROVIDER_MODE must be local or gemini');
@@ -202,7 +205,15 @@ function injectTestAnswerFault(answer) {
 const buildRestAdapter = () => new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) });
 // The synthetic mode routes each request by its verified claims (E9,
 // chartSourceRouter.js); the live mode reads every request from OpenEMR.
-const chartAdapter = liveOpenEMR ? buildRestAdapter() : new ChartSourceRouter({ fixtureAdapter: new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath()), liveAdapter: liveReadsEnabled ? buildRestAdapter() : null, liveReads: liveReadsEnabled });
+// Live reads on without OpenEMR access settings: log the missing names (never
+// values), keep /ready at 503, and refuse each live request with
+// openemr_live_reads_not_configured.
+const liveReadsMissingSettings = liveReadsEnabled ? [
+  ...(process.env.AGENTFORGE_OPENEMR_BASE_URL ? [] : ['AGENTFORGE_OPENEMR_BASE_URL']),
+  ...(process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN || openEMRTokenProvider ? [] : ['AGENTFORGE_OPENEMR_TOKEN_URL', 'AGENTFORGE_OPENEMR_CLIENT_ID', 'AGENTFORGE_OPENEMR_CLIENT_SECRET', 'AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH'].filter((name) => !process.env[name])),
+] : [];
+if (liveReadsMissingSettings.length) console.error('AgentForge live reads are on but OpenEMR access is not configured; live requests are refused and /ready is 503', { missing: liveReadsMissingSettings });
+const chartAdapter = liveOpenEMR ? buildRestAdapter() : new ChartSourceRouter({ fixtureAdapter: new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath()), liveAdapter: liveReadsEnabled ? buildRestAdapter() : null, liveReads: liveReadsEnabled, liveConfigured: liveReadsMissingSettings.length === 0 });
 // Persistence is chosen independently of the chart mode: the W2 service keeps
 // the synthetic chart but stores uploads in OpenEMR through the module.
 const persistenceMode = process.env.AGENTFORGE_PERSISTENCE_MODE || 'in-memory-synthetic';
@@ -220,7 +231,7 @@ const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: serviceExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000), criticProvider: criticConfig.provider, criticTimeoutMs: criticConfig.timeoutMs, criticDisabledReason: criticConfig.disabledReason });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: serviceExternalProviderAllowed, livePatientAllowlist, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000), criticProvider: criticConfig.provider, criticTimeoutMs: criticConfig.timeoutMs, criticDisabledReason: criticConfig.disabledReason });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
@@ -241,6 +252,7 @@ const modelReadiness = { checkReady: async () => {
 const readiness = createReadinessChecker({
   configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
   retrieval: chartAdapter,
+  ...(liveReadsEnabled ? { openemrLiveReadsConfiguration: { checkReady: async () => liveReadsMissingSettings.length === 0 } } : {}),
   model: modelReadiness,
   trace: { checkReady: async () => traceSink.health().status === 'ok' },
   // A missing/unreadable corpus/guidelines/corpus.json no longer crashes the
@@ -257,8 +269,11 @@ const readEvidence = (name) => JSON.parse(fs.readFileSync(path.join(evalsRoot, n
 // console/stdout capture and takes seconds. The server serves the committed report.
 const readW2Baseline = () => ({ ...JSON.parse(fs.readFileSync(path.join(projectRoot, 'docs/agentforge/evidence/W2_BASELINE_REPORT.json'), 'utf8')), served_from: 'committed_baseline_report' });
 const readGoldenEvidence = () => process.env.AGENTFORGE_EVAL_REPORT_PATH ? JSON.parse(fs.readFileSync(process.env.AGENTFORGE_EVAL_REPORT_PATH, 'utf8')) : readEvidence('deployed-service-results.json');
-const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
-const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
+// Context tokens travel in URLs and bodies (E9): no response is cached, and no
+// page sends its URL on as a Referer.
+const NO_STORE_HEADERS = Object.freeze({ 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json', ...NO_STORE_HEADERS }); res.end(JSON.stringify(body)); };
+const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS }); res.end(body); };
 const invalidContract = (res, error, issues) => json(res, 400, { error, issues });
 const invalidResponse = (res, error, issues) => json(res, 500, { error, issues });
 // Scan-extraction responses carry the typed W2 contract (citations,
@@ -350,7 +365,7 @@ const server = http.createServer(async (req, res) => {
       const filename = pdfSamples[sample];
       if (!filename) return json(res, 400, { error: 'invalid_synthetic_pdf_sample' });
       const content = fs.readFileSync(path.join(projectRoot, 'docs/agentforge/fixtures/scan-forms/pdf-samples', filename));
-      res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="agentforge-${sample}-synthetic.pdf"`, 'cache-control': 'no-store', 'x-agentforge-synthetic': 'true' });
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="agentforge-${sample}-synthetic.pdf"`, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-agentforge-synthetic': 'true' });
       return res.end(content);
     }
     if (req.method === 'GET' && req.url.startsWith('/v1/clinical-action-context')) {
@@ -416,7 +431,7 @@ const server = http.createServer(async (req, res) => {
         if (result.content.subarray(0, 5).toString() !== '%PDF-') return json(res, 404, { error: 'source_page_not_found' });
         const cacheKey = `${id}:${page}`;
         const png = await cachedPageImage(cacheKey, () => renderPdfPagePng(result.content, page));
-        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'private, max-age=300' });
+        res.writeHead(200, { 'content-type': 'image/png', ...NO_STORE_HEADERS });
         return res.end(png);
       } catch (error) {
         if (error instanceof URIError) return json(res, 400, { error: 'invalid_source_document_id' });
@@ -481,7 +496,8 @@ const server = http.createServer(async (req, res) => {
       const writeCandidate = query.get('write_token') || '';
       const writePayload = writeCandidate ? tokenPayload(writeCandidate) : null;
       const writeToken = payload && writePayload && writePayload.issuer === 'openemr-module' && writePayload.authn === 'openemr-session' && payload.issuer === 'openemr-module' && writePayload.scope === 'write-source-document' && writePayload.patient_uuid === payload.patient_uuid && writePayload.clinician_uuid === payload.clinician_uuid ? writeCandidate : '';
-      return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken, chartSource: describeLaunchChartSource(chartAdapter, payload) }));
+      const designatedPatient = Boolean(payload && livePatientAllowlist.has(String(payload.patient_uuid).toLowerCase()));
+      return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken, chartSource: describeLaunchChartSource(chartAdapter, payload), designatedPatient }));
     }
     let body;
     try { body = await readJsonBody(req); } catch (error) { return json(res, error.code === 'REQUEST_BODY_TOO_LARGE' ? 413 : 400, { error: error.code === 'REQUEST_BODY_TOO_LARGE' ? error.code.toLowerCase() : 'invalid_json' }); }

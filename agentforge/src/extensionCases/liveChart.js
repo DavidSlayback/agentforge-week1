@@ -119,8 +119,8 @@ export const liveChartCaseChecks = {
     return issues;
   },
   /**
-   * A live read without AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED makes no
-   * outbound call: no answer model, no critic, no external OCR, no guideline
+   * A live read without AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED and the
+   * patient on AGENTFORGE_LIVE_PATIENT_UUIDS makes no outbound call: no answer model, no critic, no external OCR, no guideline
    * embed/rerank. The critic says skipped_not_approved, never reviewed. With
    * approval the same seams are called (so the check is not vacuous).
    */
@@ -135,8 +135,14 @@ export const liveChartCaseChecks = {
     for (const [seam, count] of Object.entries(fakes.calls)) if (count) issues.push(`unapproved_live_egress:${seam}:${count}`);
     if (result.workflow?.answer?.critic_status !== 'skipped_not_approved') issues.push(`unapproved_critic_status:${result.workflow?.answer?.critic_status}`);
     if (result.chart_source?.chart_source !== 'openemr_live') issues.push('unapproved_scan_not_live');
-    // Sensitivity: approval turns the same seams on.
+    // Approval without the patient on the designated allowlist still sends nothing.
     service.allowExternalLiveProvider = true;
+    service.livePatientAllowlist = new Set([OTHER_PATIENT]);
+    const undesignated = await moduleSessionScan(run);
+    for (const [seam, count] of Object.entries(fakes.calls)) if (count) issues.push(`undesignated_live_egress:${seam}:${count}`);
+    if (undesignated.result?.workflow?.answer?.critic_status !== 'skipped_not_approved') issues.push(`undesignated_critic_status:${undesignated.result?.workflow?.answer?.critic_status}`);
+    // Sensitivity: approval plus the designated patient turns the same seams on.
+    service.livePatientAllowlist = new Set([LIVE_PATIENT]);
     service.scanProvider = null;
     await moduleSessionScan(run).catch(() => null);
     if (!fakes.calls.answer || !fakes.calls.critic || !fakes.calls.retriever) issues.push(`approved_seams_not_called:${JSON.stringify(fakes.calls)}`);

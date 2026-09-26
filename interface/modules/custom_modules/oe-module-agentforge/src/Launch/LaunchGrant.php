@@ -17,6 +17,7 @@ namespace OpenEMR\Modules\AgentForge\Launch;
 enum LaunchGrant
 {
     case None;
+    case NotDesignated;
     case ReadOnly;
     case ReadAndUpload;
 }

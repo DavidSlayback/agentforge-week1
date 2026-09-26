@@ -45,14 +45,6 @@ if ($pid === '' || $userId === '' || $username === '' || $secret === '') {
     exit;
 }
 
-// ACL checks take the username (the ARO value), not the numeric user id.
-$chartReadAcl = AclMain::aclCheckCore('patients', 'med', $username) && AclMain::aclCheckCore('patients', 'docs', $username);
-if (!$chartReadAcl) {
-    http_response_code(403);
-    echo '<p>' . xlt('AgentForge requires read access to the selected patient chart.') . '</p>';
-    exit;
-}
-
 $patientRow = sqlQuery('SELECT uuid FROM patient_data WHERE pid = ?', [$pid]);
 $userRow = sqlQuery('SELECT uuid FROM users WHERE id = ?', [$userId]);
 $patientRef = is_array($patientRow) && !empty($patientRow['uuid']) ? strtolower(UuidRegistry::uuidToString($patientRow['uuid'])) : '';
@@ -63,10 +55,27 @@ if ($patientRef === '' || $clinicianRef === '') {
     exit;
 }
 
-// Uploads write to OpenEMR, so they are offered only for allowlisted
-// synthetic patients (the module API and the W2 service enforce this again).
-$allowlisted = in_array($patientRef, AccessPolicy::parseAllowlist((string) (getenv('AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS') ?: '')), true);
-$grant = LaunchTokenMinter::grant($chartReadAcl, AclMain::aclCheckCore('patients', 'docs', $username, 'write'), $allowlisted);
+// The W2 service reads the chart as its own OAuth identity, so per-user
+// authorization happens here, once: every ACO the REST routes it reads
+// enforce, checked for the signed-in user (the ARO value is the username).
+// Live tokens go only to designated synthetic patients
+// (AGENTFORGE_LIVE_PATIENT_UUIDS); uploads also need the write allowlist.
+$envList = static fn(string $name): array => AccessPolicy::parseAllowlist((string) (getenv($name) ?: ''));
+$grant = LaunchTokenMinter::grant(
+    static fn(string $section, string $value, string $returnValue): bool => AclMain::aclCheckCore($section, $value, $username, $returnValue),
+    in_array($patientRef, $envList('AGENTFORGE_LIVE_PATIENT_UUIDS'), true),
+    in_array($patientRef, $envList('AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS'), true),
+);
+if ($grant === LaunchGrant::None) {
+    http_response_code(403);
+    echo '<p>' . xlt('AgentForge requires read access to the selected patient chart (demographics, medical record, documents and encounters).') . '</p>';
+    exit;
+}
+if ($grant === LaunchGrant::NotDesignated) {
+    http_response_code(403);
+    echo '<p>' . xlt('AgentForge is enabled only for designated synthetic patients.') . '</p>';
+    exit;
+}
 
 $minter = new LaunchTokenMinter($secret);
 $now = time();
@@ -80,7 +89,7 @@ $url = LaunchTokenMinter::launchUrl($serviceUrl, $readToken, $writeToken);
 <body>
 <main>
 <h1><?php echo xlt('Prepare for visit'); ?></h1>
-<p><?php echo xlt('The authenticated OpenEMR patient context was handed to the AgentForge service for under five minutes.'); ?></p>
+<p><?php echo xlt('The authenticated OpenEMR patient context was handed to the AgentForge service for under five minutes. This is a designated synthetic patient.'); ?></p>
 <p><?php echo $writeToken === null ? xlt('Chart reads only: uploads need document write access and an allowlisted synthetic patient.') : xlt('Chart reads and synthetic document uploads for this patient.'); ?></p>
 <a class="btn btn-primary" target="_blank" rel="noopener" href="<?php echo attr($url); ?>"><?php echo xlt('Open AgentForge briefing'); ?></a>
 </main>

@@ -6,8 +6,8 @@
   "injected_defect": false,
   "total_cases": 39,
   "missing_baseline": false,
-  "corpus_sha256": "e81193ec10515ac925436e7f1ec0a413694922b70374ad809d06591695f973e2",
-  "baseline_corpus_sha256": "e81193ec10515ac925436e7f1ec0a413694922b70374ad809d06591695f973e2",
+  "corpus_sha256": "a68b762a1a3517be6ec9782cd29f142fa7b4edfc6a25db370b20255807214437",
+  "baseline_corpus_sha256": "a68b762a1a3517be6ec9782cd29f142fa7b4edfc6a25db370b20255807214437",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",

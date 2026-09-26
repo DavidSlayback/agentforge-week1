@@ -24,6 +24,19 @@ import { CHART_RECORD_SOURCES, chartReadOrigin, chartRecordCitationSource } from
  */
 export const LIVE_READS_VALUES = Object.freeze(['on', 'off']);
 
+/**
+ * E9 egress rule, per patient: data from a live OpenEMR read may leave the
+ * process only with AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED **and** the
+ * verified patient on AGENTFORGE_LIVE_PATIENT_UUIDS (the designated
+ * synthetic patients). A missing allowlist allows nobody.
+ */
+export function liveEgressAllowed({ approved, livePatientAllowlist }, patientRef) {
+  return Boolean(approved) && typeof patientRef === 'string' && Boolean(livePatientAllowlist?.has(patientRef.toLowerCase()));
+}
+
+/** Scopes whose context may read the chart it names (a write-source-document context reads to answer its own scan). */
+export const CHART_READ_SCOPES = Object.freeze(['read-briefing', 'write-source-document']);
+
 const codedError = (code) => Object.assign(new Error(code), { code });
 
 /** `AGENTFORGE_OPENEMR_LIVE_READS`: `on` or `off` (default `off`); anything else throws at startup. */
@@ -34,12 +47,15 @@ export function parseLiveReads(raw) {
 }
 
 export class ChartSourceRouter {
-  constructor({ fixtureAdapter, liveAdapter = null, liveReads = false }) {
+  constructor({ fixtureAdapter, liveAdapter = null, liveReads = false, liveConfigured = true }) {
     if (!fixtureAdapter) throw codedError('CHART_SOURCE_FIXTURE_ADAPTER_REQUIRED');
     if (liveReads && chartReadOrigin(liveAdapter) !== 'openemr') throw codedError('CHART_SOURCE_LIVE_ADAPTER_REQUIRED');
     this.fixtureAdapter = fixtureAdapter;
     this.liveAdapter = liveReads ? liveAdapter : null;
     this.liveReads = Boolean(liveReads);
+    // Live reads on without the OpenEMR access settings: refused loudly per
+    // request (and /ready is 503), never a silent fallback.
+    this.liveConfigured = Boolean(liveConfigured);
     this.name = 'chart-source-router';
   }
 
@@ -52,6 +68,7 @@ export class ChartSourceRouter {
     const { issuer, authn } = verifiedContext;
     if (issuer === 'openemr-module' && authn === 'openemr-session') {
       if (!this.liveReads) return { status: 'blocked', reason: 'openemr_live_reads_disabled' };
+      if (!this.liveConfigured) return { status: 'blocked', reason: 'openemr_live_reads_not_configured' };
       return { status: 'selected', adapter: this.liveAdapter, ...CHART_RECORD_SOURCES.openemr };
     }
     if (issuer === 'synthetic-demo' && authn === 'synthetic') return { status: 'selected', adapter: this.fixtureAdapter, ...CHART_RECORD_SOURCES.fixture };
