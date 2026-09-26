@@ -1,5 +1,12 @@
 # Week 2 requirements by submission stage
 
+> **Historical (2026-09-23 working index for the early W2 checkpoint).** Kept as a record; several statements below are no
+> longer true. For example, W2 now stores documents, derived facts and lab
+> rows in OpenEMR, and the critic, the `medication_list` type and the lab
+> trend chart are built. Current state: the root
+> [`W2_ARCHITECTURE.md`](../../W2_ARCHITECTURE.md) §2 and the completion
+> record in [`PLAN.md`](PLAN.md).
+
 Source: `Week 2 PRD - AgentForge Clinical Co-Pilot.pdf` (local copy at `C:\Users\david\OneDrive\Desktop\Week 2 PRD - AgentForge Clinical Co-Pilot.pdf`); concise working index, not a replacement for the assignment.
 
 | Requirement | Early submission | Final submission | Current evidence / remaining |

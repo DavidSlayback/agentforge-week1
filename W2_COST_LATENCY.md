@@ -41,6 +41,15 @@ account may be on a prepaid Alibaba "token plan" (the endpoint host is
 `token-plan.cn-beijing.maas.aliyuncs.com`); if so, marginal cost inside the
 plan is lower than list price. This report uses list price.
 
+**The critic (E2), added after the numbers above.** Each reviewed scan makes
+one more model call: `openai/gpt-4.1-nano` through OpenRouter. The benchmark
+run inside the deployed container on `e56eab86` cost $0.000946 for 15 calls,
+about **$0.000063 per call**
+(`docs/agentforge/evidence/E2-critic-model-benchmark.json`). That adds about
+$0.00006 to a scan's $0.00046–$0.00058, roughly 11–14%. The per-scan figures
+and the projection in §6 predate the critic and do not include it; at the
+Singapore rate §6 uses, it would add about 11% to the model-cost column.
+
 ## 3. Latency (live)
 
 | Measure | p50 | p95 | n | Commit |
@@ -57,6 +66,16 @@ Per stage, from the 14 traces on `00e43da`:
 | Extraction (label map → Zod) | 3 ms | 15 ms | Pure CPU, negligible |
 | Retrieval (embed + BM25 + fusion + Qwen rerank) | 4.0 s | 5.6 s | Two network round trips; the rerank is an LLM call |
 | Answer (Qwen compose + verify) | 4.9 s | 9.2 s | Output generation dominates; verification is milliseconds |
+
+**Critic latency.** Benchmark on `e56eab86` (15 calls): p50 799 ms, p95
+1045 ms. Live, one trace on `e56eab86` recorded 1182 ms
+(`docs/agentforge/evidence/E2-critic-live.md`). So the critic adds about 1 s
+to a reviewed scan. It cannot push a scan past the deadline: it runs only if
+at least `AGENTFORGE_CRITIC_TIMEOUT_MS` (2500 ms on the VM) of the 25 s budget
+remains, and otherwise the answer ships labeled `skipped_budget`. With the
+critic on, the live `/v1/alerts` p95 (over the traces in its alert window)
+on `fd6c959b` was 21,228 ms against the 30,000 ms threshold. The upload-to-answer rows above were measured before the
+critic existed.
 
 Target (`KEY_METRICS.md`): p95 ≤ 30 s. Met on both runs. The per-request
 deadline is 25 s (`AGENTFORGE_SCAN_DEADLINE_MS`); past it the answer falls

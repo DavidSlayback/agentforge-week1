@@ -1,5 +1,12 @@
 # Week 2 early checkpoint status
 
+> **Historical (early W2 checkpoint status, 2026-09-23).** Kept as a record; several statements below are no
+> longer true. For example, W2 now stores documents, derived facts and lab
+> rows in OpenEMR, and the critic, the `medication_list` type and the lab
+> trend chart are built. Current state: the root
+> [`W2_ARCHITECTURE.md`](../../W2_ARCHITECTURE.md) §2 and the completion
+> record in [`PLAN.md`](PLAN.md).
+
 Status as of 2026-09-23: the W2 demo path is deployed on its isolated route and
 the current release has been exercised with browser uploads of both filled PDF
 types. The user still needs to record the 3–5 minute submission video.
