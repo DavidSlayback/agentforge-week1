@@ -119,7 +119,7 @@ test('AgentForge UI accepts only PDF and .scan.txt uploads, not plain .txt', () 
 });
 
 test('synthetic scan demo fixture route serves only the tracked sample with an explicit synthetic marker', async () => {
-  const port = 18808;
+  const port = 18913;
   const child = await startServer(port);
   try {
     const response = await fetch(`http://127.0.0.1:${port}/v1/demo-scan-fixture`);
@@ -134,7 +134,7 @@ test('synthetic scan demo fixture route serves only the tracked sample with an e
 });
 
 test('synthetic PDF sample route serves only the six fixed completed form samples', async () => {
-  const port = 18809;
+  const port = 18914;
   const child = await startServer(port);
   try {
     for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b', 'medlist-a', 'medlist-b']) {
@@ -250,7 +250,7 @@ test('the retired legacy lab-evidence, intake-evidence and supervisor routes now
 });
 
 test('synthetic scan-form evidence API and source preview preserve page-region citations', async () => {
-  const port = 18807;
+  const port = 18912;
   const child = await startServer(port);
   try {
     const patient = 'fixture-patient-001';
@@ -314,7 +314,7 @@ test('scan-supervisor accepts an absent or empty message: the UI sends no canned
 });
 
 test('scan extraction responses are re-validated at the HTTP boundary and never sent unvalidated', async () => {
-  const port = 18809;
+  const port = 18915;
   const child = await startServer(port, { AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION: 'true' });
   try {
     const patient = 'fixture-patient-001';
