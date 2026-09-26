@@ -98,7 +98,7 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 
 ## Resume notes
 
-- **Production deploy access (read-only check OK 2026-09-25):** `AGENTFORGE_DEPLOY_HOST=linuxuser@64.177.10.182`, `AGENTFORGE_DEPLOY_KEY=~/.ssh/agentforge-week1-vultr` (key path only; found from earlier Codex deploy sessions). Containers: `vultr-openemr-1`, `vultr-mysql-1`, `vultr-agentforge-1`, `vultr-agentforge-w2-1`, `vultr-proxy-1`. Public URL `https://dtstest.64.177.10.182.nip.io`.
+- **Production deploy access:** see the operator's local notes; `deploy/vultr/README.md` lists the required env var names only. Containers: `vultr-openemr-1`, `vultr-mysql-1`, `vultr-agentforge-1`, `vultr-agentforge-w2-1`, `vultr-dashboard-1`, `vultr-proxy-1`. Public URL `https://dtstest.64.177.10.182.nip.io`.
 - Paused and resumed 2026-09-25. The Phase 7 catalog agent was continued (write step only) after the pause, as planned. David is phone-only for the rest of the day: checkpoints are short, with one-word replies.
 
 ## Open questions
