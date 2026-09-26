@@ -19,6 +19,7 @@ import { loadMedications } from '../cards/medications.ts';
 import { lookupPatientByMrn } from '../cards/patientLookup.ts';
 import { loadPrescriptions } from '../cards/prescriptions.ts';
 import { loadProblems } from '../cards/problems.ts';
+import { loadVitals } from '../cards/vitals.ts';
 import { isoDateInZone, localDateTimeInZone } from '../clock.ts';
 import type { UpstreamClient } from '../upstream/client.ts';
 
@@ -165,6 +166,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   // and the prescription query keys are constants plus the resolved pid (M-1).
   cardRoute('prescriptions', (ctx) => loadPrescriptions({ upstream: deps.upstream }, ctx));
   cardRoute('care-team', (ctx) => loadCareTeam({ upstream: deps.upstream }, ctx));
+  cardRoute('vitals', (ctx) => loadVitals({ upstream: deps.upstream, today: () => isoDateInZone(deps.now(), config.openemrTimeZone) }, ctx));
 
   app.get<{ Params: { mrn: string } }>(`${base}/bff/patients/by-mrn/:mrn`, async (req, reply) => {
     const session = currentSession(req);

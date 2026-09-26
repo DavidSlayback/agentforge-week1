@@ -80,7 +80,17 @@ describe('log redaction across the full workflow', () => {
           clinical.push(ref ?? 'x', 'Great Clinic');
         }
       }
-      for (const card of ['allergies', 'problems', 'medications', 'prescriptions', 'care-team']) {
+      // Vitals: the encounter list and every recorded per-encounter vitals response.
+      fake.on('GET', `http://openemr/apis/default/api/patient/${id}/encounter`, routeFixture(file, 'rest.encounter.list'));
+      for (const e of (routeFixture(file, 'rest.encounter.list').body as { data: { euuid: string }[] }).data) clinical.push(e.euuid);
+      for (const key of Object.keys(readFixtureFile(file))) {
+        const [route, eid] = key.split(':');
+        if (route !== 'rest.vital.list' || !eid) continue;
+        const vitals = routeFixture(file, key);
+        fake.on('GET', `http://openemr/apis/default/api/patient/${pid}/encounter/${eid}/vital`, vitals);
+        for (const v of vitals.body as { uuid: string; date: string; note: string | null }[]) clinical.push(v.uuid, v.date, ...(v.note ? [v.note] : []));
+      }
+      for (const card of ['allergies', 'problems', 'medications', 'prescriptions', 'care-team', 'vitals']) {
         const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${id}/${card}`, cookies: { dashboard_sid: sessionCookie } });
         expect(res.json()).toMatchObject({ kind: 'ok' });
       }
@@ -140,5 +150,8 @@ describe('log redaction across the full workflow', () => {
     expect(log).toContain('"routeId":"fhir.careteam.search"');
     expect(log).toContain('"routeId":"fhir.practitioner.read"');
     expect(log).toContain('"routeId":"fhir.organization.read"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/vitals');
+    expect(log).toContain('"routeId":"rest.encounter.list"');
+    expect(log).toContain('"routeId":"rest.vital.list"');
   });
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
 import type { SessionDto } from '../../core/dto.ts';
-import { isAllergyRow, isCareTeamDto, isHeaderDto, isMedicationRow, isPrescriptionRow, isProblemRow } from '../../core/guards.ts';
+import { isAllergyRow, isCareTeamDto, isHeaderDto, isMedicationRow, isPrescriptionRow, isProblemRow, isVitalsDto } from '../../core/guards.ts';
 import { parsePatientUuid, type PatientUuid } from '../../core/ids.ts';
 import { BASE, fetchSession, lookupByMrn, type Fetcher } from './api.ts';
 import { AllergiesCard } from './cards/AllergiesCard.tsx';
@@ -8,6 +8,7 @@ import { CareTeamCard } from './cards/CareTeamCard.tsx';
 import { MedicationsCard } from './cards/MedicationsCard.tsx';
 import { PrescriptionsCard } from './cards/PrescriptionsCard.tsx';
 import { ProblemsCard } from './cards/ProblemsCard.tsx';
+import { VitalsCard } from './cards/VitalsCard.tsx';
 import { PatientHeader } from './components/PatientHeader.tsx';
 import { useCard } from './useCard.ts';
 
@@ -43,6 +44,7 @@ function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readon
   const medications = useCard(fetcher, `${BASE}/bff/patients/${patientId}/medications`, patientId, isMedicationRow);
   const prescriptions = useCard(fetcher, `${BASE}/bff/patients/${patientId}/prescriptions`, patientId, isPrescriptionRow);
   const careTeam = useCard(fetcher, `${BASE}/bff/patients/${patientId}/care-team`, patientId, isCareTeamDto);
+  const vitals = useCard(fetcher, `${BASE}/bff/patients/${patientId}/vitals`, patientId, isVitalsDto);
   return (
     <>
       <PatientHeader state={header} />
@@ -52,8 +54,9 @@ function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readon
         <MedicationsCard state={medications} />
         <PrescriptionsCard state={prescriptions} />
         <CareTeamCard state={careTeam} />
+        {/* 7.24: Vitals keeps its legacy position, after the Care Team card. */}
+        <VitalsCard state={vitals} />
       </div>
-      <p className="not-ported">Cards added in later slices: Vitals.</p>
     </>
   );
 }

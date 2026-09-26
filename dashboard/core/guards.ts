@@ -1,5 +1,5 @@
 import type { CardResult, ErrorCode, GapNote } from './cardResult.ts';
-import type { AllergyRow, CareTeamDto, CareTeamMemberRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, PrescriptionRow, ProblemRow, SessionDto } from './dto.ts';
+import type { AllergyRow, CareTeamDto, CareTeamMemberRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, PrescriptionRow, ProblemRow, SessionDto, VitalsDto } from './dto.ts';
 import { parsePatientUuid } from './ids.ts';
 
 /**
@@ -21,6 +21,7 @@ const ERROR_CODES: ReadonlySet<string> = new Set<ErrorCode>([
   'UPSTREAM_OPERATION_OUTCOME',
   'SCHEMA_MISMATCH',
   'PATIENT_MISMATCH',
+  'VITALS_SCAN_LIMIT',
   'BFF_UNAVAILABLE',
 ]);
 
@@ -148,5 +149,14 @@ export function isCareTeamDto(v: unknown): v is CareTeamDto {
     typeof v['statusTitle'] === 'string' &&
     Array.isArray(v['members']) &&
     v['members'].every(isCareTeamMemberRow)
+  );
+}
+
+export function isVitalsDto(v: unknown): v is VitalsDto {
+  return (
+    isRecord(v) &&
+    typeof v['date'] === 'string' &&
+    Array.isArray(v['fields']) &&
+    v['fields'].every((f) => isRecord(f) && typeof f['label'] === 'string' && typeof f['value'] === 'string')
   );
 }

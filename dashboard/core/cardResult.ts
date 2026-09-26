@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'UPSTREAM_OPERATION_OUTCOME' // FHIR OperationOutcome where a resource was expected (6.03)
   | 'SCHEMA_MISMATCH' // a 2xx body that fails the route's schema
   | 'PATIENT_MISMATCH' // a response about another patient (5.04)
+  | 'VITALS_SCAN_LIMIT' // Vitals: no set in the newest encounters within the per-load cap, and more remain
   | 'BFF_UNAVAILABLE'; // SPA only: the BFF itself could not be reached or answered unexpectedly
 
 /** A documented API gap shown next to the data ("Not available via API"). */

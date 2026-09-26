@@ -119,6 +119,19 @@ describe('card routes over HTTP (fastify.inject)', () => {
     expect(empty.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
   });
 
+  it('Vitals: DASH-SYN-01 reaches the browser as the non-deleted set 35 (2026-04-05), not the deleted 2026-05-01 set', async () => {
+    const { app, fake, cookie } = await signedIn();
+    const file = 'shaped/dash-syn-01.json';
+    fake
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}`), routeFixture(file, 'rest.patient.read'))
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}/encounter`), routeFixture(file, 'rest.encounter.list'))
+      .on('GET', api('/patient/14/encounter/370/vital'), routeFixture(file, 'rest.vital.list:370'));
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/vitals`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ kind: 'ok', rows: [{ date: '2026-04-05 09:10:00' }] });
+    expect(fake.unexpected).toEqual([]);
+  });
+
   it('401 without a session, 400 for a malformed puuid, 400 for any query string', async () => {
     const { app, cookie } = await signedIn();
     expect((await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/allergies` })).statusCode).toBe(401);

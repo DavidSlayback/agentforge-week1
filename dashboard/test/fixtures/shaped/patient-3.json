@@ -1,7 +1,7 @@
 {
   "_meta": {
     "kind": "shaped",
-    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows). Prescriptions (rest.prescription.search, slice 01-03-01): values from read-only SELECT on prescriptions/list_options (local DB, 2026-09-25); structure follows PrescriptionService::getBaseSql() (prescriptions branch only: the BFF sends source_table=prescriptions) inside createProcessingResultResponse() (HTTP 200, `data: []` when there are no rows). The outer SELECT has no patient_id/pid column; rows are listed id-ascending because the query has no ORDER BY, so the port's sort is exercised rather than assumed; med-adherence/reporting-source columns omitted. Care Team (fhir.careteam.search, fhir.practitioner.read:<id>, fhir.organization.read:<id>; slice 01-04-01): values from read-only SELECT on care_teams/care_team_member/users/facility/list_options (local DB, 2026-09-25); structure follows FhirCareTeamService::parseOpenEMRRecord() and populateProviderTeamMembers()/populateFacilityTeamMembers() (one Practitioner participant per member row, whatever its status, then one Organization participant per distinct member facility; role display = care_team_roles title for codes outside getRoleMappings(); no participant status or note) in a FhirCareTeamRestController::getAll() Bundle (no paging). The Practitioner reads are 404 with body [] because PractitionerService::search() serves only users with a non-empty NPI and no seeded care-team user has one (handleFhirProcessingResult()); the facility Organization read is 200.",
+    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows). Prescriptions (rest.prescription.search, slice 01-03-01): values from read-only SELECT on prescriptions/list_options (local DB, 2026-09-25); structure follows PrescriptionService::getBaseSql() (prescriptions branch only: the BFF sends source_table=prescriptions) inside createProcessingResultResponse() (HTTP 200, `data: []` when there are no rows). The outer SELECT has no patient_id/pid column; rows are listed id-ascending because the query has no ORDER BY, so the port's sort is exercised rather than assumed; med-adherence/reporting-source columns omitted. Care Team (fhir.careteam.search, fhir.practitioner.read:<id>, fhir.organization.read:<id>; slice 01-04-01): values from read-only SELECT on care_teams/care_team_member/users/facility/list_options (local DB, 2026-09-25); structure follows FhirCareTeamService::parseOpenEMRRecord() and populateProviderTeamMembers()/populateFacilityTeamMembers() (one Practitioner participant per member row, whatever its status, then one Organization participant per distinct member facility; role display = care_team_roles title for codes outside getRoleMappings(); no participant status or note) in a FhirCareTeamRestController::getAll() Bundle (no paging). The Practitioner reads are 404 with body [] because PractitionerService::search() serves only users with a non-empty NPI and no seeded care-team user has one (handleFhirProcessingResult()); the facility Organization read is 200. Vitals (rest.encounter.list, rest.vital.list:<eid>; slice 01-05-01): values from read-only SELECT on form_encounter/form_vitals/forms/users (local DB, 2026-09-25). rest.encounter.list follows EncounterService::search() (ORDER BY fe.eid DESC; eid = form_encounter.encounter; most columns omitted) in the REST envelope; a patient with no encounters gets HTTP 200 with data [] on the wire, because ViewRendererListener wraps the controller's array in a 200 JsonResponse (API-ROUTES.md Finding 3). rest.vital.list:<eid> follows VitalsService::getVitalsForPatientEncounter() (deleted=0 AND formdir='vitals', so a soft-deleted set is never in it) and createResultRecordFromDatabaseResult() with units_of_measurement=1 (US identity, one <field>_unit key per measurement), written as a bare array by responseHandler(); only the encounters a test needs are included.",
     "pid": 3,
     "role": "empty-state",
     "synthetic": true
@@ -130,5 +130,79 @@
         }
       ]
     }
+  },
+  "rest.encounter.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [
+        {
+          "eid": "12",
+          "euuid": "a2c331a5-2bff-478a-8c83-602386347f2a",
+          "date": "2014-02-01 00:00:00",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "3",
+          "puuid": "a2c331a5-3b72-45c1-884e-94015f1f34fa",
+          "facility_name": "Great Clinic"
+        }
+      ],
+      "links": []
+    }
+  },
+  "rest.vital.list:12": {
+    "status": 200,
+    "body": [
+      {
+        "pid": "3",
+        "puuid": "a2c331a5-3b72-45c1-884e-94015f1f34fa",
+        "eid": "12",
+        "euuid": "a2c331a5-2bff-478a-8c83-602386347f2a",
+        "user_uuid": null,
+        "user_npi": null,
+        "id": "14",
+        "form_id": "14",
+        "uuid": "a2c331a5-2d88-4309-97ea-92af4e948414",
+        "date": "2014-02-01 21:47:33",
+        "external_id": null,
+        "note": null,
+        "bps": "120",
+        "bpd": "80",
+        "weight": "40.000000",
+        "height": "40.000000",
+        "temperature": "102.000000",
+        "temp_method": "Tympanic Membrane",
+        "pulse": "87.000000",
+        "respiration": "22.000000",
+        "BMI": "17.600000",
+        "BMI_status": "Underweight",
+        "waist_circ": "25.000000",
+        "head_circ": "15.000000",
+        "oxygen_saturation": "98.00",
+        "oxygen_flow_rate": "0.000000",
+        "ped_weight_height": "0.00",
+        "ped_bmi": "0.00",
+        "ped_head_circ": "0.00",
+        "inhaled_oxygen_concentration": "0.00",
+        "last_updated": "2026-09-16 20:59:12",
+        "date_created": "2014-02-01 21:47:33",
+        "weight_unit": "lb",
+        "height_unit": "in",
+        "head_circ_unit": "in",
+        "waist_circ_unit": "in",
+        "temperature_unit": "degF",
+        "pulse_unit": "/min",
+        "respiration_unit": "/min",
+        "BMI_unit": "kg/m2",
+        "bps_unit": "mm[Hg]",
+        "bpd_unit": "mm[Hg]",
+        "inhaled_oxygen_concentration_unit": "%",
+        "oxygen_saturation_unit": "%",
+        "oxygen_flow_rate_unit": "L/min",
+        "ped_weight_height_unit": "%",
+        "ped_bmi_unit": "%",
+        "ped_head_circ_unit": "%"
+      }
+    ]
   }
 }

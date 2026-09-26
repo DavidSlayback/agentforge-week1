@@ -137,3 +137,13 @@ export interface CareTeamDto {
   readonly statusTitle: string;
   readonly members: readonly CareTeamMemberRow[];
 }
+
+/**
+ * The Vitals card (W2D-4): the latest non-deleted vitals set, as "Most recent
+ * vitals from: <date>" plus label/value pairs in the legacy order.
+ */
+export interface VitalsDto {
+  /** Raw `form_vitals.date` (`YYYY-MM-DD HH:MM:SS`, OpenEMR local time), as the legacy card prints it. */
+  readonly date: string;
+  readonly fields: readonly { readonly label: string; readonly value: string }[];
+}

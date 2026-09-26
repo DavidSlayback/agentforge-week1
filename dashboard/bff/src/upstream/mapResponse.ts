@@ -33,6 +33,15 @@ export interface MapOptions<T> {
    * stays an error.
    */
   readonly notFoundEmptyBodyIsEmpty?: boolean;
+  /**
+   * `GET /api/patient/:puuid/encounter` for a patient with no encounters:
+   * `EncounterRestController::getAll()` asks for 404 with an empty REST
+   * envelope, but `ViewRendererListener` wraps the array in a 200
+   * `JsonResponse` (API-ROUTES.md Finding 3), so the wire status can be either.
+   * Only that route sets this; only a 404 whose body is exactly an envelope with
+   * empty `validationErrors`, `internalErrors` and `data` counts.
+   */
+  readonly notFoundEmptyEnvelopeIsEmpty?: boolean;
 }
 
 /** Non-value outcomes, before they are tied to a patient. */
@@ -69,12 +78,30 @@ function nonEmpty(v: unknown): boolean {
   return false;
 }
 
-function classify(outcome: UpstreamOutcome, shape: ResponseShape, notFoundEmptyBodyIsEmpty: boolean): Condition {
+function isEmptyList(v: unknown): boolean {
+  return (Array.isArray(v) && v.length === 0) || (isRecord(v) && Object.keys(v).length === 0);
+}
+
+/** `{validationErrors: [], internalErrors: [], data: []}` (and optionally `links`), nothing else. */
+function isEmptyRestEnvelope(body: unknown): boolean {
+  if (!isRecord(body)) return false;
+  const keys = Object.keys(body).filter((k) => k !== 'links');
+  return (
+    keys.length === 3 &&
+    isEmptyList(body['validationErrors']) &&
+    isEmptyList(body['internalErrors']) &&
+    Array.isArray(body['data']) &&
+    body['data'].length === 0
+  );
+}
+
+function classify(outcome: UpstreamOutcome, shape: ResponseShape, notFoundEmptyBodyIsEmpty: boolean, notFoundEmptyEnvelopeIsEmpty: boolean): Condition {
   if (outcome.kind === 'timeout') return { c: 'timeout' };
   if (outcome.kind === 'network') return { c: 'network' };
   if (outcome.status === 401) return { c: 'unauthorized' };
   if (outcome.status === 403) return { c: 'forbidden' };
   if (outcome.status === 404 && outcome.bodyEmpty && notFoundEmptyBodyIsEmpty) return { c: 'empty-success' };
+  if (outcome.status === 404 && notFoundEmptyEnvelopeIsEmpty && isEmptyRestEnvelope(outcome.body)) return { c: 'empty-success' };
   if (outcome.status < 200 || outcome.status > 299) return { c: 'bad-status' };
   const body = outcome.body;
   if (isRecord(body) && body['resourceType'] === 'OperationOutcome') return { c: 'operation-outcome' };
@@ -115,7 +142,7 @@ function classify(outcome: UpstreamOutcome, shape: ResponseShape, notFoundEmptyB
  * never carried into the result.
  */
 export function mapUpstream<T>(outcome: UpstreamOutcome, options: MapOptions<T>): Mapped<T> {
-  const condition = classify(outcome, options.shape, options.notFoundEmptyBodyIsEmpty === true);
+  const condition = classify(outcome, options.shape, options.notFoundEmptyBodyIsEmpty === true, options.notFoundEmptyEnvelopeIsEmpty === true);
   const fail = (code: ErrorCode): Mapped<T> => ({ kind: 'failure', failure: { kind: 'error', code } });
   switch (condition.c) {
     case 'timeout':

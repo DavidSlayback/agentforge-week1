@@ -120,6 +120,23 @@ describe('upstream allow-list', () => {
     expect(() => buildUpstreamPath('fhir.organization.read', { id }, { _include: '*' })).toThrow(AllowListViolation);
   });
 
+  it('builds the encounter list by puuid and the per-encounter vitals by integer pid and eid (01-05-01)', () => {
+    expect(buildUpstreamPath('rest.encounter.list', { puuid: PATIENT.dashSyn01 })).toBe(`/apis/default/api/patient/${PATIENT.dashSyn01}/encounter`);
+    expect(buildUpstreamPath('rest.vital.list', { pid: 14, eid: 370 })).toBe('/apis/default/api/patient/14/encounter/370/vital');
+    expect(UPSTREAM_ROUTES['rest.encounter.list'].acl).toBe('encounters/auth_a');
+    expect(UPSTREAM_ROUTES['rest.vital.list'].acl).toBe('encounters/notes');
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14, eid: '370/vital/36' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14, eid: 0 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: PATIENT.dashSyn01, eid: 370 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14, eid: 370, vid: 36 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.encounter.list', { puuid: PATIENT.dashSyn01 }, { _sort: 'date' })).toThrow(AllowListViolation);
+  });
+
+  it('has no FHIR Observation route: FHIR vitals include soft-deleted sets (5.02 / M-5)', () => {
+    for (const spec of Object.values(UPSTREAM_ROUTES)) expect(spec.pathTemplate, spec.id).not.toMatch(/Observation/i);
+  });
+
   it('declares a scope and ACL for every route', () => {
     for (const spec of Object.values(UPSTREAM_ROUTES)) {
       expect(spec.scope, spec.id).toMatch(/^user\/[A-Za-z_]+\.[rs]+$/);

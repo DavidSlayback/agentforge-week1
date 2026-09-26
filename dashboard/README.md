@@ -13,7 +13,7 @@ link, and the persistent patient header (name, DOB with age, sex, MRN, status).
 Status is **Deceased** iff FHIR `deceasedDateTime` (or `deceasedBoolean: true`)
 is present; `Patient.active` is never read (OpenEMR hard-codes it `true`).
 
-Clinical cards (slice 01-02-01 on), each loaded by its own BFF route with its
+Clinical cards (slice 01-02-01 on; all six are built), each loaded by its own BFF route with its
 own loading, empty ("Nothing Recorded"), forbidden, error and sign-in-again
 state. Every card first resolves the patient through `GET /api/patient/:puuid`;
 no card route is called before that read succeeds.
@@ -66,7 +66,21 @@ no card route is called before that read succeeds.
   unavailable. Status and Note read "Not available via API". The legacy card
   had no empty text; the port says "Nothing Recorded".
 
-Later slices add Vitals.
+- **Vitals** (`/dashboard/bff/patients/:puuid/vitals`, the additional
+  section, kept in its legacy position): REST `/api/patient/:puuid/encounter`,
+  then `/api/patient/:pid/encounter/:eid/vital` one encounter at a time,
+  newest encounter number first, until an encounter has a set. That route
+  excludes deleted forms, so the card shows the **latest non-deleted** set, a
+  deliberate deviation from the legacy card, whose join can show a deleted set
+  (5.01); FHIR `Observation` is never used (no deleted filter, 5.02). At most
+  50 encounters are walked; past that with encounters left unchecked the card
+  is an error (`VITALS_SCAN_LIMIT`), never "Nothing Recorded". Every encounter
+  and vitals row must be the patient's. Fields follow the legacy order, labels,
+  skip rule and number formats, with the unit each value carries from the API
+  (`<field>_unit`; one unit system, no metric secondary). Pediatric patients
+  (age 20 or under) get the legacy "See Growth-Chart" BMI status and the
+  percentile fields. No encounters (HTTP 200 `data: []`, or the 404 with an
+  empty envelope the controller asks for) is "Nothing Recorded".
 
 ## Layout
 

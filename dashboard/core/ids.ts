@@ -21,6 +21,12 @@ export type Mrn = Brand<string, 'Mrn'>;
  * patient id, so it cannot be passed where a `PatientUuid` is expected.
  */
 export type ResourceUuid = Brand<string, 'ResourceUuid'>;
+/**
+ * OpenEMR encounter number (`form_encounter.encounter`, served as `eid` by the
+ * REST encounter list and matched as `eid` by the vitals route). Only ever
+ * taken from the patient's own encounter list.
+ */
+export type EncounterId = Brand<number, 'EncounterId'>;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PID_RE = /^[1-9][0-9]{0,9}$/;
@@ -38,6 +44,20 @@ export function parseResourceUuid(value: unknown): ResourceUuid | null {
   if (typeof value !== 'string') return null;
   const lower = value.toLowerCase();
   return UUID_RE.test(lower) ? (lower as ResourceUuid) : null;
+}
+
+export function parseEncounterId(value: unknown): EncounterId | null {
+  const n = parsePositiveInt(value);
+  return n === null ? null : (n as EncounterId);
+}
+
+function parsePositiveInt(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 ? value : null;
+  if (typeof value === 'string' && PID_RE.test(value)) {
+    const n = Number(value);
+    return Number.isSafeInteger(n) ? n : null;
+  }
+  return null;
 }
 
 export function parsePid(value: unknown): Pid | null {

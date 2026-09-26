@@ -1,4 +1,4 @@
-import { parseMrn, parsePatientUuid, parsePid, parseResourceUuid } from './ids.ts';
+import { parseEncounterId, parseMrn, parsePatientUuid, parsePid, parseResourceUuid } from './ids.ts';
 
 /**
  * The upstream allow-list (MIGRATION-REACT.md §2.4). `buildUpstreamPath` is the
@@ -10,7 +10,8 @@ import { parseMrn, parsePatientUuid, parsePid, parseResourceUuid } from './ids.t
  * header reads and the MRN lookup; 01-02-01 the allergy list and the
  * `severity_ccda` label list; 01-02-02 the medical problem list; 01-02-03
  * the medication list; 01-03-01 the prescription search; 01-04-01 the
- * CareTeam search and the Practitioner / Organization name reads.
+ * CareTeam search and the Practitioner / Organization name reads; 01-05-01
+ * the encounter list and the per-encounter vitals.
  */
 
 export type UpstreamRouteId =
@@ -24,10 +25,12 @@ export type UpstreamRouteId =
   | 'rest.prescription.search'
   | 'fhir.careteam.search'
   | 'fhir.practitioner.read'
-  | 'fhir.organization.read';
+  | 'fhir.organization.read'
+  | 'rest.encounter.list'
+  | 'rest.vital.list';
 
 /** What a parameter value must parse as before it is placed in a URL. */
-export type ParamKind = 'puuid' | 'pid' | 'mrn' | 'resourceUuid';
+export type ParamKind = 'puuid' | 'pid' | 'mrn' | 'resourceUuid' | 'eid';
 
 export interface PathParamSpec {
   readonly name: string;
@@ -197,6 +200,34 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     acl: 'admin/users',
     patientBinding: 'reference',
   },
+  // Vitals card (01-05-01). The encounter list is newest first (`ORDER BY fe.eid
+  // DESC`, EncounterService.php:322) and needs encounters/auth_a.
+  'rest.encounter.list': {
+    id: 'rest.encounter.list',
+    api: 'rest',
+    pathTemplate: '/patient/{puuid}/encounter',
+    pathParams: [{ name: 'puuid', kind: 'puuid' }],
+    query: [],
+    scope: 'user/encounter.rs',
+    acl: 'encounters/auth_a',
+    patientBinding: 'path',
+  },
+  // One encounter's vitals, deleted forms excluded (`VitalsService::getVitalsForPatientEncounter()`
+  // adds deleted=0 AND formdir='vitals', :504-518). Never FHIR Observation, which
+  // has no deleted filter (5.02 / M-5). Needs encounters/notes.
+  'rest.vital.list': {
+    id: 'rest.vital.list',
+    api: 'rest',
+    pathTemplate: '/patient/{pid}/encounter/{eid}/vital',
+    pathParams: [
+      { name: 'pid', kind: 'pid' },
+      { name: 'eid', kind: 'eid' },
+    ],
+    query: [],
+    scope: 'user/vital.rs',
+    acl: 'encounters/notes',
+    patientBinding: 'path',
+  },
 };
 
 export class AllowListViolation extends Error {
@@ -215,6 +246,10 @@ function parseParam(kind: ParamKind, value: unknown): string | null {
       return parseMrn(value);
     case 'resourceUuid':
       return parseResourceUuid(value);
+    case 'eid': {
+      const eid = parseEncounterId(value);
+      return eid === null ? null : String(eid);
+    }
   }
 }
 
