@@ -593,6 +593,15 @@ observed.**
   `MIGRATION-REACT.md` (scope list, allow-list row) and a pointer in the
   root `README.md`.
 
+- **Error-state drills** (open since 01-06-01), as tests against mocked
+  upstreams, not live. `test/support/drills.ts` defines six drills: 401,
+  403, 200 with `validationErrors`, the medication 404-as-empty, a 404 on
+  the patient read, and a 500 with SQL. `test/bff/drills.test.ts` pushes
+  each through the real BFF and asserts the exact wire answer; a 401 also
+  ends the session. `test/web/Drills.test.tsx` renders the same answers in
+  the real cards: four distinct states, no upstream text, axe clean.
+- Gate: 328 tests in 33 files (287 at `7b49460`).
+
 ### Checks
 - Local DB (SELECT only): no `lists_medication` rows exist, so no synthetic
   medication carries instructions. The dosage-present case is a hand-built

@@ -616,7 +616,7 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-06-01 — Parity evidence and hardening
 
-- [x] **Merged** (evidence on `main`) · [ ] **Complete**: the manual keyboard and screen-reader pass is still open (below)
+- [x] **Merged** (evidence on `main`) · [ ] **Complete**: the manual keyboard and screen-reader pass is still open. The error-state drills were done as tests in slice 01-06-04 (below)
 - **Time box:** 1.5 h, Sat 20:00–21:30. Window 2 runs at the start: David
   signs in and the card checklists for 01-02-02 … 01-05-01 are ticked.
 - **Goal**
@@ -655,9 +655,16 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
     authored by a real user; not fixed as application code, per this slice's
     scope. See that README's Findings section and `DEV-LOG.md` 01-06-01 plus
     its same-day follow-up entry.
-  - [ ] The drills map to the documented states, and no upstream text is ever
-    rendered. **Not done this pass** — only live states were observed, not
-    the synthetic 401/403/200-with-errors/404-empty drills; still open.
+  - [x] The drills map to the documented states, and no upstream text is ever
+    rendered. **Done as tests in slice 01-06-04, against mocked upstreams,
+    not live:** `test/bff/drills.test.ts` sends six synthetic upstream
+    failures through the real BFF (401 on the allergy list, 403 on the
+    problem list, 200 with `validationErrors`, the medication 404-as-empty,
+    a 404 on the patient read, a 500 carrying SQL) and asserts each exact wire
+    answer. The 401 also ends the BFF session. `test/web/Drills.test.tsx`
+    renders those same answers in the real cards and asserts the four
+    distinct states, the absence of upstream text, and axe. There is no
+    `drills.md` under `docs/agentforge/evidence/`; the tests replace it.
   - [x] Timing recorded (measured, not estimated). Done 2026-09-26,
     DASH-SYN-01, local laptop: legacy network-idle median 3200 ms, port
     header-visible median 2557 ms, port all-7-settled median 4287 ms —
@@ -747,6 +754,10 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
     instruction text; the component. **Deliberate regression** (join by
     position, not uuid): 3 red, commit refused
     (`evidence/slice-06-04-medications-regression.txt`).
+  - [x] Error-state drills (from 01-06-01): `test/support/drills.ts`
+    (shared table), `test/bff/drills.test.ts`, `test/web/Drills.test.tsx`.
+    A local check (not a committed proof) mapped 403 to an error in
+    `mapResponse.ts`; the 403 drill went red.
   - [x] `test/web/Layout.test.tsx` checks card order, the single-column
     default and the wide-screen spans, from the shipped stylesheet's CSSOM.
     The layout was measured with the real BFF and SPA against shaped
