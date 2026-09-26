@@ -1,0 +1,39 @@
+meta {
+  name: W2 source-document upload
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{w2BaseUrl}}/v1/source-documents
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w2WriteToken}}",
+    "document_type": "{{sampleDocumentType}}",
+    "filename": "{{sampleFilename}}",
+    "content_base64": "{{sampleContentBase64}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq persisted
+  res.body.synthetic_only: eq true
+  res.body.source_document.document_type: eq lab_pdf
+}
+
+script:post-response {
+  bru.setVar("sourceDocumentId", res.getBody().source_document.id);
+}
+
+tests {
+  test("returns a stored document id", function () {
+    expect(res.getBody().source_document.id).to.be.a("string").and.not.equal("");
+  });
+}

@@ -1,0 +1,21 @@
+meta {
+  name: W2 demo context (read token)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/demo-context?patient_uuid={{patientUuid}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.patient_uuid: eq {{patientUuid}}
+  res.body.synthetic_only: eq true
+}
+
+script:post-response {
+  bru.setVar("w2ReadToken", res.getBody().demo_token);
+}

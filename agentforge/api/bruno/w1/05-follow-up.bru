@@ -1,0 +1,35 @@
+meta {
+  name: W1 follow-up (same conversation)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{w1BaseUrl}}/v1/conversations/{{w1CorrelationId}}/messages
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "message": "What changed since the last visit?",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w1Token}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.patient.patient_ref: eq {{patientUuid}}
+  res.body.disposition: neq blocked
+}
+
+tests {
+  test("keeps the conversation id", function () {
+    expect(res.getBody().correlation_id).to.equal(bru.getVar("w1CorrelationId"));
+  });
+  test("answers with text", function () {
+    expect(res.getBody().text).to.be.a("string").and.not.equal("");
+  });
+}

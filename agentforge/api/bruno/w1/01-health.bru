@@ -1,0 +1,22 @@
+meta {
+  name: W1 health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{w1BaseUrl}}/health
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}
+
+tests {
+  test("reports the deployed git SHA", function () {
+    expect(res.getBody().git_sha).to.be.a("string").and.not.equal("");
+  });
+}

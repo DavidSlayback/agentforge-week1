@@ -1,0 +1,17 @@
+meta {
+  name: W2 observability dashboard
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{w2BaseUrl}}/observability
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.headers["content-type"]: contains text/html
+  res.body: contains Observability
+}

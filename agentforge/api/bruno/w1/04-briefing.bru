@@ -1,0 +1,46 @@
+meta {
+  name: W1 briefing
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{w1BaseUrl}}/v1/briefings
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "case_id": "complete_return_visit",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w1Token}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.disposition: eq complete
+  res.body.context.patient_ref: eq {{patientUuid}}
+  res.body.verification.status: eq passed
+}
+
+script:post-response {
+  bru.setVar("w1CorrelationId", res.getBody().correlation_id);
+}
+
+tests {
+  test("every claim cites evidence for this patient", function () {
+    const body = res.getBody();
+    expect(body.correlation_id).to.be.a("string").and.not.equal("");
+    expect(body.claims.length).to.be.greaterThan(0);
+    for (const claim of body.claims) {
+      expect(claim.evidence.length, claim.field).to.be.greaterThan(0);
+      for (const item of claim.evidence) expect(item.patient_ref, claim.field).to.equal(bru.getEnvVar("patientUuid"));
+    }
+  });
+  test("is read-only", function () {
+    for (const operation of res.getBody().operations) expect(operation.type).to.equal("read");
+  });
+}

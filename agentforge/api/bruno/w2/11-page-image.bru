@@ -1,0 +1,29 @@
+meta {
+  name: W2 source page image (PNG)
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/source-documents/{{pdfSourceDocumentId}}/pages/1.png?patient_uuid={{patientUuid}}&demo_token={{w2ReadToken}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("renders page 1 as a PNG", function () {
+    const expectation = bru.getEnvVar("pageImageExpectation");
+    if (res.getStatus() === 503 && expectation === "png_or_ocr_unavailable") {
+      expect(res.getBody().error).to.equal("ocr_runtime_unavailable");
+      return;
+    }
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getHeader("content-type")).to.equal("image/png");
+  });
+}
+
+docs {
+  pageImageExpectation is "png" on the deployed environment (poppler is in
+  the image) and "png_or_ocr_unavailable" locally, where a machine without
+  pdftoppm answers 503 ocr_runtime_unavailable.
+}

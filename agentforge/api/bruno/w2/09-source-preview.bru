@@ -1,0 +1,16 @@
+meta {
+  name: W2 source preview (HTML)
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/source-documents/{{sourceDocumentId}}/source-preview?patient_uuid={{patientUuid}}&demo_token={{w2ReadToken}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.headers["content-type"]: contains text/html
+}

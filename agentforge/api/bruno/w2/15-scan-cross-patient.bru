@@ -1,0 +1,26 @@
+meta {
+  name: W2 scan-supervisor for another patient with this token is refused
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{w2BaseUrl}}/v1/scan-supervisor
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{otherPatientUuid}}",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w2WriteToken}}",
+    "source_document_id": "{{sourceDocumentId}}",
+    "message": "What changed?"
+  }
+}
+
+assert {
+  res.status: eq 403
+  res.body.error: eq invalid_demo_context
+}

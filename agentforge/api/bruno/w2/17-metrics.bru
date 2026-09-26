@@ -1,0 +1,16 @@
+meta {
+  name: W2 metrics
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/metrics
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.requests: gt 0
+}

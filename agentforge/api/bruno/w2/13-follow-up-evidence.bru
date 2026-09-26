@@ -1,0 +1,24 @@
+meta {
+  name: W2 follow-up evidence
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{w2BaseUrl}}/v1/follow-up-evidence
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w2ReadToken}}",
+    "message": "What medications is this patient on?"
+  }
+}
+
+assert {
+  res.status: eq 200
+}

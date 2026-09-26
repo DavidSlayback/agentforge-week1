@@ -1,0 +1,23 @@
+meta {
+  name: W2 traces
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/traces
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("lists the scan above", function () {
+    const traces = res.getBody();
+    expect(traces).to.be.an("array");
+    expect(traces.some(function (trace) { return trace.operation === "w2-scan-supervisor"; })).to.equal(true);
+  });
+}

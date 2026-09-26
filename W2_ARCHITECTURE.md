@@ -753,8 +753,8 @@ not the primary write path.
 The PRD asks for Week 1 debt to be "documented and resolved before adding new
 surface area". This table lists all 25 items from the Week 1 review
 (`.scratch/assignments/REVIEW_2026-09-24.md` §2, audited on `0a1f3e06` and
-updated for E8 on `fd6c959b`). Status is for the W2 route (`/agentforge-w2`).
-Totals: 11 resolved, 4 partly resolved, 10 accepted.
+updated for E8 on `fd6c959b` and for F-API rows 15, 17 and 19). Status is for the W2 route (`/agentforge-w2`).
+Totals: 12 resolved, 5 partly resolved, 8 accepted.
 
 | # | Item | Status on W2 | Evidence | Frozen W1 route (`84f232b`) |
 |---|---|---|---|---|
@@ -772,11 +772,11 @@ Totals: 11 resolved, 4 partly resolved, 10 accepted.
 | 12 | Langfuse gets one flat span | Accepted (D8) | Not configured on W2 | Same |
 | 13 | Dashboard: 100-trace cap, no polling, wrong window label | Partly | 10 s polling, p99 and the real window label added; the cap remains | Not fixed |
 | 14 | p95 alert at 2 s fires on every scan | Resolved (E8) | W2 compose sets `AGENTFORGE_ALERT_P95_MS=30000`; live `/v1/alerts` on `fd6c959b`: observed 21228 ms, not triggered | Still 2 s |
-| 15 | Load test: no p99, 8% timeouts, stale commit | Accepted (D8) | W2 has latency samples (`W2_COST_LATENCY.md`), no load test | Same |
+| 15 | Load test: no p99, 8% timeouts, stale commit | Partly: tooling ready, run at freeze | `agentforge/scripts/load-test.mjs`: 10 and 50 users, ≥ 200 requests per level, route mix with a capped scan share, p50/p95/p99, error rate, per-route breakdown and raw JSON named by the target's SHA; percentile math tested (`agentforge/test/load-test.test.js`); local dry run on `7a625da0` (`docs/agentforge/evidence/load/dry-run/`). No run against the deployed service yet (`docs/agentforge/LOAD_TEST.md`) | Same |
 | 16 | Cost analysis has no LLM spend | Partly | Measured per-scan model cost in `W2_COST_LATENCY.md`; dev spend is pending the owner's console readback | Same |
-| 17 | API collection is a localhost PowerShell script | Accepted (D8) | `agentforge/api/collection.ps1`; no Bruno/Postman file | Same |
+| 17 | API collection is a localhost PowerShell script | Partly: built and green locally, deployed run at freeze | Bruno collection `agentforge/api/bruno` (W1 and W2 endpoints, `local` and `deployed` environments, chained token → upload → scan); `collection.ps1` removed; 27/27 requests, 64/64 assertions on a local server from `4c630f5b` (`docs/agentforge/evidence/bruno/4c630f5b-local.json`). Not yet run against the public URL | Same |
 | 18 | Alerts computed only on request | Accepted | `evaluateAlerts` runs inside `GET /v1/alerts` | Same |
-| 19 | Evals never test unauthorized or ambiguous cases | Partly | The W2 gates cover cross-patient scans and questions (`EVAL_GATE.md`); the W1 `evals/` runner is unchanged; no ambiguous-question case | Same |
+| 19 | Evals never test unauthorized or ambiguous cases | Resolved (F-API) | The W1 runner (`evals/lib/adversarial.js`, run by `runner.js --service` and in the hook) sends 6 unauthorized cases (tampered payload, tampered signature, expired token, valid token for another patient, another patient's conversation, no token) and 3 ambiguous ones ("what changed?" with no prior visit, two identity records, a question naming two patients) to the running service; each fails when its protection is removed (`docs/agentforge/evidence/W1-evals-adversarial-regression.txt`). Run against a local server, not yet the public URL. The W2 gates also cover cross-patient scans and questions (`EVAL_GATE.md`) | Same |
 | 20 | Missing BP question dumps evidence instead of "not documented" | Accepted | No "not documented" handling | Same |
 | 21 | `AUDIT.md`, `ARCHITECTURE.md`, `USER.md` not at the root | Resolved (MR !99) | All at the repo root | n/a (docs) |
 | 22 | Root `USERS.md` was a stale planning draft | Resolved (MR !99) | Replaced with the current version | n/a |
@@ -787,7 +787,7 @@ Totals: 11 resolved, 4 partly resolved, 10 accepted.
 Why some items are accepted: D4 put the role model and LLM tool-calling out of
 scope, and D8 limited Week 1 work to trust-critical debt that W2 depends on
 (`docs/agentforge/PLAN.md`). The accepted items are operational (auth on
-demo and ops routes, readiness probes, tracing, load testing, API collection)
+demo and ops routes, readiness probes, tracing)
 or are W1 features W2 does not build on (domain rules, tool calling). The
 frozen `/agentforge` route keeps all of its Week 1 debt, including the `.some`
 verifier and $0 cost: it is the W1 submission snapshot, image-only, and

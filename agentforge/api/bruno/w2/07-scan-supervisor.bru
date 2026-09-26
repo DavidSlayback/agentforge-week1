@@ -1,0 +1,42 @@
+meta {
+  name: W2 scan-supervisor (one scan, costs model calls when deployed)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{w2BaseUrl}}/v1/scan-supervisor
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{patientUuid}}",
+    "clinician_uuid": "{{clinicianUuid}}",
+    "demo_token": "{{w2WriteToken}}",
+    "source_document_id": "{{sourceDocumentId}}",
+    "message": "What changed and what should I pay attention to?"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq completed
+  res.body.source_document.id: eq {{sourceDocumentId}}
+}
+
+tests {
+  test("the supervisor starts with EXTRACT and is not blocked", function () {
+    const workflow = res.getBody().workflow;
+    expect(["READY", "QUALIFIED"]).to.include(workflow.final_state);
+    expect(workflow.decisions[0].next).to.equal("EXTRACT");
+  });
+  test("every extracted fact has a five-key citation", function () {
+    const facts = res.getBody().workflow.typed_outputs.extraction.facts;
+    expect(facts.length).to.be.greaterThan(0);
+    for (const fact of facts) {
+      for (const key of ["source_type", "source_id", "page_or_section", "field_or_chunk_id", "quote_or_value"]) expect(fact.citation, fact.field_id).to.have.property(key);
+    }
+  });
+}

@@ -1,0 +1,31 @@
+meta {
+  name: W1 follow-up for another patient is blocked
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{w1BaseUrl}}/v1/conversations/{{w1CorrelationId}}/messages
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": "{{otherPatientUuid}}",
+    "message": "What changed?",
+    "clinician_uuid": "{{clinicianUuid}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.disposition: eq blocked
+  res.body.patient: isNull
+}
+
+tests {
+  test("discloses no claims", function () {
+    expect(res.getBody().claims).to.have.lengthOf(0);
+  });
+}

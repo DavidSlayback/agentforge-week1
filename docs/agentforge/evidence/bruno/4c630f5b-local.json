@@ -1,0 +1,294 @@
+{
+  "schema_version": "1",
+  "kind": "bruno-collection-run",
+  "environment": "local",
+  "target": "agentforge/src/server.js spawned from this checkout (synthetic context, deterministic provider, in-memory synthetic persistence); W1 and W2 base URLs both point at it",
+  "git_sha": "4c630f5b",
+  "working_tree_dirty": false,
+  "bruno_cli": "@usebruno/cli@4.2.0",
+  "started_at": "2026-09-26T22:10:37.085Z",
+  "completed_at": "2026-09-26T22:11:04.057Z",
+  "bruno_exit_code": 0,
+  "passed": true,
+  "totals": {
+    "requests": 27,
+    "passed_requests": 27,
+    "failed_requests": 0,
+    "assertions": 64,
+    "failed_assertions": 0,
+    "tests": 18,
+    "failed_tests": 0
+  },
+  "requests": [
+    {
+      "file": "w1/01-health.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w1/02-ready.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w1/03-demo-context.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w1/04-briefing.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 4,
+      "failed_assertions": [],
+      "tests": 2,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w1/05-follow-up.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 2,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w1/06-briefing-without-token.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w1/07-cross-patient-follow-up.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w1/08-invalid-request.bru",
+      "http_status": 400,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/01-health.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/02-ready.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/03-demo-context.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/04-source-document-context.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/05-demo-scan-fixture.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/06-upload.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 4,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/07-scan-supervisor.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 2,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/08-scan-form-evidence.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/09-source-preview.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/10-upload-synthetic-pdf.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/11-page-image.bru",
+      "http_status": 503,
+      "passed": true,
+      "assertions": 0,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/12-lab-trends.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/13-follow-up-evidence.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 1,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/14-follow-up-evidence-other-patient.bru",
+      "http_status": 403,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/15-scan-cross-patient.bru",
+      "http_status": 403,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/16-traces.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 1,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/17-metrics.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 2,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/18-alerts.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 1,
+      "failed_assertions": [],
+      "tests": 1,
+      "failed_tests": [],
+      "error": null
+    },
+    {
+      "file": "w2/19-observability.bru",
+      "http_status": 200,
+      "passed": true,
+      "assertions": 3,
+      "failed_assertions": [],
+      "tests": 0,
+      "failed_tests": [],
+      "error": null
+    }
+  ]
+}

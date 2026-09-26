@@ -1,0 +1,23 @@
+meta {
+  name: W1 malformed briefing request is rejected
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{w1BaseUrl}}/v1/briefings
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "patient_uuid": 42,
+    "clinician_uuid": "{{clinicianUuid}}"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.error: eq invalid_prepare_request
+}

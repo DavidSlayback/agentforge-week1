@@ -15,7 +15,9 @@ test('golden suite can evaluate the running AgentForge service', async () => {
   const child = await startTestServer(18788, { AGENTFORGE_TRACE_PATH: tracePath });
   try {
     const result = await new Promise((resolve, reject) => {
-      const runner = spawn(process.execPath, ['evals/lib/runner.js', '--service', 'http://127.0.0.1:18788'], { cwd: base });
+      // The spawned service signs with startTestServer's test secret; the
+      // expired-token adversarial case needs it to mint an expired token.
+      const runner = spawn(process.execPath, ['evals/lib/runner.js', '--service', 'http://127.0.0.1:18788'], { cwd: base, env: { ...process.env, AGENTFORGE_EVAL_DEMO_SECRET: 'synthetic-test-secret' } });
       let output = '';
       runner.stdout.on('data', (data) => { output += data; });
       runner.on('error', reject);
@@ -24,9 +26,15 @@ test('golden suite can evaluate the running AgentForge service', async () => {
     assert.equal(result.total_cases, 9);
     assert.equal(result.passed_cases, 9);
     assert.equal(result.critical_failures, 0);
+    assert.equal(result.golden_gate_passed, true);
+    assert.equal(result.adversarial.gate_passed, true, JSON.stringify(result.adversarial.cases.filter((item) => !item.passed)));
+    assert.deepEqual(result.adversarial.unauthorized, { total: 6, passed: 6 });
+    assert.deepEqual(result.adversarial.ambiguous, { total: 3, passed: 3 });
     assert.equal(result.gate_passed, true);
     const metrics = await (await fetch('http://127.0.0.1:18788/v1/metrics')).json();
-    assert.equal(metrics.requests, 9);
+    // 9 golden briefings + 10 traced adversarial calls. The 4 requests the
+    // HTTP boundary refuses with 403 never reach the service, so no trace.
+    assert.equal(metrics.requests, 19);
     assert.ok(metrics.retrievalAttempts >= 9);
     const dashboard = await (await fetch('http://127.0.0.1:18788/observability')).text();
     assert.ok(dashboard.includes('Observability'));
