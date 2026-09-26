@@ -22,24 +22,26 @@
 import { labKind } from './clinicalRules.js';
 
 /**
- * One measurable concept. `asked` matches the question; `labKinds` a typed
+ * One measurable concept. `group` is the kind of data that holds it
+ * (`vitals` or `labs`): absence is claimed only when a source of that kind
+ * was read. `asked` matches the question; `labKinds` a typed
  * lab result that records it (`clinicalRules.js#labKind`, or its test name);
  * `field` a fact's field id; `reading` a quote or value that prints a reading.
  */
 export const MEASUREMENT_CONCEPTS = Object.freeze([
-  { id: 'blood_pressure', label: 'Blood pressure', asked: /\bblood[\s-]?pressures?\b|\bbp\b/i, field: /(?:^|[._])(?:bp|blood_?pressure|bloodpressure|systolic|diastolic)(?:$|[._])/i, reading: /\b(?:bp|blood[\s-]?pressure)\b[^0-9\n]{0,20}\d{2,3}\s*\/\s*\d{2,3}\b/i },
-  { id: 'heart_rate', label: 'Heart rate', asked: /\bheart[\s-]?rate\b|\bpulse\b/i, field: /(?:^|[._])(?:hr|heart_?rate|pulse)(?:$|[._])/i, reading: /\b(?:heart[\s-]?rate|pulse|hr)\b[^0-9\n]{0,20}\d{2,3}\b/i },
-  { id: 'temperature', label: 'Temperature', asked: /\btemperature\b|\btemp\b/i, field: /(?:^|[._])(?:temp|temperature)(?:$|[._])/i, reading: /\b(?:temperature|temp)\b[^0-9\n]{0,20}\d{2,3}(?:\.\d)?\b/i },
-  { id: 'weight', label: 'Weight', asked: /\bweight\b/i, field: /(?:^|[._])(?:weight|wt)(?:$|[._])/i, reading: /\bweight\b[^0-9\n]{0,20}\d{2,3}(?:\.\d+)?\s*(?:kg|lbs?|pounds)\b/i },
-  { id: 'bmi', label: 'BMI', asked: /\bbmi\b|\bbody mass index\b/i, field: /(?:^|[._])bmi(?:$|[._])/i, reading: /\b(?:bmi|body mass index)\b[^0-9\n]{0,20}\d{2}(?:\.\d+)?\b/i },
-  { id: 'potassium', label: 'Potassium', asked: /\bpotassium\b/i, labKinds: ['potassium'], field: /^lab\.(?:k|potassium)\./i, reading: /\bpotassium\b[^0-9\n]{0,20}\d+(?:\.\d+)?\b/i },
-  { id: 'a1c', label: 'A1C', asked: /\b(?:hb)?a1c\b|\bglycated hemoglobin\b/i, labKinds: ['a1c'], field: /^lab\.(?:hb)?a1c\./i, reading: /\b(?:hb)?a1c\b[^0-9\n]{0,20}\d+(?:\.\d+)?\s*%/i },
-  { id: 'hemoglobin', label: 'Hemoglobin', asked: /\b(?:hemoglobin|haemoglobin|hgb)\b(?!\s*a1c)/i, labName: /^(?:hemoglobin|haemoglobin|hgb|hb)$/i, field: /^lab\.hgb\./i, reading: /\b(?:hemoglobin|hgb)\b(?!\s*a1c)[^0-9\n]{0,20}\d+(?:\.\d+)?\b/i },
-  { id: 'glucose', label: 'Glucose', asked: /\bglucose\b|\bblood sugar\b/i, labName: /\bglucose\b/i, field: /^lab\.glucose\./i, reading: /\b(?:glucose|blood sugar)\b[^0-9\n]{0,20}\d{2,3}\b/i },
-  { id: 'sodium', label: 'Sodium', asked: /\bsodium\b/i, labName: /^(?:sodium|na\+?)$/i, field: /^lab\.(?:na|sodium)\./i, reading: /\bsodium\b[^0-9\n]{0,20}\d{3}\b/i },
-  { id: 'creatinine', label: 'Creatinine', asked: /\bcreatinine\b/i, labName: /\bcreatinine\b/i, field: /^lab\.(?:cr|creatinine)\./i, reading: /\bcreatinine\b[^0-9\n]{0,20}\d+(?:\.\d+)?\b/i },
-  { id: 'egfr', label: 'eGFR', asked: /\be?gfr\b/i, labName: /\be?gfr\b/i, field: /^lab\.e?gfr\./i, reading: /\be?gfr\b[^0-9\n]{0,20}\d+\b/i },
-  { id: 'cholesterol', label: 'Cholesterol', asked: /\bcholesterol\b|\bldl\b|\bhdl\b|\blipid panel\b/i, labName: /\bcholesterol\b|\bldl\b|\bhdl\b/i, field: /^lab\.(?:ldl|hdl|cholesterol|tc)\./i, reading: /\b(?:cholesterol|ldl|hdl)\b[^0-9\n]{0,20}\d{2,3}\b/i },
+  { id: 'blood_pressure', group: 'vitals', label: 'Blood pressure', asked: /\bblood[\s-]?pressures?\b|\bbp\b/i, field: /(?:^|[._])(?:bp|bps|bpd|blood_?pressure|bloodpressure|systolic|diastolic)(?:$|[._])/i, reading: /\b(?:bp|blood[\s-]?pressure)\b[^0-9\n]{0,20}\d{2,3}\s*\/\s*\d{2,3}\b/i },
+  { id: 'heart_rate', group: 'vitals', label: 'Heart rate', asked: /\bheart[\s-]?rate\b|\bpulse\b/i, field: /(?:^|[._])(?:hr|heart_?rate|pulse)(?:$|[._])/i, reading: /\b(?:heart[\s-]?rate|pulse|hr)\b[^0-9\n]{0,20}\d{2,3}\b/i },
+  { id: 'temperature', group: 'vitals', label: 'Temperature', asked: /\btemperature\b|\btemp\b/i, field: /(?:^|[._])(?:temp|temperature)(?:$|[._])/i, reading: /\b(?:temperature|temp)\b[^0-9\n]{0,20}\d{2,3}(?:\.\d)?\b/i },
+  { id: 'weight', group: 'vitals', label: 'Weight', asked: /\bweight\b/i, field: /(?:^|[._])(?:weight|wt)(?:$|[._])/i, reading: /\bweight\b[^0-9\n]{0,20}\d{2,3}(?:\.\d+)?\s*(?:kg|lbs?|pounds)\b/i },
+  { id: 'bmi', group: 'vitals', label: 'BMI', asked: /\bbmi\b|\bbody mass index\b/i, field: /(?:^|[._])bmi(?:$|[._])/i, reading: /\b(?:bmi|body mass index)\b[^0-9\n]{0,20}\d{2}(?:\.\d+)?\b/i },
+  { id: 'potassium', group: 'labs', label: 'Potassium', asked: /\bpotassium\b/i, labKinds: ['potassium'], field: /^lab\.(?:k|potassium)\./i, reading: /\bpotassium\b[^0-9\n]{0,20}\d+(?:\.\d+)?\b/i },
+  { id: 'a1c', group: 'labs', label: 'A1C', asked: /\b(?:hb)?a1c\b|\b(?:glycated|glycosylated) (?:hemoglobin|haemoglobin)\b/i, labKinds: ['a1c'], field: /^lab\.(?:hb)?a1c\./i, reading: /\b(?:hb)?a1c\b[^0-9\n]{0,20}\d+(?:\.\d+)?\s*%/i },
+  { id: 'hemoglobin', group: 'labs', label: 'Hemoglobin', asked: /(?<!\b(?:glycated|glycosylated)\s)\b(?:hemoglobin|haemoglobin|hgb)\b(?!\s*a1c)/i, labName: /^(?:hemoglobin|haemoglobin|hgb|hb)$/i, field: /^lab\.hgb\./i, reading: /\b(?:hemoglobin|hgb)\b(?!\s*a1c)[^0-9\n]{0,20}\d+(?:\.\d+)?\b/i },
+  { id: 'glucose', group: 'labs', label: 'Glucose', asked: /\bglucose\b|\bblood sugar\b/i, labName: /\bglucose\b/i, field: /^lab\.glucose\./i, reading: /\b(?:glucose|blood sugar)\b[^0-9\n]{0,20}\d{2,3}\b/i },
+  { id: 'sodium', group: 'labs', label: 'Sodium', asked: /\bsodium\b/i, labName: /^(?:sodium|na\+?)$/i, field: /^lab\.(?:na|sodium)\./i, reading: /\bsodium\b[^0-9\n]{0,20}\d{3}\b/i },
+  { id: 'creatinine', group: 'labs', label: 'Creatinine', asked: /\bcreatinine\b/i, labName: /\bcreatinine\b/i, field: /^lab\.(?:cr|creatinine)\./i, reading: /\bcreatinine\b[^0-9\n]{0,20}\d+(?:\.\d+)?\b/i },
+  { id: 'egfr', group: 'labs', label: 'eGFR', asked: /\be?gfr\b/i, labName: /\be?gfr\b/i, field: /^lab\.e?gfr\./i, reading: /\be?gfr\b[^0-9\n]{0,20}\d+\b/i },
+  { id: 'cholesterol', group: 'labs', label: 'Cholesterol', asked: /\bcholesterol\b|\bldl\b|\bhdl\b|\blipid panel\b/i, labName: /\bcholesterol\b|\bldl\b|\bhdl\b/i, field: /^lab\.(?:ldl|hdl|cholesterol|tc)\./i, reading: /\b(?:cholesterol|ldl|hdl)\b[^0-9\n]{0,20}\d{2,3}\b/i },
 ].map((concept) => Object.freeze(concept)));
 
 /** A question asks for a recorded value when it asks "what"/"which", names a value word, or ends in a question mark. */
@@ -66,6 +68,15 @@ function factRecords(concept, { field = '', value = '' }) {
   return concept.reading.test(text);
 }
 
+const GROUP_NOUN = Object.freeze({ vitals: 'vital signs', labs: 'lab results' });
+
+function missingEntry(concept, readGroups, sourcesChecked) {
+  if (readGroups.has(concept.group)) {
+    return { concept: concept.id, status: 'not_documented', label: concept.label, text: `${concept.label} is not documented in the sources read.`, sources_checked: sourcesChecked };
+  }
+  return { concept: concept.id, status: 'not_retrieved', label: concept.label, text: `${concept.label} is not available from the sources read (${GROUP_NOUN[concept.group]} are not retrieved).`, sources_checked: sourcesChecked };
+}
+
 /**
  * Which asked concepts no available fact records.
  *
@@ -78,17 +89,22 @@ function factRecords(concept, { field = '', value = '' }) {
  *   withheldFields: chart field ids held back from the answer (a conflict,
  *     an unreadable group). A concept with a withheld field is recorded but
  *     not shown, which is not "not documented", so it is never reported as such.
+ *   readGroups: the kinds of data (`vitals`, `labs`) a source that was read
+ *     actually holds. A missing concept in a group that was read is
+ *     `not_documented`; in a group no source reads it is `not_retrieved`,
+ *     and the text says the data is not retrieved rather than absent.
  *
  * Returns `{ question, asked, notDocumented }`: `asked` the concept ids the question
- * asks for; `notDocumented` one `{ concept, label, text, sources_checked }`
+ * asks for; `notDocumented` one `{ concept, status, label, text, sources_checked }`
  * per asked concept with no recording fact.
  */
-export function findNotDocumented({ question = '', labResults = [], facts = [], withheldFields = [] } = {}) {
+export function findNotDocumented({ question = '', labResults = [], facts = [], withheldFields = [], readGroups = [] } = {}) {
+  const groups = new Set(readGroups);
   const asked = askedMeasurementConcepts(question).filter((concept) => !withheldFields.some((field) => concept.field.test(String(field))));
   const sourcesChecked = [...new Set([...(labResults.length ? ['document'] : []), ...facts.map((fact) => fact.source_type).filter(Boolean)])].sort();
   const notDocumented = asked
     .filter((concept) => !labResults.some((result) => labRecords(concept, result)) && !facts.some((fact) => factRecords(concept, fact)))
-    .map((concept) => ({ concept: concept.id, label: concept.label, text: `${concept.label} is not documented in the available sources.`, sources_checked: sourcesChecked }));
+    .map((concept) => missingEntry(concept, groups, sourcesChecked));
   return { question, asked: asked.map((concept) => concept.id), notDocumented };
 }
 

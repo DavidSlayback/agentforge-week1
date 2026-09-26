@@ -104,6 +104,7 @@ function summarizeAnswerVerification(answer) {
       reason_codes: [],
       safety_flag_count: 0,
       safety_flag_codes: [],
+      safety_flags_dropped: 0,
       not_documented_count: 0,
     };
   }
@@ -130,6 +131,7 @@ function summarizeAnswerVerification(answer) {
     // F-CLIN: rule flags and "not documented" answers, as codes and counts
     // only (a flag's text and citations carry values, so they stay out).
     ...safetyFlagSummary(answer.safety_flags),
+    safety_flags_dropped: answer.safety_flags_dropped || 0,
     not_documented_count: (answer.not_documented || []).length,
   };
 }
@@ -157,7 +159,9 @@ function summarizeAnswerVerification(answer) {
 const DEGRADING_ISSUES = new Set(['answer_missing', 'read_back_failed', 'critic_failed', 'critic_skipped_budget']);
 // E2: claims shipped without critic review (identity hold-back, or a top-up
 // added after the critic ran) ask a human to look.
-const REVIEW_ISSUES = new Set(['needs_review', 'qualified_not_ready', 'critic_skipped_identity_only', 'critic_claims_not_sent', 'critic_topup_unreviewed']);
+// F-CLIN: a rule flag that failed verification, or that the critic vetoed,
+// is a safety signal a human should look at.
+const REVIEW_ISSUES = new Set(['needs_review', 'qualified_not_ready', 'critic_skipped_identity_only', 'critic_claims_not_sent', 'critic_topup_unreviewed', 'safety_flags_dropped', 'critic_rejected_flags']);
 
 /** Closed status set for a non-blocked encounter: degraded > needs_review > passed. */
 export function statusForIssues(issues) {
@@ -202,6 +206,8 @@ export function computeRuntimeEvaluation({ workflow, readBack = null } = {}) {
   if (criticStatus === 'skipped_identity_only') issues.push('critic_skipped_identity_only');
   if ((answer?.critic_claims_not_sent || 0) > 0) issues.push('critic_claims_not_sent');
   if ((answer?.critic_topup_unreviewed || 0) > 0) issues.push('critic_topup_unreviewed');
+  if ((answer?.safety_flags_dropped || 0) > 0) issues.push('safety_flags_dropped');
+  if ((answer?.critic_flags_rejected || 0) > 0) issues.push('critic_rejected_flags');
 
   return {
     evaluation: {

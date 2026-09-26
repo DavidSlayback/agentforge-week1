@@ -118,6 +118,16 @@ export function answerClaims(answer) {
   return [...(answer?.patient_facts || []), ...(answer?.guideline_evidence || [])];
 }
 
+/**
+ * What the critic reviews, in the fixed order verdict indexes refer to: every
+ * shipped claim, then every safety flag (F-CLIN) as a `safety_flag` item
+ * with its text and citations. The critic may veto a flag like any claim.
+ */
+export function criticItems(answer) {
+  const flags = (answer?.safety_flags || []).map((flag) => ({ kind: 'safety_flag', text: flag.text, citations: flag.citations }));
+  return [...answerClaims(answer), ...flags];
+}
+
 const hasIdentityCitation = (claim) => (claim?.citations || []).some((citation) => isIdentityField(citation?.field_or_chunk_id));
 
 /**
@@ -129,7 +139,7 @@ const hasIdentityCitation = (claim) => (claim?.citations || []).some((citation) 
 export function buildCriticRequest(answer) {
   const items = [];
   let notSent = 0;
-  answerClaims(answer).forEach((claim, index) => {
+  criticItems(answer).forEach((claim, index) => {
     if (hasIdentityCitation(claim)) { notSent += 1; return; }
     const quotes = (claim.citations || []).map((citation) => String(citation?.quote_or_value || '').trim()).filter(Boolean);
     items.push({ id: `C${items.length + 1}`, index, kind: claim.kind, text: String(claim.text || ''), quotes });
@@ -141,7 +151,8 @@ export function buildCriticRequest(answer) {
 export function buildCriticPrompt(items) {
   const claimLines = items.map((item) => {
     const quotes = item.quotes.length ? item.quotes.map((quote) => `  quote: ${JSON.stringify(quote)}`).join('\n') : '  quote: (none)';
-    return `${item.id} [${item.kind === 'guideline' ? 'guideline evidence' : 'patient record fact'}]: ${JSON.stringify(item.text)}\n${quotes}`;
+    const label = item.kind === 'guideline' ? 'guideline evidence' : item.kind === 'safety_flag' ? 'safety flag' : 'patient record fact';
+    return `${item.id} [${label}]: ${JSON.stringify(item.text)}\n${quotes}`;
   }).join('\n');
   return [
     'You are a safety critic for a clinical documentation assistant. You can only veto claims. You cannot add, merge or rewrite them.',
@@ -314,6 +325,10 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
   const claims = answerClaims(answer);
   const rejected = new Set(handoff.verdicts.filter((verdict) => verdict.verdict === 'reject').map((verdict) => verdict.index));
   const survivors = claims.filter((_, index) => !rejected.has(index));
+  // Safety flags follow the claims in `criticItems`; a vetoed flag is removed
+  // and counted, and bars nothing (its facts may still be stated).
+  const flags = answer.safety_flags || [];
+  const keptFlags = flags.filter((_, position) => !rejected.has(claims.length + position));
   const barredFacts = new Set(claims.filter((_, index) => rejected.has(index)).flatMap((claim) => (claim.citations || []).map(factKey)));
   const topup = rejected.size && parts
     ? deterministicTopUpClaims(parts, survivors).filter((claim) => !(claim.citations || []).some((citation) => barredFacts.has(factKey(citation))))
@@ -324,6 +339,7 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
     composer: topup.length && answer.composer === 'model' ? 'model+deterministic-topup' : answer.composer,
     patient_facts: shipped.filter((claim) => claim.kind === 'patient_fact'),
     guideline_evidence: shipped.filter((claim) => claim.kind === 'guideline'),
+    ...(answer.safety_flags ? { safety_flags: keptFlags, critic_flags_rejected: flags.length - keptFlags.length } : {}),
     critic_status: 'reviewed',
     critic_rejected: claims.length - survivors.length,
     critic_claims_not_sent: notSent,

@@ -411,11 +411,12 @@ button:disabled{opacity:.6;cursor:wait}
         }
         // F-CLIN: deterministic clinical-rule flags (clinicalRules.js), each
         // with the citations of the facts that triggered it and its threshold source.
-        if ((answer.safety_flags || []).length) {
+        if ((answer.safety_flags || []).length || answer.safety_flags_dropped || answer.critic_flags_rejected) {
           const flagSection = document.createElement('section');
           flagSection.className = 'safety-flags';
           const flagTitle = document.createElement('h4');
-          flagTitle.textContent = 'Safety flags (' + answer.safety_flags.length + ')';
+          const withheldFlags = (answer.safety_flags_dropped || 0) + (answer.critic_flags_rejected || 0);
+          flagTitle.textContent = 'Safety flags (' + answer.safety_flags.length + ')' + (withheldFlags ? '; ' + withheldFlags + ' withheld (failed verification or vetoed by the critic)' : '');
           flagSection.append(flagTitle);
           const flagList = document.createElement('ul');
           for (const flag of answer.safety_flags) {

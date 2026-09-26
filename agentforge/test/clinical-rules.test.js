@@ -6,6 +6,7 @@ import { composeGroundedAnswer } from '../src/answerComposer.js';
 import { computeRuntimeEvaluation } from '../src/runtimeEvaluation.js';
 import { GroundedAnswerResult, parseOrIssues, SafetyFlag } from '../src/schemas.js';
 import { validateFollowUpResponse } from '../src/contracts.js';
+import { applyCriticVerdicts, buildCriticPrompt, buildCriticRequest } from '../src/critic.js';
 import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
 import { PreVisitPreparation } from '../src/preVisitPreparation.js';
@@ -131,14 +132,107 @@ test('allergy vs medication class: no flag without a conflict, for a recorded no
   assert.equal(run([], [docCitation('allergies', 'Allergies: Penicillin'), docCitation('medications', 'Current medications: Metformin 500 mg daily')]).safetyFlags.length, 0);
   // intake-b as printed: sulfa allergy, lisinopril.
   assert.equal(run([], [docCitation('allergies', 'Allergy: Sulfa antibiotics'), docCitation('medications', 'Medications: Lisinopril 10 mg daily')]).safetyFlags.length, 0);
-  // The fixture chart's "allergy.penicillin: unknown" is not a documented allergy.
-  assert.equal(run([], [chartCitation('allergy.penicillin', 'unknown'), amoxicillin]).safetyFlags.length, 0);
-  assert.equal(run([], [docCitation('allergies', 'Allergies: NKDA'), amoxicillin]).safetyFlags.length, 0);
+  // Only a whole-entry NKDA/NKA statement records no allergy.
+  for (const none of ['Allergies: NKDA', 'Allergies: None', 'Allergies: No known drug allergies', 'Allergy: NKA']) assert.equal(run([], [docCitation('allergies', none), amoxicillin]).safetyFlags.length, 0, none);
+  assert.equal(run([], [chartCitation('allergy.nkda', 'documented'), amoxicillin]).safetyFlags.length, 0);
   // The legacy intake layout labels every allergy line allergy.penicillin; only the printed line counts.
   assert.equal(run([], [docCitation('allergy.penicillin', 'Allergies: Latex'), amoxicillin]).safetyFlags.length, 0);
   // Penicillin allergy with a sulfonamide, or sulfa allergy with amoxicillin: different classes.
   assert.equal(run([], [docCitation('allergies', 'Allergies: Penicillin'), docCitation('medications', 'Medications: Bactrim DS')]).safetyFlags.length, 0);
   assert.equal(run([], [docCitation('allergies', 'Allergy: Sulfa'), amoxicillin]).safetyFlags.length, 0);
+});
+
+test('review blocker 1: a named allergy with an unknown reaction, or next to "no known food allergies", is still an allergy', () => {
+  const amoxicillin = docCitation('medications', 'Current medications: Amoxicillin 500 mg');
+  // A chart allergy's value is its reaction: "unknown" is an unknown reaction to penicillin.
+  assert.equal(run([], [chartCitation('allergy.penicillin', 'unknown'), amoxicillin]).safetyFlags.length, 1);
+  assert.equal(run([], [docCitation('allergies', 'Allergies: Penicillin - hives; no known food allergies'), amoxicillin]).safetyFlags.length, 1);
+  assert.equal(run([], [docCitation('allergies', 'Allergies: Penicillin (reaction unknown)'), amoxicillin]).safetyFlags.length, 1);
+});
+
+test('review blocker 2: flag text is a template; a medication line with instructions never reaches it', () => {
+  const directive = docCitation('medications', 'Current medications: Amoxicillin - stop taking, increase dose');
+  const [flag] = run([], [docCitation('allergies', 'Allergies: Penicillin'), directive]).safetyFlags;
+  assert.equal(flag.text, 'Recorded allergy to a penicillin and a recorded penicillin-class medication (amoxicillin).');
+  assert.doesNotMatch(flag.text, /stop|increase|dose|Current medications/i);
+  // Lab flags name the test with a fixed label, never the document's printed test name.
+  const [kFlag] = run([{ ...potassium('6.8'), test_name: 'Potassium, serum', collection_date: 'call the patient now' }]).safetyFlags;
+  assert.equal(kFlag.text, 'Potassium 6.8 mmol/L is in the critical range used by this rule (6.0 mmol/L or greater).');
+});
+
+test('review blocker 2: a flag whose grounding fails verifyClaims is dropped and counted, never shipped', async () => {
+  const intakeForm = (medication) => ({
+    demographics: { name: { status: 'not_found_on_form', value: null, confidence: 0, citation: null }, dob: { status: 'not_found_on_form', value: null, confidence: 0, citation: null } },
+    chief_concern: { status: 'not_found_on_form', value: null, confidence: 0, citation: null },
+    current_medications: [{ status: 'observed', value: medication, confidence: 0.93, citation: docCitation('medications', `Current medications: ${medication}`) }],
+    allergies: [{ status: 'observed', value: 'Penicillin', confidence: 0.93, citation: docCitation('allergies', 'Allergies: Penicillin') }],
+    family_history: [],
+  });
+  const clean = await composeGroundedAnswer({ intakeForm: intakeForm('Amoxicillin 500 mg') });
+  assert.equal(clean.safety_flags.length, 1);
+  assert.equal(clean.safety_flags_dropped, 0);
+  // The medication line carries an instruction ("Stop taking if rash."), so the
+  // claim grounding the flag fails verifyClaims (DIRECTIVE_LANGUAGE): the flag is
+  // dropped and counted, and the line itself is not stated either.
+  const directive = await composeGroundedAnswer({ intakeForm: intakeForm('Amoxicillin 500 mg. Stop taking if rash, increase dose') });
+  assert.deepEqual(directive.safety_flags, []);
+  assert.equal(directive.safety_flags_dropped, 1);
+  assert.ok(parseOrIssues(GroundedAnswerResult, directive).ok);
+  assert.doesNotMatch(JSON.stringify(directive), /"text":"[^"]*Stop taking/);
+  const { evaluation } = computeRuntimeEvaluation({ workflow: { readiness: 'ready', final_state: 'READY', answer: directive } });
+  assert.ok(evaluation.issues.includes('safety_flags_dropped'));
+  assert.equal(evaluation.status, 'needs_review');
+});
+
+test('review blocker 2: the critic sees every safety flag and may veto one like any claim', async () => {
+  const answer = await composeGroundedAnswer({ labResults: [potassium('6.8')] });
+  const request = buildCriticRequest(answer);
+  const flagItem = request.items.find((item) => item.kind === 'safety_flag');
+  assert.ok(flagItem, 'the flag is sent to the critic');
+  assert.match(buildCriticPrompt(request.items), /\[safety flag\]/);
+  const verdicts = request.items.map((item) => ({ index: item.index, verdict: item === flagItem ? 'reject' : 'keep', reason: item === flagItem ? 'UNSUPPORTED_BY_SOURCE' : null }));
+  const applied = applyCriticVerdicts(answer, { output_status: 'reviewed', verdicts, redacted_metrics: { claims_not_sent: 0 } });
+  assert.deepEqual(applied.safety_flags, []);
+  assert.equal(applied.critic_flags_rejected, 1);
+  assert.equal(applied.critic_rejected, 0, 'no claim was removed');
+  assert.equal(applied.patient_facts.length, answer.patient_facts.length);
+  assert.ok(parseOrIssues(GroundedAnswerResult, applied).ok);
+});
+
+test('potassium: a document flag that contradicts the critical range goes to review, like A1C', () => {
+  for (const [value, flagWord] of [['6.8', 'normal'], ['6.8', 'low'], ['2.4', 'normal'], ['2.4', 'high']]) {
+    const { safetyFlags, labResults, needsReview } = run([{ ...potassium(value), abnormal_flag: flagWord }]);
+    assert.deepEqual([safetyFlags.length, labResults.length], [0, 0], `${value} ${flagWord}`);
+    assert.deepEqual(needsReview.map((item) => item.reason), ['flag_contradicts_range']);
+  }
+  assert.equal(run([{ ...potassium('6.8'), abnormal_flag: 'high' }]).safetyFlags.length, 1);
+  assert.equal(run([{ ...potassium('2.4'), abnormal_flag: 'low' }]).safetyFlags.length, 1);
+});
+
+test('labKind: potassium spellings are normalized; Vitamin K is not potassium', () => {
+  for (const name of ['Potassium', 'Potassium (K)', 'K, serum', 'Potassium, plasma', 'Serum K', 'K+', 'Serum potassium', 'POTASSIUM, SERUM']) {
+    assert.equal(labKind({ test_name: name, citation: docCitation('lab.x.value', '1') }), 'potassium', name);
+  }
+  for (const name of ['Vitamin K', 'Hemoglobin', 'Sodium']) assert.equal(labKind({ test_name: name, citation: docCitation('lab.x.value', '1') }), null, name);
+  assert.equal(labKind({ test_name: 'Glycated hemoglobin', citation: docCitation('lab.x.value', '1') }), 'a1c');
+});
+
+test('A1C of 20% or more is implausible: needs review, never a flag', () => {
+  for (const value of ['20', '48']) assert.deepEqual(run([a1c(value)]).needsReview.map((item) => item.reason), ['implausible_value'], value);
+  assert.equal(run([a1c('19.9')]).safetyFlags.length, 1);
+});
+
+test('drug classes: combination and brand names are recognized; ended medications do not flag', () => {
+  const penicillin = docCitation('allergies', 'Allergies: Penicillin');
+  const sulfa = docCitation('allergies', 'Allergy: Sulfa');
+  for (const line of ['Medications: Zosyn 4.5 g every 6 hours', 'Medications: Piperacillin-tazobactam 3.375 g', 'Medications: Unasyn 3 g', 'Medications: Ampicillin-sulbactam 3 g']) assert.equal(run([], [penicillin, docCitation('medications', line)]).safetyFlags.length, 1, line);
+  for (const line of ['Medications: TMP-SMX DS twice daily', 'Medications: SMX/TMP 800/160 mg', 'Medications: Trimethoprim-sulfamethoxazole 800/160 mg']) assert.equal(run([], [sulfa, docCitation('medications', line)]).safetyFlags.length, 1, line);
+  // Ended: the line says so, or the chart records a stop status or an end date for that drug.
+  assert.equal(run([], [penicillin, docCitation('medications', 'Medications: Amoxicillin 500 mg (discontinued)')]).safetyFlags.length, 0);
+  assert.equal(run([], [penicillin, docCitation('medications', 'Medications: Amoxicillin 500 mg, end date 2026-08-01')]).safetyFlags.length, 0);
+  assert.equal(run([], [penicillin, chartCitation('medication.amoxicillin.dose', '500 mg'), chartCitation('medication.amoxicillin.status', 'stopped')]).safetyFlags.length, 0);
+  assert.equal(run([], [penicillin, chartCitation('medication.amoxicillin.dose', '500 mg'), chartCitation('medication.amoxicillin.end_date', '2026-08-01')]).safetyFlags.length, 0);
+  assert.equal(run([], [penicillin, chartCitation('medication.amoxicillin.dose', '500 mg'), chartCitation('medication.amoxicillin.status', 'active')]).safetyFlags.length, 1);
 });
 
 test('summarizeSafetyFlags returns codes and counts only', () => {
@@ -182,7 +276,7 @@ test('a low-confidence critical potassium is not flagged: it is already in needs
 
 // ---- "Not documented" follow-up on the briefing path ----------------------------------
 
-test('briefing follow-up: a blood-pressure question with no BP record is answered "not documented", with no unrelated evidence', async () => {
+test('briefing follow-up: a blood-pressure question is answered "not available from the sources read", with no unrelated evidence', async () => {
   const adapter = new FixtureAdapter(fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url)));
   const preparation = new PreVisitPreparation({ adapter, provider: new DeterministicProvider() });
   const value = { patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', correlation_id: 'rules-not-documented', case_id: 'complete_return_visit' };
@@ -192,7 +286,10 @@ test('briefing follow-up: a blood-pressure question with no BP record is answere
 
   const bp = await ask('What was the blood pressure?');
   assert.equal(validateFollowUpResponse(bp).valid, true, validateFollowUpResponse(bp).issues.join('; '));
-  assert.match(bp.text, /^Blood pressure is not documented in the verified chart records/);
+  // The chart read has no vitals group, so absence is not claimed (review should-fix 3).
+  assert.equal(bp.text, 'Blood pressure is not available from the sources read (vital signs are not retrieved for this briefing).');
+  assert.doesNotMatch(bp.text, /not documented/);
+  assert.deepEqual(bp.not_documented.map((item) => item.status), ['not_retrieved']);
   assert.deepEqual(bp.claims, []);
   assert.deepEqual(bp.evidence, []);
   assert.deepEqual(bp.not_documented.map((item) => item.concept), ['blood_pressure']);

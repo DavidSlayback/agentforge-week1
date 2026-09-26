@@ -382,6 +382,10 @@ export const SafetyFlag = z.object({
  */
 export const NotDocumentedItem = z.object({
   concept: z.string().min(1),
+  // `not_documented`: a source that holds this kind of data was read and has
+  // no value. `not_retrieved`: no source read holds this kind of data (e.g.
+  // the chart read does not include vitals), so absence is not claimed.
+  status: z.enum(['not_documented', 'not_retrieved']),
   label: z.string().min(1),
   text: z.string().min(1),
   sources_checked: z.array(z.string().min(1)),
@@ -407,6 +411,10 @@ export const GroundedAnswerResult = z.object({
   // F-CLIN: optional so answers built outside the composer (tests, older
   // stored answers) stay valid; `composeGroundedAnswer` always sets both.
   safety_flags: z.array(SafetyFlag).optional(),
+  // Flags a rule raised that failed `verifyClaims` (dropped, never shipped),
+  // and flags the critic vetoed (removed from `safety_flags`).
+  safety_flags_dropped: z.number().int().nonnegative().optional(),
+  critic_flags_rejected: z.number().int().nonnegative().optional(),
   not_documented: z.array(NotDocumentedItem).optional(),
   unverified_dropped: z.number().int().nonnegative(),
   model_claims_proposed: z.number().int().nonnegative(),

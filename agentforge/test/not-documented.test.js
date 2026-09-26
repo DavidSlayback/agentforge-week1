@@ -20,6 +20,7 @@ test('askedMeasurementConcepts: value questions name a concept; guideline and no
   assert.deepEqual(ids('What is the target blood pressure?'), [], 'a guideline figure, not a recorded value');
   assert.deepEqual(ids('A1C blood sugar diabetes diagnosis threshold'), [], 'the gate retrieval query is not a value question');
   assert.deepEqual(ids('What is the lisinopril dose?'), []);
+  assert.deepEqual(ids('What was the glycated hemoglobin?'), ['a1c'], 'glycated hemoglobin is A1C, not hemoglobin');
   assert.deepEqual(ids(''), []);
 });
 
@@ -28,9 +29,14 @@ test('findNotDocumented: a word match is not a reading; a field, lab or quoted r
   assert.deepEqual(missing.asked, ['blood_pressure']);
   assert.deepEqual(missing.notDocumented.map((item) => item.concept), ['blood_pressure']);
   assert.deepEqual(missing.notDocumented[0].sources_checked, ['synthetic_chart_fixture']);
+  // No source read holds vitals: the entry says so instead of claiming absence.
+  assert.equal(missing.notDocumented[0].status, 'not_retrieved');
+  assert.match(missing.notDocumented[0].text, /not available from the sources read \(vital signs are not retrieved\)/);
+  const read = findNotDocumented({ question: 'What was the blood pressure?', facts: PATIENT_001, readGroups: ['vitals'] });
+  assert.equal(read.notDocumented[0].status, 'not_documented');
   assert.ok(onlyNotDocumented(missing));
 
-  for (const facts of [[...PATIENT_001, chart('vitals.bp', '128/82')], [...PATIENT_001, chart('note.body', 'Seated BP 128/82 today')], [...PATIENT_001, chart('vital.blood_pressure.systolic', '128')]]) {
+  for (const facts of [[...PATIENT_001, chart('vitals.bps', '128')], [...PATIENT_001, chart('vitals.bpd', '82')], [...PATIENT_001, chart('vitals.bp', '128/82')], [...PATIENT_001, chart('note.body', 'Seated BP 128/82 today')], [...PATIENT_001, chart('vital.blood_pressure.systolic', '128')]]) {
     assert.deepEqual(findNotDocumented({ question: 'What was the blood pressure?', facts }).notDocumented, [], JSON.stringify(facts.at(-1)));
   }
   // A withheld BP field is recorded but not shown: never "not documented".
@@ -68,6 +74,10 @@ test('scan answer: a question asking only for an undocumented value gets a "not 
   assert.deepEqual(answer.guideline_evidence, []);
   assert.deepEqual(answer.not_documented.map((item) => item.concept), ['blood_pressure']);
   assert.deepEqual(answer.not_documented[0].sources_checked, ['document', 'synthetic_chart_fixture']);
+  assert.equal(answer.not_documented[0].status, 'not_retrieved', 'a lab report and the chart read hold no vitals');
+  // A lab missing from a lab report is not documented in the report that was read.
+  const k = await composeGroundedAnswer({ labResults: labs, patientFacts, question: 'What was the potassium?' });
+  assert.deepEqual(k.not_documented.map((item) => [item.concept, item.status]), [['potassium', 'not_documented']]);
   assert.equal(modelCalled, false);
 
   // A documented value question is answered as before, with no not_documented entry.
