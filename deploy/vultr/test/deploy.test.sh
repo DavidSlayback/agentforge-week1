@@ -201,6 +201,25 @@ else
   fail "wrong SHA (rc=$rc): $out"
 fi
 
+# 6. The backup step keeps relative paths. `agentforge` and `docs/agentforge` share a basename;
+#    moving both to "$b/" collided, the failure was swallowed, and the new archive was unpacked
+#    over the old docs/agentforge (stale files could reach the next AgentForge image). Replay the
+#    exact backup command deploy.sh sent (happy case) against a throwaway tree.
+bk=$work/backup-replay
+mkdir -p "$bk/root/agentforge" "$bk/root/docs/agentforge" "$bk/root/dashboard" "$bk/root/evals" \
+  "$bk/root/observability" "$bk/root/deploy/vultr" "$bk/root/interface/modules/custom_modules/oe-module-agentforge"
+echo app > "$bk/root/agentforge/app.txt"
+echo stale > "$bk/root/docs/agentforge/stale.txt"
+echo df > "$bk/root/Dockerfile"
+cmd=$(grep -o "set -e; b=~/agentforge-week1-backups/.*" "$work/logs-happy/ssh.log" | head -n 1)
+cmd=$(printf '%s' "$cmd" | sed -e "s#~/agentforge-week1-backups#$bk/backups#g" -e "s#cd [^;]*;#cd $bk/root;#" -e 's/sudo //g')
+if [ -n "$cmd" ] && sh -c "$cmd" && [ ! -e "$bk/root/docs/agentforge" ] && [ ! -e "$bk/root/agentforge" ] &&
+  [ -f "$bk"/backups/*/docs/agentforge/stale.txt ] && [ -f "$bk"/backups/*/agentforge/app.txt ]; then
+  pass "the backup moves agentforge/ and docs/agentforge/ to distinct paths (no basename collision)"
+else
+  fail "backup replay: docs/agentforge left in place or collided ($cmd)"
+fi
+
 if [ "$failures" -ne 0 ]; then
   echo "deploy.sh tests: $failures failed" >&2
   exit 1

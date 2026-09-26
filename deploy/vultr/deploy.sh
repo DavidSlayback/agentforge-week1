@@ -78,7 +78,7 @@ ssh_run() {
 
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 echo "Backing up current sources on the VM ($stamp)..."
-ssh_run "set -e; b=~/agentforge-week1-backups/$stamp; mkdir -p \$b; cd $root; for p in $replaced; do [ -e \$p ] && sudo mv \$p \$b/ || true; done; for p in $in_place; do [ -e \$p ] && sudo cp -a --parents \$p \$b/ || true; done"
+ssh_run "set -e; b=~/agentforge-week1-backups/$stamp; mkdir -p \$b; cd $root; for p in $replaced; do if [ -e \$p ]; then sudo mkdir -p \$b/\$(dirname \$p) && sudo mv \$p \$b/\$p; fi; done; for p in $in_place; do [ -e \$p ] && sudo cp -a --parents \$p \$b/ || true; done"
 
 caddy_before=$(ssh_run "sha256sum $root/deploy/vultr/Caddyfile 2>/dev/null | cut -d' ' -f1" || true)
 
