@@ -309,16 +309,24 @@ narrative behind each group.
 | `AGENTFORGE_ALERT_EVAL_INTERVAL_MS` | How often the server evaluates the alert rules in the background (also on every `GET /v1/alerts`). Each rule's `ok`/`firing` change is logged once, as one JSON line with codes only (`agentforge_alert_transition`, rule id, states, window). Must be a positive integer | `60000` | No | No |
 | `LANGFUSE_BASE_URL` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_TIMEOUT_MS` / `LANGFUSE_MAX_PENDING_EXPORTS` | Optional self-hosted Langfuse export (all three of the first must be set together). When set, `/ready` also probes `GET <base>/api/public/health` and reports `langfuse` | disabled | No | Secret key: yes |
 
-`/ready` answers 503 and lists the failing dependency names in `failing`. It
-checks the configuration, the chart source, the model, a real write to the
-trace store, the guideline corpus, the OpenEMR module's signed `health` route
-when `AGENTFORGE_PERSISTENCE_MODE=openemr-module`, and Langfuse when it is
-configured. Network probes are cached for 30 s. Every response carries an
-`x-correlation-id` header: the caller's own value when it is 8-128 characters
-of `[A-Za-z0-9._:-]`, otherwise a new `af-<uuid>`. The same id names the scan
-trace, is sent on every outbound call the request makes (OpenEMR REST reads
-and token refresh, guideline embed and rerank, OpenEMR module), and appears in
-the server's error logs.
+`/ready` answers 503 and lists the failing dependency names in `failing`,
+with a `reason` code where one is known. It checks the configuration, the
+chart source, the model, the trace store (`traceStore`: its state plus a real
+write), the guideline corpus, the OpenEMR module's signed `health` route when
+`AGENTFORGE_PERSISTENCE_MODE=openemr-module` (`openemrModule`, reason = the
+module error code), and Langfuse when it is configured. The write, module and
+Langfuse probes are cached for 30 s, and concurrent `/ready` calls share one
+in-flight probe. A trace file that does not parse at startup is renamed to
+`<name>.corrupt-<ms>.json`, the store starts empty, one
+`agentforge_trace_store_recovered` line is logged, and `traceStore` reports
+`TRACE_STORE_CORRUPT` until the next trace is written.
+
+Every response carries an `x-correlation-id` header. A caller's value is used
+only when it is a UUID or 16-64 lowercase hex characters; anything else is
+dropped (not logged, stored or forwarded) and the server mints `af-<uuid>`.
+The id names the scan trace, is sent on every outbound call the request makes
+(OpenEMR REST reads and token refresh, guideline embed and rerank, OpenEMR
+module), and appears in the server's error logs.
 
 **Test-only** (never set in a deployed environment): `AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE`, `AGENTFORGE_TEST_INVALID_ANSWER`, `AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION`, `AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE` — force specific failure paths in tests.
 

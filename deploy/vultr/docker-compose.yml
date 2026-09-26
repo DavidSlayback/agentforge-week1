@@ -326,8 +326,10 @@ services:
         condition: service_healthy
       agentforge:
         condition: service_healthy
+      # Started, not healthy: agentforge-w2's /ready depends on the OpenEMR
+      # module, and a module outage must never keep Caddy from starting.
       agentforge-w2:
-        condition: service_healthy
+        condition: service_started
 
 volumes:
   logvolume01: {}

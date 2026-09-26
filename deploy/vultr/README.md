@@ -161,19 +161,29 @@ not use it.
   `docker compose --env-file /opt/agentforge-week1/.env logs agentforge-w2 | grep agentforge_alert_transition`.
 - **Readiness.** `/agentforge-w2/ready` now also calls the OpenEMR module's
   signed `health` route and writes a probe file to the trace volume. A failing
-  dependency gives 503 with its name in `failing` (for example
-  `["openemrModule"]`). Probes are cached for 30 s. Because `/ready` depends on
-  OpenEMR, the service has `depends_on: openemr (healthy)` and a 60 s
-  healthcheck start period. Langfuse is probed only if its variables are set;
-  the `agentforge-w2` block does not pass them today.
-- **Correlation ids.** Each response carries `x-correlation-id` (the caller's
-  value when it is a plain 8-128 character token, else `af-<uuid>`). The scan
-  trace in `/v1/traces` has the same `correlationId`, and module, OpenEMR REST
-  and model calls send it as `x-correlation-id`.
+  dependency gives 503 with its name in `failing` and a `reason` code (for
+  example `openemrModule` with `OPENEMR_MODULE_TIMEOUT`). Probes are cached for
+  30 s and concurrent calls share one probe, so `/ready` traffic costs at most
+  one signed module call per 30 s. Because `/ready` depends on OpenEMR, the
+  service has `depends_on: openemr (healthy)` and a 60 s healthcheck start
+  period. The `proxy` waits only for `agentforge-w2` to start, not to be
+  healthy, so a module outage never keeps Caddy down. Langfuse is probed only
+  if its variables are set; the `agentforge-w2` block does not pass them today.
+- **Corrupt trace file.** If `/data/w2-traces.json` does not parse at startup
+  (for example truncated), the service still starts: the file is renamed to
+  `w2-traces.corrupt-<ms>.json` on the volume, one
+  `agentforge_trace_store_recovered` line is logged (no content), and
+  `/ready` reports `traceStore` `TRACE_STORE_CORRUPT` until the next trace is
+  written. Delete the `.corrupt-*` file once inspected.
+- **Correlation ids.** Each response carries `x-correlation-id`: the caller's
+  value only when it is a UUID or 16-64 lowercase hex characters, else a
+  server-minted `af-<uuid>` (a rejected value is not stored or forwarded).
+  The scan trace in `/v1/traces` has the same `correlationId`, and module,
+  OpenEMR REST and model calls send it as `x-correlation-id`.
 
 No operator step is required: all four settings have defaults, and the
 optional overrides go in `/opt/agentforge-week1/.env`. After the deploy,
-check `/agentforge-w2/ready` (`trace` and `openemrModule` ready),
+check `/agentforge-w2/ready` (`traceStore` and `openemrModule` ready),
 `/agentforge-w2/v1/metrics` (`traceLimit: 500`), and that the trace count in
 `/agentforge-w2/v1/traces` is not reset by the next deploy.
 

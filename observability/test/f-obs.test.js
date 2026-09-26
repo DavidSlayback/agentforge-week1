@@ -129,3 +129,77 @@ test('the Langfuse probe calls the public health route and fails closed', async 
   assert.equal(await exporter(async () => { throw new Error('ECONNREFUSED'); }).checkReachable(), false);
   assert.equal(await new LangfuseOtelExporter({ baseUrl: '', publicKey: '', secretKey: '' }).checkReachable(), false);
 });
+
+// Review fixes (F-OBS round 2).
+
+for (const [label, content] of [['truncated', '[{"correlationId":"a","status":"succ'], ['empty', '']]) {
+  test(`a ${label} trace file is moved aside and the store starts empty and not ready until a write succeeds`, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentforge-corrupt-'));
+    try {
+      const filePath = path.join(root, 'w2-traces.json');
+      fs.writeFileSync(filePath, content);
+      const logs = [];
+      const sink = new FileTraceSink({ filePath, clock: () => '2026-09-26T20:00:00.000Z', log: (entry) => logs.push(entry) });
+      assert.deepEqual(sink.list(), []);
+      const aside = fs.readdirSync(root).filter((name) => /^w2-traces\.corrupt-\d+\.json$/.test(name));
+      assert.equal(aside.length, 1, 'the corrupt file is kept for inspection');
+      assert.equal(fs.readFileSync(path.join(root, aside[0]), 'utf8'), content);
+      assert.equal(fs.existsSync(filePath), false);
+      assert.deepEqual(logs, [{ level: 'error', event: 'agentforge_trace_store_recovered', error_code: 'TRACE_STORE_CORRUPT' }]);
+      assert.deepEqual([sink.health().status, sink.health().errorCode], ['not_ready', 'TRACE_STORE_CORRUPT']);
+      sink.record({ status: 'success', correlationId: 'after-recovery' });
+      await sink.flush();
+      assert.deepEqual([sink.health().status, sink.health().errorCode], ['ok', null]);
+      assert.equal(JSON.parse(fs.readFileSync(filePath, 'utf8')).length, 1);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('an explicit restore of a corrupt backup still fails loudly', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentforge-restore-'));
+  try {
+    const sink = new FileTraceSink({ filePath: path.join(root, 'traces.json') });
+    fs.writeFileSync(path.join(root, 'backup.json'), '[{');
+    await assert.rejects(sink.restore(path.join(root, 'backup.json')), SyntaxError);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('cachedCheck coalesces concurrent calls into one probe per window', async () => {
+  let now = 0;
+  let calls = 0;
+  let release;
+  const check = cachedCheck(() => { calls += 1; return new Promise((resolve) => { release = resolve; }); }, { ttlMs: 1000, now: () => now });
+  const pending = Array.from({ length: 20 }, () => check());
+  release({ ready: true });
+  const results = await Promise.all(pending);
+  assert.equal(calls, 1, 'twenty concurrent calls, one probe');
+  assert.ok(results.every((value) => value.ready === true));
+  now = 500;
+  await check();
+  assert.equal(calls, 1);
+  now = 2000;
+  const next = check();
+  release(false);
+  assert.equal(await next, false);
+  assert.equal(calls, 2);
+});
+
+test('a failing probe is not cached as a success and the next call re-probes', async () => {
+  let calls = 0;
+  const check = cachedCheck(async () => { calls += 1; throw new Error('boom'); }, { ttlMs: 1000, now: () => 0 });
+  await assert.rejects(Promise.all([check(), check()]));
+  assert.equal(calls, 1);
+  await assert.rejects(check());
+  assert.equal(calls, 2);
+});
+
+test('readiness carries a dependency reason code', async () => {
+  const result = await createReadinessChecker({ traceStore: { checkReady: async () => ({ ready: false, reason: 'TRACE_STORE_CORRUPT' }) }, model: { checkReady: async () => ({ ready: true }) } }).ready();
+  assert.deepEqual(result.failing, ['traceStore']);
+  assert.deepEqual(result.dependencies.traceStore, { status: 'not_ready', reason: 'TRACE_STORE_CORRUPT' });
+  assert.deepEqual(result.dependencies.model, { status: 'ready' });
+});

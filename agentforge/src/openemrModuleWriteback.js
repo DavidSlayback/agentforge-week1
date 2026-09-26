@@ -204,9 +204,10 @@ export class OpenEMRModuleWriteback {
   async checkReady() {
     try {
       const result = await this.client.health();
-      return result?.status === 'ok';
-    } catch {
-      return false;
+      return result?.status === 'ok' ? { ready: true } : { ready: false, reason: 'OPENEMR_MODULE_HEALTH_NOT_OK' };
+    } catch (error) {
+      // The module error code only (e.g. OPENEMR_MODULE_SIGNATURE_INVALID vs OPENEMR_MODULE_TIMEOUT).
+      return { ready: false, reason: typeof error?.code === 'string' ? error.code : 'OPENEMR_MODULE_HEALTH_FAILED' };
     }
   }
 

@@ -263,14 +263,21 @@ const modelReadiness = { checkReady: async () => {
 // every 30 s, and each module health call is a signed request.
 const READINESS_PROBE_TTL_MS = 30000;
 const openemrModuleReadiness = persistenceMode === 'openemr-module' ? { checkReady: cachedCheck(() => writeback.checkReady(), { ttlMs: READINESS_PROBE_TTL_MS }) } : null;
+const traceStoreWriteProbe = cachedCheck(() => traceSink.probeWritable(), { ttlMs: READINESS_PROBE_TTL_MS });
 const langfuseReadiness = traceSink.exporter?.isConfigured?.() ? { checkReady: cachedCheck(() => traceSink.exporter.checkReachable(), { ttlMs: READINESS_PROBE_TTL_MS }) } : null;
 const readiness = createReadinessChecker({
   configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
   retrieval: chartAdapter,
   ...(liveReadsEnabled ? { openemrLiveReadsConfiguration: { checkReady: async () => liveReadsMissingSettings.length === 0 } } : {}),
   model: modelReadiness,
-  // A real write next to the trace file, not only an access-bit check.
-  trace: { checkReady: async () => traceSink.health().status === 'ok' && await traceSink.probeWritable() },
+  // Store state (a corrupt file recovered at startup, a failed write, a
+  // missing directory) on every call; a real write next to the trace file,
+  // cached and coalesced like the network probes.
+  traceStore: { checkReady: async () => {
+    const health = traceSink.health();
+    if (health.status !== 'ok') return { ready: false, reason: health.errorCode || 'TRACE_STORE_UNAVAILABLE' };
+    return await traceStoreWriteProbe() ? { ready: true } : { ready: false, reason: 'TRACE_STORE_WRITE_FAILED' };
+  } },
   // The OpenEMR module (persistence) and Langfuse (export) only when configured.
   ...(openemrModuleReadiness ? { openemrModule: openemrModuleReadiness } : {}),
   ...(langfuseReadiness ? { langfuse: langfuseReadiness } : {}),
@@ -342,14 +349,16 @@ async function readJsonBody(req) {
   }
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
 }
-// One correlation id per request: a caller's `x-correlation-id` when it is a
-// plain token (8-128 of [A-Za-z0-9._:-]), otherwise a new `af-<uuid>`. It is
-// echoed on the response, names the scan trace, rides on every outbound call
-// the request makes, and appears in this server's error logs.
-const CORRELATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+// One correlation id per request. A caller's `x-correlation-id` is accepted
+// only when it cannot carry a name or date: a UUID, or 16-64 lowercase hex
+// characters. Anything else is dropped (never logged, stored or forwarded)
+// and the server mints `af-<uuid>`. The id is echoed on the response, names
+// the scan trace, rides on every outbound call the request makes, and
+// appears in this server's error logs.
+const ACCEPTED_CORRELATION_ID = /^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-f]{16,64})$/;
 const requestCorrelationId = (req) => {
   const header = req.headers['x-correlation-id'];
-  return typeof header === 'string' && CORRELATION_ID.test(header) ? header : `af-${randomUUID()}`;
+  return typeof header === 'string' && ACCEPTED_CORRELATION_ID.test(header) ? header : `af-${randomUUID()}`;
 };
 const server = http.createServer(async (req, res) => {
   const correlationId = requestCorrelationId(req);

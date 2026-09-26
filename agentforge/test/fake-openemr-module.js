@@ -16,6 +16,8 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
   const ledger = new Map();
   const documents = new Map();
   const labBySource = new Map();
+  // F-OBS: route and x-correlation-id of every API request, for propagation tests.
+  const seen = [];
   const counts = { documents: 0, procedure_orders: 0, procedure_results: 0, requests: 0, rejected: 0, list_item_requests: 0 };
   let nextDocumentId = 57;
   let nextOrderId = 9;
@@ -31,6 +33,7 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
 
   const server = http.createServer(async (req, res) => {
     counts.requests += 1;
+    if (!req.url.startsWith('/__')) seen.push({ route: new URL(req.url, 'http://fake-module').searchParams.get('route'), correlationId: req.headers['x-correlation-id'] || null });
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const rawBody = Buffer.concat(chunks).toString('utf8');
@@ -110,6 +113,7 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
   return {
     url: `http://127.0.0.1:${port}/interface/modules/custom_modules/oe-module-agentforge/public/api.php`,
     counts: () => ({ ...counts }),
+    requests: () => seen.map((entry) => ({ ...entry })),
     /** Lab rows stored for one module document id (E5 tests). */
     labRowsFor: (documentId) => (labBySource.get(documentId) || []).map(({ row }) => ({ ...row })),
     settings,

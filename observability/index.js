@@ -252,18 +252,40 @@ class InMemoryTraceSink {
 }
 
 class FileTraceSink extends InMemoryTraceSink {
-  constructor({ filePath, maxTraces = 100, retentionMs = 24 * 60 * 60 * 1000, clock = () => new Date().toISOString() } = {}) {
+  constructor({ filePath, maxTraces = 100, retentionMs = 24 * 60 * 60 * 1000, clock = () => new Date().toISOString(), log = (entry) => console.error(JSON.stringify(entry)) } = {}) {
     if (!filePath) throw new Error('TRACE_FILE_PATH_REQUIRED');
     super({ maxTraces });
     this.filePath = filePath;
     this.retentionMs = retentionMs;
     this.clock = clock;
+    this.log = log;
     this.persistQueue = Promise.resolve();
     this.pendingWrites = 0;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     this.lastPersistError = null;
-    this.traces = this.readFromDisk();
+    this.traces = this.loadOrRecover();
     this.prune(this.clock());
+  }
+
+  /**
+   * Load the store at startup. A file that does not parse (truncated, empty,
+   * not an array) must not crash-loop the service on a persistent volume: it
+   * is renamed aside to `<name>.corrupt-<ms>.json`, one error code is logged
+   * (never the content), the store starts empty, and `health()` reports
+   * `TRACE_STORE_CORRUPT` until the next trace write succeeds.
+   */
+  loadOrRecover() {
+    try {
+      return this.readFromDisk();
+    } catch (error) {
+      if (!(error instanceof SyntaxError) && error?.message !== 'TRACE_STORE_INVALID') throw error;
+      const parsed = path.parse(this.filePath);
+      const aside = path.join(parsed.dir, `${parsed.name}.corrupt-${Date.parse(this.clock()) || Date.now()}${parsed.ext || '.json'}`);
+      fs.renameSync(this.filePath, aside);
+      this.lastPersistError = 'TRACE_STORE_CORRUPT';
+      this.log({ level: 'error', event: 'agentforge_trace_store_recovered', error_code: 'TRACE_STORE_CORRUPT' });
+      return [];
+    }
   }
 
   readStore(filePath) {
@@ -375,9 +397,13 @@ class FileTraceSink extends InMemoryTraceSink {
     }
   }
 
+  /** `errorCode` is TRACE_STORE_CORRUPT (recovered at startup, no write yet), TRACE_STORE_WRITE_FAILED or TRACE_STORE_UNAVAILABLE. */
   health() {
     let writable = true;
-    try { fs.accessSync(path.dirname(this.filePath), fs.constants.W_OK); } catch { writable = false; }
+    try {
+      if (!fs.statSync(path.dirname(this.filePath)).isDirectory()) writable = false;
+      else fs.accessSync(path.dirname(this.filePath), fs.constants.W_OK);
+    } catch { writable = false; }
     return { status: writable && !this.lastPersistError ? 'ok' : 'not_ready', durable: true, writable, pendingWrites: this.pendingWrites, retentionMs: this.retentionMs, errorCode: writable ? this.lastPersistError : 'TRACE_STORE_UNAVAILABLE' };
   }
 }
@@ -565,8 +591,11 @@ function createReadinessChecker(dependencies) {
       let ok = true;
       for (const [name, dependency] of Object.entries(dependencies)) {
         try {
-          const ready = await dependency.checkReady();
-          result[name] = { status: ready ? 'ready' : 'not_ready' };
+          // A check returns a boolean, or `{ready, reason}` where `reason` is a code.
+          const outcome = await dependency.checkReady();
+          const ready = typeof outcome === 'object' && outcome !== null ? outcome.ready === true : Boolean(outcome);
+          const reason = typeof outcome === 'object' && outcome !== null && !ready && typeof outcome.reason === 'string' ? outcome.reason : null;
+          result[name] = { status: ready ? 'ready' : 'not_ready', ...(reason ? { reason } : {}) };
           if (!ready) ok = false;
         } catch {
           result[name] = { status: 'not_ready', errorCode: 'CHECK_FAILED' };
@@ -593,15 +622,26 @@ function positiveIntegerFromEnv(raw, fallback, name) {
   return Number(text);
 }
 
-/** Cache an async boolean check for `ttlMs` (readiness probes that cost a network call). */
+/**
+ * Cache an async readiness check for `ttlMs`, and coalesce concurrent calls
+ * onto the one in-flight probe: however many `/ready` requests arrive at once
+ * (the route is public), at most one probe runs per window. A probe that
+ * throws is not cached; its callers all see the rejection.
+ */
 function cachedCheck(check, { ttlMs = 30000, now = () => Date.now() } = {}) {
   let cached = null;
-  return async () => {
+  let inFlight = null;
+  return () => {
     const at = now();
-    if (cached && at - cached.checkedAt < ttlMs) return cached.value;
-    const value = Boolean(await check());
-    cached = { checkedAt: at, value };
-    return value;
+    if (cached && at - cached.checkedAt < ttlMs) return Promise.resolve(cached.value);
+    if (inFlight) return inFlight;
+    let started;
+    try { started = Promise.resolve(check()); } catch (error) { started = Promise.reject(error); }
+    inFlight = started.then((value) => {
+      cached = { checkedAt: at, value };
+      return value;
+    }).finally(() => { inFlight = null; });
+    return inFlight;
   };
 }
 

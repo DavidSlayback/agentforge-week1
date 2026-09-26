@@ -58,3 +58,9 @@ test('the frozen W1 service keeps its original trace configuration', () => {
   assert.deepEqual(namedMounts(block), [{ volume: 'tracevolume', target: '/data' }]);
   for (const name of ['AGENTFORGE_TRACE_LIMIT', 'AGENTFORGE_ALERT_EVAL_INTERVAL_MS']) assert.equal(envValue(block, name), null);
 });
+
+test('Caddy never waits for agentforge-w2 to be healthy: a module outage must not block the proxy', () => {
+  const block = serviceBlock('proxy');
+  const w2 = block.match(/^\s+agentforge-w2:\n\s+condition:\s*(\S+)\s*$/m);
+  assert.ok(!w2 || w2[1] !== 'service_healthy', 'proxy depends on agentforge-w2 being healthy');
+});
