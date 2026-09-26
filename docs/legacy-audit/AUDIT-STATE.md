@@ -29,9 +29,9 @@ or LLM) resumes from this file. Update it at the end of every working turn.
 | 5 | Repo split | **approved 2026-09-25** (in place) | tag `legacy-baseline` → `3ccfe1d`, `AGENT-BRIEF.md`, `README.md` |
 | 6 | Deep-dive | **approved 2026-09-25** (code-only; live evidence deferred to the build) | `VERIFICATION.md`, `walkthroughs/*.md` (5) |
 | 7 | Bug catalog | **approved 2026-09-25** | `BUGS-MITIGATIONS.md`: 164 entries (2 Critical, 18 High, 61 Medium, 83 Low) |
-| 8 | Migration route | route **chosen 2026-09-25: R1 React + TypeScript + Vite SPA + Node (Fastify) BFF**; Part B playbook in progress | `MIGRATION-OPTIONS.md`, `MIGRATION-REACT.md` |
-| 9 | Side quests | not started | |
-| 10 | Vertical slices | not started | |
+| 8 | Migration route | **approved 2026-09-25** (R1 React + TS + Vite + Fastify BFF) | `MIGRATION-OPTIONS.md`, `MIGRATION-REACT.md`, `arcs/ARC-01-DASHBOARD.md`, `DEV-LOG.md` |
+| 9 | Side quests | **approved 2026-09-25** | `sidequests/README.md` (33: 8 promote after deadline, 22 parked, 3 dropped) |
+| 10 | Vertical slices | slice 01-01-01 (walking skeleton) **pre-approved**; starting 2026-09-25 ~19:00 CT | `dashboard/`, `DEV-LOG.md` |
 
 ## Current phase exit criteria (Phase 0)
 
@@ -157,3 +157,5 @@ Tier = model class per `references/delegation.md` (1 haiku, 2 sonnet, 3 opus). *
 - 2026-09-25 — Phase 8A scored (tier 3): near-tie between R1, R3 and R2 (within 5%). The familiarity score was inferred from the repo (no framework history), so David decides. Flagged: brief says "FHIR API" for clinical cards; client model B uses REST for 4 cards plus Vitals, to be justified in the migration doc.
 
 - 2026-09-25 — Phase 8 route chosen by David: R1 React; data sources "keep" (REST where FHIR fails). Part B playbook started.
+
+- 2026-09-25 — Playbook, arc and DEV-LOG written (tier 3). Playbook conflicts C-1…C-7 resolved in `PLAN.md`, `AGENTS.md` and `CLAUDE.md` (decided wording; `dashboard/` added to rule scopes); C-8 resolved by standing authorization. Production check (read-only): 6 patients, 25 list rows, 0 prescriptions, 0 care teams, 0 vitals, 0 deceased; `rest_fhir_api=0`, `rest_api=1`, `oauth_password_grant=0`. Pending David: enable FHIR on prod, synthetic prod seed, prescription scope on the prod BFF client.

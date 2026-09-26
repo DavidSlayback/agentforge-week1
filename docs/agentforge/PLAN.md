@@ -145,7 +145,7 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 Out of scope: third document type, lab trend chart, critic agent, role model,
 LLM tool-calling, and handwriting or arbitrary-layout accuracy claims.
 
-## W2 surprise challenge: port the patient dashboard (requirements only; approach not decided)
+## W2 surprise challenge: port the patient dashboard (approach decided 2026-09-25: `docs/legacy-audit/MIGRATION-REACT.md`, arc `docs/legacy-audit/arcs/ARC-01-DASHBOARD.md`)
 
 Source: `w2-surprise.txt`. Port OpenEMR's patient dashboard, which is
 server-rendered PHP (and whose UX was already refreshed in May 2025), to a
@@ -157,8 +157,8 @@ Due "by the end of the week", which we read as the W2 final, Sunday 12:00 CT.
 |---|---|---|---|---|
 | W2D-1 | Login via OAuth2 / OpenID Connect | C | Browser sign-in through OpenEMR's authorization server via our BFF (confidential client, auth code + PKCE); tokens held server-side, never in the browser; the SPA is served same-origin by the BFF. Logout calls OpenEMR's end-session endpoint. Decided 2026-09-25 (client model B, `docs/legacy-audit/modules/README.md`): public clients can't obtain `user/` scopes. | Not started |
 | W2D-2 | Patient header: name, DOB, sex, MRN, active status; persistent | C | Values match OpenEMR's own dashboard for the same patient (MRN = `pubpid`). Visible on every card view. | Not started |
-| W2D-3 | Clinical cards pulling live data from the **FHIR** API: Allergies, Problem List, Medications, Prescriptions, Care Team | C | Each card is backed by `AllergyIntolerance`, `Condition` (problem-list category), medications, `MedicationRequest` and `CareTeam` reads. Empty, error and loading states are distinct. | Not started. Data-source decision 2026-09-25: FHIR-first; standard REST where FHIR can't match the PHP card (Allergies, Problems, Meds, Rx); each case justified in W2D-7 (`docs/legacy-audit/modules/README.md`) |
-| W2D-4 | One more section, backed by the existing API (encounters, labs, vitals, immunizations, appointments or notes) | C | One section with live data. Choosing **lab results** reuses the S8 Observations persisted from uploads. | Decided 2026-09-25: **vitals** (FHIR `Observation` vital-signs). Patient notes has no read API (`message` scope is c/u/d only); evidence in `docs/legacy-audit/api/CLINICAL-CARDS.md` |
+| W2D-3 | Clinical cards pulling live data from the **FHIR** API: Allergies, Problem List, Medications, Prescriptions, Care Team | C | Each card pulls live data from OpenEMR's existing API: FHIR where it matches the PHP card (`CareTeam`), standard REST where FHIR can't (Allergies, Problems, Medications, Prescriptions). Each REST choice is justified in W2D-7. Empty, error and loading states are distinct. | Not started. Data-source decision 2026-09-25: FHIR-first; standard REST where FHIR can't match the PHP card (Allergies, Problems, Meds, Rx); each case justified in W2D-7 (`docs/legacy-audit/modules/README.md`) |
+| W2D-4 | One more section, backed by the existing API (encounters, labs, vitals, immunizations, appointments or notes) | C | One section with live data. Choosing **lab results** reuses the S8 Observations persisted from uploads. | Decided 2026-09-25: **vitals**, read via REST `/api/patient/:pid/encounter/:eid/vital` (FHIR `Observation` serves deleted sets: catalog 5.02). Patient notes has no read API (`message` scope is c/u/d only); evidence in `docs/legacy-audit/api/CLINICAL-CARDS.md` |
 | W2D-5 | Feature parity with the original dashboard for these sections, with no redesign | C | Side-by-side screenshots against OpenEMR's dashboard for the same patient show the same fields and data. Differences are documented. | Not started |
 | W2D-6 | Modern language and/or framework, with a stated reason for the choice | S | Framework chosen and justified in W2D-7. | Decided 2026-09-25: **React + TypeScript + Vite SPA with a Node (Fastify) BFF**, by weighted scoring (`docs/legacy-audit/MIGRATION-OPTIONS.md`, 110/135) |
 | W2D-7 | `PATIENT_DASHBOARD_MIGRATION.md` in the repo (graded): why this framework, what we gained by leaving PHP, and the tradeoffs | HG | At the repo root, with gains and tradeoffs tied to this implementation (bundle size, auth model, testing, accessibility) rather than generic ones. | Not started |
@@ -195,7 +195,9 @@ Due "by the end of the week", which we read as the W2 final, Sunday 12:00 CT.
   a same-origin path behind Caddy avoids relying on it.
 - Recon was read-only (2026-09-24); the facts above were spot-checked in source.
 
-**Open decisions (owner, later):**
+**Decisions (owner, 2026-09-25; evidence in `docs/legacy-audit/`):** (1) framework: React + TypeScript + Vite SPA with a Node (Fastify) BFF, by weighted scoring; (2) hosting: same VM, a new `dashboard` container behind Caddy at `/dashboard`; (3) additional section: **vitals** (patient notes has no read API); (4) confidential OAuth client held by the BFF (public clients can't get `user/` scopes), with production registration and deploy pre-approved; (5) schedule: the arc above. Superseded text follows.
+
+**Open decisions (as written 2026-09-24, superseded):**
 1. **Framework.** Candidates include React + TypeScript + Vite, Angular
    (OpenEMR already ships Angular 1.8 in its UI, which is a migration-story
    angle), SvelteKit, and Vue. The pick drives the W2D-7 defense.

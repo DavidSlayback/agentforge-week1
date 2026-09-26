@@ -1,6 +1,7 @@
 # AgentForge agent rules
 
-AgentForge is the AI layer (`agentforge/`, `evals/`, `observability/`, `deploy/vultr/`)
+AgentForge is the AI layer (`agentforge/`, `evals/`, `observability/`, `deploy/vultr/`,
+plus the W2 dashboard port in `dashboard/`)
 in this OpenEMR fork. These rules exist because earlier work reported unfinished
 features as done. They override convenience.
 
