@@ -247,3 +247,42 @@ test('the answer-model prompt labels medication-list rows as [medication list], 
   assert.match(prompt, /\[medication list\] Medication 1: Metformin 500 mg twice daily oral/);
   assert.doesNotMatch(prompt, /\[intake form\]/);
 });
+
+test('a one-line "Patient: <name> - DOB: <date>" header on a medication list yields both identity fields, not a name with a date in it', async () => {
+  const extraction = await extractMedicationList(['Patient: Test Patient One - DOB: 1980-04-12', 'List date: 2026-09-22', 'Medication 1: Metformin 500 mg twice daily oral']);
+  assert.deepEqual([extraction.medication_list.patient.name.value, extraction.medication_list.patient.dob.value], ['Test Patient One', '1980-04-12']);
+});
+
+// --- Extension cases (E4): the custom checks pass on the real golden run and
+// fail when the run is tampered with (they are not vacuous).
+test('medication-list extension checks pass on the golden medication lists and catch tampered values, citations and identity', async () => {
+  const { runScenario, scan } = await import('../src/w2RegressionGate.js');
+  const { checkMedicationListTyped, checkMedicationListCitations, checkMedicationListFacts } = await import('../src/extensionCases/medicationList.js');
+  for (const doc of ['medlist-a', 'medlist-b']) {
+    const run = await runScenario(scan(doc, 'medication_list'));
+    assert.deepEqual(checkMedicationListTyped(run, { medications: 3 }), [], doc);
+    assert.deepEqual(checkMedicationListCitations(run), [], doc);
+    assert.deepEqual(checkMedicationListFacts(run), [], doc);
+  }
+  const run = await runScenario(scan('medlist-a', 'medication_list'));
+  const list = run.result.workflow.typed_outputs.extraction.medication_list;
+  const original = structuredClone(list);
+  list.medications[0].dose.value = '850';
+  assert.ok(checkMedicationListFacts(run).includes('medication[0].dose_mismatch'));
+  list.medications[0].dose.value = original.medications[0].dose.value;
+  list.medications[1].citation = { ...list.medications[1].citation, quote_or_value: 'Medication 2: Lisinopril 40 mg once daily oral' };
+  const citationIssues = checkMedicationListCitations(run);
+  assert.ok(citationIssues.includes('medication[1]:quote_not_verbatim_in_source'), citationIssues.join(','));
+  assert.ok(citationIssues.includes('medication[1].dose:value_not_in_quote'));
+  list.medications[1].citation = original.medications[1].citation;
+  list.patient.dob = { ...list.patient.dob, value: '1980-12-04' };
+  assert.ok(checkMedicationListFacts(run).includes('patient.dob_mismatch'));
+  list.medications.pop();
+  assert.ok(checkMedicationListTyped(run, { medications: 3 }).includes('medication_count_2_expected_3'));
+});
+
+test('the no-PHI check knows a medication list\'s identifiers (drug names, list date, identity, source)', async () => {
+  const { phiIdentifiers, loadGoldenFixtures } = await import('../src/w2RegressionGate.js');
+  const { words } = phiIdentifiers(loadGoldenFixtures().docs.get('medlist-b').truth);
+  for (const word of ['Test Patient One', '1980-04-12', '2026-09-23', 'Northwind Pharmacy dispensing record', 'Levothyroxine', 'Albuterol 90 mcg']) assert.ok(words.includes(word), word);
+});

@@ -2,7 +2,7 @@
 // Hand-written PDF writer; the only binary it shells out to is pdftoppm, used to
 // rasterize the image-only "scanned" sample, so run it inside the image built
 // from the repo Dockerfile:
-//   docker run --rm -v "$PWD:/repo" -w /repo agentforge-gate node agentforge/scripts/generate-golden-pdfs.mjs
+//   docker run --rm -v "$PWD:/repo" -w /repo agentforge-gate node agentforge/scripts/generate-golden-pdfs.mjs [--only=a.pdf,b.pdf]
 // Text is drawn with Source Sans Pro (SIL OFL 1.1), already vendored in this repo,
 // because the Docker image has no system fonts for poppler to substitute.
 import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const outDir = join(repoRoot, 'agentforge/test/fixtures/golden/pdf');
+const samplesDir = join(repoRoot, 'docs/agentforge/fixtures/scan-forms/pdf-samples');
 const fontDir = join(repoRoot, 'Documentation/EHI_Export/docs/fonts/source-sans-pro');
 const PAGE = { width: 612, height: 792 };
 
@@ -189,15 +190,41 @@ const DOCUMENTS = {
   ], 'vector source', font), 'Synthetic image-only scanned lab report'),
   'gen-blank-page.pdf': (font) => vectorPdf([], 'Synthetic blank page', font),
   'gen-corrupt.pdf': async () => Buffer.from('%PDF-1.4\n%synthetic corrupt upload: header only, no objects, no xref\n\x00\x01\x02garbage\n', 'latin1'),
+  // E4 medication lists for fixture-patient-001: they are also the UI's "Run
+  // this sample" PDFs, so they live with the other filled samples.
+  'filled-medlist-a.pdf': (font) => vectorPdf([
+    { text: 'MEDICATION LIST', x: 72, y: 72, size: 16 },
+    { text: 'Northwind Family Clinic', x: 72, y: 96, size: 12 },
+    ...lines([
+      'Patient name: Test Patient One', 'Date of birth: 1980-04-12', 'List date: 2026-09-22', 'Prescriber: Dr. Robin Example',
+      'Medication 1: Metformin 500 mg twice daily oral', 'Medication 2: Lisinopril 10 mg once daily oral', 'Medication 3: Atorvastatin 20 mg at bedtime oral',
+    ], { y: 140, step: 36 }),
+    footer,
+  ], 'Synthetic medication list for fixture-patient-001', font),
+  'filled-medlist-b.pdf': async (font) => scannedFrom(vectorPdf([
+    { text: 'CURRENT MEDICATION LIST - PHARMACY RECORD COPY', x: 72, y: 72, size: 15 },
+    ...lines([
+      'Name: Test Patient One', 'DOB: 1980-04-12', 'Reviewed on: 2026-09-23', 'Source: Northwind Pharmacy dispensing record',
+      'Rx 1: Levothyroxine 75 mcg once daily by mouth', 'Rx 2: Albuterol 90 mcg every 6 hours as needed inhaled', 'Rx 3: Metformin 1000 mg twice daily by mouth',
+    ], { y: 130, step: 36, size: 14 }),
+    footer,
+  ], 'vector source', font), 'Synthetic image-only scanned medication list for fixture-patient-001'),
 };
+const OUTPUT_DIRS = { 'filled-medlist-a.pdf': samplesDir, 'filled-medlist-b.pdf': samplesDir };
 
 // Semibold for the H/L sample: with the regular weight Tesseract misreads its "A1C" labels as "AlC".
 const fonts = {
   regular: { font: await readFile(join(fontDir, 'source-sans-pro-v10-latin-regular.ttf')), name: 'SourceSansPro-Regular' },
   semibold: { font: await readFile(join(fontDir, 'source-sans-pro-v10-latin-600.ttf')), name: 'SourceSansPro-Semibold' },
 };
-await mkdir(outDir, { recursive: true });
+// `--only a.pdf,b.pdf` regenerates just those files, so adding a document
+// never rewrites the bytes (and so the OCR recordings) of the existing ones.
+const onlyArg = process.argv.find((arg) => arg.startsWith('--only='));
+const only = onlyArg ? new Set(onlyArg.slice('--only='.length).split(',')) : null;
 for (const [name, build] of Object.entries(DOCUMENTS)) {
-  await writeFile(join(outDir, name), await build(fonts.regular));
+  if (only && !only.has(name)) continue;
+  const directory = OUTPUT_DIRS[name] || outDir;
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, name), await build(fonts.regular));
   console.log(`wrote ${name}`);
 }

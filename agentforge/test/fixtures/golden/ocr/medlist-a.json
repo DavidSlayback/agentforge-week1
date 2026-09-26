@@ -1,0 +1,186 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "medlist-a",
+ "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-a.pdf",
+ "pdf_sha256": "da08a1c9b5cb1172d7933f1a8f81bb658585ff403cb88695c144f2fd3ae30e38",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "MEDICATION",
+      "LIST"
+     ],
+     "page": 1,
+     "left": 204,
+     "top": 170,
+     "right": 527,
+     "bottom": 201,
+     "confidence": 0.91553581,
+     "text": "MEDICATION LIST"
+    },
+    {
+     "words": [
+      "Northwind",
+      "Family",
+      "Clinic"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 242,
+     "right": 532,
+     "bottom": 273,
+     "confidence": 0.91298935,
+     "text": "Northwind Family Clinic"
+    },
+    {
+     "words": [
+      "Patient",
+      "name:",
+      "Test",
+      "Patient",
+      "One"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 363,
+     "right": 668,
+     "bottom": 388,
+     "confidence": 0.90619484,
+     "text": "Patient name: Test Patient One"
+    },
+    {
+     "words": [
+      "Date",
+      "of",
+      "birth:",
+      "1980-04-12"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 462,
+     "right": 569,
+     "bottom": 488,
+     "confidence": 0.92324928,
+     "text": "Date of birth: 1980-04-12"
+    },
+    {
+     "words": [
+      "List",
+      "date:",
+      "2026-09-22"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 562,
+     "right": 510,
+     "bottom": 588,
+     "confidence": 0.9184597,
+     "text": "List date: 2026-09-22"
+    },
+    {
+     "words": [
+      "Prescriber:",
+      "Dr.",
+      "Robin",
+      "Example"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 662,
+     "right": 646,
+     "bottom": 695,
+     "confidence": 0.91349365,
+     "text": "Prescriber: Dr. Robin Example"
+    },
+    {
+     "words": [
+      "Medication",
+      "1:",
+      "Metformin",
+      "500",
+      "mg",
+      "twice",
+      "daily",
+      "oral"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 762,
+     "right": 918,
+     "bottom": 796,
+     "confidence": 0.82685524,
+     "text": "Medication 1: Metformin 500 mg twice daily oral"
+    },
+    {
+     "words": [
+      "Medication",
+      "2:",
+      "Lisinopril",
+      "10",
+      "mg",
+      "once",
+      "daily",
+      "oral"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 862,
+     "right": 875,
+     "bottom": 896,
+     "confidence": 0.71053162,
+     "text": "Medication 2: Lisinopril 10 mg once daily oral"
+    },
+    {
+     "words": [
+      "Medication",
+      "3:",
+      "Atorvastatin",
+      "20",
+      "mg",
+      "at",
+      "bedtime",
+      "oral"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 962,
+     "right": 930,
+     "bottom": 996,
+     "confidence": 0.88465965,
+     "text": "Medication 3: Atorvastatin 20 mg at bedtime oral"
+    },
+    {
+     "words": [
+      "Fictional",
+      "values",
+      "for",
+      "software",
+      "demonstration.",
+      "Not",
+      "a",
+      "real",
+      "patient",
+      "record."
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 2033,
+     "right": 926,
+     "bottom": 2064,
+     "confidence": 0.90454346,
+     "text": "Fictional values for software demonstration. Not a real patient record."
+    }
+   ]
+  }
+ ]
+}

@@ -87,6 +87,7 @@ const MEDICATION_LIST_LABELS = new Map([
   ['prescriber', ['medlist.prescriber_or_source', 'Prescriber']], ['prescribing clinician', ['medlist.prescriber_or_source', 'Prescriber']], ['source', ['medlist.prescriber_or_source', 'Source']], ['record source', ['medlist.prescriber_or_source', 'Source']],
 ]);
 const MEDICATION_ROW_LABEL = /^(?:medication|med|rx)\s*#?\s*([1-9][0-9]?)$/;
+const MEDICATION_LIST_NAME_WITH_DOB = /^(.*?)\s*(?:[-–·•~|,]\s*)*\b(?:dob|date of birth)\s*:\s*(\S+)/i;
 const MEDICATION_ROUTE_AT_END = /(?:^|\s)(by mouth|orally|oral|inhaled|inhalation|subcutaneous|topical|sublingual|intravenous|intramuscular|nasal|transdermal|ophthalmic|rectal)\s*$/i;
 const MEDICATION_DOSE_UNIT = /(?:^|\s)(\d+(?:[.,]\d+)?)\s*(mg|mcg|g|ml|units?|puffs?|tablets?|capsules?|iu)(?![a-z])/i;
 const MEDICATION_FREQUENCY = /\b(?:once daily|twice daily|three times daily|four times daily|daily|every (?:morning|evening|\d+ hours)|at bedtime|as needed|weekly)\b.*$/i;
@@ -136,7 +137,17 @@ function medicationListRows(lines) {
       continue;
     }
     const mapping = MEDICATION_LIST_LABELS.get(labelKey);
-    if (mapping) fields.push({ field_id: mapping[0], label: mapping[1], value, unit: '', quote: line.text, line });
+    if (!mapping) continue;
+    // A one-line header ("Patient: Test Patient One - DOB: 1980-04-12") holds
+    // both identity fields; reading it all as the name would compare a
+    // name-plus-date string with the chart and report a false mismatch.
+    const combined = mapping[0] === 'patient.name' ? MEDICATION_LIST_NAME_WITH_DOB.exec(value) : null;
+    if (combined) {
+      if (combined[1]) fields.push({ field_id: 'patient.name', label: mapping[1], value: combined[1], unit: '', quote: line.text, line });
+      fields.push({ field_id: 'patient.date_of_birth', label: 'Date of birth', value: combined[2], unit: '', quote: line.text, line });
+      continue;
+    }
+    fields.push({ field_id: mapping[0], label: mapping[1], value, unit: '', quote: line.text, line });
   }
   return fields;
 }
