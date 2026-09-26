@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { pino } from 'pino';
 import { loadAllergies } from '../../bff/src/cards/allergies.ts';
 import { loadHeader } from '../../bff/src/cards/header.ts';
+import { loadProblems } from '../../bff/src/cards/problems.ts';
 import { localDateTimeInZone } from '../../bff/src/clock.ts';
 import { lookupPatientByMrn } from '../../bff/src/cards/patientLookup.ts';
 import { createUpstreamClient, type FetchLike } from '../../bff/src/upstream/client.ts';
@@ -79,6 +80,9 @@ const cardCases = [
   { card: 'allergies', label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', rows: 2, load: loadAllergies },
   { card: 'allergies', label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', rows: 0, load: loadAllergies },
   { card: 'allergies', label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', rows: 1, load: loadAllergies },
+  { card: 'problems', label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', rows: 13, load: loadProblems },
+  { card: 'problems', label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', rows: 0, load: loadProblems },
+  { card: 'problems', label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', rows: 2, load: loadProblems },
 ] as const;
 for (const c of cardCases) {
   const patientId = parsePatientUuid(c.puuid);

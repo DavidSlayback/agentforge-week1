@@ -84,5 +84,84 @@
       ],
       "links": []
     }
+  },
+  "rest.problem.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [
+        {
+          "id": "327",
+          "date": "2026-09-26 00:20:11",
+          "type": "medical_problem",
+          "title": "Acute bronchitis",
+          "begdate": "2022-01-05 00:00:00",
+          "enddate": "2022-02-01 00:00:00",
+          "activity": "1",
+          "comments": "ended [seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "0",
+          "reaction": "",
+          "severity_al": null,
+          "verification": "",
+          "uuid": "8e50530c-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "condition_uuid": "8e50530c-b8c0-11f1-8c7a-0ed9af59d05d",
+          "last_updated_time": "2026-09-26 00:20:11",
+          "verification_title": null
+        },
+        {
+          "id": "326",
+          "date": "2026-09-26 00:20:11",
+          "type": "medical_problem",
+          "title": "Prediabetes",
+          "begdate": "2019-08-20 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": "[seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "0",
+          "reaction": "",
+          "severity_al": null,
+          "verification": "",
+          "uuid": "8e505307-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "condition_uuid": "8e505307-b8c0-11f1-8c7a-0ed9af59d05d",
+          "last_updated_time": "2026-09-26 00:20:11",
+          "verification_title": null
+        },
+        {
+          "id": "325",
+          "date": "2026-09-26 00:20:11",
+          "type": "medical_problem",
+          "title": "Essential hypertension",
+          "begdate": "2015-02-10 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": "[seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "0",
+          "reaction": "",
+          "severity_al": null,
+          "verification": "",
+          "uuid": "8e5052f4-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "condition_uuid": "8e5052f4-b8c0-11f1-8c7a-0ed9af59d05d",
+          "last_updated_time": "2026-09-26 00:20:11",
+          "verification_title": null
+        }
+      ],
+      "links": []
+    }
   }
 }

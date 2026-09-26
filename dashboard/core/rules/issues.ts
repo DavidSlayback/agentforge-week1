@@ -109,3 +109,38 @@ export function severityLabel(severityCode: string | null | undefined, labels: R
   if (severityCode === null || severityCode === undefined) return '';
   return labels.get(severityCode) ?? severityCode;
 }
+
+/**
+ * Sort by `begdate` ascending with missing dates first, as the PHP card's
+ * `PatientIssuesService::search()` does (`ORDER BY lists.begdate`,
+ * `src/Services/PatientIssuesService.php:211@legacy-baseline`; MySQL puts NULLs
+ * first). Stable: ties keep API order, since neither system defines one.
+ * Returns a new array.
+ */
+export function sortByBegdateAsc<T extends { readonly begdate?: string | null | undefined }>(rows: readonly T[]): T[] {
+  const key = (row: T): string | null => (row.begdate ? normalizeLocalDateTime(row.begdate) : null);
+  return rows
+    .map((row, index) => ({ row, index, k: key(row) }))
+    .sort((a, b) => {
+      if (a.k === b.k) return a.index - b.index;
+      if (a.k === null) return -1;
+      if (b.k === null) return 1;
+      return a.k < b.k ? -1 : 1;
+    })
+    .map((x) => x.row);
+}
+
+/**
+ * Keep the first row per `uuid`. `ConditionService::search()` LEFT JOINs
+ * `issue_encounter`/`form_encounter` without de-duplicating, so a problem linked
+ * to several encounters comes back once per encounter; the PHP card
+ * (`PatientIssuesService`) shows it once.
+ */
+export function dedupeByUuid<T extends { readonly uuid: string }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.uuid)) return false;
+    seen.add(row.uuid);
+    return true;
+  });
+}

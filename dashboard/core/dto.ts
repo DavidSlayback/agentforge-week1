@@ -73,3 +73,11 @@ export interface AllergyRow {
   /** `reaction_title`, shown in the row's tooltip as in the legacy card; null when none. */
   readonly reaction: string | null;
 }
+
+/**
+ * One row of the Medical Problems card (W2D-3): title only, as in the legacy
+ * card. Rows arrive filtered and sorted by `begdate` ascending, NULLs first.
+ */
+export interface ProblemRow {
+  readonly title: string;
+}

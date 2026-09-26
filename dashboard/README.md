@@ -25,9 +25,13 @@ no card route is called before that read succeeds.
   Each row shows the `severity_ccda` label from `/api/list/severity_ccda`, or
   the raw code ("(1)") when no label exists; only severe, life-threatening and
   fatal rows are highlighted.
+- **Medical Problems** (`/bff/patients/:puuid/problems`): REST
+  `/api/patient/:puuid/medical_problem` (ACL `encounters/notes`, so this card
+  can be "Not authorized for this section" while the others load), one row per
+  problem uuid, the same active-issue rule, sorted by `begdate` ascending with
+  missing dates first; title only.
 
-Later slices add Medical Problems, Medications, Prescriptions, Care Team and
-Vitals.
+Later slices add Medications, Prescriptions, Care Team and Vitals.
 
 ## Layout
 

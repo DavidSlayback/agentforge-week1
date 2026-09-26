@@ -94,5 +94,14 @@
       "data": [],
       "links": []
     }
+  },
+  "rest.problem.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [],
+      "links": []
+    }
   }
 }

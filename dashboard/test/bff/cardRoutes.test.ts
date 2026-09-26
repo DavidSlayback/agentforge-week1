@@ -36,6 +36,28 @@ describe('card routes over HTTP (fastify.inject)', () => {
     expect(res.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
   });
 
+  it('Medical Problems: a 403 on its route is forbidden for that card only; Allergies still loads', async () => {
+    const { app, fake, cookie } = await signedIn();
+    serveAllergies(fake, PATIENT.p13, 'shaped/patient-13.json');
+    fake.on('GET', api(`/patient/${PATIENT.p13}/medical_problem`), { status: 403, body: { error: 'forbidden' } });
+    const problems = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/problems`, cookies: { dashboard_sid: cookie } });
+    expect(problems.statusCode).toBe(200);
+    expect(problems.json()).toEqual({ kind: 'forbidden', patientId: PATIENT.p13 });
+    const allergies = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/allergies`, cookies: { dashboard_sid: cookie } });
+    expect(allergies.json()).toMatchObject({ kind: 'ok' });
+  });
+
+  it('Medical Problems: pid 13 sends 13 rows to the browser, not 39', async () => {
+    const { app, fake, cookie } = await signedIn();
+    fake
+      .on('GET', api(`/patient/${PATIENT.p13}`), routeFixture('shaped/patient-13.json', 'rest.patient.read'))
+      .on('GET', api(`/patient/${PATIENT.p13}/medical_problem`), routeFixture('shaped/patient-13.json', 'rest.problem.list'));
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/problems`, cookies: { dashboard_sid: cookie } });
+    const body = res.json<{ kind: string; rows: unknown[] }>();
+    expect(body.kind).toBe('ok');
+    expect(body.rows).toHaveLength(13);
+  });
+
   it('401 without a session, 400 for a malformed puuid, 400 for any query string', async () => {
     const { app, cookie } = await signedIn();
     expect((await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/allergies` })).statusCode).toBe(401);

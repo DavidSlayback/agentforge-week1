@@ -8,7 +8,7 @@ import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
  *
  * Routes are added by the slice that needs them. Slice 01-01-01 needs the
  * header reads and the MRN lookup; 01-02-01 the allergy list and the
- * `severity_ccda` label list.
+ * `severity_ccda` label list; 01-02-02 the medical problem list.
  */
 
 export type UpstreamRouteId =
@@ -16,7 +16,8 @@ export type UpstreamRouteId =
   | 'rest.patient.read'
   | 'fhir.patient.search'
   | 'rest.allergy.list'
-  | 'rest.list.read';
+  | 'rest.list.read'
+  | 'rest.problem.list';
 
 /** What a parameter value must parse as before it is placed in a URL. */
 export type ParamKind = 'puuid' | 'pid' | 'mrn';
@@ -106,6 +107,19 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     scope: 'user/list.r',
     acl: 'lists/default',
     patientBinding: 'none',
+  },
+  // Medical Problems card (01-02-02). Note the ACL: encounters/notes, not
+  // patients/med like the legacy card's gate (3.14, CONDITION-SERVICES.md
+  // Finding 1/2), so this card can be forbidden while its siblings load.
+  'rest.problem.list': {
+    id: 'rest.problem.list',
+    api: 'rest',
+    pathTemplate: '/patient/{puuid}/medical_problem',
+    pathParams: [{ name: 'puuid', kind: 'puuid' }],
+    query: [],
+    scope: 'user/medical_problem.rs',
+    acl: 'encounters/notes',
+    patientBinding: 'path',
   },
 };
 

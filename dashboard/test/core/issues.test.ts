@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildListLabels,
+  dedupeByUuid,
   filterActiveIssues,
   isActiveIssue,
   isResolvedOutcome,
   isSevereAllergy,
   normalizeLocalDateTime,
   severityLabel,
+  sortByBegdateAsc,
 } from '../../core/rules/issues.ts';
 
 // "Now" is a naive local time in OpenEMR's timezone (the local stack's PHP runs UTC).
@@ -116,5 +118,42 @@ describe('allergy severity: label with raw-code fallback, severe-only highlight 
     for (const code of ['1', 'mild', 'moderate', 'moderate_to_severe', 'Severe', '', null, undefined]) {
       expect(isSevereAllergy(code), String(code)).toBe(false);
     }
+  });
+});
+
+describe('sortByBegdateAsc: begdate ascending, NULLs first, stable (PatientIssuesService ORDER BY lists.begdate)', () => {
+  it('orders ascending with null and empty begdates first, keeping API order on ties', () => {
+    const rows = [
+      { id: 'late', begdate: '2023-02-05 20:59:59' },
+      { id: 'null-1', begdate: null },
+      { id: 'early', begdate: '1983-07-22 06:06:27' },
+      { id: 'tie-a', begdate: '2020-03-01 20:06:27' },
+      { id: 'empty', begdate: '' },
+      { id: 'tie-b', begdate: '2020-03-01 20:06:27' },
+      { id: 'date-only', begdate: '2020-03-01' },
+      { id: 'null-2' },
+    ];
+    expect(sortByBegdateAsc(rows).map((r) => r.id)).toEqual(['null-1', 'empty', 'null-2', 'early', 'date-only', 'tie-a', 'tie-b', 'late']);
+    expect(rows[0]?.id).toBe('late'); // input untouched
+  });
+
+  it('is stable for all-equal and all-null input', () => {
+    const same = ['a', 'b', 'c'].map((id) => ({ id, begdate: '2020-01-01 00:00:00' }));
+    expect(sortByBegdateAsc(same).map((r) => r.id)).toEqual(['a', 'b', 'c']);
+    const nulls = ['a', 'b', 'c'].map((id) => ({ id, begdate: null }));
+    expect(sortByBegdateAsc(nulls).map((r) => r.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('dedupeByUuid: one row per problem even when the route repeats it per encounter', () => {
+  it('keeps the first occurrence of each uuid, in order', () => {
+    const rows = [
+      { uuid: 'u1', n: 1 },
+      { uuid: 'u2', n: 2 },
+      { uuid: 'u1', n: 3 },
+      { uuid: 'u3', n: 4 },
+      { uuid: 'u2', n: 5 },
+    ];
+    expect(dedupeByUuid(rows).map((r) => r.n)).toEqual([1, 2, 4]);
   });
 });

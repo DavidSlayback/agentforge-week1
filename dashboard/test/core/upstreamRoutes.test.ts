@@ -54,6 +54,13 @@ describe('upstream allow-list', () => {
     }
   });
 
+  it('builds the Medical Problems route under encounters/notes, with no query keys (01-02-02)', () => {
+    expect(buildUpstreamPath('rest.problem.list', { puuid: PATIENT.p13 })).toBe(`/apis/default/api/patient/${PATIENT.p13}/medical_problem`);
+    expect(UPSTREAM_ROUTES['rest.problem.list'].acl).toBe('encounters/notes');
+    expect(() => buildUpstreamPath('rest.problem.list', { puuid: PATIENT.p13 }, { 'clinical-status': 'active' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.problem.list', { pid: 13 })).toThrow(AllowListViolation);
+  });
+
   it('builds the issue-card routes with no query keys and a validated puuid (01-02-01)', () => {
     expect(buildUpstreamPath('rest.allergy.list', { puuid: PATIENT.p13 })).toBe(`/apis/default/api/patient/${PATIENT.p13}/allergy`);
     expect(buildUpstreamPath('rest.list.read')).toBe('/apis/default/api/list/severity_ccda');

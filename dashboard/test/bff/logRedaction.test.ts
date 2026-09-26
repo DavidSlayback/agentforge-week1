@@ -52,8 +52,13 @@ describe('log redaction across the full workflow', () => {
         clinical.push(row.title, row.uuid);
         if (row.reaction_title) clinical.push(row.reaction_title);
       }
-      const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${id}/allergies`, cookies: { dashboard_sid: sessionCookie } });
-      expect(res.json()).toMatchObject({ kind: 'ok' });
+      const problems = routeFixture(file, 'rest.problem.list');
+      fake.on('GET', `http://openemr/apis/default/api/patient/${id}/medical_problem`, problems);
+      for (const row of (problems.body as { data: { title: string; uuid: string }[] }).data) clinical.push(row.title, row.uuid);
+      for (const card of ['allergies', 'problems']) {
+        const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${id}/${card}`, cookies: { dashboard_sid: sessionCookie } });
+        expect(res.json()).toMatchObject({ kind: 'ok' });
+      }
     }
     fake.on(
       'GET',
@@ -100,5 +105,7 @@ describe('log redaction across the full workflow', () => {
     expect(log).toContain('"routeId":"oauth.token"');
     expect(log).toContain('/dashboard/bff/patients/:puuid/allergies');
     expect(log).toContain('"routeId":"rest.allergy.list"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/problems');
+    expect(log).toContain('"routeId":"rest.problem.list"');
   });
 });
