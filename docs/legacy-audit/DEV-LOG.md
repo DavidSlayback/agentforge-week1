@@ -58,6 +58,47 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-25 — Arc 01 / Story 01-02 / Slice 01-02-01 — Allergies card
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction) · **SHA:** code at `f83573c`; no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-3 (Allergies card) with distinct loading, empty, forbidden, error and sign-in-again states.
+Legacy behavior replaced: `walkthroughs/ISSUE-CARDS.md` (Allergies), `templates/patient/card/allergies.html.twig`.
+Layers touched: core (`rules/issues`, `dto` `AllergyRow`, `guards` `isAllergyRow`, `upstreamRoutes`) · bff (`clock.localDateTimeInZone`, `upstream/mapResponse` (`rest-array` shape, stricter envelope), `upstream/schemas/{issues,allergy,list}`, `cards/{patientRead,allergies}`, `http/routes` card-route helper) · web (`components/Card`, `cards/AllergiesCard`, `App`, `styles.css`) · tests · README.
+Upstream routes added to the allow-list: `rest.allergy.list` (`/api/patient/{puuid}/allergy`, no query keys, `patients/med`), `rest.list.read` (`/api/list/severity_ccda`, a fixed literal: no parameters, no query keys, `lists/default`; the only route with `patientBinding: 'none'`, asserted by test).
+Catalog IDs: 5.08, 5.18, 4.02, 7.05, 7.13 (4.03 no promote-to-top, kept).
+Deliberate regression: `isActiveIssue()` compares with `>=` instead of `>` → expected red: the `filterActiveIssues` boundary cases.
+Acceptance check (a user can do this): open pid 13 and see 2 allergies as in the legacy card, each "(1)"; open pid 3 and see "Nothing Recorded".
+
+### Worked on
+- `core/rules/issues.ts`: `isActiveIssue` / `filterActiveIssues` (PHP 8 loose `outcome != 1`, PHP `empty()` on `enddate`, strict `>` against now as a naive local time in `DASHBOARD_OPENEMR_TZ`), `isSevereAllergy`, `buildListLabels` (active options only, like `LayoutsUtils::getListItemTitle()`), `severityLabel` (title, else raw code, else "").
+- BFF `/dashboard/bff/patients/:puuid/allergies`: `rest.patient.read` → `rest.allergy.list` → `rest.list.read` (only when a row is shown). Every row's `puuid` and `pid` must be the requested patient's, else `PATIENT_MISMATCH`.
+- SPA: shared `Card` shell (title bar, collapse toggle with `aria-expanded`, default expanded, per-viewer `localStorage` behind try/catch; exactly one state rendered; forbidden reads "Not authorized for this section."). `AllergiesCard` renders "title (label)" in API order with the legacy tooltip and the `bg-warning`-style highlight on severe, life-threatening and fatal only.
+- Fixtures (shaped, not recorded): `rest.allergy.list` added to `patient-13`, `patient-3`, `dash-syn-02`; new `dash-syn-01.json` (pid 14) and `list-severity-ccda.json`; values from read-only SELECT on the local synthetic DB; each file's `_meta` says so.
+- `test/integration/header.it.ts` gained allergy count checks (pid 13: 2, pid 3: empty, DASH-SYN-01: 1). The arc named a separate `allergies.it.ts`; one opt-in script keeps one token and one command.
+
+### Decisions
+- **Every issue card resolves the patient first** (`rest.patient.read`) and calls no card route until that read succeeds (ISSUE-CARDS.md (b)1 and (e) last item). That also gives the `pid` for the per-row check and, in 01-02-03, for the Medications route. Cost: one extra upstream call per card (8.02 latency, measured in 01-06-01).
+- **Severity labels are fetched once per card load, not cached across requests.** The playbook said "cached per process"; a process-wide cache would serve a label map fetched with one user's token (`lists/default`) to another user. Per load it is still one call, not the legacy per-row N+1. A failed lookup shows raw codes plus a visible note; the card stays `ok`.
+- **No code → "()"**: a row with no `severity_al` renders "title ()" as the legacy template does (bug-for-bug, documented in `severityLabel`).
+- **Stricter REST envelope mapping** (fail loudly): a 200 whose body is not an envelope, or an envelope with no `data` key or `data: null`, is now `SCHEMA_MISMATCH`; before, a missing `data` mapped to empty. No existing test depended on the old behavior.
+- **Dates**: `begdate`/`enddate` must be `YYYY-MM-DD[ HH:MM:SS]`, `''` or null; anything else is `SCHEMA_MISMATCH`, so the rule never guesses a format. A MySQL zero date is accepted and, as in PHP, hides the row.
+- **Timezone**: the local stack's PHP runs UTC (`date.timezone => UTC`, `gbl_time_zone` empty; checked 2026-09-25), matching `dashboard/.env.local` (`UTC`). The compose default is `America/Chicago`; production's PHP timezone is **not verified** (open question below).
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commit `f83573c`): 162 tests, all passing (+63 over the slice 01 baseline of 99): unit 65 (`issues` 31 new) · contract 25 (`allergies` 13 new) · BFF 47 (`cardRoutes` 4 new, `mapResponse` +2, log redaction now includes the allergy card) · lint-boundary 3 · component 22 (`AllergiesCard` 12 new, 7 with axe, 0 violations). Typecheck 0, lint 0, bundle 70.9 kB gzip JS (budget 150 kB).
+- Deliberate regression: `return normalized > now` → `>=` in `isActiveIssue()` → the hook refused the commit (exit 1, HEAD unchanged) with 3 red: `enddate equal to now is hidden (strictly greater)`, `enddate today at midnight: shown just before midnight, hidden at midnight`, and the contract case `future and past enddates: only the future one stays` → reverted. Output: `docs/legacy-audit/evidence/slice-02-01-regression.txt`.
+- Integration (local stack): `npm run test:integration --prefix dashboard` → `SKIPPED (no token)`. A skip, not a pass.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through: entries are struck when the slice is merged.
+
+### Open questions / follow-ups
+- **Production timezone:** confirm the production OpenEMR PHP `date.timezone` / `gbl_time_zone` and set `DASHBOARD_OPENEMR_TZ` to match on the VM (the compose default `America/Chicago` is wrong if production PHP runs UTC like the local stack). Wrong zone shifts the enddate cut-off by the UTC offset.
+- Owner sign-in (Window 1): pid 13 shows 2 rows, both "(1)", no highlight; pid 3 "Nothing Recorded"; DASH-SYN-01 shows 1 highlighted "(Severe)" row.
+
 ## 2026-09-25 — Arc 01 / Story 01-01 / Slice 01-01-01 — Walking skeleton (local part): sign-in via BFF + persistent header
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; the playbook's `slice/01-01-01-walking-skeleton` branch was not used) · **SHA:** code at `5baf5fd`; no merge SHA yet

@@ -247,6 +247,16 @@ not struck through, because the legacy bug remains.
 ### Slice 01-02-01 — Allergies card
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `f83573c`):**
+  **wired, tested, not yet observed.** The BFF route and SPA card are built
+  and gated (162 tests in the hook); the deliberate regression (`>` → `>=` in
+  `isActiveIssue`) was refused by the hook with 3 red tests
+  (`docs/legacy-audit/evidence/slice-02-01-regression.txt`). Not merged or
+  deployed, so not yet on the deployed path. Deviations: the card resolves the
+  patient (`rest.patient.read`) before calling the allergy route; severity
+  labels are fetched per card load rather than cached per process; the
+  integration checks live in `test/integration/header.it.ts`. Details:
+  `DEV-LOG.md`, 01-02-01 entry.
 - **Time box:** 1.75 h, Sat 10:00–11:45. This is the first card, so it also
   builds the shared `Card` shell (six states, collapse state kept in
   `localStorage` with try/catch) and the severity lookup.
@@ -267,23 +277,27 @@ not struck through, because the legacy bug remains.
     `test/web/AllergiesCard.test.tsx`, recorded fixtures for pids 13 and 3,
     and `test/integration/allergies.it.ts`.
 - **Test gate**
-  - `filterActiveIssues` boundary table (MIGRATION-REACT §6.1), with the
-    `DASHBOARD_OPENEMR_TZ` value confirmed from the stack.
-  - Contract: pid 13 gives 2 rows labelled "(1)" with no highlight; pid 3
-    gives `empty`.
-  - Contract: `list/severity_ccda` failing → raw labels, and the card is still
+  - [x] `filterActiveIssues` boundary table (MIGRATION-REACT §6.1), with the
+    `DASHBOARD_OPENEMR_TZ` value confirmed from the stack (`test/core/issues.test.ts`;
+    local PHP runs UTC, matching `.env.local`; production not yet confirmed).
+  - [x] Contract: pid 13 gives 2 rows labelled "(1)" with no highlight; pid 3
+    gives `empty` (`test/contract/allergies.test.ts`, shaped fixtures).
+  - [x] Contract: `list/severity_ccda` failing → raw labels, and the card is still
     `ok`.
-  - Contract: 200 with `validationErrors` → `error`.
-  - Component: all six states; the exact text "Nothing Recorded"; axe clean.
-  - **Deliberate regression:** change the rule to `enddate >= now` (or drop
+  - [x] Contract: 200 with `validationErrors` → `error`.
+  - [x] Component: all six states; the exact text "Nothing Recorded"; axe clean
+    (`test/web/AllergiesCard.test.tsx`).
+  - [x] **Deliberate regression:** change the rule to `enddate >= now` (or drop
     the `outcome != 1` test). Expected red: the `filterActiveIssues` boundary
-    cases.
+    cases. Done: 3 red, commit refused, reverted.
 - **Live evidence** (`walkthroughs/ISSUE-CARDS.md` (e))
   - [ ] pid 13: exactly 2 rows, both "(1)", neither highlighted.
   - [ ] pid 3: "Nothing Recorded".
   - [ ] The BFF didn't call the allergy route before the patient read
     resolved (verified by the ordering of the contract test's fake-fetch
-    calls, plus the local integration run).
+    calls, plus the local integration run). Contract part done
+    (`pid 13: …` and `no allergy call until the patient read succeeds`);
+    the integration run is still `SKIPPED (no token)`.
 - **Acceptance check:** open pid 13 and see 2 allergies as in the legacy card.
   Open pid 3 and see "Nothing Recorded".
 
