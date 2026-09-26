@@ -179,6 +179,14 @@ source document's Observations, not a patient's history.
 
 **E8 (added 2026-09-26, from the W1-debt audit):** remove `item.expected` reads from `src/` (data-derived stale, provenance and conflict detection); refuse questions that name another patient; set the W2 p95 alert to the 30 s target; label chart facts by their real source (`openemr_record` only for OpenEMR reads).
 
+**D14 (user, 2026-09-26 ~16:45 CT): "we should fix everything".** Four fix lanes run in parallel off `a925b803`, code cutoff Sat 22:00 CT (merged by 23:00), then the E7 freeze at Sun 06:00:
+- **F-OBS:** traces persist across deploys, a configurable trace cap, background alert evaluation, `/ready` probing the module and the trace store, correlation ids end to end (W1 debt 6, 9, 13, 18).
+- **F-CLIN:** clinical rules (critical K⁺, A1C ≥ 6.5 vs the document flag, allergy–medication class conflict) as cited safety flags, and "not documented" answers (W1 debt 3, 20).
+- **F-LIVE:** the live notes route (500), medication dose on live reads, single-use launch-token exchange, and an OAuth re-authorization helper for AgentForge's read client (the E9b empty lists are specific to the 09-18 `admin` grant; the dashboard's `grader` tokens get rows on the same routes).
+- **F-API:** Bruno collection for W1+W2, W1 eval cases for unauthorized and ambiguous requests, load-test tooling (run at the freeze) (W1 debt 15, 17, 19).
+
+Kept out, with the reason: LLM tool calling (D4). It is a large answer-path change the night before the freeze. Each lane gets an independent review before merge; anything not green by the cutoff is cut and documented.
+
 ### Decisions needed before E2–E5 start
 
 | # | Question | Recommendation |
