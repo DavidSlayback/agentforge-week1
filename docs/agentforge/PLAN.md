@@ -364,6 +364,14 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   `chartSource.js`. A live read without
   `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` makes no outbound call
   (critic `skipped_not_approved`, local BM25, no external OCR).
+  Security review fixes: the launcher checks every ACO the REST reads
+  enforce and mints live tokens only for `AGENTFORGE_LIVE_PATIENT_UUIDS`;
+  egress needs approval and a designated patient; tokens are stripped from
+  the address bar, responses are `no-store` / `no-referrer`; live responses
+  say `synthetic_only: false`; a scan re-checks read scope; live reads on
+  without OpenEMR settings keep `/ready` at 503; the unseed counts every
+  pid-linked table. Accepted residuals (W2_ARCHITECTURE.md §3f): reads run
+  as a service identity; 280 s bearer tokens, no single-use exchange.
 
 **E7 — Freeze and prove (Sun 06:00–08:00).** One SHA on `main`. Deploy W2 and
 the dashboard from it and confirm both `/health` SHAs. Extend

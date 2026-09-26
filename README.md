@@ -247,6 +247,7 @@ narrative behind each group.
 | Name | Purpose | Default | Required? | Secret? |
 |---|---|---|---|---|
 | `AGENTFORGE_OPENEMR_MODE` | `synthetic` (default) or `live` | `synthetic` | No | No |
+| `AGENTFORGE_LIVE_PATIENT_UUIDS` | The designated synthetic patients (on `openemr` and `agentforge-w2`): the launcher mints live tokens only for them, and external egress from a live read needs one of them plus `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` | empty (nobody) | Yes for live reads | No |
 | `AGENTFORGE_OPENEMR_LIVE_READS` | `on` or `off`. Synthetic mode only: `on` reads the real chart for OpenEMR-launcher tokens (issuer `openemr-module`, authn `openemr-session`); `off` refuses them with `openemr_live_reads_disabled`, never a fixture fallback. Any other value stops startup | `off` | No | No |
 | `AGENTFORGE_OPENEMR_BASE_URL` | OpenEMR base URL | none | Yes for live mode | No |
 | `AGENTFORGE_OPENEMR_ACCESS_TOKEN` | Static access token (test/manual use) | none | No | Yes |

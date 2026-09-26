@@ -165,7 +165,8 @@ parentheses):
 | `AGENTFORGE_OPENEMR_TOKEN_URL`, `AGENTFORGE_OPENEMR_CLIENT_ID`, `AGENTFORGE_OPENEMR_CLIENT_SECRET` (empty) | The server-only read client that owns the refresh token (the same values Week 1's live mode uses) |
 | `AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH` (fixed) | `/run/secrets/agentforge-openemr-token.json`, mounted from `secrets/openemr-token.json` |
 | `AGENTFORGE_OPENEMR_TIMEOUT_MS` (`5000`) | REST call timeout |
-| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` (`false`) | `true` lets a live read use the external services (Qwen answer and rerank, the OpenRouter critic, Gemini embeddings and OCR). Without it a live read makes no outbound call: deterministic answer, critic `skipped_not_approved`, local BM25 retrieval, and a live briefing is blocked |
+| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` (`false`) | `true` lets a live read of a designated patient use the external services (Qwen answer and rerank, the OpenRouter critic, Gemini embeddings and OCR). Otherwise a live read makes no outbound call: deterministic answer, critic `skipped_not_approved`, local BM25 retrieval, and a live briefing is blocked |
+| `AGENTFORGE_LIVE_PATIENT_UUIDS` (empty) | The designated synthetic patients, on **both** `openemr` and `agentforge-w2`. The launcher mints live tokens only for these (anyone else gets a 403), and the approval above applies only to them. Empty means nobody |
 
 On the `openemr` service, `AGENTFORGE_SERVICE_URL` is where the launcher link
 points. For W2 it must be the public W2 path: `https://<canonical-host>/agentforge-w2`.
@@ -195,16 +196,24 @@ SHA. Values are never printed.
    ```dotenv
    AGENTFORGE_SERVICE_URL=https://<canonical-host>/agentforge-w2
    AGENTFORGE_OPENEMR_LIVE_READS=on
-   # append the seeded uuid; keep the existing entries
+   # the designated synthetic patients: the launcher refuses everyone else
+   AGENTFORGE_LIVE_PATIENT_UUIDS=<af-live-01-patient-uuid>
+   # append the seeded uuid; keep the existing entries (uploads)
    AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS=<existing-uuids>,<af-live-01-patient-uuid>
    AGENTFORGE_OPENEMR_TOKEN_URL=https://<canonical-host>/oauth2/default/token
    AGENTFORGE_OPENEMR_CLIENT_ID=<server-only-read-client-id>
    AGENTFORGE_OPENEMR_CLIENT_SECRET=<server-only-read-client-secret>
-   # optional: let the external models (answer, critic, embed/rerank) see the
-   # synthetic live chart; leave unset to keep every live read in-process
+   # optional: let the external models (answer, critic, embed/rerank, OCR)
+   # see the designated synthetic patient's live chart; leave unset to keep
+   # every live read in-process
    AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED=true
    ```
-   (`AGENTFORGE_OPENEMR_BASE_URL` defaults to `http://openemr`.)
+   (`AGENTFORGE_OPENEMR_BASE_URL` defaults to `http://openemr`.) If live
+   reads are on but these OpenEMR settings are missing, `agentforge-w2` logs
+   the missing names, `/ready` stays 503 and live requests are refused with
+   `openemr_live_reads_not_configured`. `grader` needs read access to
+   `patients/demo`, `patients/med`, `patients/docs`, `encounters/notes` and
+   `encounters/auth_a` (and `patients/docs` write for uploads).
 4. **Recreate the containers** so they see the env: `agentforge-w2` (deploy)
    and `openemr` (changed `AGENTFORGE_SERVICE_URL` and allowlist):
    `AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1 AGENTFORGE_DEPLOY_SERVICES="dashboard agentforge-w2" deploy/vultr/deploy.sh`
@@ -226,7 +235,11 @@ SHA. Values are never printed.
    attempts with `adapter: openemr`. The public demo at `/agentforge-w2/`
    must still say "Chart source: synthetic fixture". If the launcher says
    "Chart reads only", `grader` lacks `patients/docs` write or the uuid is not
-   on the allowlist.
+   on the write allowlist; "enabled only for designated synthetic patients"
+   means the uuid is not on `AGENTFORGE_LIVE_PATIENT_UUIDS` (or `openemr`
+   was not recreated after the change). The page header must say "Live
+   OpenEMR chart (synthetic patient)", and the address bar must not show the
+   token after the page loads.
 
 Known gaps on the live path: medication rows carry no dose (the fact reads
 `active` or `ended <date>`), and the document route returns 404 without a

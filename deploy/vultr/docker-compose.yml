@@ -35,6 +35,9 @@ services:
       # issuer may write only for these OpenEMR patient uuids, attributed to
       # this OpenEMR user. Both are required for the W2 OpenEMR round-trip.
       AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: ${AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS:?AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS is required}
+      # E9 launcher: live tokens only for these designated synthetic patients
+      # (empty = the launcher refuses every patient). Same list as agentforge-w2's.
+      AGENTFORGE_LIVE_PATIENT_UUIDS: ${AGENTFORGE_LIVE_PATIENT_UUIDS:-}
       AGENTFORGE_DEMO_ACTOR_USERNAME: ${AGENTFORGE_DEMO_ACTOR_USERNAME:?AGENTFORGE_DEMO_ACTOR_USERNAME is required}
       # Signs agentforge-w2 -> module requests. Only openemr and agentforge-w2
       # get it (never the Week 1 agentforge service); it must differ from
@@ -230,6 +233,9 @@ services:
       # external OCR, and a live briefing is blocked
       # (live_external_provider_not_approved). The public demo is unaffected.
       AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED: ${AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED:-false}
+      # The designated synthetic patients: approval above applies only to a
+      # live read of one of these (empty = nobody). Same list as openemr's.
+      AGENTFORGE_LIVE_PATIENT_UUIDS: ${AGENTFORGE_LIVE_PATIENT_UUIDS:-}
     volumes:
       # Same server-only OAuth token cache as the Week 1 block; only a service
       # that reads the live chart opens it (W1 runs the synthetic mode).

@@ -597,13 +597,38 @@ body field; a copied claims object is refused):
   page.
 - Every REST row must name the requested patient (uuid or pid), or it is
   dropped (`rowBelongsToPatient`).
+- **Who may launch.** The launcher mints tokens only when the signed-in user
+  holds every ACO the REST routes it reads enforce (`patients/demo`,
+  `patients/med`, `patients/docs`, `encounters/notes`, `encounters/auth_a`;
+  `LaunchTokenMinter::REQUIRED_READ_ACOS`), and only for a patient on
+  `AGENTFORGE_LIVE_PATIENT_UUIDS`, the designated synthetic patients. Anyone
+  else gets a 403 ("AgentForge is enabled only for designated synthetic
+  patients"). A scan also re-checks that its token may read that chart (a
+  read or write-source-document scope, same patient and clinician).
+- **Accepted residual: reads run as a service identity.** The REST reads use
+  the service's OAuth read token, so per-user authorization happens once, at
+  launch. OpenEMR sensitivity levels and facility restrictions that would
+  hide part of a chart from this user are not reproduced by the service.
+- **Accepted residual: the launch tokens are bearer tokens for 280 s.** They
+  arrive in the URL; the page removes them from the address bar and history
+  on load (`history.replaceState`) and keeps them in memory, and every
+  response is `Cache-Control: no-store` with `Referrer-Policy: no-referrer`.
+  There is no single-use exchange: a token copied within its 280 s can be
+  replayed for the same patient and scopes.
+- **Labels.** A response built from a live read says `synthetic_only: false`
+  (scan and follow-up evidence) and carries `chart_source.designated_patient`;
+  the page header says "Live OpenEMR chart (synthetic patient)" for a
+  designated patient instead of "Synthetic demonstration only".
 - The launcher also hands over a `write-source-document` token when the user
   has document write ACL and the patient is on
   `AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS`. The module and the W2 service apply
   that allowlist to every issuer, so a real session cannot write to any
   other patient.
-- A live read without `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED=true` makes
-  no outbound call at all (`chartSource.js#isLiveChartRead`): the answer uses
+- A live read makes an outbound call only with
+  `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED=true` **and** the verified
+  patient on `AGENTFORGE_LIVE_PATIENT_UUIDS`
+  (`chartSourceRouter.js#liveEgressAllowed`). Otherwise it makes none
+  (`chartSource.js#isLiveChartRead` decides what is a live read): the answer uses
   the deterministic composer; the critic is skipped with `critic_status:
   skipped_not_approved`; guideline evidence is ranked by local BM25 only (no
   Gemini embed, no Qwen or Gemini rerank, even though the query is
@@ -615,6 +640,10 @@ body field; a copied claims object is refused):
   carry codes and counts only. Tested with recording fakes of every seam
   (`x9-live-chart-no-egress-unapproved`) and with a recording model server
   over HTTP (`live-chart-http.test.js`).
+- `AGENTFORGE_OPENEMR_LIVE_READS=on` without the OpenEMR access settings
+  logs the missing setting names at startup, keeps `/ready` at 503
+  (`openemrLiveReadsConfiguration`), and refuses each live request with
+  `openemr_live_reads_not_configured`.
 - Known gaps in the live mapping: OpenEMR `lists` rows carry no dose, so a
   medication fact reads `active` or `ended <date>`, not "10 mg daily"; the
   document route needs a `path` and returns 404, so the `notes` group is
