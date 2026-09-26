@@ -190,6 +190,20 @@ node agentforge/scripts/run-w2-gate.mjs      # same as npm run eval:gate --prefi
 php interface/modules/custom_modules/oe-module-agentforge/tests/run.php   # requires PHP on PATH
 ```
 
+API collection (Bruno, every W1 and W2 endpoint; see `agentforge/api/README.md`):
+
+```bash
+cd agentforge/api/bruno && npx @usebruno/cli run --env deployed   # the public URL; makes one model-costing scan
+node agentforge/scripts/run-bruno-local.mjs                        # a local server from this checkout, no model calls
+```
+
+Load test (10 and 50 concurrent users; method, cost and the freeze-run
+commands are in `docs/agentforge/LOAD_TEST.md`):
+
+```bash
+node agentforge/scripts/load-test.mjs --dry-run
+```
+
 If you want the full local OpenEMR substrate this fork runs on top of
 (not required to run the AgentForge service itself against fixtures), see
 `docker/development-easy` in `CONTRIBUTING.md`, or the lighter
