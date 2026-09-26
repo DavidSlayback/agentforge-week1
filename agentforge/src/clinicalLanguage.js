@@ -11,6 +11,8 @@ export function clinicalFact(claim) {
   const label = clinicalLabel(claim.field);
   const name = label.charAt(0).toUpperCase() + label.slice(1);
   if (claim.field.startsWith('problem.')) return `${name} is documented as ${claim.value}`;
+  // A live OpenEMR medication row with no dose says so (openemrAdapter.js).
+  if (claim.field.startsWith('medication.') && claim.field.endsWith('.dose') && claim.value === 'not recorded') return `${name} dose is not recorded`;
   if (claim.field.startsWith('medication.')) return `${name} is recorded at ${claim.value}`;
   if (claim.field.startsWith('note.')) return `The note records “${claim.value}”`;
   return `${name}: ${claim.value}`;

@@ -31,9 +31,10 @@ test('OpenEMR REST adapter uses only GET allowlisted routes and normalizes recor
   assert.equal(item.patient.patient_ref, 'patient-uuid');
   assert.equal(item.patient.display_name, 'Synthetic Patient');
   // E9b: an empty allergy list from the patient-scoped route is not a confirmed absence.
-  assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'unverified_empty', 'empty']);
+  // F-LIVE: notes are not read (no usable OpenEMR 8.0 route) and say so.
+  assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'unverified_empty', 'not_requested']);
   assert.equal(retrieved.coverage.find((group) => group.group === 'allergies').error_class, 'openemr_scoped_list_empty');
-  assert.deepEqual(retrieved.records.map((record) => record.source_ref), ['openemr-patient-patient-uuid', 'enc-1', 'problem-1', 'med-1']);
+  assert.deepEqual(retrieved.records.map((record) => record.source_ref), ['openemr-patient-patient-uuid', 'enc-1', 'problem-1', 'med-1', 'med-1']);
   assert.ok(requests.every(({ options }) => options.method === 'GET'));
   assert.ok(requests.filter(({ url }) => url.includes('/apis/default/api/')).every(({ options }) => options.headers.authorization === 'Bearer synthetic-token'));
   assert.ok(requests.filter(({ url }) => url.includes('/apis/default/api/')).some(({ options }) => options.headers['x-correlation-id'] === 'af-correlation-test'));
@@ -118,4 +119,46 @@ test('OpenEMR refresh provider rotates and persists refresh tokens without expos
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test('F-LIVE notes: never requested from OpenEMR, reported not_requested with the reason, and the briefing is qualified by it', async () => {
+  const requests = [];
+  const adapter = new OpenEMRRestAdapter({ baseUrl: 'http://openemr', accessToken: 'synthetic-token', fetchImpl: fakeFetch(requests) });
+  const retrieved = await adapter.retrieve(await adapter.getCase('patient-uuid'));
+  assert.equal(validateRetrievalResult(retrieved).valid, true);
+  assert.deepEqual(retrieved.coverage.find((group) => group.group === 'notes'), { group: 'notes', status: 'not_requested', records: 0, attempts: 0, error_class: 'openemr_notes_route_unavailable' });
+  assert.equal(requests.some(({ url }) => url.includes('/document')), false, 'the document route (500 on OpenEMR 8.0.0 without a category path) is not called');
+  assert.equal(retrieved.records.some((record) => record.field.startsWith('note.')), false);
+  // The contract refuses a not_requested group that claims an attempt, and a zero-attempt group of any other status.
+  assert.equal(validateRetrievalResult({ ...retrieved, coverage: retrieved.coverage.map((group) => group.group === 'notes' ? { ...group, attempts: 1 } : group) }).valid, false);
+  assert.equal(validateRetrievalResult({ ...retrieved, coverage: retrieved.coverage.map((group) => group.group === 'notes' ? { ...group, status: 'empty' } : group) }).valid, false);
+});
+
+test('F-LIVE medication dose: from the row\'s dose field or free-text comments; "not recorded" when absent, never blank', async () => {
+  const rows = [
+    { uuid: 'med-comments', pid: 17, title: 'Lisinopril', begdate: '2026-09-10', enddate: null, comments: '  10 mg daily  ' },
+    { uuid: 'med-structured', pid: 17, title: 'Metformin', begdate: '2026-09-10', enddate: null, drug_dosage_instructions: '500 mg twice daily', comments: 'ignored when a dose field exists' },
+    { uuid: 'med-none', pid: 17, title: 'Atorvastatin', begdate: '2026-09-10', enddate: null, comments: '' },
+    { uuid: 'med-null', pid: 17, title: 'Aspirin', begdate: '2026-09-10', enddate: null, comments: null },
+  ];
+  const adapter = new OpenEMRRestAdapter({
+    baseUrl: 'http://openemr',
+    accessToken: 'synthetic-token',
+    fetchImpl: async (url) => {
+      if (url.endsWith('/patient/patient-uuid')) return { ok: true, status: 200, async json() { return { data: [{ uuid: 'patient-uuid', pid: 17, fname: 'Synthetic', lname: 'Patient' }] }; } };
+      if (url.endsWith('/patient/17/medication')) return { ok: true, status: 200, async json() { return { data: rows }; } };
+      return { ok: false, status: 404, async json() { return {}; } };
+    },
+  });
+  const retrieved = await adapter.retrieve(await adapter.getCase('patient-uuid'));
+  assert.equal(validateRetrievalResult(retrieved).valid, true);
+  const dose = (name) => retrieved.records.find((record) => record.field === `medication.${name}.dose`);
+  assert.equal(dose('lisinopril').value, '10 mg daily');
+  assert.equal(dose('lisinopril').source_ref, 'med-comments', 'the dose cites the OpenEMR row it came from');
+  assert.equal(dose('metformin').value, '500 mg twice daily');
+  assert.equal(dose('atorvastatin').value, 'not recorded');
+  assert.equal(dose('aspirin').value, 'not recorded');
+  assert.ok(retrieved.records.filter((record) => record.field.startsWith('medication.')).every((record) => typeof record.value === 'string' && record.value.trim()), 'no blank medication value');
+  assert.equal(retrieved.records.find((record) => record.field === 'medication.lisinopril.status').value, 'active');
+  assert.equal(retrieved.coverage.find((group) => group.group === 'medications').records, 8);
 });

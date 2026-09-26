@@ -379,7 +379,8 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   say `synthetic_only: false`; a scan re-checks read scope; live reads on
   without OpenEMR settings keep `/ready` at 503; the unseed counts every
   pid-linked table. Accepted residuals (W2_ARCHITECTURE.md §3f): reads run
-  as a service identity; 280 s bearer tokens, no single-use exchange.
+  as a service identity; 280 s bearer tokens, no single-use exchange
+  (single-use added by F-LIVE).
 - **E9b (2026-09-26):** on production (OpenEMR 8.0.0) the patient-scoped
   `medical_problem` and `allergy` routes return `[]` for patients with rows.
   The live adapter now reports that as `unverified_empty`
@@ -387,6 +388,27 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   groups under the answer's needs review; never a confirmed "none".
   Unresolved upstream. Evidence: `chart-source-router.test.js` (E9b tests),
   `x9-live-chart-empty-list-unconfirmed`, `E9-live-chart-regression.txt` R9.
+  Narrowed later that day: the dashboard gets rows from the same routes with
+  `grader`'s tokens, so the empties are specific to AgentForge's `admin`
+  grant (F-LIVE item 4).
+- **F-LIVE (2026-09-26, branch `agentforge/f-live`):** implemented and
+  tested, not deployed or observed. (1) Notes: the document route needs a
+  category `path`, lists one category and returns rows without patient
+  identity (500 on 8.0.0 without `path`), so the adapter no longer calls it
+  and reports `notes` `not_requested` (`openemr_notes_route_unavailable`,
+  zero attempts), which qualifies the briefing. (2) Medication dose from the
+  `lists` row (`comments`, the only dose on it), else `not recorded`. (3)
+  Launch tokens are single-use: the first page load exchanges them for an
+  in-memory session (HttpOnly/Secure/SameSite=Strict cookie + handles); a
+  replayed link answers 401, a launch token on the API 403. (4)
+  `scripts/openemr-authorize-read-client.mjs`: auth code + PKCE as `grader`,
+  writes the provider's token cache; runbook step 7 in
+  `deploy/vultr/README.md`. Needs David's sign-in; the client's registered
+  redirect URI is read on the VM (not in the repo). Evidence:
+  `openemr-rest-adapter.test.js`, `launch-session.test.js`,
+  `live-chart-http.test.js`, `openemr-authorize-read-client.test.js`,
+  `evidence/F-LIVE-regression.txt`. The 50-case gate is unchanged; no
+  extension cases were added.
 
 **E7 — Freeze and prove (Sun 06:00–08:00).** One SHA on `main`. Deploy W2 and
 the dashboard from it and confirm both `/health` SHAs. Extend

@@ -11,6 +11,7 @@ import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 import { createOpenEMRModuleWritebackFromEnv, parseUuidAllowlist } from './openemrModuleWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
+import { LaunchSessionStore, launchSessionCookie } from './launchSession.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest } from './contracts.js';
 import { DeterministicAnswerComposer } from './answerComposer.js';
@@ -299,7 +300,7 @@ const readGoldenEvidence = () => process.env.AGENTFORGE_EVAL_REPORT_PATH ? JSON.
 // page sends its URL on as a Referer.
 const NO_STORE_HEADERS = Object.freeze({ 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json', ...NO_STORE_HEADERS }); res.end(JSON.stringify(body)); };
-const html = (res, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS }); res.end(body); };
+const html = (res, body, status = 200, headers = {}) => { res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS, ...headers }); res.end(body); };
 const invalidContract = (res, error, issues) => json(res, 400, { error, issues });
 const invalidResponse = (res, error, issues) => json(res, 500, { error, issues });
 // Scan-extraction responses carry the typed W2 contract (citations,
@@ -316,8 +317,18 @@ const sendValidatedScanExtraction = (res, status, body, extraction) => {
   }
   return json(res, status, body);
 };
-const tokenPayload = (token) => verifySignedContext(token, process.env.AGENTFORGE_DEMO_SECRET);
-const verifiedContextFor = (body) => tokenPayload(body.demo_token);
+const verifyContextToken = (token) => verifySignedContext(token, process.env.AGENTFORGE_DEMO_SECRET);
+// F-LIVE: an OpenEMR launch token (issuer openemr-module) is exchanged once,
+// on the first page load, for a launch session (launchSession.js). The API
+// accepts only the session's handle plus its HttpOnly cookie, never the launch
+// token itself, so a replayed launch URL or token is refused.
+const launchSessions = new LaunchSessionStore();
+const requestContext = (token, req) => {
+  if (LaunchSessionStore.isHandle(token)) return launchSessions.resolve(token, req.headers.cookie);
+  const payload = verifyContextToken(token);
+  return payload && payload.issuer === 'openemr-module' ? null : payload;
+};
+const LAUNCH_REFUSED_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>AgentForge</title></head><body><main><h1>Launch link already used or expired</h1><p>An AgentForge launch link works once. Open AgentForge again from the OpenEMR patient chart ("Prepare for visit").</p></main></body></html>';
 const syntheticWritebackEnabled = () => Boolean(writeback && typeof writeback.persistSourceDocument === 'function');
 const syntheticClinicalActionWritebackEnabled = () => Boolean(writeback && typeof writeback.draftClinicalAction === 'function' && typeof writeback.confirmClinicalAction === 'function');
 const sourceDocumentErrorStatus = (error) => {
@@ -363,6 +374,8 @@ const requestCorrelationId = (req) => {
 const server = http.createServer(async (req, res) => {
   const correlationId = requestCorrelationId(req);
   res.setHeader('x-correlation-id', correlationId);
+  const tokenPayload = (token) => requestContext(token, req);
+  const verifiedContextFor = (body) => tokenPayload(body.demo_token);
   try {
     if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok', git_sha: gitSha });
     if (req.method === 'GET' && req.url === '/ready') { const result = await readiness.ready(); return json(res, result.status === 'ready' ? 200 : 503, result); }
@@ -527,16 +540,25 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && req.url.startsWith('/')) {
       const query = new URL(req.url, 'http://localhost').searchParams;
-      const token = query.get('demo_token') || '';
-      const payload = tokenPayload(token);
+      let token = query.get('demo_token') || '';
+      const payload = verifyContextToken(token);
+      if (payload?.issuer !== 'openemr-module') {
+        // Not an OpenEMR launch: the public demo page, unchanged.
+        const designatedPatient = Boolean(payload && livePatientAllowlist.has(String(payload.patient_uuid).toLowerCase()));
+        return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken: '', chartSource: describeLaunchChartSource(chartAdapter, payload), designatedPatient }));
+      }
       // E9: the module launcher also hands over a write-source-document token.
       // It is used only when it is verified and belongs to the same OpenEMR
       // session, patient and clinician as the read token.
       const writeCandidate = query.get('write_token') || '';
-      const writePayload = writeCandidate ? tokenPayload(writeCandidate) : null;
-      const writeToken = payload && writePayload && writePayload.issuer === 'openemr-module' && writePayload.authn === 'openemr-session' && payload.issuer === 'openemr-module' && writePayload.scope === 'write-source-document' && writePayload.patient_uuid === payload.patient_uuid && writePayload.clinician_uuid === payload.clinician_uuid ? writeCandidate : '';
-      const designatedPatient = Boolean(payload && livePatientAllowlist.has(String(payload.patient_uuid).toLowerCase()));
-      return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken, chartSource: describeLaunchChartSource(chartAdapter, payload), designatedPatient }));
+      const writePayload = writeCandidate ? verifyContextToken(writeCandidate) : null;
+      const writeAccepted = Boolean(writePayload && writePayload.issuer === 'openemr-module' && writePayload.authn === 'openemr-session' && writePayload.scope === 'write-source-document' && writePayload.patient_uuid === payload.patient_uuid && writePayload.clinician_uuid === payload.clinician_uuid);
+      // F-LIVE: exchange the launch token(s) once for a launch session; a second load is refused.
+      const exchange = launchSessions.exchange({ readToken: token, readContext: payload, writeToken: writeAccepted ? writeCandidate : '', writeContext: writeAccepted ? writePayload : null });
+      if (exchange.status !== 'created') return html(res, LAUNCH_REFUSED_PAGE, 401);
+      token = exchange.readHandle;
+      const designatedPatient = livePatientAllowlist.has(String(payload.patient_uuid).toLowerCase());
+      return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken: exchange.writeHandle, chartSource: describeLaunchChartSource(chartAdapter, payload), designatedPatient }), 200, { 'set-cookie': launchSessionCookie(exchange, publicBasePath) });
     }
     let body;
     try { body = await readJsonBody(req); } catch (error) { return json(res, error.code === 'REQUEST_BODY_TOO_LARGE' ? 413 : 400, { error: error.code === 'REQUEST_BODY_TOO_LARGE' ? error.code.toLowerCase() : 'invalid_json' }); }

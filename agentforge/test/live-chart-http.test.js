@@ -16,7 +16,9 @@ import { issueSignedContext } from '../src/accessContext.js';
 const secret = 'synthetic-test-secret';
 const moduleHmacSecret = 'synthetic-module-hmac-secret';
 const clinician = '6f1e2d3c-4b5a-4968-8776-655443322110';
-const moduleToken = (patient, scope = 'read-briefing') => issueSignedContext({ patient_uuid: patient, clinician_uuid: clinician, scope, acl: scope === 'read-briefing' ? 'read' : 'write', issuer: 'openemr-module', authn: 'openemr-session', secret });
+// 280 s like the PHP launcher; each mint is one second shorter so two mints in the same second are distinct launches.
+let mints = 0;
+const moduleToken = (patient, scope = 'read-briefing') => issueSignedContext({ patient_uuid: patient, clinician_uuid: clinician, scope, acl: scope === 'read-briefing' ? 'read' : 'write', issuer: 'openemr-module', authn: 'openemr-session', ttlSeconds: 280 - (mints++ % 200), secret });
 const labEnvelope = [
   'SYNTHETIC_SCAN_FORM|layout=pdf-ocr-lab_pdf|page_count=1',
   ...[
@@ -24,7 +26,21 @@ const labEnvelope = [
     ['lab.a1c.test_name', 'A1C'], ['lab.a1c.value', '6.1'], ['lab.a1c.unit', '%'], ['lab.a1c.reference_range', 'under 5.7'], ['lab.a1c.collection_date', '2026-09-20'], ['lab.a1c.abnormal', 'Yes'],
   ].map(([fieldId, value], index) => `FIELD|field_id=${fieldId}|label=${fieldId}|value=${value}|unit=|quote=${fieldId}: ${value}|page=1|box=10,${20 + index * 20},300,${35 + index * 20}|confidence=0.97`),
 ].join('\n');
-const post = (base, route, body) => fetch(`${base}${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const post = (base, route, body, cookie = '') => fetch(`${base}${route}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });
+
+/**
+ * F-LIVE: open the launch link the way a browser does. The first load
+ * exchanges the module tokens for a launch session: an HttpOnly cookie plus
+ * the handles the page's script sends (`launch-session.<tag>.read|write`).
+ */
+async function launch(base, patient = LIVE_PATIENT, { write = true, readToken = moduleToken(patient), writeToken = write ? moduleToken(patient, 'write-source-document') : '' } = {}) {
+  const response = await fetch(`${base}/?demo_token=${encodeURIComponent(readToken)}${writeToken ? `&write_token=${encodeURIComponent(writeToken)}` : ''}`);
+  const page = await response.text();
+  const cookie = (response.headers.get('set-cookie') || '').split(';')[0];
+  const read = /demoToken: "(launch-session\.[^"]+)"/.exec(page)?.[1] || '';
+  const writeHandle = /writeToken: "(launch-session\.[^"]*)"/.exec(page)?.[1] || '';
+  return { response, page, cookie, read, write: writeHandle, readToken, writeToken };
+}
 
 /**
  * TEST-ONLY recording stand-in for every external model endpoint (the Qwen
@@ -65,11 +81,11 @@ async function startStack(port, liveReads, extraEnv = {}) {
   return { base, rest, module, stop: async () => { child.kill(); await rest.close(); await module.close(); } };
 }
 
-async function uploadAndScan(base, writeToken, patient = LIVE_PATIENT) {
-  const upload = await post(base, '/v1/source-documents', { patient_uuid: patient, clinician_uuid: clinician, demo_token: writeToken, document_type: 'lab_pdf', filename: 'lab-ocr-envelope.scan.txt', content_base64: Buffer.from(labEnvelope).toString('base64') });
+async function uploadAndScan(base, session, patient = LIVE_PATIENT) {
+  const upload = await post(base, '/v1/source-documents', { patient_uuid: patient, clinician_uuid: clinician, demo_token: session.write, document_type: 'lab_pdf', filename: 'lab-ocr-envelope.scan.txt', content_base64: Buffer.from(labEnvelope).toString('base64') }, session.cookie);
   const uploaded = await upload.json();
   if (upload.status !== 200) return { upload, uploaded };
-  const scan = await post(base, '/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: clinician, demo_token: writeToken, source_document_id: uploaded.source_document.id, message: '' });
+  const scan = await post(base, '/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: clinician, demo_token: session.write, source_document_id: uploaded.source_document.id, message: '' }, session.cookie);
   return { upload, uploaded, scan, scanned: await scan.json() };
 }
 
@@ -77,22 +93,26 @@ test('live reads on: a module session reads the OpenEMR chart over REST, labels 
   const stack = await startStack(18971, 'on');
   const { base, rest } = stack;
   try {
-    const read = moduleToken(LIVE_PATIENT);
-    const write = moduleToken(LIVE_PATIENT, 'write-source-document');
-
-    const page = await (await fetch(`${base}/?demo_token=${encodeURIComponent(read)}&write_token=${encodeURIComponent(write)}`)).text();
+    const session = await launch(base);
+    const { page } = session;
     assert.match(page, /Chart source: OpenEMR \(live\)/);
-    assert.ok(page.includes(`writeToken: ${JSON.stringify(write)}`), 'the launcher write token reaches the page');
-    const otherWrite = moduleToken(OTHER_PATIENT, 'write-source-document');
-    const mismatched = await (await fetch(`${base}/?demo_token=${encodeURIComponent(read)}&write_token=${encodeURIComponent(otherWrite)}`)).text();
-    assert.match(mismatched, /writeToken: ""/, 'a write token for another patient is not accepted');
+    assert.match(session.write, /^launch-session\.[A-Za-z0-9_-]{16}\.write$/, 'the launcher write token reaches the page as a session handle');
+    assert.equal(page.includes(session.readToken) || page.includes(session.writeToken), false, 'the launch tokens themselves never reach the page');
+    const mismatched = await launch(base, LIVE_PATIENT, { writeToken: moduleToken(OTHER_PATIENT, 'write-source-document') });
+    assert.match(mismatched.page, /writeToken: ""/, 'a write token for another patient is not accepted');
 
-    const briefing = await (await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: read })).json();
+    const briefing = await (await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
     assert.deepEqual(briefing.operations, [{ type: 'read', operation: 'retrieve_openemr_read' }]);
     assert.ok(briefing.claims.some((claim) => claim.field === 'encounter.reason' && claim.value === 'blood-pressure follow-up'));
     assert.equal(JSON.stringify(briefing).includes('LEAKED'), false);
+    // F-LIVE: the dose comes from the OpenEMR row, and notes are named as not read, never a silent success.
+    assert.ok(briefing.claims.some((claim) => claim.field === 'medication.lisinopril.dose' && claim.value === '10 mg daily [seed:af-live]'), 'the current dose reaches the briefing');
+    assert.deepEqual(briefing.coverage.find((group) => group.group === 'notes'), { group: 'notes', status: 'not_requested', records: 0, attempts: 0, error_class: 'openemr_notes_route_unavailable' });
+    assert.ok(briefing.qualification.reasons.includes('notes:not_requested'));
+    assert.notEqual(briefing.disposition, 'complete');
+    assert.equal(rest.requests.some((request) => request.path.includes('/document')), false, 'the OpenEMR document route is never called');
 
-    const { upload, uploaded, scan, scanned } = await uploadAndScan(base, write);
+    const { upload, uploaded, scan, scanned } = await uploadAndScan(base, session);
     assert.equal(upload.status, 200);
     assert.equal(uploaded.openemr.patient_uuid, LIVE_PATIENT);
     assert.equal(scan.status, 200);
@@ -102,7 +122,7 @@ test('live reads on: a module session reads the OpenEMR chart over REST, labels 
     assert.ok(chartCitations.every((citation) => citation.source_type === 'openemr_record'));
     assert.equal(JSON.stringify(scanned).includes('LEAKED'), false);
 
-    const evidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: read, message: 'blood pressure' })).json();
+    const evidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read, message: 'blood pressure' }, session.cookie)).json();
     assert.equal(evidence.retrieval.chart_source, 'openemr_live');
     assert.ok(evidence.patient_facts.every((fact) => fact.citation.source_type === 'openemr_record'));
 
@@ -138,7 +158,7 @@ test('live reads on: the public demo stays on fixtures, and tampered or non-allo
     assert.equal(refused.status, 403);
 
     const before = module.counts().documents;
-    const { upload, uploaded } = await uploadAndScan(base, moduleToken(OTHER_PATIENT, 'write-source-document'), OTHER_PATIENT);
+    const { upload, uploaded } = await uploadAndScan(base, await launch(base, OTHER_PATIENT), OTHER_PATIENT);
     assert.equal(upload.status, 403);
     assert.equal(uploaded.error, 'OPENEMR_DEMO_PATIENT_NOT_ALLOWED');
     assert.equal(module.counts().documents, before, 'no write for a non-allowlisted patient, even from a real session');
@@ -149,17 +169,15 @@ test('live reads off: a module session fails loudly with openemr_live_reads_disa
   const stack = await startStack(18973, 'off');
   const { base, rest } = stack;
   try {
-    const read = moduleToken(LIVE_PATIENT);
-    const write = moduleToken(LIVE_PATIENT, 'write-source-document');
-    const page = await (await fetch(`${base}/?demo_token=${encodeURIComponent(read)}&write_token=${encodeURIComponent(write)}`)).text();
-    assert.match(page, /Chart source: unavailable \(OpenEMR live reads are off\)/);
+    const session = await launch(base);
+    assert.match(session.page, /Chart source: unavailable \(OpenEMR live reads are off\)/);
 
-    const briefing = await (await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: read })).json();
+    const briefing = await (await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
     assert.equal(briefing.disposition, 'blocked');
     assert.deepEqual(briefing.qualification.reasons, ['openemr_live_reads_disabled']);
     assert.deepEqual(briefing.claims, []);
 
-    const { scan, scanned } = await uploadAndScan(base, write);
+    const { scan, scanned } = await uploadAndScan(base, session);
     assert.equal(scan.status, 403);
     assert.equal(scanned.error, 'openemr_live_reads_disabled');
     assert.equal(rest.requests.length, 0, 'nothing reads OpenEMR when live reads are off');
@@ -176,15 +194,15 @@ test('live reads without external-provider approval: nothing leaves the process;
   });
   const unapproved = await startStack(18974, 'on', modelEnv(false));
   try {
-    const write = moduleToken(LIVE_PATIENT, 'write-source-document');
-    const { scan, scanned } = await uploadAndScan(unapproved.base, write);
+    const session = await launch(unapproved.base);
+    const { scan, scanned } = await uploadAndScan(unapproved.base, session);
     assert.equal(scan.status, 200);
     assert.equal(scanned.chart_source.chart_source, 'openemr_live');
     assert.equal(scanned.workflow.answer.critic_status, 'skipped_not_approved');
     assert.equal(models.requests.length, 0, `a live read without approval made ${models.requests.length} outbound model request(s)`);
-    const briefing = await (await post(unapproved.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: moduleToken(LIVE_PATIENT) })).json();
+    const briefing = await (await post(unapproved.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
     assert.deepEqual(briefing.qualification.reasons, ['live_external_provider_not_approved']);
-    const evidence = await (await post(unapproved.base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: moduleToken(LIVE_PATIENT), message: 'blood pressure' })).json();
+    const evidence = await (await post(unapproved.base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read, message: 'blood pressure' }, session.cookie)).json();
     assert.equal(evidence.retrieval.guideline_provider, 'bm25-sparse-only');
     assert.equal(models.requests.length, 0);
     // Sensitivity: the same server calls out for the public demo's fixture chart.
@@ -198,7 +216,7 @@ test('live reads without external-provider approval: nothing leaves the process;
   const beforeUndesignated = models.requests.length;
   const undesignated = await startStack(18976, 'on', modelEnv(true, [OTHER_PATIENT]));
   try {
-    const { scan, scanned } = await uploadAndScan(undesignated.base, moduleToken(LIVE_PATIENT, 'write-source-document'));
+    const { scan, scanned } = await uploadAndScan(undesignated.base, await launch(undesignated.base));
     assert.equal(scan.status, 200);
     assert.equal(scanned.workflow.answer.critic_status, 'skipped_not_approved');
     assert.equal(scanned.chart_source.designated_patient, false);
@@ -207,7 +225,7 @@ test('live reads without external-provider approval: nothing leaves the process;
   const before = models.requests.length;
   const approved = await startStack(18975, 'on', modelEnv(true));
   try {
-    const { scan, scanned } = await uploadAndScan(approved.base, moduleToken(LIVE_PATIENT, 'write-source-document'));
+    const { scan, scanned } = await uploadAndScan(approved.base, await launch(approved.base));
     assert.equal(scan.status, 200);
     assert.notEqual(scanned.workflow.answer.critic_status, 'skipped_not_approved');
     assert.ok(models.requests.length > before, 'with approval the live read reaches the model endpoint');
@@ -218,21 +236,20 @@ test('live pages and responses: honest data labels, no-store and no-referrer, to
   const stack = await startStack(18977, 'on', { AGENTFORGE_LIVE_PATIENT_UUIDS: LIVE_PATIENT });
   try {
     const { base } = stack;
-    const read = moduleToken(LIVE_PATIENT);
-    const pageResponse = await fetch(`${base}/?demo_token=${encodeURIComponent(read)}`);
+    const session = await launch(base);
+    const { response: pageResponse, page } = session;
     assert.equal(pageResponse.headers.get('cache-control'), 'no-store');
     assert.equal(pageResponse.headers.get('referrer-policy'), 'no-referrer');
-    const page = await pageResponse.text();
     assert.match(page, /id="data-origin">Live OpenEMR chart \(synthetic patient\)</);
     assert.match(page, /history\.replaceState\(/);
     const demoPage = await (await fetch(`${base}/`)).text();
     assert.match(demoPage, /id="data-origin">Synthetic demonstration only</);
-    const { scan, scanned } = await uploadAndScan(base, moduleToken(LIVE_PATIENT, 'write-source-document'));
+    const { scan, scanned } = await uploadAndScan(base, session);
     assert.equal(scan.headers.get('cache-control'), 'no-store');
     assert.equal(scan.headers.get('referrer-policy'), 'no-referrer');
     assert.equal(scanned.synthetic_only, false, 'a live read is never labeled synthetic_only');
     assert.equal(scanned.chart_source.designated_patient, true);
-    const evidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: read, message: 'blood pressure' })).json();
+    const evidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read, message: 'blood pressure' }, session.cookie)).json();
     assert.equal(evidence.synthetic_only, false);
     const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
     const demoEvidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: 'fixture-patient-001', clinician_uuid: demo.clinician_uuid, demo_token: demo.demo_token, message: 'blood pressure' })).json();
@@ -246,8 +263,49 @@ test('live reads on without OpenEMR access settings: /ready is 503 and live requ
     const ready = await fetch(`${stack.base}/ready`);
     assert.equal(ready.status, 503);
     assert.equal((await ready.json()).dependencies.openemrLiveReadsConfiguration.status === 'ready', false);
-    const briefing = await (await post(stack.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: moduleToken(LIVE_PATIENT) })).json();
+    const session = await launch(stack.base);
+    const briefing = await (await post(stack.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
     assert.deepEqual(briefing.qualification.reasons, ['openemr_live_reads_not_configured']);
     assert.equal(stack.rest.requests.length, 0);
+  } finally { await stack.stop(); }
+});
+
+test('launch token is single-use: the first load opens a launch session, a replayed launch link or token is refused', async () => {
+  const stack = await startStack(18979, 'on', { AGENTFORGE_LIVE_PATIENT_UUIDS: LIVE_PATIENT });
+  try {
+    const { base } = stack;
+    const session = await launch(base);
+    assert.equal(session.response.status, 200);
+    const setCookie = session.response.headers.get('set-cookie') || '';
+    assert.match(setCookie, /^af_launch_[A-Za-z0-9_-]{16}=[A-Za-z0-9_-]+; Path=\/; Max-Age=\d+; HttpOnly; Secure; SameSite=Strict$/);
+    assert.ok(Number(/Max-Age=(\d+)/.exec(setCookie)[1]) <= 280, 'the session never outlives the launch token');
+    assert.equal(session.response.headers.get('cache-control'), 'no-store');
+    assert.equal(session.response.headers.get('referrer-policy'), 'no-referrer');
+    // The session works: a live briefing through the handle plus its cookie.
+    const briefing = await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie);
+    assert.equal(briefing.status, 200);
+    assert.deepEqual((await briefing.json()).operations, [{ type: 'read', operation: 'retrieve_openemr_read' }]);
+
+    // Replaying the launch link is refused, with no new session.
+    const replay = await fetch(`${base}/?demo_token=${encodeURIComponent(session.readToken)}&write_token=${encodeURIComponent(session.writeToken)}`);
+    assert.equal(replay.status, 401);
+    assert.equal(replay.headers.get('set-cookie'), null);
+    assert.equal(replay.headers.get('cache-control'), 'no-store');
+    assert.match(await replay.text(), /already used or expired/);
+    // The launch tokens are never accepted by the API directly, read or write.
+    const direct = await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.readToken });
+    assert.equal(direct.status, 403);
+    const directUpload = await uploadAndScan(base, { write: session.writeToken, cookie: '' });
+    assert.equal(directUpload.upload.status, 403);
+    // Even a fresh, never-exchanged launch token is refused on the API.
+    assert.equal((await post(base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: moduleToken(LIVE_PATIENT), message: 'blood pressure' })).status, 403);
+    // A handle without its cookie, or with another session's cookie, resolves to nothing.
+    assert.equal((await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read })).status, 403);
+    const other = await launch(base);
+    assert.equal((await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, other.cookie)).status, 403);
+    // The public demo path is unchanged.
+    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
+    const demoBriefing = await post(base, '/v1/briefings', { patient_uuid: 'fixture-patient-001', clinician_uuid: demo.clinician_uuid, demo_token: demo.demo_token });
+    assert.equal(demoBriefing.status, 200);
   } finally { await stack.stop(); }
 });

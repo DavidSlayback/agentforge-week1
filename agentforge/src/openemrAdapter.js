@@ -19,7 +19,21 @@ const READ_GROUPS = Object.freeze([
   ['problems', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/medical_problem`, mapProblem, UNTRUSTED_EMPTY],
   ['medications', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.pid)}/medication`, mapMedication],
   ['allergies', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/allergy`, mapAllergy, UNTRUSTED_EMPTY],
-  ['notes', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.pid)}/document`, mapNote],
+]);
+/**
+ * F-LIVE: groups this adapter does not read, reported as `not_requested` with
+ * the reason, never as success or a silent gap. Notes: the only standard REST
+ * route for a patient's documents, `GET /patient/{pid}/document`, requires a
+ * `path` query naming one document category and lists that category only
+ * (`DocumentService::getAllAtPath`). Without `path` it answers 404 on this
+ * repo's 8.2.0-dev code and 500 on the production OpenEMR 8.0.0 image. Its
+ * rows (`filename`, `hash`, `id`, `mimetype`, `docdate`) carry no pid or
+ * patient uuid, so they could never pass `rowBelongsToPatient`. The SOAP-note
+ * route needs `user/soap_note.rs` and one call per encounter; FHIR
+ * DocumentReference needs FHIR scopes. The service's grant has neither.
+ */
+const NOT_READ_GROUPS = Object.freeze([
+  ['notes', 'openemr_notes_route_unavailable'],
 ]);
 
 /**
@@ -111,6 +125,7 @@ export class OpenEMRRestAdapter {
       }
     }));
     for (const result of results) { records.push(...result.records); groups.push(result.coverage); }
+    for (const [group, reason] of NOT_READ_GROUPS) groups.push({ group, status: 'not_requested', records: 0, attempts: 0, error_class: reason });
     return { records, coverage: groups };
   }
 
@@ -226,7 +241,28 @@ function normalizePatient(record, fallbackRef) {
 function mapIdentity(patient) { return { field: 'identity.patient', value: patient.display_name, recorded_at: null, author: null, source_ref: `openemr-patient-${patient.patient_ref}` }; }
 function publicPatient(patient) { return { patient_ref: patient.patient_ref, display_name: patient.display_name, dob: patient.dob }; }
 function mapProblem(record, index) { return [mappedRecord(`problem.${slug(record.title || record.problem || record.diagnosis || record.name || 'unknown')}.status`, record.status || record.active || listStatus(record) || record.title || record.problem || 'documented', record, index, 'problem')]; }
-function mapMedication(record, index) { return [mappedRecord(`medication.${slug(record.title || record.medication || record.name || 'unknown')}.status`, record.status || record.active || listStatus(record) || record.title || record.medication || 'documented', record, index, 'medication')]; }
+function mapMedication(record, index) {
+  const name = slug(record.title || record.medication || record.name || 'unknown');
+  return [
+    mappedRecord(`medication.${name}.status`, record.status || record.active || listStatus(record) || record.title || record.medication || 'documented', record, index, 'medication'),
+    mappedRecord(`medication.${name}.dose`, medicationDose(record), record, index, 'medication'),
+  ];
+}
+/** A dose that is not recorded is said so, never left blank or guessed. */
+export const MEDICATION_DOSE_NOT_RECORDED = 'not recorded';
+/**
+ * The dose, frequency or instructions an OpenEMR medication row carries.
+ * `GET /patient/{pid}/medication` returns `SELECT * FROM lists` rows
+ * (`ListService::getAll`): `lists` has no dose column, and the structured
+ * `lists_medication.drug_dosage_instructions` is not joined. So on OpenEMR
+ * 8.0 the only place a dose appears is the row's free-text `comments` (where
+ * the medication-issue form and the E9 seed put it). A dose-specific field is
+ * preferred when a build returns one.
+ */
+function medicationDose(record) {
+  const text = [record.drug_dosage_instructions, record.dosage, record.dose, record.comments].map(textValue).find(Boolean);
+  return text ? text.trim() : MEDICATION_DOSE_NOT_RECORDED;
+}
 /**
  * OpenEMR `lists` rows (problems, medications) have no status column; the
  * chart shows a row with no end date as active. Returns null when the row has
@@ -240,7 +276,6 @@ function listStatus(record) {
 function textValue(value) { return typeof value === 'string' && value.trim() ? value : null; }
 function mapEncounter(record, index) { return [mappedRecord('encounter.reason', record.reason || record.chief_complaint || record.encounter || record.type || 'encounter recorded', record, index, 'encounter')]; }
 function mapAllergy(record, index) { return [mappedRecord(`allergy.${slug(record.title || record.name || record.allergy || 'unknown')}`, textValue(record.reaction_title) || textValue(record.reaction) || textValue(record.status) || record.title || record.name || 'documented', record, index, 'allergy')]; }
-function mapNote(record, index) { return [mappedRecord(`note.${slug(record.title || record.filename || record.name || 'document')}`, record.title || record.filename || record.name || 'document recorded', record, index, 'note')]; }
 
 function mappedRecord(field, value, record, index, group) {
   const patientRef = record.puuid || record.patient_uuid || record.patient_ref || null;

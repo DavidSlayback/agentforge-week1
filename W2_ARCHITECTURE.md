@@ -612,12 +612,24 @@ body field; a copied claims object is refused):
   the service's OAuth read token, so per-user authorization happens once, at
   launch. OpenEMR sensitivity levels and facility restrictions that would
   hide part of a chart from this user are not reproduced by the service.
-- **Accepted residual: the launch tokens are bearer tokens for 280 s.** They
-  arrive in the URL; the page removes them from the address bar and history
-  on load (`history.replaceState`) and keeps them in memory, and every
-  response is `Cache-Control: no-store` with `Referrer-Policy: no-referrer`.
-  There is no single-use exchange: a token copied within its 280 s can be
-  replayed for the same patient and scopes.
+- **Launch tokens are single-use (F-LIVE).** The launcher's tokens (280 s)
+  arrive in the URL. The first page load exchanges them, once, for an
+  in-memory launch session (`launchSession.js`): the session secret goes
+  only into an `HttpOnly; Secure; SameSite=Strict` cookie
+  (`af_launch_<tag>`, path = the public base path, `Max-Age` = the token's
+  remaining life), and the page gets handles
+  (`launch-session.<tag>.read|write`) that resolve only with that cookie.
+  A second load of the same link answers 401 ("Launch link already used or
+  expired") without a cookie, and the API never accepts an
+  `openemr-module` token directly (403), so a copied link or token is
+  useless after the first load. The session ends when the token would
+  have; a service restart ends it too (relaunch from OpenEMR). The page
+  still strips the URL (`history.replaceState`), and every response is
+  `Cache-Control: no-store` with `Referrer-Policy: no-referrer`. The public
+  demo's tokens are unchanged. Residuals: the session cookie is a bearer
+  secret for up to 280 s in the browser that opened the link; two launches
+  for the same patient and user in the same second mint identical tokens,
+  so the second is refused as a replay.
 - **Labels.** A response built from a live read says `synthetic_only: false`
   (scan and follow-up evidence) and carries `chart_source.designated_patient`;
   the page header says "Live OpenEMR chart (synthetic patient)" for a
@@ -659,7 +671,15 @@ body field; a copied claims object is refused):
   returns pid 9's row, and `GET .../patient/9/medical_problem` returns 500.
   Encounters (`/patient/{uuid}/encounter`) and medications
   (`/patient/{pid}/medication`) return the patient's rows; the document route
-  returns 500. AgentForge therefore treats an empty answer from the two
+  returns 500. **Narrowed later the same day:** the dashboard BFF calls the
+  same `/patient/{puuid}/allergy` and `/patient/{puuid}/medical_problem`
+  routes with a signed-in `grader`'s tokens and gets rows, so the empty
+  answers are specific to AgentForge's grant (a refresh token issued to
+  `admin` on 2026-09-18, scopes `openid offline_access api:oemr
+  user/{patient,encounter,medical_problem,allergy,medication,document}.rs`).
+  The fix is to re-authorize the read client as a clinician
+  (`scripts/openemr-authorize-read-client.mjs`, runbook in
+  `deploy/vultr/README.md`); it is not observed yet. AgentForge therefore treats an empty answer from the two
   patient-scoped list routes as `unverified_empty`
   (`error_class: openemr_scoped_list_empty`), not as a confirmed absence: the
   briefing is qualified ("Problems could not be confirmed from OpenEMR",
@@ -672,13 +692,40 @@ body field; a copied claims object is refused):
   works only because this build compares `:puuid` with the pid) and does not
   fetch every patient's list to filter one (not minimum necessary). The fixture
   path is unchanged.
-- Known gaps in the live mapping: OpenEMR `lists` rows carry no dose, so a
-  medication fact reads `active` or `ended <date>`, not "10 mg daily"; the
-  document route needs a `path` and returns 404, so the `notes` group is
-  reported as failed and the briefing is qualified.
+- **Medication dose (F-LIVE).** `GET /patient/{pid}/medication` returns
+  `SELECT * FROM lists` rows (`ListService::getAll`, this repo's 8.2.0-dev
+  code; production 8.0.0 also showed no dose in the live mapping). `lists` has no dose
+  column and the structured `lists_medication.drug_dosage_instructions` is
+  not joined, so the only dose on these rows is the free-text `comments`
+  (where the seed puts "10 mg daily"). Each medication row now also yields
+  `medication.<name>.dose`: a dose field if the row has one
+  (`drug_dosage_instructions`, `dosage`, `dose`), else `comments`, else the
+  literal `not recorded` (the fact reads "Lisinopril dose is not
+  recorded"), never blank. The value cites the same OpenEMR row.
+- **Notes are not read (F-LIVE).** The only standard REST route for a
+  patient's documents, `GET /patient/{pid}/document`, requires a `path`
+  query naming one document category, lists only that category, and returns
+  rows without a pid or patient uuid (`DocumentService::getAllAtPath`), so no
+  row could pass `rowBelongsToPatient`. Without `path` it answers 404 on
+  8.2.0-dev and 500 on production 8.0.0. The SOAP-note route needs
+  `user/soap_note.rs` and one call per encounter, and FHIR
+  `DocumentReference` needs FHIR scopes; the grant has neither. So the
+  adapter no longer calls a notes route and reports `notes` as
+  `not_requested` (`attempts: 0`, `error_class:
+  openemr_notes_route_unavailable`). The briefing is qualified with
+  `notes:not_requested` ("Notes were not read from OpenEMR"), the follow-up
+  evidence with `patient_notes_unavailable`, and the scan badge says "not
+  read: notes". The retrieval contract accepts `not_requested` only with
+  zero attempts.
 - Evidence: `agentforge/test/chart-source-router.test.js`,
-  `agentforge/test/live-chart-http.test.js`, the `x9-live-chart-*` extension
-  cases, and `docs/agentforge/evidence/E9-live-chart-regression.txt`. The
+  `agentforge/test/live-chart-http.test.js`,
+  `agentforge/test/openemr-rest-adapter.test.js`,
+  `agentforge/test/launch-session.test.js`,
+  `agentforge/test/openemr-authorize-read-client.test.js`, the
+  `x9-live-chart-*` extension cases,
+  `docs/agentforge/evidence/E9-live-chart-regression.txt` and
+  `docs/agentforge/evidence/F-LIVE-regression.txt`. The F-LIVE changes are
+  implemented and tested, not deployed or observed on the public URL. The
   seeded patient and the operator steps are in `deploy/vultr/README.md`.
 
 ## 4. Tradeoffs
