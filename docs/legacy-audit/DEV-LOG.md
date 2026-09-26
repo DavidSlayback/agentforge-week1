@@ -617,3 +617,7 @@ observed.**
 - The manual keyboard and screen-reader pass. The new card-body horizontal
   scroll regions hold no focusable content; Chrome makes such scrollers
   keyboard-focusable, but this has not been checked by hand.
+
+## 2026-09-26 ~06:55 CT — slice 01-06-04 deployed (a800e97) after a deploy-session reset
+
+The SSH connection dropped mid-build and the dashboard was down for about 10 minutes (other services unaffected). Recovered by restarting the previous container, then building detached on the VM. Production reports `a800e97`; the v2 OAuth client (adds `user/MedicationRequest.rs`) is live and the old client is disabled. Awaiting David's observation on this SHA.
