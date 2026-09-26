@@ -16,6 +16,7 @@ import { loadAllergies, type IssueCardDeps } from '../cards/allergies.ts';
 import { loadHeader, type CardContext } from '../cards/header.ts';
 import { loadMedications } from '../cards/medications.ts';
 import { lookupPatientByMrn } from '../cards/patientLookup.ts';
+import { loadPrescriptions } from '../cards/prescriptions.ts';
 import { loadProblems } from '../cards/problems.ts';
 import { isoDateInZone, localDateTimeInZone } from '../clock.ts';
 import type { UpstreamClient } from '../upstream/client.ts';
@@ -159,6 +160,9 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   cardRoute('allergies', (ctx) => loadAllergies(issueDeps, ctx));
   cardRoute('problems', (ctx) => loadProblems(issueDeps, ctx));
   cardRoute('medications', (ctx) => loadMedications(issueDeps, ctx));
+  // The BFF sends no browser input upstream: `/bff/*` rejects any query string (security.ts),
+  // and the prescription query keys are constants plus the resolved pid (M-1).
+  cardRoute('prescriptions', (ctx) => loadPrescriptions({ upstream: deps.upstream }, ctx));
 
   app.get<{ Params: { mrn: string } }>(`${base}/bff/patients/by-mrn/:mrn`, async (req, reply) => {
     const session = currentSession(req);

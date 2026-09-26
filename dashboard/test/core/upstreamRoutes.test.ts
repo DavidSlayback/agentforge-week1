@@ -79,6 +79,26 @@ describe('upstream allow-list', () => {
     expect(() => buildUpstreamPath('rest.list.read', {}, { list_id: 'reaction' })).toThrow(AllowListViolation);
   });
 
+  it('builds the prescription search with exactly patient_id and the fixed source_table (01-03-01, M-1)', () => {
+    expect(buildUpstreamPath('rest.prescription.search', {}, { patient_id: 14 })).toBe('/apis/default/api/prescription?patient_id=14&source_table=prescriptions');
+    expect(UPSTREAM_ROUTES['rest.prescription.search'].query.map((q) => q.key)).toEqual(['patient_id', 'source_table']);
+    expect(UPSTREAM_ROUTES['rest.prescription.search'].acl).toBe('patients/med');
+  });
+
+  it('rejects any client-supplied extra key on the prescription search: the route builds SQL from key NAMES (M-1 / 2.01)', () => {
+    // Keys an attacker (or a careless SPA) might try: a legitimate-looking column, the other
+    // patient key, a sort, and a key that is itself SQL.
+    for (const extra of ['pid', 'drug', '_sort', 'active', "patient_id`=1 OR 1=1 -- "]) {
+      expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: 14, [extra]: '1' }), extra).toThrow(AllowListViolation);
+    }
+    // The fixed key cannot be overridden (e.g. to reach the `lists` branch), and the pid must be an integer.
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: 14, source_table: 'lists' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, {})).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: PATIENT.dashSyn01 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: '14 OR 1=1' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', { pid: 14 }, { patient_id: 14 })).toThrow(AllowListViolation);
+  });
+
   it('declares a scope and ACL for every route', () => {
     for (const spec of Object.values(UPSTREAM_ROUTES)) {
       expect(spec.scope, spec.id).toMatch(/^user\/[A-Za-z_]+\.[rs]+$/);

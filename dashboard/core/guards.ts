@@ -1,5 +1,5 @@
 import type { CardResult, ErrorCode, GapNote } from './cardResult.ts';
-import type { AllergyRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, ProblemRow, SessionDto } from './dto.ts';
+import type { AllergyRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, PrescriptionRow, ProblemRow, SessionDto } from './dto.ts';
 import { parsePatientUuid } from './ids.ts';
 
 /**
@@ -117,4 +117,15 @@ export function isProblemRow(v: unknown): v is ProblemRow {
 
 export function isMedicationRow(v: unknown): v is MedicationRow {
   return isRecord(v) && typeof v['title'] === 'string';
+}
+
+export function isPrescriptionRow(v: unknown): v is PrescriptionRow {
+  return (
+    isRecord(v) &&
+    typeof v['drug'] === 'string' &&
+    typeof v['details'] === 'string' &&
+    typeof v['quantity'] === 'string' &&
+    v['refills'] === null &&
+    typeof v['filled'] === 'string'
+  );
 }

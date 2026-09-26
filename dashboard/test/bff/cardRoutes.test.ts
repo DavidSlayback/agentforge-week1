@@ -68,6 +68,31 @@ describe('card routes over HTTP (fastify.inject)', () => {
     expect(res.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
   });
 
+  it('Prescriptions: DASH-SYN-01 reaches the browser with all 3 rows and the refills gap, and no refills value', async () => {
+    const { app, fake, cookie } = await signedIn();
+    fake
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}`), routeFixture('shaped/dash-syn-01.json', 'rest.patient.read'))
+      .on('GET', api('/prescription?patient_id=14&source_table=prescriptions'), routeFixture('shaped/dash-syn-01.json', 'rest.prescription.search'));
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/prescriptions`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ kind: string; rows: { refills: unknown }[]; notes: { field: string }[] }>();
+    expect(body.kind).toBe('ok');
+    expect(body.rows).toHaveLength(3);
+    expect(body.rows.every((r) => r.refills === null)).toBe(true);
+    expect(body.notes.map((n) => n.field)).toEqual(['refills', 'form']);
+    expect(fake.unexpected).toEqual([]);
+  });
+
+  it('Prescriptions: a browser-supplied query key is refused at the BFF (400) and nothing is sent upstream (M-1)', async () => {
+    const { app, fake, cookie } = await signedIn();
+    const before = fake.calls.length;
+    for (const qs of ['patient_id=15', 'source_table=lists', 'drug=x', "1%3D1)%20OR%20(1=1"]) {
+      const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/prescriptions?${qs}`, cookies: { dashboard_sid: cookie } });
+      expect(res.statusCode, qs).toBe(400);
+    }
+    expect(fake.calls.length).toBe(before);
+  });
+
   it('401 without a session, 400 for a malformed puuid, 400 for any query string', async () => {
     const { app, cookie } = await signedIn();
     expect((await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/allergies` })).statusCode).toBe(401);

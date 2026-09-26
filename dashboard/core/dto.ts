@@ -91,3 +91,21 @@ export interface ProblemRow {
 export interface MedicationRow {
   readonly title: string;
 }
+
+/**
+ * One row of the Prescriptions card (W2D-3): the legacy columns Drug, Details,
+ * Qty, Refills and Filled. Rows arrive sorted `active` DESC, `date_modified`
+ * DESC, `date_added` DESC (then `uuid`), and ALL rows are shown, as the legacy
+ * card shows them (its `active` filter never fires, 5.03).
+ */
+export interface PrescriptionRow {
+  readonly drug: string;
+  /** size + unit, a space, dosage (+ " in <interval>"); the dosage form is not in the API. */
+  readonly details: string;
+  /** `quantity` as stored; "" when none. */
+  readonly quantity: string;
+  /** Always null: `refills` is never selected by the API (M-7), shown as "Not available via API", never 0. */
+  readonly refills: null;
+  /** Raw `date_added` (`YYYY-MM-DD HH:MM:SS`, OpenEMR local time), as the legacy card prints it. */
+  readonly filled: string;
+}

@@ -36,6 +36,8 @@ export interface CardProps<T> {
   readonly renderRows: (rows: readonly T[]) => ReactNode;
   /** Optional one-line source label under the title (7.25). */
   readonly source?: string;
+  /** Empty-state text; defaults to "Nothing Recorded" (4.02). */
+  readonly emptyText?: string;
 }
 
 function Notes({ notes }: { readonly notes: readonly GapNote[] }) {
@@ -56,7 +58,7 @@ function Notes({ notes }: { readonly notes: readonly GapNote[] }) {
  * loading, ok, empty ("Nothing Recorded"), forbidden, error or reauth
  * (MIGRATION-REACT.md §2.5). No upstream text is ever rendered (6.01).
  */
-export function Card<T>({ id, title, state, renderRows, source }: CardProps<T>) {
+export function Card<T>({ id, title, state, renderRows, source, emptyText }: CardProps<T>) {
   const [collapsed, setCollapsed] = useState(() => readCollapsed(id));
   const toggle = (): void => {
     const next = !collapsed;
@@ -85,7 +87,7 @@ export function Card<T>({ id, title, state, renderRows, source }: CardProps<T>) 
           // 3.14: one card can be denied while the others load (e.g. Medical Problems needs encounters/notes).
           <p className="state state-forbidden">Not authorized for this section.</p>
         ) : (
-          <NonDataState state={state} title={title} />
+          <NonDataState state={state} title={title} {...(emptyText === undefined ? {} : { emptyText })} />
         )}
       </div>
     </section>

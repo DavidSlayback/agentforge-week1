@@ -1,7 +1,7 @@
 {
   "_meta": {
     "kind": "shaped",
-    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows).",
+    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows). Prescriptions (rest.prescription.search, slice 01-03-01): values from read-only SELECT on prescriptions/list_options (local DB, 2026-09-25); structure follows PrescriptionService::getBaseSql() (prescriptions branch only: the BFF sends source_table=prescriptions) inside createProcessingResultResponse() (HTTP 200, `data: []` when there are no rows). The outer SELECT has no patient_id/pid column; rows are listed id-ascending because the query has no ORDER BY, so the port's sort is exercised rather than assumed; med-adherence/reporting-source columns omitted.",
     "pid": 3,
     "role": "empty-state",
     "synthetic": true
@@ -107,5 +107,14 @@
   "rest.medication.list": {
     "status": 404,
     "body": null
+  },
+  "rest.prescription.search": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [],
+      "links": []
+    }
   }
 }

@@ -37,7 +37,19 @@ no card route is called before that read succeeds.
   not join `lists_medication`). The route answers a patient with no rows with
   HTTP 404 and an empty body; on this route only, that is "Nothing Recorded".
 
-Later slices add Prescriptions, Care Team and Vitals.
+- **Prescriptions** (`/dashboard/bff/patients/:puuid/prescriptions`): REST
+  `/api/prescription?patient_id=<pid>&source_table=prescriptions`, with the
+  integer `pid` taken from the patient read. Those two keys are the only ones
+  ever sent (M-1: the route builds SQL from query-parameter names; the
+  allow-list throws on any other key, and `/bff/*` refuses query strings).
+  **All** rows are shown (the legacy `active` filter never fires), sorted
+  `active` DESC, `date_modified` DESC (NULLs last), `date_added` DESC, then
+  `uuid`. Columns Drug, Details (size + unit, dosage, " in <interval>"),
+  Qty, Refills ("Not available via API": the API never selects `refills`) and
+  Filled (raw `date_added`). Every row's `puuid` must be the patient's. Empty
+  (HTTP 200, `data: []`) reads "None", the legacy card's text.
+
+Later slices add Care Team and Vitals.
 
 ## Layout
 

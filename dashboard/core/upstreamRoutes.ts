@@ -9,7 +9,7 @@ import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
  * Routes are added by the slice that needs them. Slice 01-01-01 needs the
  * header reads and the MRN lookup; 01-02-01 the allergy list and the
  * `severity_ccda` label list; 01-02-02 the medical problem list; 01-02-03
- * the medication list.
+ * the medication list; 01-03-01 the prescription search.
  */
 
 export type UpstreamRouteId =
@@ -19,7 +19,8 @@ export type UpstreamRouteId =
   | 'rest.allergy.list'
   | 'rest.list.read'
   | 'rest.problem.list'
-  | 'rest.medication.list';
+  | 'rest.medication.list'
+  | 'rest.prescription.search';
 
 /** What a parameter value must parse as before it is placed in a URL. */
 export type ParamKind = 'puuid' | 'pid' | 'mrn';
@@ -134,6 +135,25 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     scope: 'user/medication.rs',
     acl: 'patients/med',
     patientBinding: 'path',
+  },
+  // Prescriptions card (01-03-01). M-1 / 2.01: `PrescriptionService::getAll()`
+  // builds its WHERE clause from the query-parameter NAMES, so this route is an
+  // authenticated SQL-injection sink for any key we forward. Exactly two keys
+  // are ever sent: `patient_id` (the integer pid from `rest.patient.read`; it
+  // filters the UNION column directly, VERIFICATION.md "Resolved in Phase 6")
+  // and `source_table`, fixed to `prescriptions` (drops the `lists` branch).
+  'rest.prescription.search': {
+    id: 'rest.prescription.search',
+    api: 'rest',
+    pathTemplate: '/prescription',
+    pathParams: [],
+    query: [
+      { key: 'patient_id', kind: 'pid' },
+      { key: 'source_table', kind: 'fixed', fixed: 'prescriptions' },
+    ],
+    scope: 'user/prescription.rs',
+    acl: 'patients/med',
+    patientBinding: 'query',
   },
 };
 
