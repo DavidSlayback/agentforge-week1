@@ -41,3 +41,11 @@ w2-regression-gate:
   stage: eval
   script:
     - npm run eval:gate --prefix agentforge
+
+# Mirrors the dashboard step of .githooks/pre-commit.
+dashboard-check:
+  image: node:24-alpine
+  stage: test
+  script:
+    - npm ci --prefix dashboard
+    - npm run check --prefix dashboard

@@ -45,5 +45,16 @@ npm test --silent --prefix agentforge
 npm test --silent --prefix evals
 node --test observability/test/*.test.js >/dev/null
 
+# Patient dashboard port (dashboard/): typecheck, lint, unit/contract/BFF/
+# component tests and the SPA build with its bundle budget. Mirrored by the
+# dashboard-check job in .gitlab-ci.yml.
+if [ ! -d dashboard/node_modules ] || [ dashboard/package-lock.json -nt dashboard/node_modules ]; then
+  echo "Dashboard gate: installing locked dependencies..."
+  npm ci --silent --prefix dashboard
+fi
+
+echo "Dashboard gate: typecheck, lint, unit/contract/component tests, build..."
+npm run --silent --prefix dashboard check
+
 echo "AgentForge gate: W2 50-case eval gate..."
 node agentforge/scripts/run-w2-gate.mjs
