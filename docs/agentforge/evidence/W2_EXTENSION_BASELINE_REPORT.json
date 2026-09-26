@@ -4,10 +4,10 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 13,
+  "total_cases": 27,
   "missing_baseline": false,
-  "corpus_sha256": "f165994067e6dad618a1108413c2e3f70fce287bfae6ec78e0b4c30f1156d904",
-  "baseline_corpus_sha256": "f165994067e6dad618a1108413c2e3f70fce287bfae6ec78e0b4c30f1156d904",
+  "corpus_sha256": "a2c152d2075b906045192eabb9ebd2a0026c9d28011372cde82ae833d7953bb9",
+  "baseline_corpus_sha256": "a2c152d2075b906045192eabb9ebd2a0026c9d28011372cde82ae833d7953bb9",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -18,28 +18,28 @@
   },
   "by_label": {
     "schema_valid": {
-      "cases": 3,
-      "passed": 3,
-      "rate": 1
-    },
-    "citation_present": {
-      "cases": 3,
-      "passed": 3,
-      "rate": 1
-    },
-    "factually_consistent": {
       "cases": 5,
       "passed": 5,
       "rate": 1
     },
+    "citation_present": {
+      "cases": 5,
+      "passed": 5,
+      "rate": 1
+    },
+    "factually_consistent": {
+      "cases": 7,
+      "passed": 7,
+      "rate": 1
+    },
     "safe_refusal": {
-      "cases": 1,
-      "passed": 1,
+      "cases": 7,
+      "passed": 7,
       "rate": 1
     },
     "no_phi_in_logs": {
-      "cases": 1,
-      "passed": 1,
+      "cases": 3,
+      "passed": 3,
       "rate": 1
     }
   },
@@ -129,6 +129,90 @@
       "id": "x2-critic-no-phi",
       "label": "no_phi_in_logs",
       "guards_against": "The critic request carries the patient name, date of birth, phone, patient ref or document id, or the trace or console carries claim text or any synthetic identifier.",
+      "passed": true
+    },
+    {
+      "id": "x3-sv-01-medlist-a-typed",
+      "label": "schema_valid",
+      "guards_against": "A clean vector medication list no longer parses into a strict MedicationList with three rows (a row or header is dropped, a part is typed wrongly, or lab/intake output leaks into it).",
+      "passed": true
+    },
+    {
+      "id": "x3-sv-02-medlist-b-typed",
+      "label": "schema_valid",
+      "guards_against": "The alternate labels of a rasterized medication list (\"Name:\", \"Reviewed on:\", \"Source:\", \"Rx 1:\") stop mapping into a valid MedicationList.",
+      "passed": true
+    },
+    {
+      "id": "x3-cp-01-medlist-a-citations",
+      "label": "citation_present",
+      "guards_against": "A medication row or fact is cited without the five keys, cites another document, quotes text that is not a verbatim OCR line, has a box that is not that line, or claims a dose/route its quoted row does not show.",
+      "passed": true
+    },
+    {
+      "id": "x3-cp-02-medlist-b-citations",
+      "label": "citation_present",
+      "guards_against": "Rows read from a rasterized medication list lose their page region or verbatim quote.",
+      "passed": true
+    },
+    {
+      "id": "x3-fc-01-medlist-a-values",
+      "label": "factually_consistent",
+      "guards_against": "A drug name, dose, unit, frequency, route, the list date, prescriber or printed identity no longer equals the document; a part carries a confidence other than its OCR line; the evidence query drops a drug; or a confident row is missing from the answer (a low-confidence row stated instead of sent to review).",
+      "passed": true
+    },
+    {
+      "id": "x3-fc-02-medlist-b-values",
+      "label": "factually_consistent",
+      "guards_against": "Values read from a rasterized medication list drift from the document (e.g. mcg read as mg, \"by mouth\" cut, or \"every 6 hours as needed\" split).",
+      "passed": true
+    },
+    {
+      "id": "x3-sr-01-medlist-declared-lab",
+      "label": "safe_refusal",
+      "guards_against": "A medication list uploaded as a lab report is reported READY, or its type contradiction is not surfaced.",
+      "passed": true
+    },
+    {
+      "id": "x3-sr-02-lab-declared-medlist",
+      "label": "safe_refusal",
+      "guards_against": "A lab report uploaded as a medication list is reported READY instead of QUALIFIED doc_type_mismatch.",
+      "passed": true
+    },
+    {
+      "id": "x3-sr-03-intake-declared-medlist",
+      "label": "safe_refusal",
+      "guards_against": "An intake form (whose medication line has a dose) uploaded as a medication list is reported READY instead of QUALIFIED doc_type_mismatch.",
+      "passed": true
+    },
+    {
+      "id": "x3-sr-04-medlist-declared-intake",
+      "label": "safe_refusal",
+      "guards_against": "A medication list uploaded as an intake form is reported READY instead of QUALIFIED doc_type_mismatch.",
+      "passed": true
+    },
+    {
+      "id": "x3-sr-05-blank-medlist",
+      "label": "safe_refusal",
+      "guards_against": "A blank page declared as a medication list proceeds to retrieval instead of BLOCKED no_fields_extracted.",
+      "passed": true
+    },
+    {
+      "id": "x3-sr-06-medlist-other-patient",
+      "label": "safe_refusal",
+      "guards_against": "A medication list printed for this patient is attached to another patient's chart instead of BLOCKED patient_mismatch.",
+      "passed": true
+    },
+    {
+      "id": "x3-np-01-medlist-a",
+      "label": "no_phi_in_logs",
+      "guards_against": "Drug names, the list date, the prescriber or the printed name/DOB of a medication list reach the stored trace or stdout/stderr.",
+      "passed": true
+    },
+    {
+      "id": "x3-np-02-medlist-b",
+      "label": "no_phi_in_logs",
+      "guards_against": "Rasterized medication-list OCR text or raw handoffs reach the trace or console.",
       "passed": true
     }
   ],
