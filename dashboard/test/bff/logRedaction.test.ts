@@ -15,7 +15,7 @@ import {
 /**
  * AGENTS.md §PHI: "Redaction is tested against a real workflow trace, not a
  * hand-built one." This drives the whole BFF flow (sign-in, header for three
- * patients, MRN lookup, an upstream error, sign-out) through Fastify with the
+ * patients, the clinical cards, MRN lookup, an upstream error, sign-out) through Fastify with the
  * production logger options, then asserts no identifying or secret value from
  * the fixtures appears anywhere in the captured log stream.
  */
@@ -37,6 +37,32 @@ describe('log redaction across the full workflow', () => {
       fake.on('GET', `http://openemr/apis/default/api/patient/${id}`, routeFixture(file, 'rest.patient.read'));
       const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${id}/header`, cookies: { dashboard_sid: sessionCookie } });
       expect(res.statusCode).toBe(200);
+    }
+    // Clinical cards (01-02-01 on): the issue-card routes for data-rich patients.
+    fake.on('GET', 'http://openemr/apis/default/api/list/severity_ccda', routeFixture('shaped/list-severity-ccda.json', 'rest.list.read'));
+    const clinical: string[] = [];
+    for (const [id, file] of [
+      [PATIENT.p13, 'shaped/patient-13.json'],
+      [PATIENT.dashSyn01, 'shaped/dash-syn-01.json'],
+    ] as const) {
+      fake.on('GET', `http://openemr/apis/default/api/patient/${id}`, routeFixture(file, 'rest.patient.read'));
+      const allergies = routeFixture(file, 'rest.allergy.list');
+      fake.on('GET', `http://openemr/apis/default/api/patient/${id}/allergy`, allergies);
+      for (const row of (allergies.body as { data: { title: string; uuid: string; reaction_title: string | null }[] }).data) {
+        clinical.push(row.title, row.uuid);
+        if (row.reaction_title) clinical.push(row.reaction_title);
+      }
+      const problems = routeFixture(file, 'rest.problem.list');
+      fake.on('GET', `http://openemr/apis/default/api/patient/${id}/medical_problem`, problems);
+      for (const row of (problems.body as { data: { title: string; uuid: string }[] }).data) clinical.push(row.title, row.uuid);
+      const medications = routeFixture(file, 'rest.medication.list');
+      const pid = (routeFixture(file, 'rest.patient.read').body as { data: { pid: string } }).data.pid;
+      fake.on('GET', `http://openemr/apis/default/api/patient/${pid}/medication`, medications);
+      for (const row of medications.body as { title: string; uuid: string }[]) clinical.push(row.title, row.uuid);
+      for (const card of ['allergies', 'problems', 'medications']) {
+        const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${id}/${card}`, cookies: { dashboard_sid: sessionCookie } });
+        expect(res.json()).toMatchObject({ kind: 'ok' });
+      }
     }
     fake.on(
       'GET',
@@ -74,11 +100,18 @@ describe('log redaction across the full workflow', () => {
       const body = routeFixture(file, 'rest.patient.read').body as { data: { fname: string; lname: string; DOB: string } };
       forbidden.push(body.data.fname, body.data.lname, body.data.DOB);
     }
+    forbidden.push(...clinical);
     for (const needle of forbidden) expect(log.includes(needle), `log contains ${needle.slice(0, 12)}…`).toBe(false);
 
     // What it does log: route templates and upstream route ids.
     expect(log).toContain('/dashboard/bff/patients/:puuid/header');
     expect(log).toContain('"routeId":"fhir.patient.read"');
     expect(log).toContain('"routeId":"oauth.token"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/allergies');
+    expect(log).toContain('"routeId":"rest.allergy.list"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/problems');
+    expect(log).toContain('"routeId":"rest.problem.list"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/medications');
+    expect(log).toContain('"routeId":"rest.medication.list"');
   });
 });

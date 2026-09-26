@@ -73,6 +73,34 @@ describe('mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to thi
     expect(mapUpstream({ kind: 'network' }, fhir)).toMatchObject({ failure: { code: 'UPSTREAM_UNAVAILABLE' } });
   });
 
+  it('a REST envelope without data, or no envelope at all, is SCHEMA_MISMATCH, never empty', () => {
+    for (const body of [{}, { validationErrors: [], internalErrors: [] }, { validationErrors: [], internalErrors: [], data: null }, [], [{ uuid: 'x' }], 'text']) {
+      expect(mapUpstream(resp(200, body), restList), JSON.stringify(body)).toMatchObject({ failure: { code: 'SCHEMA_MISMATCH' } });
+    }
+  });
+
+  it('a bare REST array (responseHandler): [] is empty only where allowed; errors inside a 200 are errors', () => {
+    const bare = { shape: 'rest-array', schema: z.array(z.object({ option_id: z.string() })), emptyMeans: 'empty' } as const;
+    expect(mapUpstream(resp(200, []), bare)).toEqual({ kind: 'empty' });
+    expect(mapUpstream(resp(200, []), { ...bare, emptyMeans: 'error' })).toMatchObject({ failure: { code: 'SCHEMA_MISMATCH' } });
+    expect(mapUpstream(resp(200, [{ option_id: 'mild' }]), bare)).toEqual({ kind: 'value', value: [{ option_id: 'mild' }] });
+    expect(mapUpstream(resp(200, { validationErrors: { pid: ['bad'] } }), bare)).toMatchObject({ failure: { code: 'UPSTREAM_VALIDATION' } });
+    expect(mapUpstream(resp(200, { data: [] }), bare)).toMatchObject({ failure: { code: 'SCHEMA_MISMATCH' } });
+    expect(mapUpstream(resp(404, null), bare)).toMatchObject({ failure: { code: 'UPSTREAM_STATUS' } });
+  });
+
+  it('404 with an empty body is empty only on a route that opts in (6.04); a 404 with a body never is', () => {
+    const meds = { shape: 'rest-array', schema: z.array(z.unknown()), emptyMeans: 'empty', notFoundEmptyBodyIsEmpty: true } as const;
+    const empty404: UpstreamOutcome = { kind: 'response', status: 404, body: null, bodyEmpty: true };
+    expect(mapUpstream(empty404, meds)).toEqual({ kind: 'empty' });
+    expect(mapUpstream({ kind: 'response', status: 404, body: { error: 'x' }, bodyEmpty: false }, meds)).toMatchObject({ failure: { code: 'UPSTREAM_STATUS' } });
+    // Non-JSON text is not an empty body either.
+    expect(mapUpstream({ kind: 'response', status: 404, body: null, bodyEmpty: false }, meds)).toMatchObject({ failure: { code: 'UPSTREAM_STATUS' } });
+    expect(mapUpstream(empty404, { ...meds, notFoundEmptyBodyIsEmpty: false })).toMatchObject({ failure: { code: 'UPSTREAM_STATUS' } });
+    expect(mapUpstream(empty404, restList)).toMatchObject({ failure: { code: 'UPSTREAM_STATUS' } });
+    expect(mapUpstream({ kind: 'response', status: 410, body: null, bodyEmpty: true }, meds)).toMatchObject({ failure: { code: 'UPSTREAM_STATUS' } });
+  });
+
   it('never carries upstream text into the result', () => {
     const out = JSON.stringify(mapUpstream(fromFixture(responseFixture('hand-built/rest-500-sqlstate.json')), rest));
     expect(out).not.toContain('SQLSTATE');

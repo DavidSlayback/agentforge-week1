@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
 import type { SessionDto } from '../../core/dto.ts';
-import { isHeaderDto } from '../../core/guards.ts';
+import { isAllergyRow, isHeaderDto, isMedicationRow, isProblemRow } from '../../core/guards.ts';
 import { parsePatientUuid, type PatientUuid } from '../../core/ids.ts';
 import { BASE, fetchSession, lookupByMrn, type Fetcher } from './api.ts';
+import { AllergiesCard } from './cards/AllergiesCard.tsx';
+import { MedicationsCard } from './cards/MedicationsCard.tsx';
+import { ProblemsCard } from './cards/ProblemsCard.tsx';
 import { PatientHeader } from './components/PatientHeader.tsx';
 import { useCard } from './useCard.ts';
 
@@ -32,10 +35,19 @@ function SignOutForm() {
 
 function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readonly patientId: PatientUuid }) {
   const header = useCard(fetcher, `${BASE}/bff/patients/${patientId}/header`, patientId, isHeaderDto);
+  // Cards load in parallel with the header, each with its own state (7.08).
+  const allergies = useCard(fetcher, `${BASE}/bff/patients/${patientId}/allergies`, patientId, isAllergyRow);
+  const problems = useCard(fetcher, `${BASE}/bff/patients/${patientId}/problems`, patientId, isProblemRow);
+  const medications = useCard(fetcher, `${BASE}/bff/patients/${patientId}/medications`, patientId, isMedicationRow);
   return (
     <>
       <PatientHeader state={header} />
-      <p className="not-ported">Cards are added in later slices (Allergies, Problems, Medications, Prescriptions, Care Team, Vitals).</p>
+      <div className="cards">
+        <AllergiesCard state={allergies} />
+        <ProblemsCard state={problems} />
+        <MedicationsCard state={medications} />
+      </div>
+      <p className="not-ported">Cards added in later slices: Prescriptions, Care Team, Vitals.</p>
     </>
   );
 }

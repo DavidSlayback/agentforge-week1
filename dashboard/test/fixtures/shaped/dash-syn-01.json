@@ -1,0 +1,206 @@
+{
+  "_meta": {
+    "kind": "shaped",
+    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); rest.patient.read structure follows RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d (other patient_data columns omitted). Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows).",
+    "pid": 14,
+    "role": "dedicated data-rich seed (DASH-SYN-01): a severe allergy, an outcome=1 allergy, a past-enddate problem and medication",
+    "synthetic": true
+  },
+  "rest.patient.read": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": {
+        "id": "16",
+        "uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+        "title": "",
+        "language": "",
+        "fname": "Dana",
+        "lname": "Seedcase",
+        "mname": "",
+        "DOB": "1970-04-12",
+        "sex": "Female",
+        "pubpid": "DASH-SYN-01",
+        "pid": "14",
+        "suffix": null,
+        "deceased_date": null,
+        "deceased_reason": null,
+        "status": ""
+      },
+      "links": []
+    }
+  },
+  "rest.allergy.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [
+        {
+          "id": "322",
+          "date": "2026-09-26 00:20:11",
+          "type": "allergy",
+          "title": "Penicillin",
+          "begdate": "2001-05-01 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": "[seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "0",
+          "reaction": "hives",
+          "severity_al": "severe",
+          "verification": "",
+          "uuid": "8e504cd2-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "reaction_title": "Hives",
+          "verification_title": null
+        },
+        {
+          "id": "323",
+          "date": "2026-09-26 00:20:11",
+          "type": "allergy",
+          "title": "Latex",
+          "begdate": "2010-03-01 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": "resolved [seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "1",
+          "reaction": "",
+          "severity_al": "mild",
+          "verification": "",
+          "uuid": "8e504cf4-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "reaction_title": null,
+          "verification_title": null
+        }
+      ],
+      "links": []
+    }
+  },
+  "rest.problem.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [
+        {
+          "id": "327",
+          "date": "2026-09-26 00:20:11",
+          "type": "medical_problem",
+          "title": "Acute bronchitis",
+          "begdate": "2022-01-05 00:00:00",
+          "enddate": "2022-02-01 00:00:00",
+          "activity": "1",
+          "comments": "ended [seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "0",
+          "reaction": "",
+          "severity_al": null,
+          "verification": "",
+          "uuid": "8e50530c-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "condition_uuid": "8e50530c-b8c0-11f1-8c7a-0ed9af59d05d",
+          "last_updated_time": "2026-09-26 00:20:11",
+          "verification_title": null
+        },
+        {
+          "id": "326",
+          "date": "2026-09-26 00:20:11",
+          "type": "medical_problem",
+          "title": "Prediabetes",
+          "begdate": "2019-08-20 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": "[seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "0",
+          "reaction": "",
+          "severity_al": null,
+          "verification": "",
+          "uuid": "8e505307-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "condition_uuid": "8e505307-b8c0-11f1-8c7a-0ed9af59d05d",
+          "last_updated_time": "2026-09-26 00:20:11",
+          "verification_title": null
+        },
+        {
+          "id": "325",
+          "date": "2026-09-26 00:20:11",
+          "type": "medical_problem",
+          "title": "Essential hypertension",
+          "begdate": "2015-02-10 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": "[seed:dashboard]",
+          "pid": "14",
+          "user": "admin",
+          "outcome": "0",
+          "reaction": "",
+          "severity_al": null,
+          "verification": "",
+          "uuid": "8e5052f4-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_id": "14",
+          "puuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "patient_uuid": "8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+          "condition_uuid": "8e5052f4-b8c0-11f1-8c7a-0ed9af59d05d",
+          "last_updated_time": "2026-09-26 00:20:11",
+          "verification_title": null
+        }
+      ],
+      "links": []
+    }
+  },
+  "rest.medication.list": {
+    "status": 200,
+    "body": [
+      {
+        "id": "329",
+        "date": "2026-09-26 00:20:11",
+        "type": "medication",
+        "title": "Amoxicillin 500 MG Oral Capsule",
+        "begdate": "2022-01-05 00:00:00",
+        "enddate": "2022-01-15 00:00:00",
+        "activity": "1",
+        "comments": "ended [seed:dashboard]",
+        "pid": "14",
+        "user": "admin",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "8e5057db-b8c0-11f1-8c7a-0ed9af59d05d"
+      },
+      {
+        "id": "328",
+        "date": "2026-09-26 00:20:11",
+        "type": "medication",
+        "title": "Lisinopril 10 MG Oral Tablet",
+        "begdate": "2015-02-10 00:00:00",
+        "enddate": null,
+        "activity": "1",
+        "comments": "[seed:dashboard]",
+        "pid": "14",
+        "user": "admin",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "8e5057ca-b8c0-11f1-8c7a-0ed9af59d05d"
+      }
+    ]
+  }
+}

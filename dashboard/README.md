@@ -7,12 +7,37 @@ Playbook: [`docs/legacy-audit/MIGRATION-REACT.md`](../docs/legacy-audit/MIGRATIO
 slices and status: [`docs/legacy-audit/arcs/ARC-01-DASHBOARD.md`](../docs/legacy-audit/arcs/ARC-01-DASHBOARD.md)
 and `docs/agentforge/PLAN.md` (W2D-1…W2D-8, the status of record).
 
-Current scope (slice 01-01-01, walking skeleton): sign-in / sign-out through
+Current scope. Slice 01-01-01 (walking skeleton): sign-in / sign-out through
 OpenEMR's OAuth2 server, patient selection by MRN (`pubpid`) or configured demo
 link, and the persistent patient header (name, DOB with age, sex, MRN, status).
 Status is **Deceased** iff FHIR `deceasedDateTime` (or `deceasedBoolean: true`)
-is present; `Patient.active` is never read (OpenEMR hard-codes it `true`). The
-clinical cards arrive in later slices.
+is present; `Patient.active` is never read (OpenEMR hard-codes it `true`).
+
+Clinical cards (slice 01-02-01 on), each loaded by its own BFF route with its
+own loading, empty ("Nothing Recorded"), forbidden, error and sign-in-again
+state. Every card first resolves the patient through `GET /api/patient/:puuid`;
+no card route is called before that read succeeds.
+
+- **Allergies** (`/bff/patients/:puuid/allergies`): REST
+  `/api/patient/:puuid/allergy`, filtered by the PHP card's
+  `filterActiveIssues()` rule (`core/rules/issues.ts`: `outcome != 1` and
+  `enddate` empty or later than now in `DASHBOARD_OPENEMR_TZ`), API order kept.
+  Each row shows the `severity_ccda` label from `/api/list/severity_ccda`, or
+  the raw code ("(1)") when no label exists; only severe, life-threatening and
+  fatal rows are highlighted.
+- **Medical Problems** (`/bff/patients/:puuid/problems`): REST
+  `/api/patient/:puuid/medical_problem` (ACL `encounters/notes`, so this card
+  can be "Not authorized for this section" while the others load), one row per
+  problem uuid, the same active-issue rule, sorted by `begdate` ascending with
+  missing dates first; title only.
+- **Medications** (`/bff/patients/:puuid/medications`): REST
+  `/api/patient/:pid/medication` with the integer `pid` taken from the
+  patient read; the same active-issue rule and `begdate` sort; title only,
+  with the note "Dosage instructions: not available via API" (the route does
+  not join `lists_medication`). The route answers a patient with no rows with
+  HTTP 404 and an empty body; on this route only, that is "Nothing Recorded".
+
+Later slices add Prescriptions, Care Team and Vitals.
 
 ## Layout
 
@@ -70,7 +95,7 @@ non-https public origin in production.
 | `DASHBOARD_OAUTH_CLIENT_SECRET` | yes | Client secret, sent on every `/token` call |
 | `DASHBOARD_SESSION_SECRET` | yes | ≥ 32 chars; signs the session cookies |
 | `DASHBOARD_OPENEMR_INTERNAL_URL` | no (`http://openemr`) | Server-side origin for `/token`, JWKS and the APIs |
-| `DASHBOARD_OPENEMR_TZ` | no (`America/Chicago`) | OpenEMR's timezone, for "today" in age calculations |
+| `DASHBOARD_OPENEMR_TZ` | no (`America/Chicago`) | OpenEMR's PHP timezone: "today" for ages and "now" for the active-issue rule. Must match the PHP `date.timezone` (the local stack runs UTC) |
 | `DASHBOARD_DEMO_PATIENTS` | no | `label=<uuid>,…` neutral demo links |
 | `DASHBOARD_UPSTREAM_TIMEOUT_MS` | no (5000) | Per-call upstream timeout |
 | `DASHBOARD_GIT_SHA` | no | SHA fallback when `BUILD_SHA` is not stamped |

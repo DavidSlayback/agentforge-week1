@@ -49,6 +49,7 @@ export const PATIENT = {
   p3: 'a2c331a5-3b72-45c1-884e-94015f1f34fa',
   p12: 'a2d4d05f-5ff1-4d5d-9b6f-883f99ffc212',
   p13: 'a2d4d063-d949-4f5a-9001-01c1d919afc6',
+  dashSyn01: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d',
   dashSyn02: '8e5045ab-b8c0-11f1-8c7a-0ed9af59d05d',
 } as const;
 

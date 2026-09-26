@@ -36,8 +36,47 @@ describe('upstream allow-list', () => {
     for (const spec of Object.values(UPSTREAM_ROUTES)) {
       const patientPath = spec.pathParams.some((p) => p.kind === 'puuid' || p.kind === 'pid');
       const patientQuery = spec.query.some((q) => q.kind === 'puuid' || q.kind === 'pid' || q.kind === 'mrn');
-      expect(spec.patientBinding === 'path' ? patientPath : patientQuery, spec.id).toBe(true);
+      switch (spec.patientBinding) {
+        case 'path':
+          expect(patientPath, spec.id).toBe(true);
+          break;
+        case 'query':
+          expect(patientQuery, spec.id).toBe(true);
+          break;
+        case 'none':
+          // Only a fixed-literal code list: no parameters at all, no patient data.
+          expect(spec.id).toBe('rest.list.read');
+          expect(spec.pathParams).toEqual([]);
+          expect(spec.query).toEqual([]);
+          expect(spec.pathTemplate).toBe('/list/severity_ccda');
+          break;
+      }
     }
+  });
+
+  it('builds the Medical Problems route under encounters/notes, with no query keys (01-02-02)', () => {
+    expect(buildUpstreamPath('rest.problem.list', { puuid: PATIENT.p13 })).toBe(`/apis/default/api/patient/${PATIENT.p13}/medical_problem`);
+    expect(UPSTREAM_ROUTES['rest.problem.list'].acl).toBe('encounters/notes');
+    expect(() => buildUpstreamPath('rest.problem.list', { puuid: PATIENT.p13 }, { 'clinical-status': 'active' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.problem.list', { pid: 13 })).toThrow(AllowListViolation);
+  });
+
+  it('builds the Medications route from an integer pid only (01-02-03)', () => {
+    expect(buildUpstreamPath('rest.medication.list', { pid: 13 })).toBe('/apis/default/api/patient/13/medication');
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: PATIENT.p13 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: '13 OR 1=1' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: 0 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: 13 }, { type: 'allergy' })).toThrow(AllowListViolation);
+  });
+
+  it('builds the issue-card routes with no query keys and a validated puuid (01-02-01)', () => {
+    expect(buildUpstreamPath('rest.allergy.list', { puuid: PATIENT.p13 })).toBe(`/apis/default/api/patient/${PATIENT.p13}/allergy`);
+    expect(buildUpstreamPath('rest.list.read')).toBe('/apis/default/api/list/severity_ccda');
+    expect(() => buildUpstreamPath('rest.allergy.list', { puuid: '13' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.allergy.list', { puuid: PATIENT.p13 }, { title: 'x' })).toThrow(AllowListViolation);
+    // The list name is fixed: it cannot be supplied as a parameter or a query key.
+    expect(() => buildUpstreamPath('rest.list.read', { list_name: 'reaction' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.list.read', {}, { list_id: 'reaction' })).toThrow(AllowListViolation);
   });
 
   it('declares a scope and ACL for every route', () => {

@@ -1,5 +1,5 @@
 import type { CardResult, ErrorCode, GapNote } from './cardResult.ts';
-import type { DemoPatient, HeaderDto, PatientLookupResult, SessionDto } from './dto.ts';
+import type { AllergyRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, ProblemRow, SessionDto } from './dto.ts';
 import { parsePatientUuid } from './ids.ts';
 
 /**
@@ -99,4 +99,22 @@ export function isPatientLookupResult(v: unknown): v is PatientLookupResult {
     default:
       return false;
   }
+}
+
+export function isAllergyRow(v: unknown): v is AllergyRow {
+  return (
+    isRecord(v) &&
+    typeof v['title'] === 'string' &&
+    typeof v['severityLabel'] === 'string' &&
+    typeof v['severe'] === 'boolean' &&
+    isStringOrNull(v['reaction'])
+  );
+}
+
+export function isProblemRow(v: unknown): v is ProblemRow {
+  return isRecord(v) && typeof v['title'] === 'string';
+}
+
+export function isMedicationRow(v: unknown): v is MedicationRow {
+  return isRecord(v) && typeof v['title'] === 'string';
 }
