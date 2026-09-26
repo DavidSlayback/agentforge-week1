@@ -4,10 +4,10 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 2,
+  "total_cases": 4,
   "missing_baseline": false,
-  "corpus_sha256": "8fc3730cba6dfb81679976d9b248d2884721bbf7173a1384f22ce247b5228236",
-  "baseline_corpus_sha256": "8fc3730cba6dfb81679976d9b248d2884721bbf7173a1384f22ce247b5228236",
+  "corpus_sha256": "5bdebb7207a1eadb4548bedd5baa6e7359ce168f84fff3bb5515f5d1e7b58486",
+  "baseline_corpus_sha256": "5bdebb7207a1eadb4548bedd5baa6e7359ce168f84fff3bb5515f5d1e7b58486",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -28,9 +28,9 @@
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 0,
-      "passed": 0,
-      "rate": 0
+      "cases": 2,
+      "passed": 2,
+      "rate": 1
     },
     "safe_refusal": {
       "cases": 0,
@@ -44,7 +44,8 @@
     }
   },
   "regressions": {
-    "citation_present": 0
+    "citation_present": 0,
+    "factually_consistent": 0
   },
   "critical_failures": [],
   "failed_cases": [],
@@ -59,6 +60,18 @@
       "id": "x1-click-to-source-intake-b",
       "label": "citation_present",
       "guards_against": "Click-to-source breaks on a rasterized intake PDF: a cited field has no box on the page image, or a link targets a missing box.",
+      "passed": true
+    },
+    {
+      "id": "x5-retrieval-lexical-hgb-question",
+      "label": "factually_consistent",
+      "guards_against": "The local-lexical retriever stops expanding a lab abbreviation into its condition, so a fatigue intake with the question \"what does the low hgb suggest\" ranks an unrelated kidney-test chunk first instead of an anemia chunk.",
+      "passed": true
+    },
+    {
+      "id": "x5-retrieval-hybrid-fallback-both-findings",
+      "label": "factually_consistent",
+      "guards_against": "When the Gemini embed call fails and the deployed hybrid retriever falls back to BM25, a lab report with a low hemoglobin and a high A1C gets three A1C chunks and no anemia guideline, because the hemoglobin finding is no longer expanded to its condition.",
       "passed": true
     }
   ],

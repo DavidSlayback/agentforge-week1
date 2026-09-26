@@ -1,0 +1,97 @@
+E3 deliberate-regression proof (X-5 contextual retrieval)
+Base commit: ace4ff62 (feat(agentforge): expand lab test names into condition words for BM25 (E3))
+Date: 2026-09-26T13:28Z
+
+== 1. Improvement ON (committed default) ==
+$ node agentforge/scripts/benchmark-retrieval.mjs
+Retrieval benchmark: 22 labeled queries; dense stages use real recorded fixtures (alibaba-qwen:qwen3.8-flash)
+config  stage            measured  recall@k   MRR@k   hit@1
+off     sparse_bm25       22/22     0.886   0.879   0.773
+off     rerank_pool        7/22     1.000   1.000   1.000
+off     rrf_no_rerank      7/22     0.929   1.000   1.000
+off     hybrid_recorded    7/22     0.905   1.000   1.000
+headers sparse_bm25       22/22     0.886   0.879   0.773
+headers rerank_pool        7/22     1.000   1.000   1.000
+headers rrf_no_rerank      7/22     0.929   1.000   1.000
+headers hybrid_recorded    7/22     0.905   1.000   1.000
+on      sparse_bm25       22/22     0.939   0.909   0.818
+on      rerank_pool        7/22     1.000   1.000   1.000
+on      rrf_no_rerank      7/22     0.929   1.000   1.000
+on      hybrid_recorded    7/22     0.905   1.000   1.000
+
+== 2. Deliberate regression: DEFAULT_CONTEXTUAL_RETRIEVAL.queryExpansion = false in agentforge/src/guidelineEvidence.js ==
+-export const DEFAULT_CONTEXTUAL_RETRIEVAL = Object.freeze({ chunkHeaders: false, queryExpansion: true });
++export const DEFAULT_CONTEXTUAL_RETRIEVAL = Object.freeze({ chunkHeaders: false, queryExpansion: false });
+
+$ node agentforge/scripts/benchmark-retrieval.mjs   (the "on" rows now equal "off")
+Retrieval benchmark: 22 labeled queries; dense stages use real recorded fixtures (alibaba-qwen:qwen3.8-flash)
+config  stage            measured  recall@k   MRR@k   hit@1
+off     sparse_bm25       22/22     0.886   0.879   0.773
+off     rerank_pool        7/22     1.000   1.000   1.000
+off     rrf_no_rerank      7/22     0.929   1.000   1.000
+off     hybrid_recorded    7/22     0.905   1.000   1.000
+headers sparse_bm25       22/22     0.886   0.879   0.773
+headers rerank_pool        7/22     1.000   1.000   1.000
+headers rrf_no_rerank      7/22     0.929   1.000   1.000
+headers hybrid_recorded    7/22     0.905   1.000   1.000
+on      sparse_bm25       22/22     0.886   0.879   0.773
+on      rerank_pool        7/22     1.000   1.000   1.000
+on      rrf_no_rerank      7/22     0.929   1.000   1.000
+on      hybrid_recorded    7/22     0.905   1.000   1.000
+
+$ npm run eval:extensions --prefix agentforge   (summary of the JSON report)
+exit code: 1
+{
+  "passed": false,
+  "factually_consistent": {
+    "cases": 2,
+    "passed": 0,
+    "rate": 0
+  },
+  "regressions": {
+    "citation_present": 0,
+    "factually_consistent": 1
+  },
+  "failed_cases": [
+    {
+      "id": "x5-retrieval-lexical-hgb-question",
+      "label": "factually_consistent",
+      "critical": false,
+      "issues": [
+        "top_guideline_not_relevant"
+      ]
+    },
+    {
+      "id": "x5-retrieval-hybrid-fallback-both-findings",
+      "label": "factually_consistent",
+      "critical": false,
+      "issues": [
+        "finding_1_has_no_guideline_in_top_3"
+      ]
+    }
+  ]
+}
+
+$ node --test agentforge/test/retrieval-context.test.js   (summary)
+ℹ fail 1
+ℹ pass 7
+✖ failing tests:
+✖ sparse-only retrieval uses the expansion: "hgb low" ranks an anemia chunk first only with it on (3.7494ms)
+
+== 3. Reverted ==
+git diff agentforge/src/guidelineEvidence.js: 0 changed lines (matches ace4ff62)
+$ npm run eval:extensions --prefix agentforge   (after revert)
+exit code: 0
+{
+  "passed": true,
+  "factually_consistent": {
+    "cases": 2,
+    "passed": 2,
+    "rate": 1
+  },
+  "regressions": {
+    "citation_present": 0,
+    "factually_consistent": 0
+  },
+  "failed_cases": []
+}
