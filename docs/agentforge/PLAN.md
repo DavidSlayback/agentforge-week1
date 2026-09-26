@@ -175,6 +175,10 @@ between them; the gate is exactly 50 cases (`W2_GATE_CASE_COUNT`); the VM has
 on it in about 10 places; the module's `lab-observations` route reads one
 source document's Observations, not a patient's history.
 
+**D13 (user, 2026-09-26 ~09:30 CT): real read wiring, synthetic data.** "We never will have PHI in this thing. But we will want to have all the wiring that would handle it." W2 chart reads for a clinician session launched from OpenEMR (the module's patient-menu item, `openemr-session` token after the ACL check) go through `OpenEMRRestAdapter` against a synthetic patient seeded in OpenEMR. The no-login public demo stays on fixtures, clearly labeled. The adapter is chosen only from the HMAC-verified token claims; there is no silent fallback. Slice **E9**, cut rule Sat 20:00 CT. **W1 route (user, same time):** `/agentforge` stays frozen at `84f232b`, labeled as the W1 submission snapshot with its known debt; `/agentforge-w2` supersedes it.
+
+**E8 (added 2026-09-26, from the W1-debt audit):** remove `item.expected` reads from `src/` (data-derived stale, provenance and conflict detection); refuse questions that name another patient; set the W2 p95 alert to the 30 s target; label chart facts by their real source (`openemr_record` only for OpenEMR reads).
+
 ### Decisions needed before E2–E5 start
 
 | # | Question | Recommendation |
