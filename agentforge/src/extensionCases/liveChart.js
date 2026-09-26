@@ -117,15 +117,22 @@ export const liveChartCaseChecks = {
     if (rest.calls.length) issues.push('live_off_reached_openemr');
     return issues;
   },
-  /** Claims that were not HMAC-verified in this process select nothing, even when they name the module issuer. */
-  async unverifiedClaimsRefused(run) {
+  /**
+   * Only verified provenance selects the source: copied claims naming the
+   * module issuer select nothing, and a synthetic-demo token naming an OpenEMR
+   * patient uuid still reads fixtures (the id's shape decides nothing).
+   */
+  async provenanceNotData(run) {
     const issues = [];
+    const syntheticForUuid = verifySignedContext(issueSignedContext({ patient_uuid: LIVE_PATIENT, clinician_uuid: LIVE_CLINICIAN, issuer: 'synthetic-demo', authn: 'synthetic', secret: CASE_SECRET }), CASE_SECRET);
+    const fixtureRead = await run.h.service.prepare({ patient_uuid: LIVE_PATIENT, clinician_uuid: LIVE_CLINICIAN }, { verifiedContext: syntheticForUuid }).then((result) => result.operations?.[0]?.operation || result.disposition, (error) => error.message);
+    if (fixtureRead !== 'PATIENT_NOT_FOUND') issues.push(`synthetic_token_for_uuid_patient:${fixtureRead}`);
     const copied = { ...moduleContext('read-briefing') };
     const briefing = await run.h.service.prepare({ patient_uuid: LIVE_PATIENT, clinician_uuid: LIVE_CLINICIAN }, { verifiedContext: copied });
     if (briefing.disposition !== 'blocked') issues.push(`copied_claims_briefing:${briefing.disposition}`);
     const scan = await run.h.service.runActiveSupervisorForDocument(run.sourceIds[0], { patient_uuid: run.patient, clinician_uuid: run.clinician }, { verifiedContext: { ...run.h.context(run.patient), issuer: 'openemr-module', authn: 'openemr-session' } });
     if (scan.status !== 'blocked') issues.push(`copied_claims_scan:${scan.status}:${scan.chart_source?.chart_source}`);
-    if (run.h.service.chartAdapter.gateFakeRest.calls.length) issues.push('unverified_claims_reached_openemr');
+    if (run.h.service.chartAdapter.gateFakeRest.calls.length) issues.push('unverified_or_synthetic_claims_reached_openemr');
     return issues;
   },
 };
@@ -135,6 +142,6 @@ export function liveChartCases({ kase, scan }) {
     kase('x9-live-chart-synthetic-context-fixture', 'citation_present', 'A synthetic-demo scan with live reads on reaches OpenEMR, or its chart facts are cited as openemr_record / labeled anything but synthetic_fixture.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.syntheticStaysFixture(run) }),
     kase('x9-live-chart-module-session-openemr', 'citation_present', 'A module-session scan does not read the chart through OpenEMR REST, its chart citations are not openemr_record, its chart_source is not openemr_live, or another patient\'s row reaches the answer.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.moduleSessionReadsOpenEMR(run) }),
     kase('x9-live-chart-live-off-no-fallback', 'safe_refusal', 'With AGENTFORGE_OPENEMR_LIVE_READS off, a module-session scan or briefing is served from the fixture chart (a silent fallback) instead of being refused with openemr_live_reads_disabled.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(false) }), { custom: (run) => liveChartCaseChecks.liveReadsOffRefuses(run) }),
-    kase('x9-live-chart-unverified-claims', 'safe_refusal', 'Claims copied into a plain object (as a request body could carry them) select a chart source, instead of being refused because they were never HMAC-verified.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.unverifiedClaimsRefused(run) }),
+    kase('x9-live-chart-provenance-not-data', 'safe_refusal', 'Something other than the verified issuer picks the chart: claims copied into a plain object (as a request body could carry them) select a source, or a synthetic-demo token that names an OpenEMR patient uuid reads OpenEMR.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.provenanceNotData(run) }),
   ];
 }

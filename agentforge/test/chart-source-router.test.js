@@ -76,6 +76,15 @@ test('router: spoofed and tampered claims are refused; only the HMAC-verified co
   assert.equal(router.authorize(request, mixed).reason, 'chart_source_issuer_unsupported');
 });
 
+test('router: the patient id decides nothing; a synthetic-demo token naming an OpenEMR uuid still reads fixtures', async () => {
+  const requests = [];
+  const { router, fixtureAdapter } = makeRouter({ requests });
+  const context = syntheticContext(LIVE_PATIENT);
+  assert.equal(resolveChartAdapter(router, context), fixtureAdapter);
+  await assert.rejects(makeService(router).prepare({ patient_uuid: LIVE_PATIENT, clinician_uuid: 'fixture-physician-001' }, { verifiedContext: context }), /PATIENT_NOT_FOUND/);
+  assert.equal(requests.length, 0, 'a synthetic token never reaches OpenEMR');
+});
+
 test('router: reading without resolving the request adapter fails loudly', () => {
   const { router } = makeRouter();
   assert.throws(() => router.getCase(LIVE_PATIENT), /CHART_SOURCE_CONTEXT_REQUIRED/);
