@@ -44,36 +44,53 @@ reimplements OpenEMR's PHP patient dashboard on its REST/FHIR API. It runs at
 [`PATIENT_DASHBOARD_MIGRATION.md`](PATIENT_DASHBOARD_MIGRATION.md), and the
 code is in [`dashboard/`](dashboard/README.md).
 
-**Sample documents.** Six synthetic filled PDFs exercise the three document
-types (lab report, intake form, medication list) and both OCR layouts — a vector-text layout and a rasterized-page layout that
-exercises real OCR over pixels:
+**Sample documents.** Seven synthetic filled PDFs exercise the three document
+types (lab report, intake form, medication list) and both OCR layouts — a
+vector-text layout and a rasterized-page layout that exercises real OCR over
+pixels. Lab C is the same patient at an earlier date, for the lab trend:
 
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-a.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-a.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-b.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-b.pdf)
+- [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-c.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-c.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-a.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-a.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-b.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-b.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-a.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-a.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-b.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-b.pdf)
 
 The deployed UI's home page has a "Run this sample" button and a download
-link for each of the six (the two medication lists once this branch is
-deployed), so a grader never has to find these files on
+link for each of the seven, so a grader never has to find these files on
 disk to try the flow.
 
-**Lab trend chart.** Run the lab sample "Layout A", then "Layout C"
-([`filled-lab-c.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-c.pdf),
-same patient, collected earlier). Below the second scan's result, "Lab
-trends" shows a two-point chart per test, read back from OpenEMR.
+**Where to see each extension item** (all on the W2 URL; the SHA each was
+observed on is in [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2):
+
+- **Critic agent:** run any sample. The result reads "Scan workers: …
+  → critic-worker" and the answer heading says "critic: reviewed" (or
+  `disabled` / `skipped_budget` / `failed` when it did not review). The trace
+  in `/observability` shows the `CRITIQUE` decision.
+- **Third document type:** "Medication list · Layout A" or "Layout B" →
+  "Run this sample".
+- **Lab trend chart:** run "Lab result · Layout A", then "Layout C". Below
+  the lab result, "Lab trends" shows one chart per test with a point per
+  uploaded lab, read back from OpenEMR's FHIR Observation service. Each
+  point links to its source document.
+- **Click-to-source:** after a scan, "Open source preview", then any "View
+  source region" link; the cited box on the page image is highlighted.
+- **Contextual retrieval:** not visible on the public URL, because it only
+  changes BM25-alone ranking (the `sparse_only` fallback). See it offline
+  with `node agentforge/scripts/benchmark-retrieval.mjs`.
 
 **5-step demo**
 
-1. **Upload** one of the four sample PDFs (or your own PDF/`.scan.txt` test
+1. **Upload** one of the seven sample PDFs (or your own PDF/`.scan.txt` test
    envelope) against a seeded synthetic patient.
 2. **Overlay preview** — the rendered page shows a bounding box per extracted
    field; clicking a citation in the answer scrolls to and highlights its box.
 3. **Grounded answer** — the response separates patient-record facts (this
-   document plus the OpenEMR chart) from guideline evidence, each claim
-   carrying a 5-key citation.
+   document plus the chart) from guideline evidence, each claim carrying a
+   5-key citation. On the public demo the chart is a synthetic fixture, and
+   its facts are labeled "Synthetic chart fixture". A critic model then
+   reviews the claims and can only remove them.
 4. **OpenEMR persistence** — the source document and derived facts are
    readable back from OpenEMR (a document read, and lab values through
    OpenEMR's FHIR Observation service).
@@ -88,6 +105,7 @@ git config core.hooksPath .githooks   # once per clone; this is the enforced gat
 npm ci --prefix agentforge
 npm run eval:gate --prefix agentforge                    # 50/50 expected
 npm run eval:gate --prefix agentforge -- --inject-defect  # negative control; must exit 1
+npm run eval:extensions --prefix agentforge              # extension suite (critic, medication list, trend, click-to-source, retrieval)
 ```
 
 To see the gate actually block a real change: edit a source file so an
@@ -111,21 +129,23 @@ the full gate rubric.
 
 | | Route / service | What it does | Status |
 |---|---|---|---|
-| **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing: reads structured OpenEMR chart data (read-only adapter), synthesizes a pre-visit summary, verifies every clinical sentence against a source value before showing it. | Frozen at commit `84f232b`, its own pinned image (`agentforge-w1:84f232b`). Not part of this submission's changes; documented here only to distinguish it from Week 2. |
-| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | Everything Week 1 does, plus: document upload (lab PDF / intake form / medication list) with OCR extraction and citations, OpenEMR persistence through `oe-module-agentforge`, a supervisor + two-worker graph, hybrid guideline retrieval with rerank, a structurally-verified grounded answer, and the 50-case eval gate. | This submission. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block; Week 1's `agentforge` service is untouched and stays synthetic-only. |
+| **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing and follow-up. Reads the chart from synthetic fixtures (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. | Frozen snapshot of the W1 submission at `84f232b` (pinned image `agentforge-w1:84f232b`, never rebuilt). It keeps its known debt, including the `.some` verifier and $0 cost; see [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §4, "Week 1 debt". Superseded by Week 2. |
+| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public no-login demo, chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture"; real chart reads for an OpenEMR-launched session (E9) are in progress. | This submission. `/health` reports the deployed SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
 
-Both services run from the same repository and the same OpenEMR instance;
-Caddy routes `/agentforge-w2` and `/agentforge` to their separate containers,
+Both services run on the same VM as OpenEMR, from the same repository (W1 as
+a pinned image). Caddy routes `/agentforge-w2` and `/agentforge` to their separate containers,
 and the bare domain to OpenEMR itself.
 
 **Week 2 scope.** The PRD's "Core Deliverables" list mixes the core build
 with extension items. We built the core five first (two document types,
 supervisor plus two workers, hybrid RAG plus rerank, the 50-case gate, a
-PR-blocking gate with an observable demo) and one extension (click-to-source).
-The critic agent, a third document type, the lab trend chart and contextual
-retrieval are in progress for the final submission.
-[`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2, "Scope", gives the current
-state of each item.
+PR-blocking gate with an observable demo), then all five extensions (PLAN
+D12): the critic agent, click-to-source, the `medication_list` type, the lab
+trend chart and contextual retrieval (query expansion, which applies only to
+the BM25 fallback). Every item is built and deployed.
+[`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2, "Scope", gives each item's
+state with the SHA it was observed on and its evidence. The release freeze
+(one SHA for everything) is pending.
 
 ## Local setup
 

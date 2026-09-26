@@ -1,5 +1,12 @@
 # W2 early submission demo script
 
+> **Historical (script for the early W2 submission video).** Kept as a record; several statements below are no
+> longer true. For example, W2 now stores documents, derived facts and lab
+> rows in OpenEMR, and the critic, the `medication_list` type and the lab
+> trend chart are built. Current state: the root
+> [`W2_ARCHITECTURE.md`](../../W2_ARCHITECTURE.md) §2 and the completion
+> record in [`PLAN.md`](PLAN.md).
+
 Target: 3–5 minutes. Record the deployed W2 page in Chrome. Use the page's
 generated sample PDFs for the walkthrough.
 

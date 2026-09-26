@@ -106,7 +106,7 @@ requirements, not commands.
 ## Requirements matrix
 
 Class: HG = hard gate, C = core, S = submission, SF = safety, X = stretch.
-Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that observed each row on the public URL; `7ac46e9` was the starting point.
+Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that observed each row on the public URL; `7ac46e9` was the starting point. The X-*, W2-S5 and E8-affected W1-* rows are updated to 2026-09-26 (`main` = `fd6c959b`); each names the SHA it was observed on.
 
 | ID | Src | Requirement (paraphrase) | Class | Acceptance criterion | Status | Slice |
 |---|---|---|---|---|---|---|
@@ -120,7 +120,7 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | W2-C5 | p4 §3 | Small guideline corpus with source metadata | C | 20–60 chunks from real public guidelines (e.g. USPSTF, ADA Standards, CDC) with URL, section and version | Done: 42 chunks (CDC, MedlinePlus, NIDDK, USPSTF) with URL, section and version; cited live | S5 |
 | W2-C6 | p4 §4, p2 | Supervisor + intake-extractor + evidence-retriever; routing decisions inspectable | C | Trace has `decision{next, reason}` per step; at least 3 routing variants tested | Done: live `decisions[]` EXTRACT → RETRIEVE → ANSWER with reasons; `supervisor-decisions.test.js` | S6 |
 | W2-C7 | p5 §5 | Citation `{source_type, source_id, page_or_section, field_or_chunk_id, quote_or_value}` on every clinical claim | C | Exact keys on both document and guideline citations; the gate checks every claim in the answer | Done: exact 5 keys on live document and guideline citations; `Citation` is strict; the gate checks every answer claim | S2, S6 |
-| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | Wired, live page PNG route returns `image/png` and citations carry boxes; a browser screenshot of the drawn overlay is still an S11 item | S4 |
+| W2-C8 | p5 §5 | Visual PDF bounding-box overlay | C | Page image with a drawn box per field; clicking a citation highlights its box | Done: live page PNG route returns `image/png` and citations carry boxes; the drawn overlay and click-to-box highlight observed live on `521af47` (`evidence/E1-click-to-source-live.md`) | S4, E1 |
 | W2-C9 | p5 §6 | Categories schema_valid, citation_present, factually_consistent, safe_refusal, no_phi_in_logs; >5% regression or below threshold fails | C | Gate thresholds documented; each category has at least one deployed-path case | Done: 5 categories, thresholds and the 5-point regression rule enforced; 50/50 on every commit | S1 |
 | W2-C10 | p5 §7 | Per encounter: tool sequence, per-step latency, tokens, cost, retrieval hits, extraction confidence, eval outcome; no raw PHI | C | A real scan trace has all 7 fields non-null; the PHI scan of that trace is clean | Done (live on `521af47`, `evidence/LEDGER.md` W2-C10; statuses observed: needs_review, passed, blocked): all 7 fields on every scan trace; eval outcome is the per-encounter runtime evaluation (`runtimeEvaluation.js`: blocked / degraded / needs_review / passed, counts and codes only). OpenEMR read-back is not part of it yet: persistence runs after the trace completes, by design (F10) | S9 |
 | W2-C11 | p2 scenario | Grounded answer to "what changed, what to watch, what evidence" | C | `/v1/scan-supervisor` returns `answer.claims[]` with citations, verified per claim | Done: live `workflow.answer` composed by `qwen3.8-flash` (`model` or `model+deterministic-topup`), patient facts and guideline evidence separated, every claim verified | S6 |
@@ -131,21 +131,21 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | W2-S4 | p6 | Demo video, 3–5 min | S | Recorded from the freeze SHA | Open | S11 (H5) |
 | W1-SF1 | W1 p7 | Verification: every claim is source-attributed | SF | Verifier rejects any sentence with an unanchored clinical value; the fabricated-warfarin probe fails | Verifier done (S7, per-claim; used by S6) | S7 |
 | W1-SF2 | W1 p7 | Domain constraint enforcement | SF | At least 3 rules (e.g. potassium critical range, A1C ≥ 6.5 flag, allergy↔med class conflict) with tests | Out of scope (D8) | — |
-| W1-SF3 | W1 p8 | Evals must not be circular | SF | `grep -rn expected agentforge/src` returns nothing for eval-oracle reads; stale and missing-author detection comes from the data | Out of scope (D8) | — |
-| W1-SF4 | W1 p2 | Authorization enforced | SF | Cross-patient question → explicit out-of-scope refusal; module ACL uses the username; `/v1/traces` needs auth | Out of scope (D8) | — |
+| W1-SF3 | W1 p8 | Evals must not be circular | SF | `grep -rn expected agentforge/src` returns nothing for eval-oracle reads; stale and missing-author detection comes from the data | Resolved on W2 by E8 (`fd6c959b`): trust comes from record data (`recordTrust.js`); `agentforge/test/no-eval-oracle.test.js` forbids answer-key reads in every module the server loads. W1 route unchanged (D8) | E8 |
+| W1-SF4 | W1 p2 | Authorization enforced | SF | Cross-patient question → explicit out-of-scope refusal; module ACL uses the username; `/v1/traces` needs auth | Partly (E8, `fd6c959b`): a question naming another patient is refused `out_of_scope_patient` on the briefing follow-up, scan answer and follow-up evidence (ids and full names on fixtures, id patterns only on live OpenEMR; `x8-scope-other-patient-question`). The module ACL fix (F18) and ops-endpoint auth were not built (D8) | E8 |
 | W1-C1 | W1 p8 | `/ready` checks OpenEMR, LLM and observability | C | Each check is a live network probe; killing OpenEMR makes it 503 | Out of scope (D8) | — |
 | W1-C2 | W1 p8 | Correlation ID on every log, tool call and LLM call | C | Test asserts the ID on getCase, token refresh, retriever, Cohere, OpenEMR writes and error log | Out of scope (D8) | — |
-| W1-C3 | W1 p8 | Dashboard + 3 alerts with sane thresholds | C | Per-route p95 thresholds from measured baselines; not permanently firing | Out of scope (D8) | — |
-| W1-S1 | W1 p6,9 | Root `./AUDIT.md`, `./ARCHITECTURE.md`, `./USERS.md`/`USER.md` | S | Real versions at root; `START_HERE.md` accurate or deleted | Out of scope (D8) | — |
+| W1-C3 | W1 p8 | Dashboard + 3 alerts with sane thresholds | C | Per-route p95 thresholds from measured baselines; not permanently firing | Partly (E8): the W2 p95 alert is 30000 ms, the KEY_METRICS target; live `/v1/alerts` on `fd6c959b` observed 21228 ms, not triggered. One global threshold, not per route | E8 |
+| W1-S1 | W1 p6,9 | Root `./AUDIT.md`, `./ARCHITECTURE.md`, `./USERS.md`/`USER.md` | S | Real versions at root; `START_HERE.md` accurate or deleted | Done: root `AUDIT.md`, `ARCHITECTURE.md`, `USERS.md`, `USER.md` (MR !99, `250a881c`); `START_HERE.md` is an index | E6 |
 | W1-S2 | W1 p9 | Postman/Bruno collection | S | Bruno collection with a deployed-URL env covering W1 and W2 endpoints; runs green with `bru run` | Out of scope (D8) | — |
 | W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | Out of scope (D8) | — |
 | W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | Out of scope (D8) | — |
 | X-1 | W2 p5 | Click-to-source UI with a simple document preview | C (D12) | Built (S4); observed on the public URL: a citation's link highlights its box on the page image | Observed live on `521af47` (`evidence/E1-click-to-source-live.md`); gated by extension cases `x1-*` (E0). Re-observe on the freeze SHA (E7) | S4, E1 |
 | X-2 | W2 p5 | Critic agent that rejects uncited claims or unsafe action suggestions | C (D12) | An LLM critic node in the supervisor graph can only veto claims; its decision and reason are traced; the gate fails when it is removed or ignored | **Wired, tested, observed live** on `e56eab86` with `openai/gpt-4.1-nano` (benchmark and trace: `evidence/E2-critic-live.md`); 9 `x2-*` extension cases; merged MR !97 | E2 |
-| X-3 | W2 p5 | Third document type (referral fax or medication list) | C (D12) | `medication_list` end to end: upload, OpenEMR storage, strict schema, cited extraction, fail-loud checks, gate cases | Not built | E4 |
-| X-4 | W2 p5 | Lab trend chart widget from extracted Observation data | C (D12) | Chart of one test over ≥ 2 collection dates, read back from OpenEMR (not from the upload response) | Not built | E5 |
+| X-3 | W2 p5 | Third document type (referral fax or medication list) | C (D12) | `medication_list` end to end: upload, OpenEMR storage, strict schema, cited extraction, fail-loud checks, gate cases | **Wired, tested, observed live** on `d952660b` (MR !101): "Medication list · Layout A" READY with 19 cited fields, critic reviewed; OpenEMR ledger shows `doc:medication_list` and `doc:derived_facts` for pid 1 (`evidence/E4-E5-E8-live.md`); 15 `x3-*` cases (`evidence/E4-medlist-regression.txt`). Confirmed medications are not yet written from the UI (A3) | E4 |
+| X-4 | W2 p5 | Lab trend chart widget from extracted Observation data | C (D12) | Chart of one test over ≥ 2 collection dates, read back from OpenEMR (not from the upload response) | **Wired, tested, observed live** on `e0f9eb35` (MR !102): "Lab trends", read from OpenEMR's FHIR Observation service, charted A1C and hemoglobin over three dates with points linked to their sources (`evidence/E4-E5-E8-live.md`); 5 `x4-*` cases (`evidence/E5-lab-trend-regression.txt`) | E5 |
 | X-5 | W2 p6 | Contextual retrieval improvements | C (D12) | Chunking, query rewriting or domain filters, kept only if a labeled retrieval benchmark improves | Merged (MR !96) and deployed on `e56eab86`: BM25 query expansion, recall@3 0.886 → 0.939, MRR@3 0.879 → 0.909. Applies only to BM25-alone ranking (`local-lexical`, the hybrid `sparse_only` fallback), not the normal hybrid path, where expansion measured worse. Not observable live without a Gemini outage. `x5-*` cases fail when it is off | E3 |
-| W2-S5 | p3 | W1 technical debt "documented and resolved before adding new surface area" | S | Every W1 debt item listed with resolved / accepted-with-reason | Partly: trust-critical debt fixed (S7); the rest is out of scope (D8), no single list | E6 |
+| W2-S5 | p3 | W1 technical debt "documented and resolved before adding new surface area" | S | Every W1 debt item listed with resolved / accepted-with-reason | Documented (E6): `W2_ARCHITECTURE.md` §4 "Week 1 debt" lists all 25 items: 11 resolved, 4 partly, 10 accepted with reason (D4/D8). The frozen W1 route keeps its debt | E6, E8 |
 
 Out of scope: role model, LLM tool-calling, and handwriting or
 arbitrary-layout accuracy claims.
@@ -199,6 +199,8 @@ final deploy for the single-SHA freeze in E7.
 
 **Progress (2026-09-26):** E5 implemented on branch `agentforge/e5-lab-trend` (module lab history, `/v1/patients/:patient/lab-trends`, SVG chart, `filled-lab-c.pdf`, five extension cases, regression proof `docs/agentforge/evidence/E5-lab-trend-regression.txt`); not merged, deployed or observed live. It also stops a `BLOCKED` workflow from persisting derived facts or lab rows. No `table.sql` change.
 
+**Progress (2026-09-26 ~09:40 CT):** merged to `main` and deployed: E4 (!101, `d952660b`), E5 (!102, `e0f9eb35`), E8 (!103, `fd6c959b`); W2 reports `fd6c959b`. X-3 and X-4 observed live (`evidence/E4-E5-E8-live.md`). E6 truth pass on `agentforge/e6-docs-truth`; E9 in progress; E7 pending. Current state per slice is in the completion record.
+
 ### Slices (lanes E2–E5 run in parallel worktrees; integration in order E3 → E2 → E4 → E5)
 
 **E1 — Click-to-source observed live (X-1). 30 min, first.** Run a sample lab
@@ -247,8 +249,9 @@ Add a unit test that every citation link's `href` equals an existing box id
   recorded fixtures: they prove the veto wiring; model judgment is the
   benchmark's job. The planted claims are ones `verifyClaims` lets through (a
   guideline quote plus "The guideline recommends this for the patient.";
-  "The patient has to be taking lisinopril 10 mg daily."). Not done: a real
-  model on the VM, the benchmark run, live observation.
+  "The patient has to be taking lisinopril 10 mg daily."). Not done at the
+  time: a real model on the VM, the benchmark run, live observation.
+  **Update:** all three done on `e56eab86` (`evidence/E2-critic-live.md`).
 
 **E3 — Contextual retrieval (X-5). 3 h.**
 - First, a labeled retrieval benchmark: about 20 queries built from the golden
@@ -313,7 +316,8 @@ Add a unit test that every citation link's `href` equals an existing box id
   `clinical-list-items`, so confirmed medications are not yet written from the
   UI; nothing is auto-written. Evidence: `docs/agentforge/evidence/E4-medlist-regression.txt`.
   Still needed for "done": merge, deploy, and a live `medication_list` upload
-  (E7 acceptance).
+  (E7 acceptance). **Update:** merged (!101) and observed live on
+  `d952660b` (`evidence/E4-E5-E8-live.md`); E7 re-observes it on the freeze SHA.
 
 **E5 — Lab trend chart (X-4). 3 h, after E4 merges (both touch `ui.js`).**
 - Module: `lab-observations` also accepts `patient_uuid` without
@@ -589,6 +593,10 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
   client, and degraded results are labeled `sparse_only`/`stub`.
 
 ### S7 — W1 trust fixes (Thu–Fri, 4 h; lane C, before S6)
+- **Status (2026-09-26):** the verifier was done here (S7). The `expected`
+  reads and the other-patient refusal were done later by E8 (`fd6c959b`),
+  not by S7 as planned below. Domain rules, the module ACL fix and the ops
+  token were not built (D8; see `W2_ARCHITECTURE.md` §4, "Week 1 debt").
 - Remove every `item.expected` read from `preVisitPreparation.js:89-100`.
   Implement `detectStale(record, now)` (for example, allergy or med review
   older than 12 months) and `detectMissingProvenance(record)` (null author or
@@ -649,8 +657,11 @@ and answer-before-persist ordering at the HTTP boundary.
   W2 p2 requires. Fallback is a deterministic, template-based answer built
   from the same facts and labeled as such.
 - Patient-record facts (`service.js` `retrievePatientChartFacts`, shared by
-  `retrieveFollowUpEvidence` and the S6 answer) carry the 5-key citation with
-  `source_type: 'openemr_record'` (S2 review finding 8).
+  `retrieveFollowUpEvidence` and the S6 answer) carry the 5-key citation
+  (S2 review finding 8). As built in S6 they all said
+  `source_type: 'openemr_record'`; since E8 (`chartSource.js`) that label is
+  used only for `OpenEMRRestAdapter` reads, and fixture reads say
+  `synthetic_chart_fixture` / "Synthetic chart fixture".
 - Tests: 26 supervisor-decision tests (`supervisor-decisions.test.js`), 21
   composer tests (`answer-composer.test.js`), 4 service/HTTP integration
   tests (`answer-service-integration.test.js`), and 5 gate cases carrying
@@ -820,9 +831,39 @@ on the freeze SHA.
 
 ## Completion record
 
-**Status 2026-09-24 (late evening CT).** `main` = `/agentforge-w2` = `9d4d6b5`
-(`/health` `git_sha`); `/agentforge` is frozen at `84f232b` (D8). Every
-slice below passed an independent review before merge.
+**Current (2026-09-26 ~09:40 CT).** GitLab `main` = `fd6c959b`, and
+`/agentforge-w2/health` reports `fd6c959bfd7e8c0dbfa2347a0351cd3f09734bf7`.
+`/dashboard/health` reports `abf81afe…` (an interim dashboard deploy; E7
+redeploys both from one SHA). `/agentforge` is the frozen W1 snapshot
+`84f232b` (D8, D13). Status uses the `AGENTS.md` bar; every "observed live"
+names its SHA, and E7 re-observes all of them on the freeze SHA. Each slice
+got an independent adversarial review, with findings fixed before merge
+(E2: 4, E4: 2, E5: 1, E8: 3).
+
+| Slice | MR, `main` after merge | Status | Evidence |
+|---|---|---|---|
+| E0 extension suite | !92, `bc53c976` | Wired (pre-commit hook runs it) and tested: 34 cases on `main`; the 50-case golden hash is unchanged (`63e8c8eb…`) | `evidence/E0-extension-gate-regression.txt`, `evidence/W2_EXTENSION_BASELINE_REPORT.json` |
+| E1 click-to-source (X-1) | !93 (evidence) | Wired, tested (`x1-*`), observed live on `521af47` | `evidence/E1-click-to-source-live.md` |
+| E3 contextual retrieval (X-5) | !96, `0a1f3e06` | Wired (BM25-alone paths only), tested (`x5-*`), deployed; not observable live without a Gemini failure | `evidence/E3-retrieval-regression.txt`; `KEY_METRICS.md` |
+| E2 critic (X-2) | !97, `e56eab86` | Wired (enabled on the VM: `openai/gpt-4.1-nano`, 2500 ms timeout), tested (`x2-*`), observed live on `e56eab86` | `evidence/E2-critic-live.md`, `evidence/E2-critic-regression.txt` |
+| E6 root docs | !99, `250a881c` | Done: root `AUDIT.md`, `ARCHITECTURE.md`, `USERS.md`, `USER.md` | `W2_ARCHITECTURE.md` §4 "Week 1 debt" items 21, 22, 24 |
+| D13 plan | !100 | Decision recorded | This file, D13 |
+| E4 `medication_list` (X-3) | !101, `d952660b` | Wired, tested (`x3-*`), observed live on `d952660b` | `evidence/E4-medlist-regression.txt`, `evidence/E4-E5-E8-live.md` |
+| E5 lab trend (X-4) | !102, `e0f9eb35` | Wired, tested (`x4-*`), observed live on `e0f9eb35` | `evidence/E5-lab-trend-regression.txt`, `evidence/E4-E5-E8-live.md` |
+| E8 W1 trust debt | !103, `fd6c959b` | Wired, tested (`no-eval-oracle.test.js`, `x8-*`, alert test), observed live on `fd6c959b` (chart facts labeled "Synthetic chart fixture"; p95 alert threshold 30000) | `evidence/E8-w1-trust-regression.txt`, `evidence/E4-E5-E8-live.md` |
+| E6 docs truth pass | branch `agentforge/e6-docs-truth` | This pass; not merged at the time of writing | — |
+| E9 real chart reads (D13) | — | In progress, not merged | — |
+| E7 freeze and proof | — | Pending: one SHA for W2 and the dashboard, live acceptance re-run into `LEDGER.md`, screenshots | — |
+| Owner items | — | Pending: demo video, social post, Qwen and Vultr dev spend, submission link | — |
+
+A read-only check of the production OpenEMR ledger (2026-09-26) found every
+AgentForge write is for pid 1, and no cross-patient lab rows.
+
+**Earlier record (2026-09-24 late evening CT, kept for history).** `main` =
+`/agentforge-w2` = `9d4d6b5` at the time. The S11 row is superseded: live
+acceptance ran 16/16 on `521af47` (`evidence/LEDGER.md`, `3ccfe1d8`), and the
+freeze moved to E7. Every slice below passed an independent review before
+merge.
 
 | Slice | State | Evidence |
 |---|---|---|
@@ -839,7 +880,7 @@ slice below passed an independent review before merge.
 | S9 | Done, in the deployed tree | Dashboard (`slice/s9`, Codex) validated with fake data; alert-wording fix `5a756ff` with a test. Live screenshot is an S11 item. |
 | S12 | Done, pending final review | `W2_ARCHITECTURE.md` + README reconciled with the code; `EVAL_GATE.md` retrieval prose updated; `KEY_METRICS.md` measured on `131d5a3` (recall 94.7% and extraction accuracy 93.6% miss their targets, from two known OCR limits). |
 | Lab header identity fix | Done, live | `a91452b`: `readHeaderIdentity` read "<test> test name: <test>" as the patient's name, so every headerless lab (all `.scan.txt` labs) was BLOCKED `patient_mismatch` on the right chart. Found by the offline recall metric. `sv-11` now asserts QUALIFIED `patient_identity_unverified`; reverting the regex fails it. |
-| S11 | Not started | Freeze, live acceptance, blocked-commit transcript, screenshots, video (owner), social post, submission link → `main`. |
+| S11 | Superseded (see above) | Live acceptance 16/16 on `521af47` (`LEDGER.md`); the freeze, screenshots, video, social post and submission link are E7 and owner items. |
 
 Incidents, all fixed and recorded in commits:
 - `git archive` on Windows shipped CRLF; `deploy.sh` now disables autocrlf.

@@ -1,5 +1,12 @@
 # Week 2 reviewer package
 
+> **Historical (W2 reviewer package, 2026-09-23).** Kept as a record; several statements below are no
+> longer true. For example, W2 now stores documents, derived facts and lab
+> rows in OpenEMR, and the critic, the `medication_list` type and the lab
+> trend chart are built. Current state: the root
+> [`W2_ARCHITECTURE.md`](../../W2_ARCHITECTURE.md) §2 and the completion
+> record in [`PLAN.md`](PLAN.md).
+
 Updated 2026-09-23. The retry-resilience release is deployed in local Tesseract
 mode. Public Lab Layout B reached READY with 12 cited fields; the source
 preview shows the field quotes and page regions. Gemini is configured

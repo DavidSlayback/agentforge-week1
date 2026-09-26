@@ -19,7 +19,9 @@ This document describes the Week 1 chart-preparation briefing as submitted.
 The Week 1 route (`/agentforge`) is frozen at `84f232b`. In the deployment,
 both `/agentforge` and `/agentforge-w2` read the chart from synthetic fixtures
 (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. The OpenEMR REST
-adapter exists and is tested, but it is not the deployed mode.
+adapter exists and is tested, but it is not the deployed mode. Wiring it
+for W2 sessions launched from OpenEMR, still with synthetic data
+(`docs/agentforge/PLAN.md` D13, slice E9), is in progress.
 
 Week 2 is described in [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md): PDF
 ingestion with local OCR, OpenEMR storage through `oe-module-agentforge`,

@@ -3,8 +3,8 @@
 > **Historical Week 1 checkpoint package.** The deployment, providers, and
 > evidence below refer to older candidate `d8b4ba8`, not the current Week 2
 > working tree. Do not submit or present this as W2 evidence. See
-> [`W2_EARLY_CHECKPOINT.md`](W2_EARLY_CHECKPOINT.md) and
-> [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) for current W2 status and gaps.
+> the root [`W2_ARCHITECTURE.md`](../../W2_ARCHITECTURE.md) §2 and the
+> [`PLAN.md`](PLAN.md) completion record for current W2 status and gaps.
 
 > At the time of that Week 1 checkpoint, candidate evidence was tracked in
 > `archive/RELEASE_READINESS.md`; its video status and provider notes are historical.
