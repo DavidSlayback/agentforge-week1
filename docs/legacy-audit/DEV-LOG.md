@@ -790,3 +790,7 @@ deploy.**
 - Check that `docker compose build agentforge` on the frozen, image-only W1
   service is a no-op there, as it is designed to be. It ships only when named
   explicitly.
+
+## 2026-09-26 ~08:30 CT — interim deploys; freeze handed to E7
+
+`6bfe98a` shipped the accessibility fixes (sign-out 403 in Chromium, scroll regions, header scroll padding, target size) and the detached, build-before-replace `deploy.sh`; the first real run had no downtime but exposed a pre-existing backup collision (`agentforge` vs `docs/agentforge`). Fixed and regression-proven (`evidence/deploy-backup-collision-regression.txt`), deployed as `abf81af`. The final freeze of both services from one SHA is slice E7 (W2 PRD session).
