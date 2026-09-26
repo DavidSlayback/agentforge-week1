@@ -70,3 +70,65 @@ $ node --test test/clinical-rules.test.js test/not-documented.test.js   (exit 0)
 ℹ fail 0
 $ npm run eval:extensions --prefix agentforge   (exit 0)
 passed: true  total_cases: 50  failed_cases: 0
+
+######## Review fixes (blockers 1 and 2), added after the independent review ########
+
+== 5. Mutation B1: the old substring "no allergy" filter (drops "allergy.penicillin: unknown" and "...; no known food allergies") ==
+Base commit: 2fe8be85 (fix(agentforge): F-CLIN review blockers: real allergies kept, flags verified)
+diff --git a/agentforge/src/clinicalRules.js b/agentforge/src/clinicalRules.js
+index 97a009bb..ab8fd861 100644
+--- a/agentforge/src/clinicalRules.js
++++ b/agentforge/src/clinicalRules.js
+@@ -325,7 +325,7 @@ function a1cRule(result) {
+  * as stopped or ended is skipped.
+  */
+ function drugAllergyFlags(citations) {
+-  const allergies = citations.filter(isAllergyCitation).filter((citation) => !recordsNoAllergy(citation));
++  const allergies = citations.filter(isAllergyCitation).filter((citation) => !/\b(?:no known|none|nkda|nka|unknown)\b/i.test(citationText(citation)));
+   const endedDrugs = endedChartDrugs(citations);
+   const medications = citations.filter(isMedicationCitation).filter((citation) => !isEndedMedication(citation, endedDrugs));
+   const flags = [];
+
+$ node --test test/clinical-rules.test.js test/not-documented.test.js   (exit 1)
+✖ review blocker 1: a named allergy with an unknown reaction, or next to "no known food allergies", is still an allergy (0.7734ms)
+ℹ tests 25
+ℹ pass 24
+ℹ fail 1
+
+$ npm run eval:extensions --prefix agentforge   (exit 1)
+passed: false  total_cases: 53
+  xc-fc-07-allergy-with-no-known-food-allergies (factually_consistent): drug_allergy_conflict_flags_0
+
+== 6. Mutation B2: safety flags bypass verifyClaims (a flag whose grounding fails still ships) ==
+Base commit: 2fe8be85 (fix(agentforge): F-CLIN review blockers: real allergies kept, flags verified)
+diff --git a/agentforge/src/answerComposer.js b/agentforge/src/answerComposer.js
+index 9f971e78..bd5a6f35 100644
+--- a/agentforge/src/answerComposer.js
++++ b/agentforge/src/answerComposer.js
+@@ -417,7 +417,7 @@ function verifySafetyFlags(flags, allowedValues) {
+     const ruleSources = flag.citations.filter((citation) => citation.source_type === 'guideline');
+     const verification = verifyClaims({ claims: flagGroundingClaims(flag), allowedValues: [...allowedValues, ...ruleSources] });
+     const directive = splitSentences(flag.text).some((sentence) => isDirective(sentence));
+-    if (verification.status !== 'passed' || directive) { dropped += 1; continue; }
++    if (false && (verification.status !== 'passed' || directive)) { dropped += 1; continue; }
+     kept.push({ code: flag.code, rule_id: flag.rule_id, severity: flag.severity, text: flag.text, citations: flag.citations, threshold_source: flag.threshold_source });
+   }
+   return { kept, dropped };
+
+$ node --test test/clinical-rules.test.js test/not-documented.test.js   (exit 1)
+✖ review blocker 2: a flag whose grounding fails verifyClaims is dropped and counted, never shipped (6.9359ms)
+ℹ tests 25
+ℹ pass 24
+ℹ fail 1
+
+$ npm run eval:extensions --prefix agentforge   (exit 1)
+passed: false  total_cases: 53
+  xc-sr-05-flag-grounding-fails-verification (safe_refusal): flag_shipped_on_unverified_grounding, safety_flags_dropped_0, instruction_in_flag, drop_not_in_trace
+
+== 7. Both reverted (git checkout agentforge/src); the same commands pass on 2fe8be85 ==
+$ node --test test/clinical-rules.test.js test/not-documented.test.js   (exit 0)
+ℹ tests 25
+ℹ pass 25
+ℹ fail 0
+$ npm run eval:extensions --prefix agentforge   (exit 0)
+passed: true  total_cases: 53  failed_cases: 0

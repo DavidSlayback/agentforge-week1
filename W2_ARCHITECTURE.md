@@ -507,15 +507,25 @@ on the facts that cleared the 0.85 confidence threshold. The critic's top-up
 reuses the same partition, so it cannot re-add a result a rule held back. A
 rule does one of two things. It adds a cited flag to `safety_flags`, or it
 moves a lab result from the answer to `needs_review` with a reason code. A
-rule never changes a value, converts a unit or makes a claim. A flag's
-`citations` are the unchanged 5-key citations of the facts that triggered it,
-and its `text` repeats only their values.
+rule never changes a value or converts a unit. A flag's `citations` are the
+unchanged 5-key citations of the facts that triggered it. Its `text` is a
+fixed, non-directive template. The only patient-derived parts are a numeric
+value, a unit from a closed set, an ISO date and a drug name from the closed
+class lists, for example "Recorded allergy to a penicillin and a recorded
+penicillin-class medication (amoxicillin)." No raw document or chart line is
+copied into it. Flags are checked like claims.
+`answerComposer.js#verifySafetyFlags` runs each flag's grounding facts
+through `verifyClaims`: the typed lab result, the document line, the chart
+field, or the guideline chunk. A flag that fails is dropped and counted in
+`safety_flags_dropped`, which is a review issue in the trace. The critic
+receives flags as `safety_flag` items and may veto one; the veto is counted
+in `critic_flags_rejected`.
 
 | Rule | Flag or review | Threshold and source |
 |---|---|---|
-| Critical potassium | `critical_value` for K+ ≤ 3.0 or ≥ 6.0 mmol/L (mEq/L accepted, since they are equal for K+). Any other unit goes to review as `rule_unit_unrecognized`, a non-numeric value as `rule_value_unparseable` | Adult (no hemolysis) limits from Parrish Medical Center, "Clinical Laboratory Critical Value List" (revised 2017-01-31). The guideline corpus has no potassium chunk. Critical limits vary by laboratory: a 2002 survey of 623 US labs found low limits from 2.5 to 3.0 mmol/L |
-| A1C diabetes range | `diabetes_range` for A1C ≥ 6.5 %. If the document flags that result `normal` or `low`, it goes to review as `flag_contradicts_range` and is not stated | CDC "A1C Ranges", corpus chunk `cdc-a1c-diagnostic-ranges` ("Diabetes: 6.5% or above"), cited in the flag. The module throws at first use if the chunk stops saying it |
-| Allergy vs medication class | `drug_allergy_conflict` when a documented penicillin allergy meets a penicillin-class drug, or a sulfonamide allergy meets a sulfonamide antibiotic, across the intake form, medication list and chart. An allergy recorded as unknown, none or NKDA is not an allergy | MedlinePlus drug pages for amoxicillin (a685001), ampicillin (a685002) and co-trimoxazole (a684026); WHO ATC groups J01C and J01E |
+| Critical potassium | `critical_value` for K+ ≤ 3.0 or ≥ 6.0 mmol/L (mEq/L accepted, since they are equal for K+). Any other unit goes to review as `rule_unit_unrecognized`, and a non-numeric value as `rule_value_unparseable`. A critical value the document flags `normal` (or the opposite direction) goes to review as `flag_contradicts_range`. The name is normalized, so "Potassium (K)", "K, serum" and "Serum K" count and "Vitamin K" does not | Adult (no hemolysis) limits from Parrish Medical Center, "Clinical Laboratory Critical Value List" (revised 2017-01-31). The guideline corpus has no potassium chunk. Critical limits vary by laboratory: a 2002 survey of 623 US labs found low limits from 2.5 to 3.0 mmol/L |
+| A1C diabetes range | `diabetes_range` for A1C ≥ 6.5 %. If the document flags that result `normal` or `low`, it goes to review as `flag_contradicts_range` and is not stated. A value of 20 % or more goes to review as `implausible_value` | CDC "A1C Ranges", corpus chunk `cdc-a1c-diagnostic-ranges` ("Diabetes: 6.5% or above"), cited in the flag. The module throws at first use if the chunk stops saying it |
+| Allergy vs medication class | `drug_allergy_conflict` when a documented penicillin allergy meets a penicillin-class drug (including Augmentin, Zosyn and Unasyn), or a sulfonamide allergy meets a sulfonamide antibiotic (including TMP-SMX and SMX/TMP). This works across the intake form, medication list and chart. Only a whole-entry "none"/NKDA/NKA statement means no allergy. A named substance with an unknown reaction is an allergy. A medication recorded as stopped or ended is skipped | MedlinePlus drug pages for amoxicillin (a685001), ampicillin (a685002) and co-trimoxazole (a684026); WHO ATC groups J01C and J01E |
 
 A document citation is read by its quoted line only, because some document
 field ids are fixed labels (the legacy intake layout calls every allergy line
@@ -538,22 +548,28 @@ lab result, a chart field with a number in it, or a quote that prints a
 reading ("BP 128/82"). A word match is not a reading. Patient 001's
 "blood-pressure follow-up" visit reason does not document a blood pressure.
 Questions about a target, threshold or recommendation are not value
-questions. If a question asks only for values that nothing records, the
+questions. Absence is claimed only for a kind of data that a source actually
+read. Neither chart adapter reads vitals or labs, so a missing blood pressure
+gets `status: 'not_retrieved'` and the text "not available from the sources
+read (vital signs are not retrieved)". A lab missing from a lab report that
+was read gets `not_documented`. If a question asks only for such values, the
 answer says so, with no claims and no model call. The scan answer does this
 with `composer: 'not-documented'`, a `not_documented` entry per concept and
-the sources checked. The briefing follow-up does it with "Blood pressure is
-not documented in the verified chart records for this briefing". Safety flags
-and `needs_review` still ship. A concept whose chart field was withheld is
+the sources checked. The briefing follow-up answers in the same form. Safety
+flags and `needs_review` still ship. A concept whose chart field was withheld is
 not reported as not documented. A question that also names another topic
 ("documented medication and blood pressure") keeps its normal answer plus the
 `not_documented` entry.
 
 Tests: `clinical-rules.test.js` and `not-documented.test.js` cover
-boundaries, units, false positives and the answer wiring. The extension
-suite has ten `xc-*` cases (listed in `EVAL_GATE.md`). Disabling the
-potassium rule and the not-documented path fails 8 unit tests and 4 extension
-cases (`docs/agentforge/evidence/F-CLIN-regression.txt`). This work is
-implemented and tested, but not yet merged to `main` or deployed.
+boundaries, units, false positives, the review blockers and the answer
+wiring. The extension suite has 13 `xc-*` cases (listed in `EVAL_GATE.md`).
+`docs/agentforge/evidence/F-CLIN-regression.txt` shows each deliberate
+regression failing both. Disabling the potassium rule and the not-documented
+path fails 8 unit tests and 4 cases. Restoring the old substring "no allergy"
+filter fails `xc-fc-07`. Letting flags bypass `verifyClaims` fails
+`xc-sr-05`. This work is implemented and tested, but not yet merged to
+`main` or deployed.
 
 ### (e) Eval gate
 

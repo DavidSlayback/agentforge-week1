@@ -187,8 +187,8 @@ still blocks commits.
   to `index.js`. A case can carry its own check (`expect.custom`) and inject
   service collaborators (`scenario.service_overrides`), so a slice never
   edits the golden dispatcher.
-- The suite has 50 cases (`W2_EXTENSION_BASELINE_REPORT.json`): 40 on
-  `main` at `a925b803`, plus the ten F-CLIN cases. They are listed below by
+- The suite has 53 cases (`W2_EXTENSION_BASELINE_REPORT.json`): 40 on
+  `main` at `a925b803`, plus the 13 F-CLIN cases. They are listed below by
   slice.
 - Click-to-source (E1): `x1-click-to-source-lab-a` and `x1-click-to-source-intake-b`.
   Each renders the deployed source preview from the real post-OCR extraction
@@ -250,7 +250,7 @@ still blocks commits.
   the result. Regression proof:
   `docs/agentforge/evidence/E8-w1-trust-regression.txt`.
 - F-CLIN clinical rules and "not documented" answers
-  (`extensionCases/clinicalRules.js`), ten cases. The inputs are synthetic:
+  (`extensionCases/clinicalRules.js`), 13 cases. The inputs are synthetic:
   the committed `lab-a` and `intake-a` OCR recordings with edited lines,
   replayed for the same PDF bytes through `service_overrides`. No new fixture
   document is added, so neither manifest changes.
@@ -264,12 +264,21 @@ still blocks commits.
   - `xc-fc-05-penicillin-amoxicillin-conflict`: must give one
     `drug_allergy_conflict` flag citing both form lines.
   - `xc-fc-06-penicillin-metformin-no-conflict`: must give no flag.
+  - `xc-fc-07-allergy-with-no-known-food-allergies`: "Penicillin - hives; no
+    known food allergies" with amoxicillin must still give the conflict flag.
+  - `xc-sr-05-flag-grounding-fails-verification`: a medication line with an
+    instruction ("Stop taking if rash") must not ship a flag. The drop must be
+    counted in `safety_flags_dropped` and in the trace.
+  - `xc-sr-06-potassium-flag-contradicts-range`: 6.8 mmol/L printed
+    "abnormal: No" must go to needs review.
   - `xc-sr-01-a1c-flag-contradicts-range`: 6.8 % printed "abnormal: No"
     must go to needs review and not be stated.
   - `xc-sr-02-potassium-unit-unrecognized`: a potassium in mg/dL must go to
     needs review.
   - `xc-sr-03-scan-bp-not-documented`: "What was the blood pressure?" on a
-    scan must be answered "not documented" and list no other claims.
+    scan must be answered "not available from the sources read" (vitals are
+    not retrieved), must not claim the value is absent, and must list no
+    other claims.
   - `xc-sr-04-followup-bp-not-documented`: the same question as a briefing
     follow-up.
 
