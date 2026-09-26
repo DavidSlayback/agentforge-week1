@@ -6,6 +6,7 @@ import { runActiveSupervisor } from './supervisor.js';
 import { traceSafeHandoff } from './activeWorkers.js';
 import { extractScanForm } from './scanFormAdapter.js';
 import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './pdfScanAdapter.js';
+import { chartRecordCitationSource } from './chartSource.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
 import { recordBelongsToPatient } from './recordScope.js';
 import { composeGroundedAnswer, DeterministicAnswerComposer, partitionAnswerInputs } from './answerComposer.js';
@@ -346,7 +347,8 @@ export class AgentForgeService {
   /**
    * Chart-record facts for the W2 answer's "patient record" section and for
    * `/v1/follow-up-evidence`'s `patient_facts`, each carrying the standard
-   * 5-key `Citation` (`source_type: 'openemr_record'`) alongside the
+   * 5-key `Citation` (`source_type: 'openemr_record'` for a live OpenEMR read,
+   * `'synthetic_chart_fixture'` for the fixture chart) alongside the
    * existing flat fields (S2 review finding 8). Does not authorize on its
    * own -- every caller has already authorized patient-scoped read access
    * (the scan-supervisor path via `readSourceDocument`; `retrieveFollowUpEvidence`
@@ -362,10 +364,13 @@ export class AgentForgeService {
     const retrieved = await this.chartAdapter.retrieve(item);
     const validation = validateRetrievalResult(retrieved);
     if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid', patient_facts: [], failed_patient_groups: [] };
+    // Label the citation by the adapter that actually read the record: a
+    // fixture read is never cited as an OpenEMR record (chartSource.js).
+    const citationSource = chartRecordCitationSource(this.chartAdapter);
     const patientFacts = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage)).map((record) => {
       const quote = record.value === null || record.value === undefined ? '' : String(record.value).trim();
       const citation = record.source_ref && record.field && quote
-        ? { source_type: 'openemr_record', source_id: record.source_ref, page_or_section: 'OpenEMR chart record', field_or_chunk_id: record.field, quote_or_value: quote }
+        ? { source_type: citationSource.source_type, source_id: record.source_ref, page_or_section: citationSource.page_or_section, field_or_chunk_id: record.field, quote_or_value: quote }
         : null;
       return { source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author, citation };
     });

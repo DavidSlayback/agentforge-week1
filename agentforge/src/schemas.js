@@ -24,7 +24,7 @@ import { z } from 'zod';
  * as an overlay); guideline citations omit them.
  */
 export const Citation = z.object({
-  source_type: z.enum(['document', 'guideline', 'openemr_record']),
+  source_type: z.enum(['document', 'guideline', 'openemr_record', 'synthetic_chart_fixture']),
   source_id: z.string().min(1),
   page_or_section: z.string().min(1),
   field_or_chunk_id: z.string().min(1),
@@ -218,13 +218,13 @@ export const GuidelineEvidence = z.object({
  * One claim in a W2 grounded answer (S6).
  *
  * `kind` separates patient-record facts (this document's typed extraction or
- * an OpenEMR chart record) from guideline evidence and pure framing prose, so
+ * a chart record, OpenEMR or synthetic fixture) from guideline evidence and pure framing prose, so
  * the UI and the eval gate can render/check "patient record" and "guideline
  * evidence" as distinct sections per the W2 scenario ("separate patient-record
  * facts from guideline evidence"). `citations` is validated against the same
  * five-key `Citation` used everywhere else; `claimBinding.js#verifyClaims`
  * additionally enforces that `patient_fact` claims cite only `document`/
- * `openemr_record` sources and `guideline` claims cite only `guideline`
+ * `openemr_record`/`synthetic_chart_fixture` sources and `guideline` claims cite only `guideline`
  * sources, and that the claim text is actually derivable from what is cited.
  */
 export const AnswerClaim = z.object({

@@ -328,8 +328,8 @@ button:disabled{opacity:.6;cursor:wait}
               // F9 review fix: only a document-type citation has a source
               // preview page behind it. A guideline citation's 5-key shape
               // carries no URL (the S5 corpus URL lives on the evidence item,
-              // not the claim citation), and an openemr_record
-              // citation is a chart record with no document/preview at all --
+              // not the claim citation), and an openemr_record or
+              // synthetic_chart_fixture citation is a chart record with no document/preview at all --
               // both render as plain, non-interactive text, never a link
               // that goes nowhere real.
               if (citation.source_type === 'document') {

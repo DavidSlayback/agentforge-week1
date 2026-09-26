@@ -4,6 +4,7 @@ import { recordBelongsToPatient } from './recordScope.js';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 import { assessRecordTrust } from './recordTrust.js';
+import { chartReadOrigin } from './chartSource.js';
 import { mentionsOtherPatient } from './patientMentions.js';
 
 // A neutral trace label shared by fixture and live paths. The source origin is
@@ -86,7 +87,7 @@ export class PreVisitPreparation {
     }
     // Operational adapter label only; it does not prove live OpenEMR or
     // production reachability.
-    const retrievalAdapter = this.adapter.constructor?.name === 'OpenEMRRestAdapter' ? 'openemr' : 'fixture';
+    const retrievalAdapter = chartReadOrigin(this.adapter);
     for (const group of retrieved.coverage) trace?.recordRetrievalAttempt({ adapter: retrievalAdapter, group: group.group, status: group.status, attempts: group.attempts, errorCode: group.error_class });
     const coverage = Array.isArray(retrieved.coverage) ? retrieved.coverage : [];
     trace?.finishStage('retrieval', { status: coverage.some((group) => isCoverageUnavailable(group.status)) ? 'partial' : 'success' });

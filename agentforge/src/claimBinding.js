@@ -16,7 +16,8 @@ import {
  * - A citation must carry `source_id` and `field_or_chunk_id`, and both must
  *   equal an allowed value's. `quote_or_value` (and `source_type`) are then
  *   checked for consistency; they are never an alternative way to match.
- * - `patient_fact` claims cite `document` or `openemr_record` values only.
+ * - `patient_fact` claims cite `document`, `openemr_record`, or
+ *   `synthetic_chart_fixture` values only.
  *   Each claim must contain every cited value (normalized for case, spacing,
  *   trailing zeros, and unit spacing), and every other word must be a
  *   neutral reporting word or come from the cited values themselves (closed
@@ -47,7 +48,7 @@ import {
  */
 
 const CLAIM_KINDS = new Set(['patient_fact', 'guideline', 'framing']);
-const PATIENT_SOURCE_TYPES = new Set(['document', 'openemr_record']);
+const PATIENT_SOURCE_TYPES = new Set(['document', 'openemr_record', 'synthetic_chart_fixture']);
 const MIN_GUIDELINE_SPAN_WORDS = 8;
 const UNANCHORED_REASONS = new Set([
   'UNSUPPORTED_TOKEN', 'UNSUPPORTED_NUMBER', 'UNSUPPORTED_INTERPRETATION', 'UNANCHORED_DATE', 'UNANCHORED_TERM',
