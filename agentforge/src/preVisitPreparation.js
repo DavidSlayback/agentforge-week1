@@ -1,8 +1,11 @@
-import { CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse, validateRetrievalResult } from './contracts.js';
+import { COMPLETE_COVERAGE_GROUPS, CONTRACT_VERSION, correlationId, blockedResult, coverageGroupForField, isCoverageFailure, isCoverageUnavailable, validateBriefingResponse, validateFollowUpResponse, validateRetrievalResult } from './contracts.js';
 import { verify, verifyGeneratedText } from './verifier.js';
 import { recordBelongsToPatient } from './recordScope.js';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
+import { assessRecordTrust } from './recordTrust.js';
+import { chartReadOrigin } from './chartSource.js';
+import { mentionsOtherPatient } from './patientMentions.js';
 
 // A neutral trace label shared by fixture and live paths. The source origin is
 // intentionally not implied by this cache revision.
@@ -11,8 +14,9 @@ const CACHE_SCHEDULE_REVISION = 'agentforge-calendar-v1';
 
 /** Owns the authenticated preparation, briefing, cache, and follow-up lifecycle. */
 export class PreVisitPreparation {
-  constructor({ adapter, provider, conversationProvider = null, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000 }) {
+  constructor({ adapter, provider, conversationProvider = null, traceSink, cache = new PreparationCache(), freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, now = () => Date.now() }) {
     this.adapter = adapter;
+    this.now = now;
     this.provider = provider;
     this.conversationProvider = conversationProvider;
     this.traceSink = traceSink;
@@ -83,22 +87,40 @@ export class PreVisitPreparation {
     }
     // Operational adapter label only; it does not prove live OpenEMR or
     // production reachability.
-    const retrievalAdapter = this.adapter.constructor?.name === 'OpenEMRRestAdapter' ? 'openemr' : 'fixture';
+    const retrievalAdapter = chartReadOrigin(this.adapter);
     for (const group of retrieved.coverage) trace?.recordRetrievalAttempt({ adapter: retrievalAdapter, group: group.group, status: group.status, attempts: group.attempts, errorCode: group.error_class });
     const coverage = Array.isArray(retrieved.coverage) ? retrieved.coverage : [];
     trace?.finishStage('retrieval', { status: coverage.some((group) => isCoverageUnavailable(group.status)) ? 'partial' : 'success' });
-    const expected = item.expected || {};
-    const conflictFields = findConflictingFields(retrieved.records, coverage, item.patient.patient_ref);
-    const withheld = [...new Set([...(expected.withhold_fields || []), ...conflictFields])];
-    const claims = (Array.isArray(retrieved.records) ? retrieved.records : [])
-      .filter((record) => recordBelongsToPatient(record, item.patient.patient_ref))
-      .filter((record) => !withheld.includes(record.field) && recordIsCovered(record, coverage))
-      .map((record) => ({ field: record.field, value: record.value, patient_ref: item.patient.patient_ref, source_ref: record.source_ref, evidence: [evidence(record, item.patient.patient_ref)], reassessment_documented: Boolean(record.reassessment_documented) }));
+    // No coverage group answered at all: there is no chart to brief from, so
+    // this is a stop, not a partial briefing.
+    if (!coverage.length || coverage.every((group) => isCoverageUnavailable(group.status))) {
+      const result = blockedResult(id, 'chart_retrieval_unavailable');
+      trace?.setDisplay({ status: 'withheld' });
+      trace?.complete({ status: 'blocked' });
+      return result;
+    }
+    // Every qualification, withholding, and disposition decision below is
+    // derived from the retrieved records and coverage, never from a fixture's
+    // eval expectations (W1-SF3; guarded by record-trust.test.js).
+    const patientRef = item.patient.patient_ref;
+    const coveredRecords = (Array.isArray(retrieved.records) ? retrieved.records : []).filter((record) => recordBelongsToPatient(record, patientRef) && recordIsCovered(record, coverage));
+    const conflictFields = findConflictingFields(retrieved.records, coverage, patientRef);
+    const trust = assessRecordTrust({ records: coveredRecords, referenceTime: visitReferenceTime(item, this.now) });
     const failed = coverage.filter((group) => isCoverageUnavailable(group.status));
-    const qualificationReasons = failed.length ? failed.map((group) => `${group.group}:${group.status}`) : (expected.qualification_required ? ['fixture_requires_qualification'] : []);
-    qualificationReasons.push(...conflictFields.map((field) => `conflict:${field}`));
-    const qualification = { required: Boolean(expected.qualification_required || failed.length || conflictFields.length), reasons: [...new Set(qualificationReasons)] };
-    const disposition = conflictFields.length && expected.brief_disposition === 'complete' ? 'qualified' : expected.brief_disposition || (qualification.required ? 'qualified' : 'complete');
+    const presentGroups = new Set(coverage.map((group) => group.group));
+    const withheld = [...new Set([...failed.map((group) => group.group), ...conflictFields, ...trust.withheldFields])];
+    const claims = coveredRecords
+      .filter((record) => !withheld.includes(record.field))
+      .map((record) => ({ field: record.field, value: record.value, patient_ref: patientRef, source_ref: record.source_ref, evidence: [evidence(record, patientRef)], reassessment_documented: Boolean(record.reassessment_documented) }));
+    const qualificationReasons = [
+      ...failed.map((group) => `${group.group}:${group.status}`),
+      ...conflictFields.map((field) => `conflict:${field}`),
+      ...trust.reasons,
+      ...COMPLETE_COVERAGE_GROUPS.filter((group) => !presentGroups.has(group)).map((group) => `${group}:not_retrieved`),
+      ...(coveredRecords.length ? [] : ['no_documented_records']),
+    ];
+    const qualification = { required: qualificationReasons.length > 0, reasons: [...new Set(qualificationReasons)] };
+    const disposition = coverage.some((group) => isCoverageFailure(group.status)) ? 'partial' : qualification.required ? 'qualified' : 'complete';
     const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: authorization.clinician_uuid, authorized: true, authorization_source: authorization.source }, patient: item.patient, disposition, claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: this.adapter.name === 'openemr-rest' ? 'retrieve_openemr_read' : 'retrieve_synthetic_fixture_read' }] };
     response.comparison = buildComparison(claims);
     trace?.startStage('verification');
@@ -207,6 +229,16 @@ export class PreVisitPreparation {
       trace?.complete({ status: 'blocked' });
       return result;
     }
+    // A question that names another patient is refused before any chart
+    // evidence is selected, so neither patient's data is disclosed (W1-SF4).
+    const knownPatients = typeof this.adapter.listPatientIdentifiers === 'function' ? this.adapter.listPatientIdentifiers() : [];
+    if (mentionsOtherPatient({ message: request.message, currentPatient: cacheResult.entry.response.patient, knownPatients })) {
+      const result = blockedResult(id, 'out_of_scope_patient');
+      trace?.setCache({ status: cacheResult.status });
+      trace?.setDisplay({ status: 'withheld' });
+      trace?.complete({ status: 'blocked' });
+      return result;
+    }
     if (cacheResult.status === 'stale') {
       trace?.setCache({ status: 'stale', staleDiscarded: true });
       // Remove expired evidence before refresh; only a verified fresh response
@@ -280,6 +312,15 @@ function completeTraceFailure(trace, stage = null) {
   } catch {
     // Trace persistence must never mask the original request failure.
   }
+}
+
+/**
+ * The time a record's freshness is judged at: the visit being prepared for
+ * when the chart supplies its date (`current_visit_at`), else the clock.
+ */
+function visitReferenceTime(item, now) {
+  const visitAt = Date.parse(item?.current_visit_at);
+  return Number.isFinite(visitAt) ? visitAt : now();
 }
 
 function evidence(record, patientRef) {

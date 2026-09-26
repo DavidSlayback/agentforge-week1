@@ -27,6 +27,10 @@ export class OpenEMRRestAdapter {
     this.name = 'openemr-rest';
   }
 
+  // No `listPatientIdentifiers()`: this adapter cannot list patients, so the
+  // other-patient question check (patientMentions.js) sees only identifier
+  // shapes (synthetic refs, UUIDs) here, never another patient's name or MRN.
+
   /** Validate caller context; this adapter does not establish or bind a
    * clinician's OpenEMR session to the request identity. */
   authorize(request, verifiedContext = null, options = {}) {
@@ -51,7 +55,7 @@ export class OpenEMRRestAdapter {
     const returnedRefs = [patientRecord.uuid, patientRecord.puuid, patientRecord.patient_uuid, patientRecord.pid, patientRecord.patient_id, patientRecord.id].filter((value) => value !== undefined && value !== null && String(value));
     if (!returnedRefs.length || !returnedRefs.some((value) => String(value) === String(patientRef))) throw new Error('PATIENT_SCOPE_MISMATCH');
     const patient = normalizePatient(patientRecord, patientRef);
-    return { id: `openemr-${patientRef}`, patient: publicPatient(patient), openemr_patient: patient, expected: {} };
+    return { id: `openemr-${patientRef}`, patient: publicPatient(patient), openemr_patient: patient };
   }
 
   /**

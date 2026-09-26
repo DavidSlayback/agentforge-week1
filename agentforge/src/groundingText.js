@@ -150,7 +150,8 @@ export function toAllowedFact(entry) {
   const evidence = Array.isArray(entry.evidence) ? entry.evidence : [];
   const rawValue = entry.value ?? '';
   return {
-    sourceType: entry.source_type ?? 'openemr_record',
+    // Unknown origin stays unknown: never default a record to an OpenEMR read.
+    sourceType: entry.source_type ?? null,
     sourceId: entry.source_ref ?? entry.source_id ?? entry.id ?? null,
     field: entry.field ?? null,
     value: typeof rawValue === 'string' ? rawValue : JSON.stringify(rawValue),

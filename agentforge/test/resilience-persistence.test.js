@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { startTestServer } from './helpers/testServer.js';
 
 const agentforgeRoot = fileURLToPath(new URL('..', import.meta.url));
-const port = 18796;
+const port = 18911;
 
 const startServer = (tracePath) => startTestServer(port, { AGENTFORGE_TRACE_PATH: tracePath });
 

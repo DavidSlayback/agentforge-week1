@@ -267,7 +267,7 @@ narrative behind each group.
 
 | Name | Purpose | Default | Required? | Secret? |
 |---|---|---|---|---|
-| `AGENTFORGE_ALERT_P95_MS` / `AGENTFORGE_ALERT_ERROR_RATE` / `AGENTFORGE_ALERT_TOOL_FAILURE_RATE` / `AGENTFORGE_ALERT_WINDOW_MS` | Dashboard alert thresholds | `2000` / `0.05` / `0.02` / 5 min | No | No |
+| `AGENTFORGE_ALERT_P95_MS` / `AGENTFORGE_ALERT_ERROR_RATE` / `AGENTFORGE_ALERT_TOOL_FAILURE_RATE` / `AGENTFORGE_ALERT_WINDOW_MS` | Dashboard alert thresholds | `2000` / `0.05` / `0.02` / 5 min; the `agentforge-w2` compose service sets `AGENTFORGE_ALERT_P95_MS=30000` (the `KEY_METRICS.md` p95 target; override with `AGENTFORGE_W2_ALERT_P95_MS`) | No | No |
 | `LANGFUSE_BASE_URL` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_TIMEOUT_MS` / `LANGFUSE_MAX_PENDING_EXPORTS` | Optional self-hosted Langfuse export (all three of the first must be set together) | disabled | No | Secret key: yes |
 
 **Test-only** (never set in a deployed environment): `AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE`, `AGENTFORGE_TEST_INVALID_ANSWER`, `AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION`, `AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE` — force specific failure paths in tests.

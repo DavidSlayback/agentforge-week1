@@ -234,7 +234,7 @@ export async function scoreDocumentCase(testCase) {
  *   - `guideline`: the corpus has a chunk with this `source_id`, that chunk
  *     carries a URL, and the citation's quote is verbatim inside the chunk's
  *     own text.
- *   - `openemr_record`: the chart (re-fetched live from this run's own
+ *   - `openemr_record` / `synthetic_chart_fixture`: the chart (re-fetched from this run's own
  *     chart adapter, the same source `composeGroundedAnswer` read from) has
  *     a fact whose citation matches exactly -- there is no page/bounding-box
  *     concept for a chart record, so resolvability here means "the record
@@ -249,6 +249,8 @@ export async function scoreDocumentCase(testCase) {
  *     check can confirm; this is stated here so it is never mistaken for a
  *     full page-render check.
  */
+const CHART_RECORD_SOURCE_TYPES = new Set(['openemr_record', 'synthetic_chart_fixture']);
+
 function resolveCitation({ run, citation, corpus, kind, docId }) {
   const base = { document: docId, claim_kind: kind, source_type: citation.source_type };
   if (citation.source_type === 'guideline') {
@@ -256,12 +258,12 @@ function resolveCitation({ run, citation, corpus, kind, docId }) {
     const resolved = Boolean(chunk && chunk.url && chunk.text.includes(citation.quote_or_value));
     return { ...base, resolved };
   }
-  if (citation.source_type === 'openemr_record') {
+  if (CHART_RECORD_SOURCE_TYPES.has(citation.source_type)) {
     // Synchronous-enough for our purposes: the fixture chart adapter never
     // does real I/O, so this is safe to treat as resolved-or-not without an
     // extra await plumbed through the caller (chart facts were already
     // fetched once, identically, when this run composed its own answer).
-    return { ...base, resolved: true, note: 'openemr_record has no page geometry; resolved by construction from the same chart read the answer used' };
+    return { ...base, resolved: true, note: 'a chart record has no page geometry; resolved by construction from the same chart read the answer used' };
   }
   const sourceId = run.sourceIds[0];
   const doc = run.docs[0];
@@ -297,7 +299,7 @@ export async function measureKeyMetrics({ caseIds } = {}) {
   const allResolvability = perDocument.flatMap((doc) => doc.resolvability);
   // Chart-record citations "resolve" by construction offline (see
   // resolveCitation), so they would only inflate the rate; count them apart.
-  const resolvability = allResolvability.filter((item) => item.source_type !== 'openemr_record');
+  const resolvability = allResolvability.filter((item) => !CHART_RECORD_SOURCE_TYPES.has(item.source_type));
 
   const refusalDocumentsCountedAsMisses = perDocument
     .filter((doc) => !doc.hadAnswer && (doc.labFields.length || doc.intakeFields.length))
@@ -332,7 +334,7 @@ export async function measureKeyMetrics({ caseIds } = {}) {
   const citationResolvabilityOffline = {
     definition: 'Share of this run\'s (deterministic-composer) answer claims whose citation resolves to its exact source: a document/`.scan.txt` field\'s bounding box lies within its page and matches the real quoted OCR line (guideline: the corpus has that chunk, it carries a URL, and the quote is verbatim in it; openemr_record: the fact really exists in the chart this run read).',
     ...sumRate(resolvability.map((item) => ({ hit: item.resolved }))),
-    openemr_record_citations_not_scored: allResolvability.length - resolvability.length,
+    chart_record_citations_not_scored: allResolvability.length - resolvability.length,
     unresolved: resolvability.filter((item) => !item.resolved).map(({ document, claim_kind, source_type, issues }) => ({ document, claim_kind, source_type, issues })),
   };
 

@@ -198,6 +198,10 @@ services:
       AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT: ${AGENTFORGE_GEMINI_SCAN_DAILY_LIMIT:-12}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       AGENTFORGE_TRACE_PATH: /tmp/agentforge-w2-traces.json
+      # W1-C3: the 2000 ms server default fires on every W2 scan (p50 11.1 s,
+      # p95 22.1 s). 30000 ms is the KEY_METRICS.md p95 target for time to a
+      # grounded answer. The frozen W1 service keeps its own default.
+      AGENTFORGE_ALERT_P95_MS: ${AGENTFORGE_W2_ALERT_P95_MS:-30000}
       AGENTFORGE_PERSISTENCE_MODE: openemr-module
       AGENTFORGE_OPENEMR_MODULE_URL: http://openemr/interface/modules/custom_modules/oe-module-agentforge/public/api.php
       AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS: ${AGENTFORGE_OPENEMR_MODULE_TIMEOUT_MS:-15000}

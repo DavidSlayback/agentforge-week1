@@ -21,7 +21,7 @@ test('renders partial qualification and exposes a cross-patient block probe', as
     const partial = await fetch(`http://127.0.0.1:${port}/v1/briefings`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(authorized('fixture-patient-006', context.demo_token, { case_id: 'partial_retrieval' })) }).then((response) => response.json());
     assert.equal(partial.disposition, 'partial');
     assert.equal(partial.qualification.required, true);
-    assert.deepEqual(partial.withheld_fields, ['encounter_summary', 'note_summary']);
+    assert.deepEqual(partial.withheld_fields, ['encounters', 'notes']);
     const otherContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
     const blocked = await fetch(`http://127.0.0.1:${port}/v1/conversations/${partial.correlation_id}/messages`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(authorized('fixture-patient-001', otherContext.demo_token, { message: 'What changed?' })) }).then((response) => response.json());
     assert.equal(blocked.disposition, 'blocked');

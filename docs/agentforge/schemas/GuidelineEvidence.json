@@ -64,7 +64,8 @@
           "enum": [
             "document",
             "guideline",
-            "openemr_record"
+            "openemr_record",
+            "synthetic_chart_fixture"
           ]
         },
         "source_id": {
