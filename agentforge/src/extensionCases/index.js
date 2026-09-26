@@ -1,6 +1,7 @@
 import { clickToSourceCases } from './clickToSource.js';
 import { retrievalCases } from './retrieval.js';
 import { criticCases } from './critic.js';
+import { medicationListCases } from './medicationList.js';
 
 /**
  * The W2 extension suite (D12): cases for the PRD's p.5-6 extension items,
@@ -14,5 +15,6 @@ export function buildExtensionCases(helpers) {
     ...clickToSourceCases(helpers),
     ...retrievalCases(helpers),
     ...criticCases(helpers),
+    ...medicationListCases(helpers),
   ];
 }

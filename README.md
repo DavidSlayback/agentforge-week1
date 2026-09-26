@@ -44,17 +44,20 @@ reimplements OpenEMR's PHP patient dashboard on its REST/FHIR API. It runs at
 [`PATIENT_DASHBOARD_MIGRATION.md`](PATIENT_DASHBOARD_MIGRATION.md), and the
 code is in [`dashboard/`](dashboard/README.md).
 
-**Sample documents.** Four synthetic filled PDFs exercise both document types
-and both OCR layouts — a vector-text layout and a rasterized-page layout that
+**Sample documents.** Six synthetic filled PDFs exercise the three document
+types (lab report, intake form, medication list) and both OCR layouts — a vector-text layout and a rasterized-page layout that
 exercises real OCR over pixels:
 
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-a.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-a.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-b.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-b.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-a.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-a.pdf)
 - [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-b.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-intake-b.pdf)
+- [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-a.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-a.pdf)
+- [`docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-b.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-b.pdf)
 
 The deployed UI's home page has a "Run this sample" button and a download
-link for each of the four, so a grader never has to find these files on
+link for each of the six (the two medication lists once this branch is
+deployed), so a grader never has to find these files on
 disk to try the flow.
 
 **5-step demo**
@@ -104,7 +107,7 @@ the full gate rubric.
 | | Route / service | What it does | Status |
 |---|---|---|---|
 | **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing: reads structured OpenEMR chart data (read-only adapter), synthesizes a pre-visit summary, verifies every clinical sentence against a source value before showing it. | Frozen at commit `84f232b`, its own pinned image (`agentforge-w1:84f232b`). Not part of this submission's changes; documented here only to distinguish it from Week 2. |
-| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | Everything Week 1 does, plus: document upload (lab PDF / intake form) with OCR extraction and citations, OpenEMR persistence through `oe-module-agentforge`, a supervisor + two-worker graph, hybrid guideline retrieval with rerank, a structurally-verified grounded answer, and the 50-case eval gate. | This submission. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block; Week 1's `agentforge` service is untouched and stays synthetic-only. |
+| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | Everything Week 1 does, plus: document upload (lab PDF / intake form / medication list) with OCR extraction and citations, OpenEMR persistence through `oe-module-agentforge`, a supervisor + two-worker graph, hybrid guideline retrieval with rerank, a structurally-verified grounded answer, and the 50-case eval gate. | This submission. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block; Week 1's `agentforge` service is untouched and stays synthetic-only. |
 
 Both services run from the same repository and the same OpenEMR instance;
 Caddy routes `/agentforge-w2` and `/agentforge` to their separate containers,

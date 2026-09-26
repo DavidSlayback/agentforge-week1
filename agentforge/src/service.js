@@ -212,7 +212,7 @@ export class AgentForgeService {
         let answer = null;
         try {
           const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref).catch(() => ({ patient_facts: [] }));
-          const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [] };
+          const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, medicationList: extraction?.medication_list || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [] };
           answerParts = partitionAnswerInputs(inputs);
           const liveProviderBlocked = liveExternalBlocked && this.answerProvider && this.answerProvider.name !== 'deterministic' && this.answerProvider.name !== 'deterministic-answer-composer';
           answer = await composeGroundedAnswer(

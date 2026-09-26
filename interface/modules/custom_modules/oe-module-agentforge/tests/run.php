@@ -749,5 +749,81 @@ check('dispatcher: request signatures and context tokens use separate secrets', 
     same([401, 'context_invalid'], [$status, $body['error']]);
     same([], $chart->writes);
 });
+// ---------------------------------------------------------------------------
+// E4: medication_list, the third source document type. Stored like the
+// other sources; its medications reach the chart only through the
+// clinician-confirmed clinical-list-items route (A3), and only as medications.
+// ---------------------------------------------------------------------------
+
+check('document type: medication_list is a source type stored as a Medical Record PDF or scan envelope', function () use ($docBody): void {
+    same(DocumentType::MedicationList, DocumentType::from('medication_list'));
+    same('Medical Record', DocumentType::MedicationList->categoryName());
+    same(['application/pdf', 'text/plain'], DocumentType::MedicationList->allowedMimeTypes());
+    same('doc:medication_list', DocumentType::MedicationList->ledgerOperation());
+    same([DocumentType::LabPdf, DocumentType::IntakeForm, DocumentType::MedicationList], DocumentType::sourceTypes());
+    same([ListItemKind::Medication], DocumentType::MedicationList->confirmableListItemKinds());
+    same([ListItemKind::Medication, ListItemKind::Allergy], DocumentType::IntakeForm->confirmableListItemKinds());
+    same([], DocumentType::LabPdf->confirmableListItemKinds());
+    $request = DocumentWriteRequest::fromBody($docBody(['document_type' => 'medication_list', 'filename' => 'filled-medlist-a.pdf']));
+    same(DocumentType::MedicationList, $request->documentType);
+    throwsApiError(fn() => DocumentWriteRequest::fromBody($docBody(['document_type' => 'medication_list', 'mime_type' => 'application/json'])), 400, 'invalid_request');
+});
+
+/**
+ * @return array<string, mixed>
+ */
+function medlistBody(string $patient, string $bytes = "%PDF-1.4\nsynthetic medication list\n"): array
+{
+    return ['document_type' => 'medication_list', 'filename' => 'filled-medlist-a.pdf'] + pdfBody($patient, $bytes);
+}
+
+/**
+ * @param list<array{kind: string, title: string, field_id: string}> $items
+ * @return array<string, mixed>
+ */
+function listItemsBody(string $patient, int $sourceId, array $items): array
+{
+    return ['patient_uuid' => $patient, 'source_document_id' => $sourceId, 'confirmation_event_id' => 'confirm-medlist-1', 'items' => $items];
+}
+
+check('dispatcher: a medication list and its derived facts are stored idempotently (a re-upload returns the same ids)', function (): void {
+    [$api, , $chart] = makeApi();
+    [$status, $source] = call($api, 'POST', ['route' => 'documents'], medlistBody(PATIENT_A), contextToken(PATIENT_A));
+    same([201, 57], [$status, $source['document_id']]);
+    [$status, $again] = call($api, 'POST', ['route' => 'documents'], medlistBody(PATIENT_A), contextToken(PATIENT_A));
+    same([200, 'duplicate', 57], [$status, $again['status'], $again['document_id']]);
+    [$status, $derived] = call($api, 'POST', ['route' => 'documents'], derivedBody(PATIENT_A, 57), contextToken(PATIENT_A));
+    same([201, 58], [$status, $derived['document_id']]);
+    [$status, $derivedAgain] = call($api, 'POST', ['route' => 'documents'], derivedBody(PATIENT_A, 57), contextToken(PATIENT_A));
+    same([200, 58], [$status, $derivedAgain['document_id']]);
+    same(['document:1:57', 'document:1:58'], $chart->writes, 'two writes, no list items');
+    same([200, 57], [call($api, 'GET', ['route' => 'documents', 'patient_uuid' => PATIENT_A, 'document_id' => '57'], null, contextToken(PATIENT_A))[0], 57]);
+});
+
+check('dispatcher: medication-list items reach the chart only as clinician-confirmed medications', function (): void {
+    [$api, , $chart] = makeApi();
+    call($api, 'POST', ['route' => 'documents'], medlistBody(PATIENT_A), contextToken(PATIENT_A));
+    $medication = ['kind' => 'medication', 'title' => 'Metformin 500 mg twice daily oral', 'field_id' => 'medication.1'];
+    // A source-document token cannot write list items; the confirm lane needs write-clinical-action.
+    same(403, call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [$medication]), contextToken(PATIENT_A))[0]);
+    // A medication list never yields an allergy entry.
+    [$status, $body] = call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [$medication, ['kind' => 'allergy', 'title' => 'Penicillin', 'field_id' => 'allergy.1']]), contextToken(PATIENT_A, 'write-clinical-action'));
+    same([400, 'invalid_request'], [$status, $body['error']]);
+    same(['document:1:57'], $chart->writes, 'nothing reached the chart');
+    [$status, $body] = call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [$medication]), contextToken(PATIENT_A, 'write-clinical-action'));
+    same([201, 'created'], [$status, $body['status']]);
+    [$status, $body] = call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [$medication]), contextToken(PATIENT_A, 'write-clinical-action'));
+    same([200, 'duplicate'], [$status, $body['status']]);
+    same(['document:1:57', 'list:1:medication'], $chart->writes);
+});
+
+check('dispatcher: a lab report is not a list-item source', function (): void {
+    [$api, , $chart] = makeApi();
+    call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A));
+    [$status, $body] = call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [['kind' => 'medication', 'title' => 'Metformin', 'field_id' => 'medication.1']]), contextToken(PATIENT_A, 'write-clinical-action'));
+    same([404, 'document_not_found'], [$status, $body['error']]);
+    same(['document:1:57'], $chart->writes);
+});
+
 echo "\n$passes passed, $failures failed\n";
 exit($failures === 0 ? 0 : 1);

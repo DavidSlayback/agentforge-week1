@@ -1,7 +1,7 @@
-import { Citation, IntakeForm, LabResult, ScanExtractionMetadata, parseOrIssues } from './schemas.js';
+import { Citation, IntakeForm, LabResult, MedicationList, ScanExtractionMetadata, parseOrIssues } from './schemas.js';
 
 export const SCAN_FORM_CONTRACT_VERSION = 'w2-scan-v1';
-export const SCAN_DOCUMENT_TYPES = Object.freeze(['lab_pdf', 'intake_form']);
+export const SCAN_DOCUMENT_TYPES = Object.freeze(['lab_pdf', 'intake_form', 'medication_list']);
 export const EXTRACTION_STATUSES = Object.freeze(['complete', 'partial', 'qualified', 'blocked']);
 export const FIELD_DISPOSITIONS = Object.freeze(['observed', 'missing', 'unreadable', 'conflicting']);
 export const SCAN_SOURCE_CLASSES = Object.freeze(['synthetic_fixture', 'public_blank']);
@@ -9,12 +9,24 @@ export const SCAN_SOURCE_CLASSES = Object.freeze(['synthetic_fixture', 'public_b
 export const REQUIRED_SCAN_FIELDS = Object.freeze({
   lab_pdf: Object.freeze(['lab.hgb', 'lab.a1c']),
   intake_form: Object.freeze(['chief_concern', 'medication.metformin', 'allergy.penicillin']),
+  // A medication list must show its date and at least one fully read row.
+  medication_list: Object.freeze(['medlist.list_date', 'medication.1.name', 'medication.1.dose', 'medication.1.unit', 'medication.1.frequency', 'medication.1.route']),
 });
 
 export const PDF_SCAN_FIELDS = Object.freeze({
   lab_pdf: Object.freeze(['lab.hgb.test_name', 'lab.hgb.value', 'lab.hgb.unit', 'lab.hgb.reference_range', 'lab.hgb.collection_date', 'lab.hgb.abnormal', 'lab.a1c.test_name', 'lab.a1c.value', 'lab.a1c.unit', 'lab.a1c.reference_range', 'lab.a1c.collection_date', 'lab.a1c.abnormal']),
   intake_form: Object.freeze(['patient.name', 'patient.date_of_birth', 'patient.phone', 'chief_concern', 'medications', 'allergies', 'family_history']),
+  medication_list: REQUIRED_SCAN_FIELDS.medication_list,
 });
+
+/**
+ * Fields a medication list may carry beyond its required ones: the optional
+ * prescriber/source, the printed patient identity, and every part of any row
+ * (`medication.<n>.<part>`, n = 1..99). Only row 1 is required, because a
+ * list may hold any number of rows.
+ */
+const MEDICATION_LIST_OPTIONAL_FIELDS = new Set(['medlist.prescriber_or_source', 'patient.name', 'patient.date_of_birth']);
+export const MEDICATION_ROW_FIELD = /^medication\.([1-9][0-9]?)\.(name|dose|unit|frequency|route)$/;
 
 export const EXTERNAL_FORM_FIELDS = Object.freeze({
   'external-lab-hawaii': Object.freeze(['submitter.name', 'submitter.organization', 'patient.patient_id', 'patient.name', 'patient.date_of_birth', 'specimen.specimen_id', 'specimen.date_collected', 'specimen.source', 'specimen.description', 'specimen.analysis_requested']),
@@ -26,6 +38,13 @@ export const EXTERNAL_FORM_FIELDS = Object.freeze({
 export function requiredScanFields({ documentType, layoutId } = {}) {
   if (layoutId === `pdf-ocr-${documentType}`) return PDF_SCAN_FIELDS[documentType] || [];
   return EXTERNAL_FORM_FIELDS[layoutId] || REQUIRED_SCAN_FIELDS[documentType] || [];
+}
+
+/** Whether `fieldId` may appear in an extraction of this document type and layout. */
+export function allowedScanField({ documentType, layoutId, fieldId } = {}) {
+  if (requiredScanFields({ documentType, layoutId }).includes(fieldId)) return true;
+  if (documentType !== 'medication_list') return false;
+  return MEDICATION_LIST_OPTIONAL_FIELDS.has(fieldId) || MEDICATION_ROW_FIELD.test(String(fieldId || ''));
 }
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -82,8 +101,7 @@ export function validateScanExtraction(value, { sourceDocumentId = null, documen
   if ('page_sizes' in value) issues.push(...parseOrIssues(ScanExtractionMetadata, { page_sizes: value.page_sizes }).issues.map((issue) => `page_sizes_${issue}`));
   if (Array.isArray(value.facts)) value.facts.forEach((fact) => issues.push(...validateExtractedField(fact, { sourceDocumentId }).issues));
   if (documentType && Array.isArray(value.facts)) {
-    const allowed = new Set(requiredScanFields({ documentType, layoutId }));
-    value.facts.forEach((fact) => { if (!allowed.has(fact.field_id)) issues.push(`unexpected_field:${fact.field_id}`); });
+    value.facts.forEach((fact) => { if (!allowedScanField({ documentType, layoutId, fieldId: fact.field_id })) issues.push(`unexpected_field:${fact.field_id}`); });
   }
   if (!isRecord(value.metrics)) issues.push('metrics_must_be_object');
   else for (const field of ['pages', 'candidate_fields', 'accepted_fields', 'duration_ms']) if (!Number.isFinite(value.metrics[field]) || value.metrics[field] < 0) issues.push(`metrics_${field}_invalid`);
@@ -95,6 +113,7 @@ export function validateScanExtraction(value, { sourceDocumentId = null, documen
     else value.lab_results.forEach((result, index) => issues.push(...parseOrIssues(LabResult, result).issues.map((issue) => `lab_results[${index}].${issue}`)));
   }
   if ('intake_form' in value && value.intake_form !== null) issues.push(...parseOrIssues(IntakeForm, value.intake_form).issues.map((issue) => `intake_form.${issue}`));
+  if ('medication_list' in value && value.medication_list !== null) issues.push(...parseOrIssues(MedicationList, value.medication_list).issues.map((issue) => `medication_list.${issue}`));
   return { valid: issues.length === 0, issues: [...new Set(issues)] };
 }
 

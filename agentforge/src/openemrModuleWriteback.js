@@ -12,7 +12,7 @@ export const LAB_LOINC_MAP = Object.freeze({
   'lab.a1c': Object.freeze({ code: '4548-4', display: 'Hemoglobin A1c/Hemoglobin.total in Blood' }),
 });
 
-const SOURCE_TYPES = new Set(['lab_pdf', 'intake_form']);
+const SOURCE_TYPES = new Set(['lab_pdf', 'intake_form', 'medication_list']);
 const OPENEMR_DOCUMENT_ID = /^openemr-doc-([1-9][0-9]{0,15})$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // Module tokens are minted a little under the module's 300 s ceiling.
@@ -85,8 +85,23 @@ export function derivedFactsDocument({ sourceDocument, extraction }) {
     facts: (extraction.facts || []).map((fact) => ({ field_id: fact.field_id, value: fact.value, confidence: fact.confidence, citation: fact.citation })),
     lab_results: extraction.lab_results || [],
     intake_form: extraction.intake_form ?? null,
+    medication_list: extraction.medication_list ?? null,
     review_status: 'not_clinician_reviewed',
   };
+}
+
+/**
+ * The clinical-list-items payload a clinician would confirm for a typed
+ * `MedicationList` (A3): one `medication` item per row, titled with the
+ * printed row parts. It is only ever sent by `confirmClinicalListItems` after
+ * an explicit confirm; `persistDerivedEvidence` never writes list items.
+ */
+export function medicationListItemsForConfirmation(medicationList) {
+  return (medicationList?.medications || []).map((item) => ({
+    kind: 'medication',
+    title: ['name', 'dose', 'unit', 'frequency', 'route'].filter((key) => item[key]?.status === 'observed').map((key) => item[key].value).join(' '),
+    field_id: /^(medication\.\d+)\./.exec(item.citation?.field_or_chunk_id || '')?.[1] || 'medication',
+  }));
 }
 
 /** Every stored result must come back from OpenEMR's FHIR service with the same code and value. */
@@ -208,6 +223,8 @@ export class OpenEMRModuleWriteback {
    * After extraction: store the derived-facts JSON (linked to the source) and,
    * for a lab PDF, the lab results as procedure rows, then read the results
    * back through OpenEMR's FHIR service and require every value to match.
+   * Intake and medication-list items are never written here: they reach the
+   * chart only through `confirmClinicalListItems` (A3).
    */
   async persistDerivedEvidence({ patientRef, sourceDocument, extraction, verifiedContext = null }) {
     const sourceId = openemrDocumentNumber(sourceDocument?.id);
@@ -247,7 +264,7 @@ export class OpenEMRModuleWriteback {
   confirmClinicalAction(id, input) { return this.clinicalActionStore.confirm(id, input); }
   getClinicalAction(id, options) { return this.clinicalActionStore.get(id, options); }
 
-  /** A3: only clinician-confirmed intake items. Implemented; not yet called from the clinical-action lane. */
+  /** A3: only clinician-confirmed intake or medication-list items (a medication list yields medications only; the module enforces it). Implemented; not yet called from the clinical-action lane. */
   async confirmClinicalListItems({ patientRef, sourceDocumentId, confirmationEventId, items, verifiedContext = null }) {
     const documentId = openemrDocumentNumber(sourceDocumentId);
     if (!documentId) throw codedError('DOCUMENT_NOT_FOUND');

@@ -1,0 +1,63 @@
+# E4 medication_list: deliberate-regression proof
+# branch agentforge/e4-medlist, HEAD e3d7b8f9 (rebased on staging/main 250a881c, after E2/E3/E6 merged), 2026-09-26T14:04:22Z
+
+## 1. clean: npm run eval:extensions
+passed=true total_cases=28 baseline_mismatch=false
+[]
+exit=0
+
+## 2. mapping regression in agentforge/src/pdfScanAdapter.js parseMedicationRow: the frequency part of a row is no longer mapped
+### 2a. unit tests: node --test test/medication-list.test.js
+ℹ fail 6
+ℹ pass 19
+ℹ tests 25
+✖ a dropped medication row keeps the list QUALIFIED extraction_incomplete: unlabeled row, out-of-range number, gap in the numbering (1.9897ms)
+✖ a medication list is checked against the chart on its printed identity: match, mismatch, unverified; zero fields is BLOCKED (1.2819ms)
+✖ a missing prescriber and a row with no route are not_found_on_form, never invented, and the extraction is not complete (1.2544ms)
+✖ medication list OCR rows map to typed rows with per-field confidence and a verbatim row citation (8.4337ms)
+✖ medication-list extension checks pass on the golden medication lists and catch tampered values, citations and identity (18.5949ms)
+✖ summarizeExtractionConfidence counts medication-list fields (2.1404ms)
+
+### 2b. extension suite
+passed=false total_cases=28 baseline_mismatch=false
+[["x3-sv-01-medlist-a-typed",["extraction_status_partial","typed_issues_present"]],["x3-sv-02-medlist-b-typed",["extraction_status_partial","typed_issues_present"]],["x3-fc-01-medlist-a-values",["medication[0].frequency_mismatch","medication[1].frequency_mismatch","medication[2].frequency_mismatch"]],["x3-fc-02-medlist-b-values",["medication[0].frequency_mismatch","medication[1].frequency_mismatch","medication[2].frequency_mismatch"]]]
+exit=1
+
+### 2c. enforced gate: git commit of this regression through .githooks/pre-commit
+exit=1 (non-zero: commit blocked); HEAD still e3d7b8f9
+ℹ tests 514
+ℹ pass 504
+ℹ fail 7
+
+## 3. review fix 1 regression: unreadMedicationRows is no longer written to the scan envelope
+ℹ fail 1
+ℹ pass 24
+ℹ tests 25
+✖ a dropped medication row keeps the list QUALIFIED extraction_incomplete: unlabeled row, out-of-range number, gap in the numbering (1.0266ms)
+passed=false total_cases=28 baseline_mismatch=false
+[["x3-sr-07-medlist-unlabeled-row",["refusal_case_reported_ready","final_state_READY_expected_QUALIFIED","reason_missing:extraction_incomplete"]]]
+exit=1
+
+## 4. review fix 2 regression: documentSafety.js as of 23e9b39d (before fix 2: medication words count without a list anchor)
+ℹ fail 1
+ℹ pass 24
+ℹ tests 25
+✖ an intake with a "Current medications (name, dose, frequency, route)" table and a pharmacy line is detected as an intake, declared either way (0.7256ms)
+
+## 5. module (PHP) regression: storeClinicalListItems no longer rejects an allergy item from a medication-list source
+FAIL - dispatcher: medication-list items reach the chart only as clinician-confirmed medications:  expected array (
+52 passed, 1 failed
+
+## 6. all reverted
+git status: 0 changed files
+ℹ fail 0
+ℹ pass 25
+ℹ tests 25
+passed=true total_cases=28 baseline_mismatch=false
+[]
+exit=0
+53 passed, 0 failed
+
+## 7. 50-case golden gate unchanged (corpus hash equals main's)
+passed=true total_cases=50 baseline_mismatch=false corpus_sha256=63e8c8ebd61016dac2bad07ed357b0529a7c67eea97f189be132486379fc916a
+[]

@@ -1,0 +1,181 @@
+{
+ "schema_version": "agentforge-golden-ocr-v1",
+ "document_id": "medlist-b",
+ "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-b.pdf",
+ "pdf_sha256": "b59d9f00408759cd7d66d024fb39c7691c350605500352f9d855de8fc2dcbddb",
+ "engine": "tesseract-local-pdf",
+ "tools": {
+  "tesseract": "tesseract 5.5.2",
+  "pdftoppm": "pdftoppm version 25.12.0"
+ },
+ "page_count": 1,
+ "pages": [
+  {
+   "page": 1,
+   "width": 1700,
+   "height": 2200,
+   "lines": [
+    {
+     "words": [
+      "CURRENT",
+      "MEDICATION",
+      "LIST",
+      "-",
+      "PHARMACY",
+      "RECORD",
+      "COPY",
+      ";"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 172,
+     "right": 1457,
+     "bottom": 201,
+     "confidence": 0.12544829999999998,
+     "text": "CURRENT MEDICATION LIST - PHARMACY RECORD COPY ;"
+    },
+    {
+     "words": [
+      "Name:",
+      "Test",
+      "Patient",
+      "One"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 334,
+     "right": 582,
+     "bottom": 362,
+     "confidence": 0.91071388,
+     "text": "Name: Test Patient One"
+    },
+    {
+     "words": [
+      "DOB:",
+      "1980-04-12"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 435,
+     "right": 467,
+     "bottom": 462,
+     "confidence": 0.89977272,
+     "text": "DOB: 1980-04-12"
+    },
+    {
+     "words": [
+      "Reviewed",
+      "on:",
+      "2026-09-23"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 533,
+     "right": 602,
+     "bottom": 562,
+     "confidence": 0.90539085,
+     "text": "Reviewed on: 2026-09-23"
+    },
+    {
+     "words": [
+      "Source:",
+      "Northwind",
+      "Pharmacy",
+      "dispensing",
+      "record"
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 633,
+     "right": 973,
+     "bottom": 670,
+     "confidence": 0.91319366,
+     "text": "Source: Northwind Pharmacy dispensing record"
+    },
+    {
+     "words": [
+      "Rx",
+      "1:",
+      "Levothyroxine",
+      "75",
+      "mcg",
+      "once",
+      "daily",
+      "by",
+      "mouth"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 733,
+     "right": 975,
+     "bottom": 770,
+     "confidence": 0.86139572,
+     "text": "Rx 1: Levothyroxine 75 mcg once daily by mouth"
+    },
+    {
+     "words": [
+      "Rx",
+      "2:",
+      "Albuterol",
+      "90",
+      "mcg",
+      "every",
+      "6",
+      "hours",
+      "as",
+      "needed",
+      "inhaled"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 833,
+     "right": 1084,
+     "bottom": 870,
+     "confidence": 0.89782883,
+     "text": "Rx 2: Albuterol 90 mcg every 6 hours as needed inhaled"
+    },
+    {
+     "words": [
+      "Rx",
+      "3:",
+      "Metformin",
+      "1000",
+      "mg",
+      "twice",
+      "daily",
+      "by",
+      "mouth"
+     ],
+     "page": 1,
+     "left": 203,
+     "top": 933,
+     "right": 942,
+     "bottom": 970,
+     "confidence": 0.88498489,
+     "text": "Rx 3: Metformin 1000 mg twice daily by mouth"
+    },
+    {
+     "words": [
+      "Fictional",
+      "values",
+      "for",
+      "software",
+      "demonstration.",
+      "Not",
+      "a",
+      "real",
+      "patient",
+      "record."
+     ],
+     "page": 1,
+     "left": 202,
+     "top": 2038,
+     "right": 926,
+     "bottom": 2061,
+     "confidence": 0.90605255,
+     "text": "Fictional values for software demonstration. Not a real patient record."
+    }
+   ]
+  }
+ ]
+}

@@ -11,7 +11,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { Citation, GuidelineEvidence, IntakeForm, LabResult } from '../src/schemas.js';
+import { Citation, GuidelineEvidence, IntakeForm, LabResult, MedicationList } from '../src/schemas.js';
 
 const outputDir = fileURLToPath(new URL('../../docs/agentforge/schemas/', import.meta.url));
 
@@ -19,6 +19,7 @@ const SCHEMAS = {
   Citation,
   LabResult,
   IntakeForm,
+  MedicationList,
   GuidelineEvidence,
 };
 

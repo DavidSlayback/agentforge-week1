@@ -1,0 +1,18 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "medlist-b",
+  "written_from": "the filled-medlist-b.pdf text in agentforge/scripts/generate-golden-pdfs.mjs (rasterized, image-only PDF)",
+  "document_kind": "medication_list",
+  "patient_ref": "fixture-patient-001",
+  "medication_list": {
+    "patient_name": "Test Patient One",
+    "dob": "1980-04-12",
+    "list_date": "2026-09-23",
+    "prescriber_or_source": "Northwind Pharmacy dispensing record",
+    "medications": [
+      { "name": "Levothyroxine", "dose": "75", "unit": "mcg", "frequency": "once daily", "route": "by mouth" },
+      { "name": "Albuterol", "dose": "90", "unit": "mcg", "frequency": "every 6 hours as needed", "route": "inhaled" },
+      { "name": "Metformin", "dose": "1000", "unit": "mg", "frequency": "twice daily", "route": "by mouth" }
+    ]
+  }
+}

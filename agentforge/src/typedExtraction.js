@@ -1,4 +1,4 @@
-import { IntakeForm, LabResult, parseOrIssues } from './schemas.js';
+import { IntakeForm, LabResult, MedicationList, parseOrIssues } from './schemas.js';
 
 const LAB_TEST_FIELD = /^(lab\.[a-z0-9_]+)\.(test_name|value|unit|reference_range|collection_date|abnormal)$/;
 const LAB_SUFFIXES = ['test_name', 'value', 'unit', 'reference_range', 'collection_date', 'abnormal'];
@@ -173,6 +173,76 @@ export function buildTypedIntakeForm(facts) {
   return { ok: parsed.ok, data: parsed.data, issues: [...parsed.issues.map((issue) => (parsed.ok ? issue : `typed_intake_form_invalid:${issue}`)), ...issues] };
 }
 
+const MEDICATION_LIST_LEAVES = Object.freeze({
+  'medlist.list_date': ['list_date'],
+  'medlist.prescriber_or_source': ['prescriber_or_source'],
+  'patient.name': ['patient', 'name'],
+  'patient.date_of_birth': ['patient', 'dob'],
+});
+const MEDICATION_PARTS = ['dose', 'unit', 'frequency', 'route'];
+const MEDICATION_ROW = /^medication\.([1-9][0-9]?)\.(name|dose|unit|frequency|route)$/;
+
+/**
+ * Assemble the strict `MedicationList` from the flat per-field facts the
+ * medication-list PDF-OCR layout emits (`medlist.list_date`,
+ * `medlist.prescriber_or_source`, `patient.name`, `patient.date_of_birth`,
+ * and `medication.<n>.<part>` for each printed row).
+ *
+ * A header field the list does not show is `not_found_on_form`. A row part
+ * the row does not show is `not_found_on_form` and also a
+ * `typed_medication_incomplete` issue, so the extraction cannot be
+ * `complete` with a half-read row. A row whose drug name was not read is not
+ * typed as a medication at all (`typed_medication_row_without_name`), and a
+ * gap in the row numbers is `typed_medication_row_missing`. Every
+ * other fact that does not map is reported, never dropped.
+ *
+ * Returns:
+ *   `{ok, data, issues}` like `buildTypedIntakeForm`.
+ */
+export function buildTypedMedicationList(facts) {
+  const issues = [];
+  const consumed = new Set();
+  const candidate = { list_date: notFound(), prescriber_or_source: notFound(), patient: { name: notFound(), dob: notFound() }, medications: [] };
+  const byFieldId = new Map(facts.map((fact) => [fact.field_id, fact]));
+  for (const [fieldId, path] of Object.entries(MEDICATION_LIST_LEAVES)) {
+    const fact = byFieldId.get(fieldId);
+    if (!fact) continue;
+    consumed.add(fieldId);
+    const entry = observedOrIssue(fact, issues);
+    if (!entry) continue;
+    if (path.length === 2) candidate[path[0]][path[1]] = entry;
+    else candidate[path[0]] = entry;
+  }
+  const rows = new Map();
+  for (const fact of facts) {
+    const match = MEDICATION_ROW.exec(fact.field_id);
+    if (!match) continue;
+    consumed.add(fact.field_id);
+    const row = rows.get(Number(match[1])) || {};
+    row[match[2]] = fact;
+    rows.set(Number(match[1]), row);
+  }
+  // Rows are numbered from 1; a gap ("Medication 1", "Medication 3") means a
+  // drug was not read, so the list cannot be complete.
+  const highestRow = Math.max(0, ...rows.keys());
+  for (let index = 1; index < highestRow; index++) if (!rows.has(index)) issues.push(`typed_medication_row_missing:medication.${index}`);
+  for (const [index, row] of [...rows.entries()].sort(([a], [b]) => a - b)) {
+    const rowId = `medication.${index}`;
+    if (!row.name) { issues.push(`typed_medication_row_without_name:${rowId}`); continue; }
+    const withoutConfidence = ['name', ...MEDICATION_PARTS].filter((part) => row[part] && !isValidConfidence(row[part].confidence));
+    if (withoutConfidence.length) { issues.push(`missing_confidence:${rowId}:${withoutConfidence.join(',')}`); continue; }
+    const missing = MEDICATION_PARTS.filter((part) => !row[part]);
+    if (missing.length) issues.push(`typed_medication_incomplete:${rowId}:${missing.join(',')}`);
+    const part = (key) => (row[key] ? { status: 'observed', value: row[key].value, confidence: row[key].confidence } : { status: 'not_found_on_form', value: null, confidence: 0 });
+    candidate.medications.push({ name: part('name'), dose: part('dose'), unit: part('unit'), frequency: part('frequency'), route: part('route'), citation: row.name.citation });
+  }
+  for (const fact of facts) {
+    if (!consumed.has(fact.field_id)) issues.push(`fact_not_mapped_to_typed_output:${fact.field_id}`);
+  }
+  const parsed = parseOrIssues(MedicationList, candidate);
+  return { ok: parsed.ok, data: parsed.data, issues: [...parsed.issues.map((issue) => `typed_medication_list_invalid:${issue}`), ...issues] };
+}
+
 /**
  * Summarize extraction confidence from lab results and observed intake fields.
  *
@@ -240,6 +310,14 @@ export function summarizeExtractionConfidence(extraction) {
         collectIntakeConfidence(history);
       }
     }
+  }
+
+  // Collect confidence from observed medication-list fields and row parts
+  const medicationList = extraction.medication_list;
+  if (medicationList) {
+    const collect = (field) => { if (field?.status === 'observed' && isValidConfidence(field.confidence)) confidences.push(field.confidence); };
+    [medicationList.list_date, medicationList.prescriber_or_source, medicationList.patient?.name, medicationList.patient?.dob].forEach(collect);
+    for (const item of medicationList.medications || []) ['name', 'dose', 'unit', 'frequency', 'route'].forEach((key) => collect(item[key]));
   }
 
   if (confidences.length === 0) {

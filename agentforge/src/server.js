@@ -328,6 +328,7 @@ const server = http.createServer(async (req, res) => {
       const pdfSamples = {
         'lab-a': 'filled-lab-a.pdf', 'lab-b': 'filled-lab-b.pdf',
         'intake-a': 'filled-intake-a.pdf', 'intake-b': 'filled-intake-b.pdf',
+        'medlist-a': 'filled-medlist-a.pdf', 'medlist-b': 'filled-medlist-b.pdf',
       };
       const filename = pdfSamples[sample];
       if (!filename) return json(res, 400, { error: 'invalid_synthetic_pdf_sample' });

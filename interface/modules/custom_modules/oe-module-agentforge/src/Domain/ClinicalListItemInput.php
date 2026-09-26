@@ -1,8 +1,9 @@
 <?php
 
 /**
- * Parsed body of POST route=clinical-list-items: intake medications and
- * allergies a clinician has explicitly confirmed (never unconfirmed drafts).
+ * Parsed body of POST route=clinical-list-items: intake or medication-list
+ * medications and intake allergies a clinician has explicitly confirmed
+ * (never unconfirmed drafts).
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org

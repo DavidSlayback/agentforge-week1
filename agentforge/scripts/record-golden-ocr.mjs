@@ -3,7 +3,7 @@
 // inside the image built from the repo Dockerfile, the same OCR stack that is
 // deployed:
 //   docker build -t agentforge-gate .
-//   docker run --rm -v "$PWD:/repo" -w /repo agentforge-gate node agentforge/scripts/record-golden-ocr.mjs
+//   docker run --rm -v "$PWD:/repo" -w /repo agentforge-gate node agentforge/scripts/record-golden-ocr.mjs [--only=id1,id2]
 // Re-recording changes the gate's case-set hash, so the gate then requires
 // `--update-baseline`, and the diff shows exactly which OCR lines moved.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -15,7 +15,12 @@ import { tesseractOcrEngine } from '../src/pdfScanAdapter.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const goldenDir = join(repoRoot, 'agentforge/test/fixtures/golden');
-const manifest = JSON.parse(await readFile(join(goldenDir, 'manifest.json'), 'utf8'));
+// The 50-case gate's manifest plus the extension suite's (E4 medication lists).
+const manifests = await Promise.all(['manifest.json', 'extension-manifest.json'].map(async (name) => JSON.parse(await readFile(join(goldenDir, name), 'utf8'))));
+const manifest = { documents: manifests.flatMap((item) => item.documents) };
+// `--only=id1,id2` records just those documents, leaving every other recording untouched.
+const onlyArg = process.argv.find((arg) => arg.startsWith('--only='));
+const only = onlyArg ? new Set(onlyArg.slice('--only='.length).split(',')) : null;
 
 const version = (command, args) => {
   const result = spawnSync(command, args, { encoding: 'utf8' });
@@ -25,7 +30,7 @@ const version = (command, args) => {
 const toolVersions = { tesseract: version('tesseract', ['--version']), pdftoppm: version('pdftoppm', ['-v']) };
 
 await mkdir(join(goldenDir, 'ocr'), { recursive: true });
-for (const document of manifest.documents.filter((item) => item.pdf)) {
+for (const document of manifest.documents.filter((item) => item.pdf && (!only || only.has(item.id)))) {
   const content = await readFile(join(repoRoot, document.pdf));
   const base = { schema_version: 'agentforge-golden-ocr-v1', document_id: document.id, pdf: document.pdf, pdf_sha256: createHash('sha256').update(content).digest('hex'), engine: tesseractOcrEngine.name, tools: toolVersions };
   let recording;

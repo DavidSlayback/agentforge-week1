@@ -8,26 +8,44 @@
 // from the intake list because real lab reports carry a patient header too.
 const LAB_TERMS = [/\bh(?:a)?emoglobin\b/, /\bhgb\b/, /\b(?:hb)?a1c\b/, /\breference range\b/, /\bcollection date\b/, /\bg\/dl\b/, /\bmg\/dl\b/, /\bmmol\/l\b/, /\blaboratory\b/, /\blab (?:report|results?)\b/, /\bspecimen\b/];
 const INTAKE_TERMS = [/\bdate of birth\b/, /\breason for visit\b/, /\bchief concern\b/, /\bcurrent medications?\b/, /\ballerg(?:y|ies)\b/, /\bfamily history\b/, /\bintake\b/, /\b(?:tele)?phone\b/, /\bpatient information\b/, /\bnew patient\b/];
+// Medication-list vocabulary. Plain "mg", "daily" and "medications" are left
+// out on purpose: intake forms list current medications with doses too.
+const MEDICATION_LIST_TERMS = [/\bmedication list\b/, /\bmedication reconciliation\b/, /\bprescriber\b/, /\bpharmacy\b/, /\b(?:medication|rx)\s*#?\s*\d{1,2}\s*:/, /\b(?:by mouth|orally|oral)\b/, /\b(?:once|twice|three times|four times) daily\b|\bat bedtime\b|\bevery \d+ hours\b/, /\blist date\b|\breviewed on\b/, /\bdose\b/, /\bfrequency\b/, /\broute\b/];
+// What makes a page a medication list rather than a form with a medication
+// section: its title, a prescriber, a reconciliation or list date, or
+// numbered drug rows. Without one, the dose/route/pharmacy words above are
+// read as an intake's medication section and do not count.
+const MEDICATION_LIST_ANCHORS = [/\bmedication list\b/, /\bmedication reconciliation\b/, /\bprescriber\b/, /\b(?:medication|rx)\s*#?\s*\d{1,2}\s*:/, /\blist date\b|\breviewed on\b/];
+// Sections only an intake form has. With two of them, the page is an intake
+// even when its medication section uses list words, so only the list anchors
+// above compete with it.
+const INTAKE_ONLY_ANCHORS = [/\breason for visit\b|\bchief concern\b/, /\ballerg(?:y|ies)\b/, /\bfamily history\b/, /\bintake\b/, /\bpatient information\b|\bnew patient\b/];
 const MIN_HITS = 2;
 const MIN_MARGIN = 2;
+const TYPE_TERMS = Object.freeze({ lab_pdf: LAB_TERMS, intake_form: INTAKE_TERMS, medication_list: MEDICATION_LIST_TERMS });
 
 /**
  * Infer the document type from its text (OCR lines or a text envelope).
  *
  * Returns:
- *   `{detected: 'lab_pdf'|'intake_form'|'undetermined', lab_hits, intake_hits}`.
+ *   `{detected: 'lab_pdf'|'intake_form'|'medication_list'|'undetermined',
+ *   lab_hits, intake_hits, medication_list_hits, medication_list_anchor_hits}`.
  *   A type is only claimed with at least two distinct keyword hits and a
- *   two-hit margin over the other type, so a lone "Allergies" line on a lab
- *   report does not flip it.
+ *   two-hit margin over every other type, so a lone "Allergies" line on a
+ *   lab report does not flip it. Medication-list words count only when the
+ *   page has a medication-list anchor, and against a page with two
+ *   intake-only sections only the anchors count (see the constants above).
  */
 export function detectDocumentType(text) {
   const normalized = String(text || '').toLowerCase();
-  const labHits = LAB_TERMS.filter((term) => term.test(normalized)).length;
-  const intakeHits = INTAKE_TERMS.filter((term) => term.test(normalized)).length;
-  const detected = labHits >= MIN_HITS && labHits - intakeHits >= MIN_MARGIN ? 'lab_pdf'
-    : intakeHits >= MIN_HITS && intakeHits - labHits >= MIN_MARGIN ? 'intake_form'
-      : 'undetermined';
-  return { detected, lab_hits: labHits, intake_hits: intakeHits };
+  const types = Object.keys(TYPE_TERMS);
+  const hits = Object.fromEntries(types.map((type) => [type, TYPE_TERMS[type].filter((term) => term.test(normalized)).length]));
+  const count = (terms) => terms.filter((term) => term.test(normalized)).length;
+  const medicationAnchors = count(MEDICATION_LIST_ANCHORS);
+  const intakeAnchors = count(INTAKE_ONLY_ANCHORS);
+  const scores = { ...hits, medication_list: !medicationAnchors ? 0 : intakeAnchors >= 2 ? medicationAnchors : hits.medication_list };
+  const detected = types.find((type) => scores[type] >= MIN_HITS && types.every((other) => other === type || scores[type] - scores[other] >= MIN_MARGIN)) || 'undetermined';
+  return { detected, lab_hits: hits.lab_pdf, intake_hits: hits.intake_form, medication_list_hits: hits.medication_list, medication_list_anchor_hits: medicationAnchors };
 }
 
 const nameTokens = (value) => String(value || '').toLowerCase().replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter((token) => /[a-z]/.test(token)).sort().join(' ');
@@ -102,6 +120,12 @@ export function checkPatientIdentity(intakeForm, targetPatient) {
   return compareIdentity({ name: observed(intakeForm?.demographics?.name), dob: observed(intakeForm?.demographics?.dob) }, targetPatient);
 }
 
+/** Compare the identity printed on a typed `MedicationList` with the target patient (see `compareIdentity`). */
+export function checkMedicationListIdentity(medicationList, targetPatient) {
+  const observed = (field) => (field?.status === 'observed' ? field.value : null);
+  return compareIdentity({ name: observed(medicationList?.patient?.name), dob: observed(medicationList?.patient?.dob) }, targetPatient);
+}
+
 /**
  * Decide which fail-loud conditions hold for one extracted document.
  *
@@ -117,11 +141,13 @@ export function assessDocumentSafety({ documentType, documentText, extraction, t
   const factCount = extraction?.facts?.length || 0;
   const typeDetection = detectDocumentType(documentText);
   const typeStatus = typeDetection.detected === 'undetermined' ? 'undetermined' : typeDetection.detected === documentType ? 'consistent' : 'mismatch';
-  // Intake forms are checked on their typed demographics, lab reports on the
-  // patient header printed on the page.
+  // Intake forms and medication lists are checked on their typed identity
+  // fields, lab reports on the patient header printed on the page.
   const identity = documentType === 'intake_form'
     ? { ...checkPatientIdentity(extraction?.intake_form, targetPatient), source: 'intake_form_demographics' }
-    : { ...compareIdentity(readHeaderIdentity(documentText), targetPatient), source: 'lab_report_header' };
+    : documentType === 'medication_list'
+      ? { ...checkMedicationListIdentity(extraction?.medication_list, targetPatient), source: 'medication_list_patient' }
+      : { ...compareIdentity(readHeaderIdentity(documentText), targetPatient), source: 'lab_report_header' };
   const blocking = [];
   const qualifying = [];
   if (identity.status === 'mismatch') blocking.push('patient_mismatch');

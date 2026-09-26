@@ -93,15 +93,17 @@ test('synthetic source persistence reports failures and the service exposes the 
   assert.equal(result.source_document.persistence_boundary, 'in-memory-synthetic');
 });
 
-test('AgentForge UI exposes the two synthetic source-document types and upload route', () => {
+test('AgentForge UI exposes the three synthetic source-document types and upload route', () => {
   const page = renderAgentForgePage({ token: 'synthetic-token', payload: { patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001' } });
   assert.match(page, /source-document-form/);
   assert.match(page, /value="lab_pdf"/);
   assert.match(page, /value="intake_form"/);
+  assert.match(page, /<option value="medication_list">Medication list<\/option>/);
+  for (const sample of ['medlist-a', 'medlist-b']) assert.match(page, new RegExp(`data-run-pdf-sample="${sample}" data-document-type="medication_list"`));
   assert.match(page, /\/v1\/source-documents/);
   assert.match(page, /Completed synthetic PDF samples/);
   assert.match(page, /data-run-pdf-sample="lab-a"/);
-  for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b']) assert.match(page, new RegExp(`/v1/demo-scan-pdf\\?sample=${sample}`));
+  for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b', 'medlist-a', 'medlist-b']) assert.match(page, new RegExp(`/v1/demo-scan-pdf\\?sample=${sample}`));
   assert.match(page, /https:\/\/www\.fda\.gov\/media\/76299\/download/);
   assert.match(page, /Upload a synthetic filled lab PDF or a \.scan\.txt envelope/);
   assert.match(page, /Local OCR \(for a PDF\) returns cited page regions/);
@@ -131,11 +133,11 @@ test('synthetic scan demo fixture route serves only the tracked sample with an e
   }
 });
 
-test('synthetic PDF sample route serves only the four fixed completed form samples', async () => {
+test('synthetic PDF sample route serves only the six fixed completed form samples', async () => {
   const port = 18809;
   const child = await startServer(port);
   try {
-    for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b']) {
+    for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b', 'medlist-a', 'medlist-b']) {
       const response = await fetch(`http://127.0.0.1:${port}/v1/demo-scan-pdf?sample=${sample}`);
       assert.equal(response.status, 200);
       assert.equal(response.headers.get('content-type'), 'application/pdf');

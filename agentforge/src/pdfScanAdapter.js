@@ -78,7 +78,113 @@ export function parseTsv(tsv, page) {
 
 const safe = (value) => String(value || '').replace(/[|\r\n]/g, ' ').trim();
 
+// Medication-list layout: "<label>: <value>" header lines plus one numbered
+// row per drug ("Medication 1: Metformin 500 mg twice daily oral", or "Rx 1:").
+const MEDICATION_LIST_LABELS = new Map([
+  ['patient name', ['patient.name', 'Patient name']], ['name', ['patient.name', 'Patient name']], ['patient', ['patient.name', 'Patient name']],
+  ['date of birth', ['patient.date_of_birth', 'Date of birth']], ['dob', ['patient.date_of_birth', 'Date of birth']],
+  ['list date', ['medlist.list_date', 'List date']], ['date of list', ['medlist.list_date', 'List date']], ['reviewed on', ['medlist.list_date', 'List date']], ['date reviewed', ['medlist.list_date', 'List date']],
+  ['prescriber', ['medlist.prescriber_or_source', 'Prescriber']], ['prescribing clinician', ['medlist.prescriber_or_source', 'Prescriber']], ['source', ['medlist.prescriber_or_source', 'Source']], ['record source', ['medlist.prescriber_or_source', 'Source']],
+]);
+const MEDICATION_ROW_LABEL = /^(?:medication|med|rx)\s*#?\s*([1-9][0-9]?)$/;
+const MEDICATION_LIST_NAME_WITH_DOB = /^(.*?)\s*(?:[-–·•~|,]\s*)*\b(?:dob|date of birth)\s*:\s*(\S+)/i;
+const MEDICATION_ROUTE_AT_END = /(?:^|\s)(by mouth|orally|oral|inhaled|inhalation|subcutaneous|topical|sublingual|intravenous|intramuscular|nasal|transdermal|ophthalmic|rectal)\s*$/i;
+const MEDICATION_DOSE_UNIT = /(?:^|\s)(\d+(?:[.,]\d+)?)\s*(mg|mcg|g|ml|units?|puffs?|tablets?|capsules?|iu)(?![a-z])/i;
+const MEDICATION_FREQUENCY = /\b(?:once daily|twice daily|three times daily|four times daily|daily|every (?:morning|evening|\d+ hours)|at bedtime|as needed|weekly)\b.*$/i;
+const trimSeparators = (text) => text.replace(/^[\s,;:-]+|[\s,;:-]+$/g, '');
+
+/**
+ * Split one medication-row value into its printed parts, e.g. "Metformin 500
+ * mg twice daily oral" -> {name, dose, unit, frequency, route}. A part the
+ * text does not show is absent from the result; nothing is defaulted.
+ */
+export function parseMedicationRow(text) {
+  let rest = String(text || '').trim();
+  const parts = {};
+  const route = MEDICATION_ROUTE_AT_END.exec(rest);
+  if (route) { parts.route = route[1]; rest = rest.slice(0, route.index).trim(); }
+  const dose = MEDICATION_DOSE_UNIT.exec(rest);
+  if (dose) {
+    parts.dose = dose[1];
+    parts.unit = dose[2];
+    const name = trimSeparators(rest.slice(0, dose.index));
+    const frequency = trimSeparators(rest.slice(dose.index + dose[0].length));
+    if (name) parts.name = name;
+    if (frequency) parts.frequency = frequency;
+  } else {
+    const frequency = MEDICATION_FREQUENCY.exec(rest);
+    if (frequency) { parts.frequency = trimSeparators(frequency[0]); rest = rest.slice(0, frequency.index); }
+    const name = trimSeparators(rest);
+    if (name) parts.name = name;
+  }
+  return parts;
+}
+
+function medicationListRows(lines) {
+  const fields = [];
+  for (const line of lines) {
+    const separator = line.text.indexOf(':');
+    if (separator < 1) continue;
+    const labelKey = line.text.slice(0, separator).trim().toLowerCase().replace(/\s+/g, ' ');
+    const value = line.text.slice(separator + 1).trim();
+    if (!value) continue;
+    const row = MEDICATION_ROW_LABEL.exec(labelKey);
+    if (row) {
+      // Every part of a row cites the same verbatim OCR line.
+      for (const [part, partValue] of Object.entries(parseMedicationRow(value))) {
+        fields.push({ field_id: `medication.${row[1]}.${part}`, label: `Medication ${row[1]} ${part}`, value: partValue, unit: '', quote: line.text, line });
+      }
+      continue;
+    }
+    const mapping = MEDICATION_LIST_LABELS.get(labelKey);
+    if (!mapping) continue;
+    // A one-line header ("Patient: Test Patient One - DOB: 1980-04-12") holds
+    // both identity fields; reading it all as the name would compare a
+    // name-plus-date string with the chart and report a false mismatch.
+    const combined = mapping[0] === 'patient.name' ? MEDICATION_LIST_NAME_WITH_DOB.exec(value) : null;
+    if (combined) {
+      if (combined[1]) fields.push({ field_id: 'patient.name', label: mapping[1], value: combined[1], unit: '', quote: line.text, line });
+      fields.push({ field_id: 'patient.date_of_birth', label: 'Date of birth', value: combined[2], unit: '', quote: line.text, line });
+      continue;
+    }
+    fields.push({ field_id: mapping[0], label: mapping[1], value, unit: '', quote: line.text, line });
+  }
+  return fields;
+}
+
+// Any "Medication 123:"-style label, including numbers the row map refuses.
+const MEDICATION_ANY_ROW_LABEL = /^(?:medication|med|rx)\s*#?\s*\d+$/;
+
+/** A line whose text reads like a drug row: a dose with its unit, a route at the end, or a dosing frequency. */
+const looksLikeMedicationRow = (text) => MEDICATION_DOSE_UNIT.test(text) || MEDICATION_ROUTE_AT_END.test(text) || MEDICATION_FREQUENCY.test(text);
+
+/**
+ * Lines of a medication list that look like a drug row but were not read as
+ * one: an unlabeled row ("Warfarin 5 mg once daily oral"), or a numbered row
+ * whose number the row map refuses ("Medication 100:"). A dropped drug is the
+ * worst failure a medication list can have, so each one is reported as an
+ * unreadable field (reason codes only, never the text), which keeps the
+ * extraction QUALIFIED instead of complete.
+ */
+export function unreadMedicationRows(lines, documentType, layoutId = '') {
+  if (documentType !== 'medication_list' || layoutId !== `pdf-ocr-${documentType}`) return [];
+  const unread = [];
+  for (const line of lines) {
+    const separator = line.text.indexOf(':');
+    const labelKey = separator > 0 ? line.text.slice(0, separator).trim().toLowerCase().replace(/\s+/g, ' ') : '';
+    const value = separator > 0 ? line.text.slice(separator + 1).trim() : line.text.trim();
+    if (separator > 0 && MEDICATION_ROW_LABEL.test(labelKey)) continue;
+    if (separator > 0 && MEDICATION_LIST_LABELS.has(labelKey)) continue;
+    if (separator > 0 && MEDICATION_ANY_ROW_LABEL.test(labelKey)) unread.push({ field_id: `medication.unread.${unread.length + 1}`, reason: 'medication_row_number_out_of_range' });
+    else if (looksLikeMedicationRow(separator > 0 ? value : line.text)) unread.push({ field_id: `medication.unread.${unread.length + 1}`, reason: 'unlabeled_medication_row' });
+  }
+  return unread;
+}
+
 export function fieldRows(lines, documentType, layoutId = '') {
+  // Only the PDF-OCR layout is defined for medication lists; any other layout
+  // reads nothing rather than borrowing the intake patterns below.
+  if (documentType === 'medication_list') return layoutId === `pdf-ocr-${documentType}` ? medicationListRows(lines) : [];
   if (layoutId === `pdf-ocr-${documentType}`) {
     const labels = documentType === 'lab_pdf'
       ? new Map([
@@ -296,6 +402,8 @@ export async function extractPdfScanFixture({ content, documentType, layoutId = 
     const confidence = field.confidence ?? line?.confidence ?? 0;
     fixture.push(`FIELD|field_id=${field.field_id}|label=${safe(field.label)}|value=${safe(field.value)}|unit=${safe(field.unit)}|quote=${safe(field.quote)}|page=${page}|box=${box.join(',')}|confidence=${confidence.toFixed(2)}`);
   }
+  // Read from the OCR lines whichever provider mapped the fields.
+  for (const row of unreadMedicationRows(ocrLines, documentType, layoutId)) fixture.push(`UNREADABLE|field_id=${row.field_id}|reason=${row.reason}`);
   // `ocrText` stays in memory for document-type detection; it is never logged or traced.
   return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: modelResult ? modelResult.model : ocrEngine.name, ocrText: ocrLines.map((line) => line.text).join('\n'), ocrMode };
 }

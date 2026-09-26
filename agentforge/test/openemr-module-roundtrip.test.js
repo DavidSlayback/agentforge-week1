@@ -217,3 +217,54 @@ test('a different payload on an existing key is reported as payload_differs, not
     await fake.close();
   }
 });
+
+// E4: a medication list is stored in OpenEMR with its derived facts through
+// the module, idempotently, and none of its medications is written to the
+// chart: that needs a clinician confirm (A3), which this path never sends.
+const medlistEnvelope = [
+  'SYNTHETIC_SCAN_FORM|layout=pdf-ocr-medication_list|page_count=1',
+  ...[
+    ['patient.name', 'Test Patient One', 'Patient name: Test Patient One'], ['patient.date_of_birth', '1980-04-12', 'Date of birth: 1980-04-12'], ['medlist.list_date', '2026-09-22', 'List date: 2026-09-22'],
+    ...[['name', 'Metformin'], ['dose', '500'], ['unit', 'mg'], ['frequency', 'twice daily'], ['route', 'oral']].map(([part, value]) => [`medication.1.${part}`, value, 'Medication 1: Metformin 500 mg twice daily oral']),
+  ].map(([fieldId, value, quote], index) => `FIELD|field_id=${fieldId}|label=${fieldId}|value=${value}|unit=|quote=${quote}|page=1|box=10,${20 + index * 20},300,${35 + index * 20}|confidence=0.97`),
+].join('\n');
+
+test('openemr-module persistence: a medication list and its derived facts are stored idempotently, and no medication reaches the chart', async () => {
+  const fake = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [openemrPatient] });
+  const port = 18846;
+  const child = await startServer(port, { AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_MODULE_HMAC_SECRET: moduleHmacSecret, AGENTFORGE_OPENEMR_MODULE_URL: fake.url, AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: openemrPatient, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: `fixture-patient-001=${openemrPatient}` });
+  const base = `http://127.0.0.1:${port}`;
+  const run = async (ctx) => {
+    const uploaded = await post(base, '/v1/source-documents', { patient_uuid: 'fixture-patient-001', clinician_uuid: ctx.clinician, demo_token: ctx.write, document_type: 'medication_list', filename: 'medlist.scan.txt', content_base64: Buffer.from(medlistEnvelope).toString('base64') }).then((response) => response.json());
+    const scan = await post(base, '/v1/scan-supervisor', { patient_uuid: 'fixture-patient-001', clinician_uuid: ctx.clinician, demo_token: ctx.write, source_document_id: uploaded.source_document.id, message: '' });
+    return { uploaded, scan, scanned: await scan.json() };
+  };
+  try {
+    const ctx = await contexts(base, 'fixture-patient-001');
+    const first = await run(ctx);
+    assert.equal(first.uploaded.source_document.document_type, 'medication_list');
+    assert.equal(first.uploaded.openemr.document_id, 57);
+    assert.equal(first.scan.status, 200, JSON.stringify(first.scanned).slice(0, 300));
+    const medications = first.scanned.workflow.typed_outputs.extraction.medication_list.medications;
+    assert.deepEqual(medications.map((item) => item.name.value), ['Metformin']);
+    const openemr = first.scanned.openemr;
+    assert.deepEqual([openemr.status, openemr.document_id, openemr.derived_document_id, openemr.procedure_order_id, openemr.duplicate], ['persisted', 57, 58, null, false]);
+    const second = await run(ctx);
+    assert.equal(second.uploaded.duplicate, true);
+    assert.deepEqual([second.scanned.openemr.document_id, second.scanned.openemr.derived_document_id, second.scanned.openemr.duplicate], [57, 58, true]);
+    const counts = fake.counts();
+    assert.deepEqual([counts.documents, counts.procedure_orders, counts.procedure_results, counts.list_item_requests, counts.rejected], [2, 0, 0, 0, 0]);
+  } finally {
+    child.kill();
+    await fake.close();
+  }
+});
+
+test('medicationListItemsForConfirmation proposes one medication item per row, titled from the printed parts', async () => {
+  const { medicationListItemsForConfirmation } = await import('../src/openemrModuleWriteback.js');
+  const observed = (value) => ({ status: 'observed', value, confidence: 0.9 });
+  const citation = { source_type: 'document', source_id: 'openemr-doc-57', page_or_section: 'page 1', field_or_chunk_id: 'medication.2.name', quote_or_value: 'Rx 2: Aspirin 81 mg daily' };
+  const list = { medications: [{ name: observed('Aspirin'), dose: observed('81'), unit: observed('mg'), frequency: observed('daily'), route: { status: 'not_found_on_form', value: null, confidence: 0 }, citation }] };
+  assert.deepEqual(medicationListItemsForConfirmation(list), [{ kind: 'medication', title: 'Aspirin 81 mg daily', field_id: 'medication.2' }]);
+  assert.deepEqual(medicationListItemsForConfirmation(null), []);
+});

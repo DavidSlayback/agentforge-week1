@@ -187,10 +187,23 @@ const readText = (url) => normalizeEol(readFileSync(url, 'utf8'));
 
 function readGolden() {
   const manifest = JSON.parse(readFileSync(new URL('manifest.json', GOLDEN_DIR), 'utf8'));
+  // Extension-suite documents (E4 medication lists) are loaded into the same
+  // `docs`/`recordings`, so `scan()` can upload them, but their files go to
+  // `extensionRawFiles`: the 50-case gate's hash covers `manifest`/`rawFiles`
+  // only and stays unchanged; the extension suite hashes both.
+  const extensionManifest = JSON.parse(readFileSync(new URL('extension-manifest.json', GOLDEN_DIR), 'utf8'));
   const docs = new Map();
   const recordings = [];
   const rawFiles = {};
+  const extensionRawFiles = {};
+  readGoldenEntries(manifest, { docs, recordings, rawFiles });
+  readGoldenEntries(extensionManifest, { docs, recordings, rawFiles: extensionRawFiles });
+  return { manifest, docs, recordings, rawFiles, extensionManifest, extensionRawFiles };
+}
+
+function readGoldenEntries(manifest, { docs, recordings, rawFiles }) {
   for (const entry of manifest.documents) {
+    if (docs.has(entry.id)) throw new Error(`GOLDEN_DOCUMENT_DUPLICATE:${entry.id}`);
     const truthText = readText(new URL(entry.truth, GOLDEN_DIR));
     const truth = JSON.parse(truthText);
     rawFiles[entry.truth] = truthText;
@@ -216,7 +229,7 @@ function readGolden() {
       docs.set(entry.id, { id: entry.id, kind: 'text', content, truth, ocr: null, sourceText: quotedLines.join('\n') });
     }
   }
-  return { manifest, docs, recordings, rawFiles };
+
 }
 
 let goldenCache = null;
@@ -597,6 +610,12 @@ export function phiIdentifiers(truth) {
     if (first.length >= 5 && !(form.family_history || []).includes(item)) words.push(first);
   }
   for (const result of truth.lab_results || []) { numbers.push(result.value); words.push(result.collection_date); }
+  // E4 medication lists (extension suite only): identity, list date, source
+  // and every drug name. Doses are left out: bare "10" or "20" would match
+  // unrelated trace numbers, so the row text is covered by the drug name.
+  const list = truth.medication_list || {};
+  words.push(list.patient_name, list.dob, list.list_date, list.prescriber_or_source);
+  for (const item of list.medications || []) words.push(item.name, [item.name, item.dose, item.unit].join(' '));
   return { words: [...new Set(words.filter(Boolean))], numbers: [...new Set(numbers.filter(Boolean))] };
 }
 
@@ -824,8 +843,11 @@ export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_G
   // change, so only the extension suite hashes function source (its checks
   // live in `expect.custom`).
   const replacer = hashFunctions ? (_key, value) => (typeof value === 'function' ? `fn:${value.toString()}` : value) : undefined;
-  const { manifest, rawFiles } = golden();
-  return createHash('sha256').update(JSON.stringify({ judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() }, replacer)).digest('hex');
+  const { manifest, rawFiles, extensionManifest, extensionRawFiles } = golden();
+  const payload = { judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() };
+  // Only the extension suite covers the extension documents (see readGolden).
+  if (hashFunctions) Object.assign(payload, { extension_manifest: extensionManifest, extension_files: Object.keys(extensionRawFiles).sort().map((name) => [name, extensionRawFiles[name]]) });
+  return createHash('sha256').update(JSON.stringify(payload, replacer)).digest('hex');
 }
 
 export const JUDGE_CONFIG = Object.freeze({ version: 'w2-assignment-rubrics-v3', per_label_min_rate: 0.95, max_regression: 0.05, critical_failure_tolerance: 0, no_phi_in_logs_required: true });

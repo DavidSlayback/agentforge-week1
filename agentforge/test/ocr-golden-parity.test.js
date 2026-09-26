@@ -9,7 +9,9 @@ import { AgentForgeService } from '../src/service.js';
 const golden = new URL('./fixtures/golden/', import.meta.url);
 const repoRoot = new URL('../../', import.meta.url);
 const manifest = JSON.parse(fs.readFileSync(new URL('manifest.json', golden), 'utf8'));
-const pdfDocuments = manifest.documents.filter((doc) => doc.pdf);
+// The extension suite's documents (E4 medication lists) are held to the same recording rules.
+const extensionManifest = JSON.parse(fs.readFileSync(new URL('extension-manifest.json', golden), 'utf8'));
+const pdfDocuments = [...manifest.documents, ...extensionManifest.documents].filter((doc) => doc.pdf);
 const recordingFor = (doc) => JSON.parse(fs.readFileSync(new URL(`ocr/${doc.id}.json`, golden), 'utf8'));
 
 function ocrToolsOnPath() {

@@ -1,7 +1,8 @@
 <?php
 
 /**
- * Clinician-confirmed intake list entries the module may write.
+ * Clinician-confirmed list entries (from an intake form or a medication list)
+ * the module may write.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
