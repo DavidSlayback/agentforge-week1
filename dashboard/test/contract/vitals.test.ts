@@ -72,17 +72,18 @@ describe('Vitals use case against shaped fixtures (contract)', () => {
     serve(fake, PATIENT.dashSyn01);
     fake.on('GET', fhirVitalsUrl(PATIENT.dashSyn01), responseFixture('hand-built/fhir-observation-vitals-dash-syn-01.json'));
     const card = await run(PATIENT.dashSyn01);
+    // What the user sees first: the deleted set on the same encounter is newer (2026-05-01 09:00:00) and must never be shown.
+    expect(card.kind === 'ok' ? card.rows[0]?.date : card.kind).not.toBe('2026-05-01 09:00:00');
+    expect(card.kind === 'ok' ? card.rows[0]?.date : card.kind).toBe('2026-04-05 09:10:00');
+    expect(JSON.stringify(card)).not.toContain('DELETED');
+    // How: one call on the newest encounter, and never a FHIR call.
     expect(fake.unexpected).toEqual([]);
-    expect(fake.calls.map((c) => c.url)).toEqual([patientUrl(PATIENT.dashSyn01), encountersUrl(PATIENT.dashSyn01), vitalUrl(14, 370)]);
     expect(fake.calls.some((c) => c.url.includes('/fhir/'))).toBe(false);
+    expect(fake.calls.map((c) => c.url)).toEqual([patientUrl(PATIENT.dashSyn01), encountersUrl(PATIENT.dashSyn01), vitalUrl(14, 370)]);
     expect(card).toMatchObject({ kind: 'ok', patientId: PATIENT.dashSyn01, notes: [SECONDARY_UNITS_NOT_SHOWN] });
     if (card.kind !== 'ok') return;
     const [set] = vitalsOf(PATIENT.dashSyn01, 370);
     expect(card.rows[0]?.date).toBe(set?.date);
-    expect(card.rows[0]?.date).toBe('2026-04-05 09:10:00');
-    // The deleted set on the same encounter is newer (2026-05-01 09:00:00); it must never be what the card shows.
-    expect(card.rows[0]?.date).not.toBe('2026-05-01 09:00:00');
-    expect(JSON.stringify(card)).not.toContain('DELETED');
     expect(card.rows[0]?.fields.find((f) => f.label === 'Blood Pressure')?.value).toBe('128/82 mmHg');
     expect(card.rows[0]?.fields.find((f) => f.label === 'Weight')?.value).toBe('176 lb');
   });
