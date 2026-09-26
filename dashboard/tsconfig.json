@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"]
+  },
+  "include": ["core/**/*.ts", "bff/**/*.ts", "test/core/**/*.ts", "test/bff/**/*.ts", "test/contract/**/*.ts", "test/lint/**/*.ts", "test/integration/**/*.ts", "test/support/**/*.ts", "vitest.config.ts", "web/vite.config.ts"]
+}

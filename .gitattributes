@@ -53,6 +53,9 @@ Documentation/EHI_Export/schemaspy/schemas/openemr.meta.xml -export-ignore
 
 # AgentForge: git archive stamps the deployed commit into this file.
 agentforge/BUILD_SHA export-subst
+dashboard/BUILD_SHA export-subst
+# The dashboard port is LF on every platform, fixtures included (catalog 9.04).
+dashboard/** text=auto eol=lf
 
 # AgentForge golden fixtures: the gate hashes PDFs byte for byte and hashes the
 # JSON/text inputs, so keep PDFs binary and the rest LF on every platform.
