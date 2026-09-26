@@ -1,0 +1,109 @@
+E8 W1 trust debt: deliberate-regression proof
+Commit under test: 0009eda1 (branch agentforge/e8-w1-trust); node v24.19.0; 2026-09-26T14:09:40Z
+Each row mutates one line, runs the guarding tests (node --test), and restores the file with git checkout.
+
+=== M0 baseline (no mutation)
+--- mutation in agentforge/src/recordTrust.js
+-   export const FRESHNESS_WINDOWS_DAYS
++   export const FRESHNESS_WINDOWS_DAYS
+✔ the chart source is decided by the adapter that read the record (1.4906ms)
+✔ fixture chart facts are cited as synthetic fixture records, never openemr_record (2.4556ms)
+✔ fixture chart facts stay patient-record facts, separate from guideline evidence (3.0622ms)
+✔ the grounded answer on the fixture chart never labels a chart fact openemr_record (12.5793ms)
+✔ a follow-up naming a synthetic patient ref is refused without disclosure (13.3512ms)
+✔ a follow-up naming another patient's name is refused without disclosure (1.3774ms)
+✔ a follow-up naming another patient's chart id is refused without disclosure (0.7173ms)
+✔ a follow-up naming an OpenEMR-style patient uuid is refused without disclosure (0.4903ms)
+✔ the refusal trace is blocked and carries no identifier from the question (2.3822ms)
+✔ ordinary questions about the current patient are answered, not refused (2.0094ms)
+✔ mentionsOtherPatient ignores the current patient's own identifiers (0.4287ms)
+✔ the deployed service never imports an eval harness module (1.0578ms)
+✔ no module the deployed service loads reads an eval answer key (11.8061ms)
+✔ the oracle-read scan catches the reads it exists to forbid (0.2887ms)
+✔ a fully covered, fresh, authored chart is complete with no qualification (5.1726ms)
+✔ an allergy older than its documented freshness window is labeled stale but still shown (0.9695ms)
+✔ an allergy inside its freshness window is not stale (0.5991ms)
+✔ staleness is measured against the visit date when the case carries one (0.1551ms)
+✔ a record with no author is qualified as missing provenance and retained (0.6313ms)
+✔ a note that contains instructions is qualified as untrusted narrative (0.6033ms)
+✔ two identity records from different sources are flagged and withheld, not merged (0.61ms)
+✔ zero documented records is never presented as complete (0.4733ms)
+✔ assessRecordTrust never reads an answer key (0.2251ms)
+✔ every fixture case briefs identically with its expected answer key stripped (14.9964ms)
+✔ the fixture corpus qualifies each trust case from its own data (1.2829ms)
+✔ a retrieval where no coverage group answered is blocked, not briefed as partial (0.2804ms)
+✔ the deployed W2 service sets the p95 alert to the 30 s KEY_METRICS target (1.5286ms)
+✔ the frozen W1 service keeps its original alert configuration (0.1385ms)
+ℹ tests 28
+ℹ pass 28
+ℹ fail 0
+--- restored; git diff --stat: 
+
+=== M1 reintroduce an expected read (W1-SF3)
+--- mutation in agentforge/src/preVisitPreparation.js
+-   const disposition = coverage.some((group) => isCoverageFailure(group.status)) ? 'partial' : qualification.required ? 'qualified' : 'complete';
++   const disposition = item.expected?.brief_disposition || (coverage.some((group) => isCoverageFailure(group.status)) ? 'partial' : qualification.required ? 'qualified' : 'complete');
+✔ the deployed service never imports an eval harness module (0.8796ms)
+✖ no module the deployed service loads reads an eval answer key (11.1062ms)
+✔ the oracle-read scan catches the reads it exists to forbid (0.3294ms)
+✔ a fully covered, fresh, authored chart is complete with no qualification (4.4452ms)
+✔ an allergy older than its documented freshness window is labeled stale but still shown (0.7308ms)
+✔ an allergy inside its freshness window is not stale (0.4742ms)
+✔ staleness is measured against the visit date when the case carries one (0.1423ms)
+✔ a record with no author is qualified as missing provenance and retained (0.5125ms)
+✔ a note that contains instructions is qualified as untrusted narrative (1.0768ms)
+✔ two identity records from different sources are flagged and withheld, not merged (0.4678ms)
+✔ zero documented records is never presented as complete (0.3096ms)
+✔ assessRecordTrust never reads an answer key (0.155ms)
+✖ every fixture case briefs identically with its expected answer key stripped (9.9192ms)
+✔ the fixture corpus qualifies each trust case from its own data (1.5188ms)
+✔ a retrieval where no coverage group answered is blocked, not briefed as partial (0.2829ms)
+ℹ tests 15
+ℹ pass 13
+ℹ fail 2
+✖ failing tests:
+--- restored; git diff --stat: 
+
+=== M2 disable the cross-patient question check (W1-SF4)
+--- mutation in agentforge/src/preVisitPreparation.js
+-   if (mentionsOtherPatient({ message: request.message, currentPatient: cacheResult.entry.response.patient, knownPatients })) {
++   if (false && mentionsOtherPatient({ message: request.message, currentPatient: cacheResult.entry.response.patient, knownPatients })) {
+✖ a follow-up naming a synthetic patient ref is refused without disclosure (12.0482ms)
+✖ a follow-up naming another patient's name is refused without disclosure (0.8565ms)
+✖ a follow-up naming another patient's chart id is refused without disclosure (0.5673ms)
+✖ a follow-up naming an OpenEMR-style patient uuid is refused without disclosure (0.6127ms)
+✖ the refusal trace is blocked and carries no identifier from the question (2.3314ms)
+✔ ordinary questions about the current patient are answered, not refused (0.7906ms)
+✔ mentionsOtherPatient ignores the current patient's own identifiers (1.1683ms)
+ℹ tests 7
+ℹ pass 2
+ℹ fail 5
+✖ failing tests:
+--- restored; git diff --stat: 
+
+=== M3 label fixture chart facts openemr_record again (Fix 4)
+--- mutation in agentforge/src/service.js
+-   const citationSource = chartRecordCitationSource(this.chartAdapter);
++   const citationSource = { source_type: 'openemr_record', page_or_section: 'OpenEMR chart record' };
+✔ the chart source is decided by the adapter that read the record (1.4485ms)
+✖ fixture chart facts are cited as synthetic fixture records, never openemr_record (1.7416ms)
+✔ fixture chart facts stay patient-record facts, separate from guideline evidence (3.1909ms)
+✖ the grounded answer on the fixture chart never labels a chart fact openemr_record (13.7614ms)
+ℹ tests 4
+ℹ pass 2
+ℹ fail 2
+✖ failing tests:
+--- restored; git diff --stat: 
+
+=== M4 drop the W2 p95 alert override (W1-C3)
+--- mutation in deploy/vultr/docker-compose.yml
+-   AGENTFORGE_ALERT_P95_MS: ${AGENTFORGE_W2_ALERT_P95_MS:-30000}
++   AGENTFORGE_ALERT_P95_MS_UNUSED: ${AGENTFORGE_W2_ALERT_P95_MS:-30000}
+✖ the deployed W2 service sets the p95 alert to the 30 s KEY_METRICS target (1.6408ms)
+✔ the frozen W1 service keeps its original alert configuration (0.2528ms)
+ℹ tests 2
+ℹ pass 1
+ℹ fail 1
+✖ failing tests:
+--- restored; git diff --stat: 
+
