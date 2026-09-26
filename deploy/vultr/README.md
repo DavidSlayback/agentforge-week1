@@ -140,8 +140,9 @@ the proxy when the Caddyfile changed. After a deploy, run
 round-trip on the public URL.
 
 Lab read-back uses OpenEMR's FHIR Observation service in-process
-(`read_path: openemr-fhir-service-in-process`); the `/fhir` HTTP API remains
-disabled on this deployment (`rest_fhir_api=0`) and is not what this proves.
+(`read_path: openemr-fhir-service-in-process`), not the `/fhir` HTTP API. That
+API was enabled on 2026-09-25 for the patient dashboard port; this proof does
+not use it.
 
 ## Patient dashboard port (`dashboard`)
 

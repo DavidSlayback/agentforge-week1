@@ -110,6 +110,15 @@ Both services run from the same repository and the same OpenEMR instance;
 Caddy routes `/agentforge-w2` and `/agentforge` to their separate containers,
 and the bare domain to OpenEMR itself.
 
+**Week 2 scope.** The PRD's "Core Deliverables" list mixes the core build
+with extension items. We built the core five first (two document types,
+supervisor plus two workers, hybrid RAG plus rerank, the 50-case gate, a
+PR-blocking gate with an observable demo) and one extension (click-to-source).
+The critic agent, a third document type, the lab trend chart and contextual
+retrieval are in progress for the final submission.
+[`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2, "Scope", gives the current
+state of each item.
+
 ## Local setup
 
 Prerequisites: **Node.js 24**, and for OCR and the module tests specifically:

@@ -140,10 +140,174 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | W1-S2 | W1 p9 | Postman/Bruno collection | S | Bruno collection with a deployed-URL env covering W1 and W2 endpoints; runs green with `bru run` | Out of scope (D8) | — |
 | W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | Out of scope (D8) | — |
 | W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | Out of scope (D8) | — |
-| X-1 | W2 p5 | Click-to-source UI | X | Delivered by S4 | — | S4 |
+| X-1 | W2 p5 | Click-to-source UI with a simple document preview | C (D12) | Built (S4); observed on the public URL: a citation's link highlights its box on the page image | Built, not observed live | S4, E1 |
+| X-2 | W2 p5 | Critic agent that rejects uncited claims or unsafe action suggestions | C (D12) | An LLM critic node in the supervisor graph can only veto claims; its decision and reason are traced; the gate fails when it is removed or ignored | Not built | E2 |
+| X-3 | W2 p5 | Third document type (referral fax or medication list) | C (D12) | `medication_list` end to end: upload, OpenEMR storage, strict schema, cited extraction, fail-loud checks, gate cases | Not built | E4 |
+| X-4 | W2 p5 | Lab trend chart widget from extracted Observation data | C (D12) | Chart of one test over ≥ 2 collection dates, read back from OpenEMR (not from the upload response) | Not built | E5 |
+| X-5 | W2 p6 | Contextual retrieval improvements | C (D12) | Chunking, query rewriting or domain filters, kept only if a labeled retrieval benchmark improves | Not built | E3 |
+| W2-S5 | p3 | W1 technical debt "documented and resolved before adding new surface area" | S | Every W1 debt item listed with resolved / accepted-with-reason | Partly: trust-critical debt fixed (S7); the rest is out of scope (D8), no single list | E6 |
 
-Out of scope: third document type, lab trend chart, critic agent, role model,
-LLM tool-calling, and handwriting or arbitrary-layout accuracy claims.
+Out of scope: role model, LLM tool-calling, and handwriting or
+arbitrary-layout accuracy claims.
+
+**Scope reading (user, 2026-09-26, superseded by D12 the same day).** The
+PRD PDF (p. 5–6) lists X-1…X-5 under "Core Deliverables" with the same bullet
+as the core five. The text extraction lost that layout, so the first
+requirements audit missed it. The PRD elsewhere treats them as extensions
+(p. 4; §4 "A critic agent is extension work, not core"). D12 settles it: build
+all of them.
+
+## W2 extensions: full PRD coverage (D12, plan 2026-09-26 08:00 CT)
+
+**D12 (user, 2026-09-26): "address the PRD fully".** Every item on the PRD's
+p. 5–6 deliverables list is built, deployed and observed live on the freeze
+SHA, and so are the remaining submission rows. The AGENTS.md "done" bar
+applies to each: on the deployed path, a gate case that fails on a deliberate
+regression, and observed on the public URL.
+
+**Verified starting facts (08:00 CT):** `main` = `a800e97`; W2 reports
+`521af47`, and there is no `agentforge/`, `evals/` or `observability/` diff
+between them; the gate is exactly 50 cases (`W2_GATE_CASE_COUNT`); the VM has
+`AGENTFORGE_OPENROUTER_API_KEY` set and no `AGENTFORGE_OPENROUTER_MODEL`
+(checked by presence, values not read); the document-type list lives in
+`scanFormContracts.js` (`SCAN_DOCUMENT_TYPES`) and in the module enum
+`DocumentType.php`, and the detection, extraction and write-back code branches
+on it in about 10 places; the module's `lab-observations` route reads one
+source document's Observations, not a patient's history.
+
+### Decisions needed before E2–E5 start
+
+| # | Question | Recommendation |
+|---|---|---|
+| Q1 | Third document type | **`medication_list`.** It reuses the intake medication shape and the draft→confirm lane (A3); a referral fax needs a new schema and a new persistence target. |
+| Q2 | How new cases are gated | **Keep the golden set at exactly 50** and add an **extension suite** run by the same hook with the same five boolean categories and the same regression rule. The PRD's "50-case golden set" stays literal, and new behaviour is still blocking. (The alternative is to swap weaker golden cases out for new ones.) |
+| Q3 | Critic model | A non-Qwen model on OpenRouter, chosen by a quick benchmark (latency and verdicts on recorded critic fixtures). A different model family from the composer means the critic doesn't share its blind spots. |
+| Q4 | Production authorization | Standing authorization for this plan's merges to `main`, W2 deploys, the module route change, and demo uploads to the seeded synthetic patients. Each is reported after it happens, as for the dashboard. |
+| Q5 | Coordination with the dashboard freeze | The dashboard session finishes its a11y and `deploy.sh` work and merges, but the **final** deploy of both services happens once, from one SHA, in E7. |
+
+**Answers (user, 2026-09-26 ~08:15 CT):** Q1 `medication_list`; Q2 golden set stays at 50,
+plus an extension suite in the same hook; Q3 critic model by benchmark (agent's call);
+Q4 standing authorization for merges, W2 deploys, the module route change and seeded-patient
+demo uploads, each reported after it happens; Q5 the dashboard session is told to hold its
+final deploy for the single-SHA freeze in E7.
+
+### Slices (lanes E2–E5 run in parallel worktrees; integration in order E3 → E2 → E4 → E5)
+
+**E1 — Click-to-source observed live (X-1). 30 min, first.** Run a sample lab
+scan on the public URL, click a citation, and screenshot the highlighted box.
+Add a unit test that every citation link's `href` equals an existing box id
+(fails if `citationBoxId` changes on one side only). Evidence goes to
+`docs/agentforge/evidence/<sha>/`.
+
+**E2 — Critic agent (X-2). 4 h.**
+- New worker `runCriticWorker` (`activeWorkers.js`), and a new decision
+  `CRITIQUE` in `decideNext` (`supervisor.js`): after ANSWER, then DONE. The
+  handoff and `decision{next, reason}` are logged like the other two.
+- It reads the composed claims and their resolved citations, and returns a
+  verdict per claim: `keep`, or `reject` with a reason code (`UNCITED`,
+  `UNSUPPORTED_BY_SOURCE`, `UNSAFE_ACTION`). It can only remove claims, never
+  add or rewrite them. `verifyClaims` still runs first and stays the authority.
+- Provider: OpenRouter through `modelProvider.js`, with its own env
+  (`AGENTFORGE_CRITIC_MODEL`, `_TIMEOUT_MS`). If the remaining request budget
+  is under the critic's timeout, or the call fails, the answer ships as the
+  verifier left it and is labeled `critic: skipped_budget` or `critic: failed`.
+  It is never silently labeled as reviewed.
+- Trace: critic latency, tokens, cost and verdict counts (codes only, no claim
+  text).
+- Gate: recorded critic fixtures keyed by provider, model and prompt hash (the
+  retrieval-fixture pattern); the `stub` label when no fixture exists.
+  Extension cases: an injected uncited claim and an injected directive are
+  rejected; clean answers pass unchanged; a timeout gets the `skipped_budget`
+  label. Regression proof: making the critic accept everything fails the gate.
+- Circuit breaker: if live p95 goes over 25 s with the critic on, lower its
+  timeout rather than widen the deadline; if it still misses, report it as
+  `wired, degraded` with numbers.
+
+**E3 — Contextual retrieval (X-5). 3 h.**
+- First, a labeled retrieval benchmark: about 20 queries built from the golden
+  documents' abnormal findings and chief concerns, each with its relevant
+  chunk ids. It reports recall@3 and MRR before any change.
+- Then two deterministic changes, each kept only if the benchmark improves:
+  (a) **contextual chunk headers**: publisher, title and section prepended to
+  each chunk for BM25, and for the dense side only if the embeddings can be
+  rebuilt within the Gemini free-tier quota (checked in
+  `build-corpus-embeddings.mjs` first); (b) **query rewriting** from the
+  extracted facts: test → condition terms from `clinicalVocabulary.js`, which
+  adds no latency and sends no new text outside the process
+  (`sanitizeForExternalModel` still applies).
+- Re-record the retrieval fixtures. The before/after numbers go in
+  `KEY_METRICS.md`. If neither change improves the benchmark, report that, and
+  X-5 counts as attempted and measured, not done.
+
+**E4 — Third document type, `medication_list` (X-3). 5 h, the widest change.**
+- Contracts: add it to `SCAN_DOCUMENT_TYPES`; a strict Zod `MedicationList`
+  (per item: name, dose, unit, frequency, route, and a source citation;
+  plus list date and prescriber); negative tests per required key; JSON Schema
+  export.
+- Extraction: OCR label patterns in `pdfScanAdapter.js`; a third branch in
+  `documentSafety.js` detection, so a doc-type mismatch between any pair of
+  types is QUALIFIED; `typedExtraction.js`.
+- Module: `DocumentType::MedicationList`; the source PDF and a derived-facts
+  JSON are stored as OpenEMR documents; medications reach the chart only
+  through the existing confirm lane. Tests in `tests/run.php`, `php -l` clean.
+- Fixtures: `filled-medlist-a.pdf` (vector) and `-b.pdf` (rasterized) from
+  `generate-golden-pdfs.mjs`, with truth in `manifest.json` and recorded OCR.
+- UI: sample buttons and the doc-type selector.
+- Extension cases: extraction accuracy, citations, a mislabeled type is
+  refused, and no PHI in logs.
+- Circuit breaker: if the module side isn't green by Sat 18:00, ship the
+  document storage plus derived-facts JSON only, and document that.
+
+**E5 — Lab trend chart (X-4). 3 h, after E4 merges (both touch `ui.js`).**
+- Module: `lab-observations` also accepts `patient_uuid` without
+  `source_document_id` and returns the patient's module-written lab
+  Observations (still HMAC-authenticated and patient-scoped).
+- A second synthetic lab for `fixture-patient-001` with an earlier collection
+  date (`filled-lab-c.pdf`), so a test has ≥ 2 points.
+- UI: an inline SVG chart per test (value against date, reference band,
+  each point linked to its source document), drawn only from the read-back.
+- Tests: the chart renders from a read-back bundle and never from the upload
+  response; with 1 point it shows a "one result" state, not a line.
+
+**E6 — Documentation (W2-S5 and the docs truth pass). 2 h, Sat evening.**
+Update the `W2_ARCHITECTURE.md` §2 scope table (every row built), §3 for the
+critic and the third type, `EVAL_GATE.md` (extension suite), `KEY_METRICS.md`
+(retrieval before/after, critic veto rate), `W2_COST_LATENCY.md` (critic
+cost and latency), and the README grader path. Add a W1-debt list to
+`W2_ARCHITECTURE.md` §4: each item marked resolved (with commit) or accepted
+(with reason). Correct this plan's stale completion record.
+
+**E7 — Freeze and prove (Sun 06:00–08:00).** One SHA on `main`. Deploy W2 and
+the dashboard from it and confirm both `/health` SHAs. Extend
+`w2-live-acceptance.mjs` with checks for the critic decision in the trace, a
+`medication_list` upload, the trend read-back and the overlay; re-run it into
+`LEDGER.md`. Take screenshots of the overlay, the trend chart and the critic
+trace.
+
+**Owner items (Sun 08:00–11:30):** Qwen and Vultr dev-spend numbers for
+`W2_COST_LATENCY.md`; the demo video from the frozen SHA, now also showing
+the critic and the trend chart; the social post; the submission link pointed
+at `main`; the AI interview after submission.
+
+### Schedule and stop rules
+
+| When (CT) | What |
+|---|---|
+| Sat 08:30–09:00 | Q1–Q5 answered; E1; worktrees for E2–E5 |
+| Sat 09:00–14:00 | E2, E3, E4 in parallel (TDD, a deliberate-regression proof per slice) |
+| Sat 14:00–16:00 | Review, integrate E3 + E2, merge, deploy, live check |
+| Sat 16:00–20:00 | E4 finish; E5; review, merge, deploy, live check |
+| Sat 20:00–22:00 | E6 |
+| Sun 06:00–08:00 | E7 freeze |
+| Sun 08:00–11:30 | Owner items; submit by 12:00 |
+
+- Priority if time runs short: E1 > E2 > E3 > E5 > E4. Any slice not green
+  by Sat 20:00 is cut. Its row in the scope table then says "not built", and
+  the gate is never loosened to let it through.
+- Every lane runs the hook on every commit, and gets an independent review
+  before merge.
+- Stop and ask if a change would write to a non-seeded patient, or would
+  widen the 25 s deadline.
 
 ## W2 surprise challenge: port the patient dashboard (approach decided 2026-09-25: `docs/legacy-audit/MIGRATION-REACT.md`, arc `docs/legacy-audit/arcs/ARC-01-DASHBOARD.md`)
 
@@ -169,7 +333,8 @@ Due "by the end of the week", which we read as the W2 final, Sunday 12:00 CT.
   `Condition`, `MedicationRequest`, `Medication`, `CareTeam`, `Observation`,
   `Encounter`, `Immunization`, `Appointment`.
 - **The FHIR API is disabled** (`globals.rest_fhir_api = 0`); the standard
-  REST API is on.
+  REST API is on. (Enabled on production 2026-09-25 for the dashboard port,
+  owner approval; see `docs/legacy-audit/AUDIT-STATE.md`.)
 - The three OAuth clients are AgentForge service clients. None is a public
   browser client with PKCE and a dashboard redirect URI.
 - OAuth2 login is OpenEMR's own login and consent flow, so graders need
@@ -449,8 +614,9 @@ observed live** — the post-deploy smoke below has not run.
   (`table.sql`), so a re-upload returns the same ids and adds 0 rows. Lab rows
   are `prelim` (unreviewed AI extraction; FHIR shows `status: unknown`).
 - Read-back is OpenEMR's FHIR Observation service called in-process
-  (`read_path: openemr-fhir-service-in-process`). The `/fhir` HTTP API stays
-  disabled on the VM (`rest_fhir_api=0`); enabling it needs an owner decision.
+  (`read_path: openemr-fhir-service-in-process`), not the `/fhir` HTTP API.
+  The owner enabled that API on 2026-09-25 for the dashboard port; the
+  read-back does not depend on it.
 - `agentforge-w2` runs `AGENTFORGE_PERSISTENCE_MODE=openemr-module`; the upload
   response carries `openemr.document_id`, the scan-supervisor response carries
   `openemr: {document_id, derived_document_id, procedure_order_id,
