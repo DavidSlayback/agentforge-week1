@@ -51,13 +51,13 @@ When a slice resolves an entry, strike it through and append the slice ID:
 | 2. Security: Injection & Input Sanitization | 0 | 2 | 3 | 1 | 6 |
 | 3. Security: Authorization & Permissions | 0 | 6 | 8 | 4 | 18 |
 | 4. Disabled or Half-Implemented Features | 0 | 1 | 9 | 2 | 12 |
-| 5. Data Integrity & Concurrency | 2 | 5 | 10 | 11 | 28 |
+| 5. Data Integrity & Concurrency | 2 | 6 | 10 | 11 | 29 |
 | 6. Error Handling & Logging | 0 | 0 | 7 | 6 | 13 |
 | 7. UI/UX Bugs | 0 | 2 | 10 | 14 | 26 |
 | 8. Architectural Smells | 0 | 1 | 5 | 9 | 15 |
 | 9. Build / Deployment Risks | 0 | 0 | 3 | 4 | 7 |
 | 10. Dead Code & Inconsistencies | 0 | 0 | 0 | 27 | 27 |
-| **Total** | **2** | **18** | **61** | **83** | **164** |
+| **Total** | **2** | **19** | **61** | **83** | **165** |
 
 **Coverage:** harvested rows 238 → catalog entries 164 (74 merged). 53 entries combine 127 rows; the other 111 are standalone. Inputs: 119 rows from `ui/`, `project/` and `BASELINE-ERRORS.md`; 92 from `modules/`; 23 from `modules/LEGACY-ROUTER-AND-LISTS.md` and `data/`; plus 4 read from source that the harvest missed (`BASELINE-ERRORS.md` E-10; `project/WHATS-MISSING.md` "Input validation at boundaries" (OpenEMR), "Secrets management" (OpenEMR), "Backups and restore" (AgentForge)). Every row appears in exactly one entry's **Sources** line (checked by script).
 
@@ -643,6 +643,13 @@ is U-1's mechanism. 5.02 cross-references it.
 - **Mitigation:** Validate against the UNION, or document the mix. *Disposition:* fix in legacy.
 - **Port relevance:** not on the port path (the port uses the collection only).
 - **Sources:** `modules/MEDICATION-SERVICES.md#10`
+
+### 5.29 Allergy REST route returns HTTP 500 for any allergy authored by a user — High
+- **Location:** `src/Services/AllergyIntoleranceService.php:search()` (lines 58-60, 86, 95: `practitioner_uuid` / `organization_uuid` selected as `binary(16)`; only `uuid`, `puuid`, `patient_uuid` are converted at lines 114-116) (verified: local Apache log "Malformed UTF-8 characters" on `GET /api/patient/:puuid/allergy`, 2026-09-25, slice 01-06-01)
+- **Description:** When `lists.user` names a real user (normal for clinician-entered allergies), the response carries that user's and facility's raw binary uuids; JSON encoding fails and the route returns 500. Synthea-imported allergies have no author, so the audit's Synthea data never triggered it; the dashboard's DASH-SYN seed (authored by `admin`) did. The legacy PHP card is unaffected (it renders via Twig, not JSON).
+- **Mitigation:** Convert `practitioner_uuid` and `organization_uuid` with `UuidRegistry::uuidToString()` in `search()` like the other uuid columns. *Disposition:* fix in legacy (upstream patch; parked with the other backend fixes). For the demo the DASH-SYN allergy rows are authored by no user (`seed/prod-dashboard-seed.sql`), which hides this bug for those rows only.
+- **Port relevance:** port depends on it: the Allergies card shows its explicit error state (never "Nothing Recorded") whenever this fires.
+- **Sources:** `evidence/parity/README.md` (slice 01-06-01); orchestrator verification of the author difference (local and production rows, 2026-09-25)
 
 ## 6. Error Handling & Logging
 

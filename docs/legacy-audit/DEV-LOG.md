@@ -58,6 +58,117 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-26 (later) — Arc 01 / Story 01-06 / Slice 01-06-01 — Allergies finding: seed workaround, re-verified
+
+**Status:** ready-for-commit (evidence + docs only; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` · **SHA:** no merge SHA yet
+
+Correction/follow-up to the 01-06-01 entry directly below (that entry is left
+unchanged per the append-only convention).
+
+### Worked on
+- Owner approved a seed-data workaround for the Allergies finding below: the
+  DASH-SYN-01/DASH-SYN-02 allergy rows now have `lists.user = NULL` (local and
+  production), instead of `user='admin'`.
+- Re-ran the headless Playwright capture for the **port side only**,
+  DASH-SYN-01 and DASH-SYN-02 (pid 3 and the legacy screenshots untouched —
+  legacy was never affected). Replaced `port-dash-syn-01.png`,
+  `port-dash-syn-02.png` and their `capture-data.json` entries.
+- Updated `docs/legacy-audit/evidence/parity/README.md`: Allergies now shows
+  as matching legacy for both patients (DASH-SYN-01: Penicillin (Severe)
+  highlighted, Latex still hidden by the outcome filter; DASH-SYN-02: Sulfa
+  drugs, not highlighted). The Findings section keeps the defect documented
+  — reworded to "legacy API defect, worked around in seed data (allergies
+  authored by no user); still present for any allergy authored by a real
+  user" — rather than deleting it now that the symptom is gone for these two
+  patients.
+
+### Result
+- **Allergies now loads successfully for both DASH-SYN-01 and DASH-SYN-02.**
+  Confirmed live, same method as before: `data-state="ok"`, rendered text
+  matches the legacy card exactly for both patients.
+- The underlying `AllergyIntoleranceService::search()` defect (raw-binary
+  `practitioner_uuid`/`organization_uuid` breaking `json_encode()`) is
+  **unchanged** — it is only unreachable now for these two seeded patients
+  because their allergy rows no longer have an authoring user that resolves
+  through the `users`/`facility` join. It remains live for any patient whose
+  allergy list has a row authored by a real user.
+
+### Tests
+- No `dashboard/` code changed; hook run covers the evidence-folder commit as
+  before (docs/evidence only).
+
+### Open questions / follow-ups
+- Same as the original 01-06-01 entry (drills, a11y pass, `api_log_option`
+  check not done in either pass), plus: decide whether
+  `AllergyIntoleranceService::search()` gets a real code fix upstream at some
+  point, independent of the seed workaround, since the defect still affects
+  any real (non-seeded) patient with an allergy authored by a user with a
+  matching `users`/`facility` row.
+
+## 2026-09-26 — Arc 01 / Story 01-06 / Slice 01-06-01 — Parity evidence and hardening
+
+**Status:** ready-for-commit (evidence + docs only; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` · **SHA:** no merge SHA yet
+
+### Slice plan
+Goal (arc): side-by-side screenshots (legacy vs port), load-time measurements, for
+DASH-SYN-01, DASH-SYN-02 and pid 3, on the local stack. Catalog IDs: 7.08 (slow loads,
+measured), part of 7.12 (a11y audit, deferred — see Open questions).
+
+### Worked on
+- Headless Playwright capture script (`docs/legacy-audit/probe/parity-capture.mjs`,
+  scratch, not committed — same login flow as `probe-dashboard.mjs`), driven against
+  the local legacy stack (port 8300/9300) and `npm run dev --prefix dashboard`
+  (port 8790). Login credentials read from
+  `docker/development-easy-light/docker-compose.yml` at run time, never printed.
+- Captured full-page PNGs for all three patients on both dashboards, plus per-card
+  state/row-count/header-text data and 3 timing runs, into
+  `docs/legacy-audit/evidence/parity/` (`README.md`, `capture-data.json`, 6 PNGs).
+- Wrote the per-patient, per-section parity table in that README, calling out every
+  documented intended deviation (header sex/status, refills/dosage/care-team gaps,
+  vitals soft-delete fix, empty-state wording) against what was actually observed.
+
+### Findings
+- **Unintended:** the Allergies card 500s live for both DASH-SYN-01 and DASH-SYN-02
+  (route `rest.allergy.list`, reproduced on every capture run — 3+ loads each), turning
+  into the card's generic `error` state. Traced to a real upstream defect in
+  `AllergyIntoleranceService::search()`: two joined columns
+  (`practitioner_uuid`, `organization_uuid`) are selected as raw `binary(16)` and never
+  passed through `UuidRegistry::uuidToString()` before the response is JSON-encoded,
+  so any allergy row whose `lists.user` matches a real username 500s
+  ("Malformed UTF-8 characters", confirmed in the container's Apache error log). Data
+  dependent: both dashboard seed patients have an allergy authored by `admin` (a real
+  user), pid 3 has zero allergy rows so it never hits this path. Not fixed — out of
+  scope for an evidence slice; the BFF's own handling of the upstream 500 (generic
+  error state, correlation id, no upstream text) is correct. Full write-up in the
+  evidence README's "Findings" section.
+- No other unintended differences found across the three patients / six cards.
+
+### Tests
+- No code changed; the hook was not run for this slice (docs + evidence only).
+- Live: legacy and port both reachable and exercised for all three patients on the
+  local stack; not a public/deploy check (this slice doesn't touch `deploy/`).
+
+### Timing (local laptop, not production; DASH-SYN-01, 3 runs each)
+- Legacy full-page network-idle: median 3200 ms (range 3103–3352 ms).
+- Port header-visible: median 2557 ms (range 2154–2654 ms).
+- Port all-7-sections-settled: median 4287 ms (range 4157–4521 ms).
+
+### BUGS-MITIGATIONS.md updates
+- None struck through this slice (evidence gathering; the Allergies finding above is
+  new and not yet in that catalog — flagging here per AGENTS.md "fail loudly", not
+  filing a new catalog ID as part of this slice).
+
+### Open questions / follow-ups
+- The Allergies-card 500 (above) needs a decision: file a new catalog ID and either
+  patch the upstream service (outside `dashboard/`, so outside this arc's normal
+  scope) or document it as an accepted live gap in
+  `PATIENT_DASHBOARD_MIGRATION.md` (01-06-02).
+- Error-state drills (401/403/200-with-errors/404-empty), the manual keyboard/screen
+  reader pass, and the `api_log_option` production config check (arc's other 01-06-01
+  goals) were not done in this pass — this session's task was scoped to the
+  screenshot/timing/README parity evidence only. Still open for a follow-up pass
+  before the arc's own acceptance check is called fully met.
+
 ## 2026-09-25 — Arc 01 / Story 01-05 / Slice 01-05-01 — Vitals card via REST per encounter
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `1d37a47` (+ `0f94550`, a test-order fix); no merge SHA yet

@@ -624,11 +624,29 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   - **Deliberate regression:** remove an `aria-label` or heading level in
     `Card.tsx`. Expected red: the axe test.
 - **Live evidence**
-  - [ ] Screenshot pairs saved, and every visible difference is listed with
-    its catalog ID or "not available via API".
+  - [x] Screenshot pairs saved, and every visible difference is listed with
+    its catalog ID or "not available via API". Done 2026-09-26 for
+    DASH-SYN-01/DASH-SYN-02/pid 3 (the seeded dashboard demo patients,
+    superseding this slice's original pid 13/3/12 plan — DASH-SYN-01/02 give
+    the same header/deceased/data-rich coverage pid 12/13 would have) —
+    `docs/legacy-audit/evidence/parity/`. One genuinely unintended difference
+    was found and documented: Allergies 500s live for both DASH-SYN-01 and
+    DASH-SYN-02 (legacy `AllergyIntoleranceService::search()` emits a raw
+    binary uuid column that breaks JSON encoding whenever an allergy is
+    authored by a real user). Owner approved a seed-data workaround same day
+    (`lists.user = NULL` for these rows, local and production) — Allergies
+    now loads and matches legacy for both patients, re-verified live. The
+    underlying code defect is unchanged and still live for any allergy
+    authored by a real user; not fixed as application code, per this slice's
+    scope. See that README's Findings section and `DEV-LOG.md` 01-06-01 plus
+    its same-day follow-up entry.
   - [ ] The drills map to the documented states, and no upstream text is ever
-    rendered.
-  - [ ] Timing recorded (measured, not estimated).
+    rendered. **Not done this pass** — only live states were observed, not
+    the synthetic 401/403/200-with-errors/404-empty drills; still open.
+  - [x] Timing recorded (measured, not estimated). Done 2026-09-26,
+    DASH-SYN-01, local laptop: legacy network-idle median 3200 ms, port
+    header-visible median 2557 ms, port all-7-settled median 4287 ms —
+    `docs/legacy-audit/evidence/parity/README.md`.
 - **Acceptance check:** a reviewer can open the evidence folder and see, per
   card, legacy and port side by side with the differences explained.
 

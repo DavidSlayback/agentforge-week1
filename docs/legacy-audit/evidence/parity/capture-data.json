@@ -1,0 +1,506 @@
+{
+  "capturedAt": "2026-09-26T04:01:07.285Z",
+  "legacy": {
+    "dash-syn-01": {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=14",
+      "header": null,
+      "cards": [
+        {
+          "title": "Allergies",
+          "rows": 0,
+          "text": "Penicillin (Severe)"
+        },
+        {
+          "title": "Medical Problems",
+          "rows": 0,
+          "text": "Essential hypertension\nPrediabetes"
+        },
+        {
+          "title": "Medications",
+          "rows": 0,
+          "text": "Lisinopril 10 MG Oral Tablet"
+        },
+        {
+          "title": "Prescriptions",
+          "rows": 4,
+          "text": "Drug\tDetails\tQty\tRefills\tFilled\nMetformin 500 MG Oral Tablet \t500mg  1\t60\t1\t2026-03-14 10:30:00\nLisinopril 10 MG Oral Tablet \t10mg  1\t90\t3\t2025-11-02 09:00:00\nAmoxicillin 500 MG Oral Capsule \t500mg  1\t21\t0\t2022-01-05 08:15:00"
+        },
+        {
+          "title": "Care Team",
+          "rows": 2,
+          "text": "$(function () {\n                let editModeEnabled = false;\n                $('.datepicker').datetimepicker({\n                    timepicker: false,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n\n                function toggleEditMode(enable = true) {\n                    document.querySelectorAll('.editShow').forEach(el => el.classList.toggle('d-none', !enable));\n                    document.querySelectorAll('.viewOnly').forEach(el => el.classList.toggle('d-none', enable));\n                    editModeEnabled = enable;\n                }\n\n                const existingCareTeam = [{\"team_name\":\"Primary care team [seed:dashboard]\",\"member_type\":\"user\",\"user_id\":1,\"contact_id\":null,\"role\":\"primary_care_provider\",\"facility_id\":3,\"provider_since\":\"2020-01-15\",\"status\":\"active\",\"note\":\"[seed:dashboard]\",\"user_name\":\"Billy Smith\",\"contact_name\":\"\",\"contact_relationship\":\"\",\"physician_type\":\"\",\"physician_type_code\":\"\"}];\n                const userOptions = \"<option value=''><\\/option><option value='8' data-physician-type='' data-physician-code=''>Jarvis, Fred<\\/option><option value='6' data-physician-type='' data-physician-code=''>Lee, Donna<\\/option><option value='10' data-physician-type='' data-physician-code=''>Provider, External<\\/option><option value='13' data-physician-type='' data-physician-code=''>Slayback, David<\\/option><option value='1' data-physician-type='' data-physician-code=''>Smith, Billy<\\/option><option value='4' data-physician-type='' data-physician-code=''>Stent, Ernie<\\/option><option value='5' data-physician-type='' data-physician-code=''>Stone, Fred<\\/option><option value='7' data-physician-type='' data-physician-code=''>Wallace, Barbara<\\/option>\";\n                const relatedPersonOptions = \"<option value=''><\\/option>\"; // AI-generated addition\n                const hasRelatedPersons = false; // AI-generated addition\n                const facilityOptions = \"<option value=''><\\/option><option val"
+        },
+        {
+          "title": "Treatment Intervention Preferences",
+          "rows": 0,
+          "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No treatment intervention preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Type\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Goals, preferences, and priorities for medical treatment [Reported] (75773-2)\n                                \n                                                            \n                                    Thoughts on resuscitation (CPR) (81329-5)\n                                \n                                                            \n                                    Thoughts on intubation (81330-3)\n                                \n                                                            \n                                    Thoughts on tube feeding (81331-1)\n                                \n                                                            \n                                    Thoughts on IV fluid and support (81332-9)\n                                \n                                                            \n                                    Thoughts on antibiotics (81333-7)\n                                \n                                                            \n                                    Patient's thoughts on cardiopulmonary bypass (81336-0)\n                                \n                                "
+        },
+        {
+          "title": "Care Experience Preferences",
+          "rows": 0,
+          "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No care experience preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Category\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Care experience preference (95541-9)\n                                \n                                                            \n                                    Religious or cultural beliefs (reported) (81364-2)\n                                \n                                                            \n                                    Religious/cultural affiliation contact to notify (reported) (81365-9)\n                                \n                                                            \n                                    Preferred pharmacy (103980-9)\n                                \n                                                            \n                                    Care experience preference under certain health conditions (81342-8)\n                                \n                                                            \n                                    Care experience preference at end of life (81343-6)\n                                \n                                                            \n                                    Preferred location for healthcare (81362-6)\n                                \n  "
+        },
+        {
+          "title": "Demographics",
+          "rows": 58,
+          "text": "Who\n            \n                        \n            \n            Contact\n            \n                        \n            \n            Choices\n            \n                        \n            \n            Employer\n            \n                        \n            \n            Stats\n            \n                        \n            \n            Misc\n            \n                        \n            \n            Related\n            \n            \n\n    \n\nTitle: \nName:Dana    Seedcase Seedcase    \nPreferred Name:\nExternal ID:DASH-SYN-01DOB:1970-04-12\nBirth Sex:FemaleS.S.\nLicense/ID:Marital Status: \nUser Defined:         \nBilling Note:\nGender Identity: Sex: \nSexual Orientation: Pronouns: \nBirth Name:      \nPrevious Names:\n\nAddress:Address Line 2:\nCity:State: \nPostal Code:Country: \nMother`s Name:Emergency Contact:\nEmergency Phone:Home Phone:\nWork Phone:Mobile Phone:\nContact Email:Trusted Email:\nCounty: \n\n    .address-inactive-display {\n        opacity: 0.6;\n        background-color: var(--light);\n        font-style: italic;\n    }\n\n    \n    \n                Additional Addresses\n                    \n                \n                \n            NONE\n            \n        \n        \n            \n\n    function toggleInactiveAddressesDisplay(tableId) {\n        const checkbox = document.getElementById('show_inactive_addresses_display_' + tableId);\n        const table = document.getElementById(tableId);\n\n        if (!table) {\n            console.error('Table not found:', tableId);\n            return;\n        }\n\n        const inactiveAddresses = table.querySelectorAll('.address-inactive-display');\n\n        console.log('Toggle inactive addresses:', {\n            tableId: tableId,\n            checked: checkbox.checked,\n            foundAddresses: inactiveAddresses.length\n        });\n\n        inactiveAddresses.forEach(function(address) {\n            if (checkbox.checked) {\n                address.classList.remove('d-none');\n            } else {\n                address.classList.add"
+        },
+        {
+          "title": "Billing",
+          "rows": 0,
+          "text": "Patient Balance Due\n        0.00\n    \n    \n        Insurance Balance Due\n        0.00\n    \n    \n        Total Balance Due\n        0.00"
+        },
+        {
+          "title": "Insurance",
+          "rows": 0,
+          "text": "Primary\n        \n                            \n        Eligibility\n    \n\n    \n                    Nothing To Report\n\n            \n    \n        function updatePageNavigationButtonsForTarget(type, target) {\n            // update previous and next links\n            let prevLink = document.querySelector('#' + type + ' .pagination .insurance-pagination-prev');\n            let targetPolicyParentNode = target.closest('.page-item');\n            let previousElementSibling = targetPolicyParentNode.previousElementSibling;\n            if (previousElementSibling && previousElementSibling.classList.contains('insurance-pagination-item')) {\n                prevLink.closest('.page-item').classList.remove('disabled');\n                prevLink.dataset['policyId'] = previousElementSibling.querySelector('a').dataset['policyId'];\n            } else {\n                prevLink.closest('.page-item').classList.add('disabled');\n                prevLink.dataset['policyId'] = null;\n            }\n            let nextLink = document.querySelector('#' + type + ' .pagination .insurance-pagination-next');\n            if (nextLink) {\n                let nextElementSibling = targetPolicyParentNode.nextElementSibling;\n                if (nextElementSibling && nextElementSibling.classList.contains('insurance-pagination-item')) {\n                    nextLink.closest('.page-item').classList.remove('disabled');\n                    nextLink.dataset['policyId'] = nextElementSibling.querySelector('a').dataset['policyId'];\n                } else {\n                    nextLink.closest('.page-item').classList.add('disabled');\n                    nextLink.dataset['policyId'] = null;\n                }\n            }\n        }\n        function updateInsurancePaginationPane(e) {\n            e.preventDefault();\n            let policyId = e.target.dataset['policyId'];\n            let type = e.target.dataset['type'];\n            document.querySelectorAll('#' + type + ' .tab-pagination-pane').forEach(pane => {\n           "
+        },
+        {
+          "title": "Messages",
+          "rows": 0,
+          "text": "There are no messages on file for this patient. To add messages, please click here."
+        },
+        {
+          "title": "Patient Reminders",
+          "rows": 0,
+          "text": "Loading..."
+        },
+        {
+          "title": "Disclosures",
+          "rows": 1,
+          "text": "Type\n    Provider\n    Summary\n\n    \n    There are no disclosures recorded for this patient. To record disclosures, please click here."
+        },
+        {
+          "title": "Amendments",
+          "rows": 0,
+          "text": "None"
+        },
+        {
+          "title": "Labs",
+          "rows": 0,
+          "text": "No lab data documented."
+        },
+        {
+          "title": "Vitals",
+          "rows": 13,
+          "text": "Most recent vitals from: 2026-05-01 09:00:00\n\nBlood Pressure:\t190/120\nHeight:\t65 in (165.10 cm)\nWeight:\t150 lb (68.04 kg)\nTemperature:\t101 F (38.34 C)\nTemp Method:\tOral\nPulse:\t130 per min\nRespiration:\t30 per min\nNote:\tDELETED vitals, must be hidden [seed:dashboard]\nBMI:\t25 kg/m^2\nBMI Status:\tNormal\nOxygen Saturation:\t88 %\nLast Updated:\t2026-09-26 00:20:11\n\nClick here to view and graph all vitals."
+        },
+        {
+          "title": "Patient Portal / API Access",
+          "rows": 0,
+          "text": "Portal Access\n             Allow Patient Portal in Demographics > Choices Employer \n        \n    \n\n    \n            \n        Credentials\n                                                 Create"
+        },
+        {
+          "title": "Clinical Reminders",
+          "rows": 0,
+          "text": "Loading..."
+        },
+        {
+          "title": "Recall",
+          "rows": 0,
+          "text": "No Recalls"
+        },
+        {
+          "title": "Appointments",
+          "rows": 0,
+          "text": "Future Appointments\nNo Appointments\n Recurring Appointments\nNo Recurring Appointments"
+        },
+        {
+          "title": "Health Concerns",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Immunizations",
+          "rows": 0,
+          "text": "None"
+        }
+      ]
+    },
+    "dash-syn-02": {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=15",
+      "header": null,
+      "cards": [
+        {
+          "title": "Allergies",
+          "rows": 0,
+          "text": "Sulfa drugs (Moderate)"
+        },
+        {
+          "title": "Medical Problems",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Medications",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Prescriptions",
+          "rows": 0,
+          "text": "None"
+        },
+        {
+          "title": "Care Team",
+          "rows": 1,
+          "text": "$(function () {\n                let editModeEnabled = false;\n                $('.datepicker').datetimepicker({\n                    timepicker: false,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n\n                function toggleEditMode(enable = true) {\n                    document.querySelectorAll('.editShow').forEach(el => el.classList.toggle('d-none', !enable));\n                    document.querySelectorAll('.viewOnly').forEach(el => el.classList.toggle('d-none', enable));\n                    editModeEnabled = enable;\n                }\n\n                const existingCareTeam = [];\n                const userOptions = \"<option value=''><\\/option><option value='8' data-physician-type='' data-physician-code=''>Jarvis, Fred<\\/option><option value='6' data-physician-type='' data-physician-code=''>Lee, Donna<\\/option><option value='10' data-physician-type='' data-physician-code=''>Provider, External<\\/option><option value='13' data-physician-type='' data-physician-code=''>Slayback, David<\\/option><option value='1' data-physician-type='' data-physician-code=''>Smith, Billy<\\/option><option value='4' data-physician-type='' data-physician-code=''>Stent, Ernie<\\/option><option value='5' data-physician-type='' data-physician-code=''>Stone, Fred<\\/option><option value='7' data-physician-type='' data-physician-code=''>Wallace, Barbara<\\/option>\";\n                const relatedPersonOptions = \"<option value=''><\\/option>\"; // AI-generated addition\n                const hasRelatedPersons = false; // AI-generated addition\n                const facilityOptions = \"<option value=''><\\/option><option value='3' data-npi='' data-taxonomy=''>Great Clinic<\\/option>\";\n                const roleOptions = \"<option value=''><\\/option><option value='family_medicine_specialist' data-codes='SNOMED-CT:62247001'>Family Medicine Specialist<\\/option><option value='case_manager' data-codes='SNOMED-CT:133932002'>Case Manager<\\/option><option value='ca"
+        },
+        {
+          "title": "Treatment Intervention Preferences",
+          "rows": 0,
+          "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No treatment intervention preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Type\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Goals, preferences, and priorities for medical treatment [Reported] (75773-2)\n                                \n                                                            \n                                    Thoughts on resuscitation (CPR) (81329-5)\n                                \n                                                            \n                                    Thoughts on intubation (81330-3)\n                                \n                                                            \n                                    Thoughts on tube feeding (81331-1)\n                                \n                                                            \n                                    Thoughts on IV fluid and support (81332-9)\n                                \n                                                            \n                                    Thoughts on antibiotics (81333-7)\n                                \n                                                            \n                                    Patient's thoughts on cardiopulmonary bypass (81336-0)\n                                \n                                "
+        },
+        {
+          "title": "Care Experience Preferences",
+          "rows": 0,
+          "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No care experience preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Category\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Care experience preference (95541-9)\n                                \n                                                            \n                                    Religious or cultural beliefs (reported) (81364-2)\n                                \n                                                            \n                                    Religious/cultural affiliation contact to notify (reported) (81365-9)\n                                \n                                                            \n                                    Preferred pharmacy (103980-9)\n                                \n                                                            \n                                    Care experience preference under certain health conditions (81342-8)\n                                \n                                                            \n                                    Care experience preference at end of life (81343-6)\n                                \n                                                            \n                                    Preferred location for healthcare (81362-6)\n                                \n  "
+        },
+        {
+          "title": "Deceased - 2026-08-30 (27 days ago)",
+          "rows": 0,
+          "text": "Deceased - 2026-08-30 (27 days ago)"
+        },
+        {
+          "title": "Demographics",
+          "rows": 58,
+          "text": "Who\n            \n                        \n            \n            Contact\n            \n                        \n            \n            Choices\n            \n                        \n            \n            Employer\n            \n                        \n            \n            Stats\n            \n                        \n            \n            Misc\n            \n                        \n            \n            Related\n            \n            \n\n    \n\nTitle: \nName:Morgan    Seedcase Seedcase    \nPreferred Name:\nExternal ID:DASH-SYN-02DOB:1948-09-01\nBirth Sex:MaleS.S.\nLicense/ID:Marital Status: \nUser Defined:         \nBilling Note:\nGender Identity: Sex: \nSexual Orientation: Pronouns: \nBirth Name:      \nPrevious Names:\n\nAddress:Address Line 2:\nCity:State: \nPostal Code:Country: \nMother`s Name:Emergency Contact:\nEmergency Phone:Home Phone:\nWork Phone:Mobile Phone:\nContact Email:Trusted Email:\nCounty: \n\n    .address-inactive-display {\n        opacity: 0.6;\n        background-color: var(--light);\n        font-style: italic;\n    }\n\n    \n    \n                Additional Addresses\n                    \n                \n                \n            NONE\n            \n        \n        \n            \n\n    function toggleInactiveAddressesDisplay(tableId) {\n        const checkbox = document.getElementById('show_inactive_addresses_display_' + tableId);\n        const table = document.getElementById(tableId);\n\n        if (!table) {\n            console.error('Table not found:', tableId);\n            return;\n        }\n\n        const inactiveAddresses = table.querySelectorAll('.address-inactive-display');\n\n        console.log('Toggle inactive addresses:', {\n            tableId: tableId,\n            checked: checkbox.checked,\n            foundAddresses: inactiveAddresses.length\n        });\n\n        inactiveAddresses.forEach(function(address) {\n            if (checkbox.checked) {\n                address.classList.remove('d-none');\n            } else {\n                address.classList.add"
+        },
+        {
+          "title": "Billing",
+          "rows": 0,
+          "text": "Patient Balance Due\n        0.00\n    \n    \n        Insurance Balance Due\n        0.00\n    \n    \n        Total Balance Due\n        0.00"
+        },
+        {
+          "title": "Insurance",
+          "rows": 0,
+          "text": "Primary\n        \n                            \n        Eligibility\n    \n\n    \n                    Nothing To Report\n\n            \n    \n        function updatePageNavigationButtonsForTarget(type, target) {\n            // update previous and next links\n            let prevLink = document.querySelector('#' + type + ' .pagination .insurance-pagination-prev');\n            let targetPolicyParentNode = target.closest('.page-item');\n            let previousElementSibling = targetPolicyParentNode.previousElementSibling;\n            if (previousElementSibling && previousElementSibling.classList.contains('insurance-pagination-item')) {\n                prevLink.closest('.page-item').classList.remove('disabled');\n                prevLink.dataset['policyId'] = previousElementSibling.querySelector('a').dataset['policyId'];\n            } else {\n                prevLink.closest('.page-item').classList.add('disabled');\n                prevLink.dataset['policyId'] = null;\n            }\n            let nextLink = document.querySelector('#' + type + ' .pagination .insurance-pagination-next');\n            if (nextLink) {\n                let nextElementSibling = targetPolicyParentNode.nextElementSibling;\n                if (nextElementSibling && nextElementSibling.classList.contains('insurance-pagination-item')) {\n                    nextLink.closest('.page-item').classList.remove('disabled');\n                    nextLink.dataset['policyId'] = nextElementSibling.querySelector('a').dataset['policyId'];\n                } else {\n                    nextLink.closest('.page-item').classList.add('disabled');\n                    nextLink.dataset['policyId'] = null;\n                }\n            }\n        }\n        function updateInsurancePaginationPane(e) {\n            e.preventDefault();\n            let policyId = e.target.dataset['policyId'];\n            let type = e.target.dataset['type'];\n            document.querySelectorAll('#' + type + ' .tab-pagination-pane').forEach(pane => {\n           "
+        },
+        {
+          "title": "Messages",
+          "rows": 0,
+          "text": "There are no messages on file for this patient. To add messages, please click here."
+        },
+        {
+          "title": "Patient Reminders",
+          "rows": 0,
+          "text": "Loading..."
+        },
+        {
+          "title": "Disclosures",
+          "rows": 1,
+          "text": "Type\n    Provider\n    Summary\n\n    \n    There are no disclosures recorded for this patient. To record disclosures, please click here."
+        },
+        {
+          "title": "Amendments",
+          "rows": 0,
+          "text": "None"
+        },
+        {
+          "title": "Labs",
+          "rows": 0,
+          "text": "No lab data documented."
+        },
+        {
+          "title": "Vitals",
+          "rows": 0,
+          "text": "No vitals have been documented."
+        },
+        {
+          "title": "Patient Portal / API Access",
+          "rows": 0,
+          "text": "Portal Access\n             Allow Patient Portal in Demographics > Choices Employer \n        \n    \n\n    \n            \n        Credentials\n                                                 Create"
+        },
+        {
+          "title": "Clinical Reminders",
+          "rows": 0,
+          "text": "Loading..."
+        },
+        {
+          "title": "Recall",
+          "rows": 0,
+          "text": "No Recalls"
+        },
+        {
+          "title": "Appointments",
+          "rows": 0,
+          "text": "Future Appointments\nNo Appointments\n Recurring Appointments\nNo Recurring Appointments"
+        },
+        {
+          "title": "Health Concerns",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Immunizations",
+          "rows": 0,
+          "text": "None"
+        }
+      ]
+    },
+    "pid-3": {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=3",
+      "header": null,
+      "cards": [
+        {
+          "title": "Allergies",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Medical Problems",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Medications",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Prescriptions",
+          "rows": 0,
+          "text": "None"
+        },
+        {
+          "title": "Care Team",
+          "rows": 1,
+          "text": "$(function () {\n                let editModeEnabled = false;\n                $('.datepicker').datetimepicker({\n                    timepicker: false,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n\n                function toggleEditMode(enable = true) {\n                    document.querySelectorAll('.editShow').forEach(el => el.classList.toggle('d-none', !enable));\n                    document.querySelectorAll('.viewOnly').forEach(el => el.classList.toggle('d-none', enable));\n                    editModeEnabled = enable;\n                }\n\n                const existingCareTeam = [];\n                const userOptions = \"<option value=''><\\/option><option value='8' data-physician-type='' data-physician-code=''>Jarvis, Fred<\\/option><option value='6' data-physician-type='' data-physician-code=''>Lee, Donna<\\/option><option value='10' data-physician-type='' data-physician-code=''>Provider, External<\\/option><option value='13' data-physician-type='' data-physician-code=''>Slayback, David<\\/option><option value='1' data-physician-type='' data-physician-code=''>Smith, Billy<\\/option><option value='4' data-physician-type='' data-physician-code=''>Stent, Ernie<\\/option><option value='5' data-physician-type='' data-physician-code=''>Stone, Fred<\\/option><option value='7' data-physician-type='' data-physician-code=''>Wallace, Barbara<\\/option>\";\n                const relatedPersonOptions = \"<option value=''><\\/option>\"; // AI-generated addition\n                const hasRelatedPersons = false; // AI-generated addition\n                const facilityOptions = \"<option value=''><\\/option><option value='3' data-npi='' data-taxonomy=''>Great Clinic<\\/option>\";\n                const roleOptions = \"<option value=''><\\/option><option value='family_medicine_specialist' data-codes='SNOMED-CT:62247001'>Family Medicine Specialist<\\/option><option value='case_manager' data-codes='SNOMED-CT:133932002'>Case Manager<\\/option><option value='ca"
+        },
+        {
+          "title": "Treatment Intervention Preferences",
+          "rows": 0,
+          "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No treatment intervention preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Type\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Goals, preferences, and priorities for medical treatment [Reported] (75773-2)\n                                \n                                                            \n                                    Thoughts on resuscitation (CPR) (81329-5)\n                                \n                                                            \n                                    Thoughts on intubation (81330-3)\n                                \n                                                            \n                                    Thoughts on tube feeding (81331-1)\n                                \n                                                            \n                                    Thoughts on IV fluid and support (81332-9)\n                                \n                                                            \n                                    Thoughts on antibiotics (81333-7)\n                                \n                                                            \n                                    Patient's thoughts on cardiopulmonary bypass (81336-0)\n                                \n                                "
+        },
+        {
+          "title": "Care Experience Preferences",
+          "rows": 0,
+          "text": "$(function () {\n                $('.datepicker').datetimepicker({\n                    timepicker: true,\n                    formatDate: 'Y-m-d',\n                    format: 'Y-m-d'\n                });\n            });\n        \n    \n        \n        \n                    \n                \n                                    No care experience preferences recorded.\n                            \n            \n\n                \n            \n                \n                \n                \n                \n\n                \n                    \n                        \n                            Preference Category\n                            *\n                        \n                        \n                            Select...\n                                                            \n                                    Care experience preference (95541-9)\n                                \n                                                            \n                                    Religious or cultural beliefs (reported) (81364-2)\n                                \n                                                            \n                                    Religious/cultural affiliation contact to notify (reported) (81365-9)\n                                \n                                                            \n                                    Preferred pharmacy (103980-9)\n                                \n                                                            \n                                    Care experience preference under certain health conditions (81342-8)\n                                \n                                                            \n                                    Care experience preference at end of life (81343-6)\n                                \n                                                            \n                                    Preferred location for healthcare (81362-6)\n                                \n  "
+        },
+        {
+          "title": "Demographics",
+          "rows": 58,
+          "text": "Who\n            \n                        \n            \n            Contact\n            \n                        \n            \n            Choices\n            \n                        \n            \n            Employer\n            \n                        \n            \n            Stats\n            \n                        \n            \n            Misc\n            \n                        \n            \n            Related\n            \n            \n\n    \n\nTitle: \nName:Wanda    Moore Moore    \nPreferred Name:\nExternal ID:3DOB:2007-02-18\nBirth Sex:FemaleS.S.\nLicense/ID:Marital Status:Single\nUser Defined:         \nBilling Note:\nGender Identity: Sex:Female\nSexual Orientation: Pronouns: \nBirth Name:      \nPrevious Names:\n\nAddress:Address Line 2:\nCity:State: \nPostal Code:Country: \nMother`s Name:Emergency Contact:\nEmergency Phone:Home Phone:\nWork Phone:Mobile Phone:\nContact Email:Trusted Email:\nCounty: \n\n    .address-inactive-display {\n        opacity: 0.6;\n        background-color: var(--light);\n        font-style: italic;\n    }\n\n    \n    \n                Additional Addresses\n                    \n                \n                \n            NONE\n            \n        \n        \n            \n\n    function toggleInactiveAddressesDisplay(tableId) {\n        const checkbox = document.getElementById('show_inactive_addresses_display_' + tableId);\n        const table = document.getElementById(tableId);\n\n        if (!table) {\n            console.error('Table not found:', tableId);\n            return;\n        }\n\n        const inactiveAddresses = table.querySelectorAll('.address-inactive-display');\n\n        console.log('Toggle inactive addresses:', {\n            tableId: tableId,\n            checked: checkbox.checked,\n            foundAddresses: inactiveAddresses.length\n        });\n\n        inactiveAddresses.forEach(function(address) {\n            if (checkbox.checked) {\n                address.classList.remove('d-none');\n            } else {\n                address.classList.add('d-n"
+        },
+        {
+          "title": "Billing",
+          "rows": 0,
+          "text": "Patient Balance Due\n        150.00\n    \n    \n        Insurance Balance Due\n        0.00\n    \n    \n        Total Balance Due\n        150.00"
+        },
+        {
+          "title": "Insurance",
+          "rows": 0,
+          "text": "Primary\n        \n                            \n        Eligibility\n    \n\n            \n            \n                Primary Insurance\n                                until Present\n            \n            \n                \n                                            Insurer\n                        \n                            Self-Pay\n                            \n                            \n                             , \n                        \n                                    \n                \n                                                                                Subscriber\n                    \n                         \n                        \n                        \n                        \n                    \n                                                            D.O.B.\n                    0000-00-00\n                                                        \n                \n                                                                                Subscriber Employer\n                    \n                        \n                        \n                        \n                        \n                    \n                \n            \n            \n                \n                    Plan Name: \n                    Policy Number: \n                    Group Number: \n                \n                \n                    Copay: \n                    Accepts Assignment: Yes\n                                    \n            \n        \n                \n            \n                \n                    Previous\n                \n                                \n                    \n                        1\n                \n                                            \n        \n    \n    \n                    Nothing To Report\n\n            \n    \n        function updatePageNavigationButtonsForTarget(type, target) {\n            // update previous and next links\n            let prevLink = document.querySelector('#' + type + ' .pagination .insurance-pagin"
+        },
+        {
+          "title": "Messages",
+          "rows": 0,
+          "text": "There are no messages on file for this patient. To add messages, please click here."
+        },
+        {
+          "title": "Patient Reminders",
+          "rows": 0,
+          "text": "Loading..."
+        },
+        {
+          "title": "Disclosures",
+          "rows": 1,
+          "text": "Type\n    Provider\n    Summary\n\n    \n    There are no disclosures recorded for this patient. To record disclosures, please click here."
+        },
+        {
+          "title": "Amendments",
+          "rows": 0,
+          "text": "None"
+        },
+        {
+          "title": "Labs",
+          "rows": 0,
+          "text": "No lab data documented."
+        },
+        {
+          "title": "Vitals",
+          "rows": 14,
+          "text": "Most recent vitals from: 2014-02-01 21:47:33\n\nBlood Pressure:\t120/80\nHeight:\t40 in (101.60 cm)\nWeight:\t40 lb (18.14 kg)\nTemperature:\t102 F (38.89 C)\nTemp Method:\tTympanic Membrane\nPulse:\t87 per min\nRespiration:\t22 per min\nBMI:\t18 kg/m^2\nBMI Status:\tSee Growth-Chart\nWaist Circ:\t25 in (63.50 cm)\nHead Circ:\t15 in (38.10 cm)\nOxygen Saturation:\t98 %\nLast Updated:\t2026-09-16 20:59:12\n\nClick here to view and graph all vitals."
+        },
+        {
+          "title": "Patient Portal / API Access",
+          "rows": 0,
+          "text": "Portal Access\n             Allow Patient Portal in Demographics > Choices Employer \n        \n    \n\n    \n            \n        Credentials\n                                                 Create"
+        },
+        {
+          "title": "Clinical Reminders",
+          "rows": 0,
+          "text": "Loading..."
+        },
+        {
+          "title": "Recall",
+          "rows": 0,
+          "text": "No Recalls"
+        },
+        {
+          "title": "Appointments",
+          "rows": 0,
+          "text": "Future Appointments\nNo Appointments\n Recurring Appointments\nNo Recurring Appointments"
+        },
+        {
+          "title": "Health Concerns",
+          "rows": 0,
+          "text": "Nothing Recorded"
+        },
+        {
+          "title": "Immunizations",
+          "rows": 0,
+          "text": "None"
+        }
+      ]
+    },
+    "timing": {
+      "networkIdleMs": [
+        3352,
+        3103,
+        3200
+      ]
+    }
+  },
+  "port": {
+    "dash-syn-01": {
+      "url": "http://localhost:8790/dashboard/patients/8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d",
+      "header": "Name\nDana Seedcase\nDOB\n1970-04-12 (Age: 56)\nSex\nFemale\nMRN\nDASH-SYN-01\nStatus\nActive",
+      "cards": [
+        {
+          "id": "allergies",
+          "state": "ok",
+          "rows": 0,
+          "text": "Allergies\nCollapse\nAllergies\nPenicillin (Severe)"
+        },
+        {
+          "id": "problems",
+          "state": "ok",
+          "rows": 0,
+          "text": "Medical Problems\nCollapse\nMedical Problems\nEssential hypertension\nPrediabetes"
+        },
+        {
+          "id": "medications",
+          "state": "ok",
+          "rows": 0,
+          "text": "Medications\nCollapse\nMedications\n\nThe patient's medication list (active entries); prescriptions are listed separately.\n\nLisinopril 10 MG Oral Tablet\nDosage instructions: not available via API"
+        },
+        {
+          "id": "prescriptions",
+          "state": "ok",
+          "rows": 4,
+          "text": "Prescriptions\nCollapse\nPrescriptions\n\nPrescriptions written in OpenEMR, every status, as the legacy card lists them; the medication list is separate.\n\nDrug\tDetails\tQty\tRefills\tFilled\nMetformin 500 MG Oral Tablet\t500mg 1\t60\tNot available via API\t2026-03-14 10:30:00\nLisinopril 10 MG Oral Tablet\t10mg 1\t90\tNot available via API\t2025-11-02 09:00:00\nAmoxicillin 500 MG Oral Capsule\t500mg 1\t21\tNot available via API\t2022-01-05 08:15:00\nRefills: not available via API (OpenEMR stores them, but its prescription API does not return them).\nDosage form: not available via API, so Details omits it."
+        },
+        {
+          "id": "care-team",
+          "state": "ok",
+          "rows": 2,
+          "text": "Care Team\nCollapse\nCare Team\nPrimary care team [seed:dashboard] Active\nType\tMember\tRole\tFacility\tSince\tStatus\tNote\nProvider\tName unavailable\tPrimary Care Provider\tGreat Clinic\t2020-01-15\tNot available via API\tNot available via API\nMember status: not available via API, so inactive members are listed too.\nNote: not available via API.\nSome names could not be read from the API (\"Name unavailable\"): the Practitioner and Organization reads need the admin/users permission, OpenEMR serves only users with an NPI as Practitioners, and related-person names are not read."
+        },
+        {
+          "id": "vitals",
+          "state": "ok",
+          "rows": 0,
+          "text": "Vitals\nCollapse\nVitals\n\nMost recent vitals from: 2026-04-05 09:10:00\n\nBlood Pressure:\n128/82 mmHg\nHeight:\n65 in\nWeight:\n176 lb\nTemperature:\n98.2 F\nTemp Method:\nOral\nPulse:\n72 per min\nRespiration:\n14 per min\nNote:\n[seed:dashboard]\nBMI:\n29 kg/m^2\nBMI Status:\nOverweight\nOxygen Saturation:\n98 %\nUnits are shown as the API returns them (one system); the legacy card also showed the metric equivalent."
+        }
+      ]
+    },
+    "dash-syn-02": {
+      "url": "http://localhost:8790/dashboard/patients/8e5045ab-b8c0-11f1-8c7a-0ed9af59d05d",
+      "header": "Name\nMorgan Seedcase\nDOB\n1948-09-01 (Age at death: 77)\nSex\nMale\nMRN\nDASH-SYN-02\nStatus\nDeceased (2026-08-30)",
+      "cards": [
+        {
+          "id": "allergies",
+          "state": "ok",
+          "rows": 0,
+          "text": "Allergies\nCollapse\nAllergies\nSulfa drugs (Moderate)"
+        },
+        {
+          "id": "problems",
+          "state": "empty",
+          "rows": 0,
+          "text": "Medical Problems\nCollapse\nMedical Problems\n\nNothing Recorded"
+        },
+        {
+          "id": "medications",
+          "state": "empty",
+          "rows": 0,
+          "text": "Medications\nCollapse\nMedications\n\nThe patient's medication list (active entries); prescriptions are listed separately.\n\nNothing Recorded"
+        },
+        {
+          "id": "prescriptions",
+          "state": "empty",
+          "rows": 0,
+          "text": "Prescriptions\nCollapse\nPrescriptions\n\nPrescriptions written in OpenEMR, every status, as the legacy card lists them; the medication list is separate.\n\nNone"
+        },
+        {
+          "id": "care-team",
+          "state": "empty",
+          "rows": 0,
+          "text": "Care Team\nCollapse\nCare Team\n\nNothing Recorded"
+        },
+        {
+          "id": "vitals",
+          "state": "empty",
+          "rows": 0,
+          "text": "Vitals\nCollapse\nVitals\n\nNothing Recorded"
+        }
+      ]
+    },
+    "pid-3": {
+      "url": "http://localhost:8790/dashboard/patients/a2c331a5-3b72-45c1-884e-94015f1f34fa",
+      "header": "Name\nWanda Moore\nDOB\n2007-02-18 (Age: 19)\nSex\nFemale\nMRN\n3\nStatus\nActive",
+      "cards": [
+        {
+          "id": "allergies",
+          "state": "empty",
+          "rows": 0,
+          "text": "Allergies\nCollapse\nAllergies\n\nNothing Recorded"
+        },
+        {
+          "id": "problems",
+          "state": "empty",
+          "rows": 0,
+          "text": "Medical Problems\nCollapse\nMedical Problems\n\nNothing Recorded"
+        },
+        {
+          "id": "medications",
+          "state": "empty",
+          "rows": 0,
+          "text": "Medications\nCollapse\nMedications\n\nThe patient's medication list (active entries); prescriptions are listed separately.\n\nNothing Recorded"
+        },
+        {
+          "id": "prescriptions",
+          "state": "empty",
+          "rows": 0,
+          "text": "Prescriptions\nCollapse\nPrescriptions\n\nPrescriptions written in OpenEMR, every status, as the legacy card lists them; the medication list is separate.\n\nNone"
+        },
+        {
+          "id": "care-team",
+          "state": "empty",
+          "rows": 0,
+          "text": "Care Team\nCollapse\nCare Team\n\nNothing Recorded"
+        },
+        {
+          "id": "vitals",
+          "state": "ok",
+          "rows": 0,
+          "text": "Vitals\nCollapse\nVitals\n\nMost recent vitals from: 2014-02-01 21:47:33\n\nBlood Pressure:\n120/80 mmHg\nHeight:\n40 in\nWeight:\n40 lb\nTemperature:\n102 F\nTemp Method:\nTympanic Membrane\nPulse:\n87 per min\nRespiration:\n22 per min\nBMI:\n18 kg/m^2\nBMI Status:\nSee Growth-Chart\nWaist Circ:\n25 in\nHead Circ:\n15 in\nOxygen Saturation:\n98 %\nUnits are shown as the API returns them (one system); the legacy card also showed the metric equivalent."
+        }
+      ]
+    },
+    "timing": {
+      "headerVisibleMs": [
+        2557,
+        2654,
+        2154
+      ],
+      "allSectionsSettledMs": [
+        4157,
+        4287,
+        4521
+      ]
+    }
+  },
+  "recapturedAllergiesAt": "2026-09-26T04:15:41.403Z"
+}

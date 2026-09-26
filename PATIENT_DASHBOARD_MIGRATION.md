@@ -5,8 +5,9 @@
 - **What we ported:** OpenEMR's PHP patient dashboard (`demographics.php` and its fragments). That means OAuth2 sign-in, the persistent patient header, and the Allergies, Medical Problems, Medications, Prescriptions, Care Team and Vitals cards, all read-only, with no OpenEMR backend change ([MIGRATION-REACT.md §1](docs/legacy-audit/MIGRATION-REACT.md)).
 - **Where it runs:** <https://dtstest.64.177.10.182.nip.io/dashboard/>. `/dashboard/health` reports `git_sha` `7b4946042529b26ef4092883203a590dc6c5ada5` (checked 2026-09-25). Run at that SHA, `node dashboard/scripts/live-check.mjs <url> 7b49460…` passes all 6 unauthenticated checks.
 - **Stack:** a React 19 + TypeScript + Vite single-page app (SPA), served same-origin by a Fastify (Node 24) backend-for-frontend (BFF). The BFF holds a confidential OpenEMR OAuth client. Both run in one container behind Caddy at `/dashboard/*` ([package.json](dashboard/package.json), [docker-compose.yml](deploy/vultr/docker-compose.yml), [Caddyfile](deploy/vultr/Caddyfile)).
-- **What has been observed live:** the owner saw sign-in plus the header on `f8d7bdf`, and Allergies, Problems and Medications on `2246417` ([VERIFICATION.md, "Observed live"](docs/legacy-audit/VERIFICATION.md)). Prescriptions, Care Team and Vitals are deployed at `7b49460`, but no signed-in check of them is recorded yet. Their status is **wired, tested, not yet observed**.
-- **Not yet done:** the side-by-side screenshots (W2D-5), the load-time measurement, and a manual keyboard and screen-reader pass. All three belong to slice 01-06-01 ([arc](docs/legacy-audit/arcs/ARC-01-DASHBOARD.md)).
+- **What has been observed live:** the owner saw sign-in plus the header on `f8d7bdf`, and Allergies, Problems and Medications on `2246417` ([VERIFICATION.md, "Observed live"](docs/legacy-audit/VERIFICATION.md)). Prescriptions, Care Team (with member names) and Vitals were observed on `7b49460`, so **all seven sections have been observed on the public URL**.
+- **Parity evidence:** side-by-side screenshots of the legacy and ported dashboards for three synthetic patients, with a per-section comparison and load timings ([evidence/parity/](docs/legacy-audit/evidence/parity/README.md)).
+- **Not yet done:** a manual keyboard and screen-reader pass ([arc](docs/legacy-audit/arcs/ARC-01-DASHBOARD.md)).
 
 ## 2. Why React + TypeScript + Vite and a Fastify BFF
 
@@ -55,7 +56,7 @@ Each gain below is tied to a catalog ID in [BUGS-MITIGATIONS.md](docs/legacy-aud
 | **A bundle budget in the gate** | — | **71.8 kB gzip JS** (237.2 kB raw) and 1.0 kB gzip CSS, against a 150 kB JS budget that fails the build when exceeded. Here kB means 1,024 bytes; Vite prints 73.54 kB because it uses 1,000 | [bundle-report.mjs](dashboard/scripts/bundle-report.mjs), output of `npm run build` at `7b49460` |
 | **The SQL-injection sink is guarded** | `GET /api/prescription` writes query-parameter *names* into SQL (2.01, M-1) | 13 upstream routes, each with its exact allowed query keys. The Rx search sends exactly `patient_id` and a fixed `source_table`, and any other key throws before a request is built. `/bff/*` also refuses any query string with a 400 | [upstreamRoutes.ts](dashboard/core/upstreamRoutes.ts); [slice-03-01-regression.txt](docs/legacy-audit/evidence/slice-03-01-regression.txt) |
 
-**Load time:** we have no port number to report. The legacy dashboard reached network-idle in 3.3–5.2 s in the Phase 0 probes (catalog 7.08). The port's time-to-header and time-to-all-cards have not been measured (01-06-01), so we don't claim a speed gain.
+**Load time** (local laptop, DASH-SYN-01, 3 runs each; not production): the legacy dashboard reached network-idle in a median of 3.2 s (3.1–3.4 s). The port shows the patient header in a median of 2.6 s (2.2–2.7 s), and all seven sections have settled in 4.3 s (4.2–4.5 s) ([evidence/parity/README.md](docs/legacy-audit/evidence/parity/README.md)). So the port shows *who the patient is* sooner, but the full dashboard is about a second slower. That comes from one patient read per card, which checks every row belongs to the right patient, and from the vitals encounter scan. We don't claim a speed gain.
 
 ## 4. What it cost
 
@@ -80,6 +81,7 @@ The port can't show these, because no API exposes them ([AGENT-BRIEF.md](docs/le
 - **Refills** are never selected by the REST route (5.06). The Refills column reads "Not available via API", never 0.
 - **Care Team member status and Note** have no FHIR field. **Inactive members are shown like active ones** (5.05 / M-6).
 - **Active status** is derived from `deceasedDateTime`, because `Patient.active` is hard-coded `true` ([header.ts](dashboard/core/rules/header.ts)).
+- **An OpenEMR API defect we hit during parity testing:** `GET /api/patient/:puuid/allergy` returns HTTP 500 for any allergy recorded by a real user, because the response carries raw binary uuids that break JSON encoding (catalog 5.29). The legacy PHP card is unaffected. The port shows its explicit error state, never "Nothing Recorded". For the demo, the synthetic allergies are recorded with no user; a real deployment needs the one-line upstream fix.
 - **`lists_touch`** has no API, so every empty issue list reads "Nothing Recorded". The legacy page could say "No Known Allergies" (4.02).
 - **Squad restriction and `hide_dashboard_cards`** don't exist in the API, so the port can't enforce them. We record them as access-model differences (3.04, 4.12).
 - **Medication dosage instructions and the Rx dosage form** are not returned by the routes (4.05, 4.10).
@@ -117,7 +119,7 @@ The change and its revert are in [prod-careteam-names.sql](docs/legacy-audit/see
    - on `f8d7bdf`: DASH-SYN-01 shows Active and DASH-SYN-02 shows Deceased;
    - on `2246417`: severe allergies are highlighted, resolved or ended issues are hidden, and the empty states render.
 
-   Both are recorded in [VERIFICATION.md](docs/legacy-audit/VERIFICATION.md). Rx, Care Team and Vitals still need this check at `7b49460`, and the screenshot pairs (W2D-5) are still to come.
+   Both are recorded in [VERIFICATION.md](docs/legacy-audit/VERIFICATION.md). Rx, Care Team and Vitals were observed on `7b49460`. The screenshot pairs (W2D-5) are in [evidence/parity/](docs/legacy-audit/evidence/parity/README.md).
 
 ## 6. What's next
 
