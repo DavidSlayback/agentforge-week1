@@ -8,9 +8,16 @@
  * (the synthetic `FixtureAdapter`, test doubles) is labeled a fixture. This
  * is an operational label only; it does not prove OpenEMR reachability.
  */
+/*
+ * This is the one source-label table. E9 (`chartSourceRouter.js`) picks the
+ * adapter per request; every label a response, trace or page shows comes
+ * from here: `chart_source` (scan and follow-up responses, the page badge's
+ * value), `label` (the badge text) and `operation` (the briefing's read
+ * operation, `contracts.js#ALLOWED_READ_OPERATIONS`).
+ */
 export const CHART_RECORD_SOURCES = Object.freeze({
-  openemr: Object.freeze({ source_type: 'openemr_record', page_or_section: 'OpenEMR chart record' }),
-  fixture: Object.freeze({ source_type: 'synthetic_chart_fixture', page_or_section: 'Synthetic chart fixture' }),
+  openemr: Object.freeze({ source_type: 'openemr_record', page_or_section: 'OpenEMR chart record', chart_source: 'openemr_live', label: 'OpenEMR (live)', operation: 'retrieve_openemr_read' }),
+  fixture: Object.freeze({ source_type: 'synthetic_chart_fixture', page_or_section: 'Synthetic chart fixture', chart_source: 'synthetic_fixture', label: 'synthetic fixture', operation: 'retrieve_synthetic_fixture_read' }),
 });
 
 /** `'openemr'` for the live OpenEMR REST adapter, else `'fixture'`. */
@@ -18,7 +25,18 @@ export function chartReadOrigin(adapter) {
   return adapter?.constructor?.name === 'OpenEMRRestAdapter' ? 'openemr' : 'fixture';
 }
 
-/** The citation `source_type` and `page_or_section` for a record read through `adapter`. */
+/** The labels (citation `source_type` and `page_or_section`, `chart_source`, `label`, `operation`) for a read through `adapter`. */
 export function chartRecordCitationSource(adapter) {
   return CHART_RECORD_SOURCES[chartReadOrigin(adapter)];
+}
+
+/**
+ * E9 egress rule: may this read's data be treated as live patient data? True
+ * for the real OpenEMR REST adapter and, conservatively, for anything that
+ * calls itself `openemr-rest`. Without AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED
+ * such a read makes no outbound call (answer model, critic, external OCR,
+ * guideline embed/rerank).
+ */
+export function isLiveChartRead(adapter) {
+  return chartReadOrigin(adapter) === 'openemr' || adapter?.name === 'openemr-rest';
 }

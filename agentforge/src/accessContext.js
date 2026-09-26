@@ -10,6 +10,11 @@ const verifiedContexts = new WeakSet();
 // can be forwarded unchanged to the OpenEMR module, which re-verifies it.
 const signedTokens = new WeakMap();
 
+/** True only for a context object `verifySignedContext` produced in this process (not a copy). */
+export function isVerifiedContext(verifiedContext) {
+  return Boolean(verifiedContext && typeof verifiedContext === 'object' && verifiedContexts.has(verifiedContext));
+}
+
 /** The exact signed token a verified context came from, or null. */
 export function signedTokenFor(verifiedContext) {
   return (verifiedContext && typeof verifiedContext === 'object' && signedTokens.get(verifiedContext)) || null;

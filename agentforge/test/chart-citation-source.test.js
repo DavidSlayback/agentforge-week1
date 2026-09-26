@@ -22,8 +22,8 @@ test('the chart source is decided by the adapter that read the record', () => {
   assert.equal(chartReadOrigin(new FixtureAdapter(fixturePath)), 'fixture');
   assert.equal(chartReadOrigin(new OpenEMRRestAdapter({ baseUrl: 'http://openemr.invalid' })), 'openemr');
   assert.equal(chartReadOrigin({ name: 'openemr-rest' }), 'fixture', 'a look-alike adapter is not OpenEMR');
-  assert.deepEqual(chartRecordCitationSource(new OpenEMRRestAdapter({ baseUrl: 'http://openemr.invalid' })), { source_type: 'openemr_record', page_or_section: 'OpenEMR chart record' });
-  assert.deepEqual(chartRecordCitationSource(new FixtureAdapter(fixturePath)), { source_type: 'synthetic_chart_fixture', page_or_section: 'Synthetic chart fixture' });
+  assert.deepEqual(chartRecordCitationSource(new OpenEMRRestAdapter({ baseUrl: 'http://openemr.invalid' })), { source_type: 'openemr_record', page_or_section: 'OpenEMR chart record', chart_source: 'openemr_live', label: 'OpenEMR (live)', operation: 'retrieve_openemr_read' });
+  assert.deepEqual(chartRecordCitationSource(new FixtureAdapter(fixturePath)), { source_type: 'synthetic_chart_fixture', page_or_section: 'Synthetic chart fixture', chart_source: 'synthetic_fixture', label: 'synthetic fixture', operation: 'retrieve_synthetic_fixture_read' });
 });
 
 test('fixture chart facts are cited as synthetic fixture records, never openemr_record', async () => {

@@ -6,7 +6,8 @@ import { runActiveSupervisor } from './supervisor.js';
 import { traceSafeHandoff } from './activeWorkers.js';
 import { extractScanForm } from './scanFormAdapter.js';
 import { ALTERNATE_OCR_MODE, DEFAULT_OCR_MODE, extractPdfScanFixture } from './pdfScanAdapter.js';
-import { chartRecordCitationSource } from './chartSource.js';
+import { chartReadOrigin, chartRecordCitationSource, isLiveChartRead } from './chartSource.js';
+import { CHART_READ_SCOPES, liveEgressAllowed, resolveChartAdapter, selectChartSource } from './chartSourceRouter.js';
 import { mentionsOtherPatient } from './patientMentions.js';
 import { findUntrustedNarrative } from './recordTrust.js';
 import { PreVisitPreparation } from './preVisitPreparation.js';
@@ -19,7 +20,7 @@ import { buildLabTrends } from './labTrend.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
-  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000, criticProvider = null, criticTimeoutMs = DEFAULT_CRITIC_TIMEOUT_MS, criticDisabledReason = null, now = () => Date.now() }) {
+  constructor({ adapter = null, chartAdapter = adapter, writeback = adapter, guidelineRetriever = null, provider, conversationProvider = null, answerProvider = null, scanProvider = null, ocrEngine = null, patientDemographics = chartAdapter, traceSink, cache, freshRetrievalDeadlineMs = 8000, allowExternalLiveProvider = false, livePatientAllowlist = new Set(), maxPrewarmJobs = 8, prewarmDeadlineMs = 8000, scanDeadlineMs = 25000, criticProvider = null, criticTimeoutMs = DEFAULT_CRITIC_TIMEOUT_MS, criticDisabledReason = null, now = () => Date.now() }) {
     this.adapter = chartAdapter;
     // null keeps the pdfScanAdapter default (real pdftoppm + Tesseract).
     this.ocrEngine = ocrEngine;
@@ -38,6 +39,9 @@ export class AgentForgeService {
     // briefings -- a live OpenEMR chart adapter with no explicit external-
     // provider approval forces the deterministic composer, never a real model.
     this.allowExternalLiveProvider = allowExternalLiveProvider;
+    // E9: the designated synthetic patients whose live reads may leave the
+    // process when allowExternalLiveProvider is set (liveEgressAllowed).
+    this.livePatientAllowlist = livePatientAllowlist;
     // F6 review fix: a per-scan-request deadline. Its AbortSignal is passed to
     // the low-confidence OCR retry and to the answer composer's provider call;
     // once it fires, the answer is composed deterministically
@@ -65,7 +69,7 @@ export class AgentForgeService {
     // boxes, not silently default back to the initial mode.
     this.resolvedOcrMode = new Map();
     this.traceSink = traceSink;
-    this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs, now });
+    this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, livePatientAllowlist, maxPrewarmJobs, prewarmDeadlineMs, now });
     // Preserve the established facade access used by callers and tests while
     // keeping cache ownership inside the preparation module.
     this.cache = this.preparation.cache;
@@ -185,7 +189,9 @@ export class AgentForgeService {
   async extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
     const source = await this.readSourceDocument(id, request, { verifiedContext });
     if (source.status !== 'read') return source;
-    const prepared = await this.prepareScanSource(source);
+    const egress = this.externalEgressFor(verifiedContext);
+    if (egress.status === 'blocked') return egress;
+    const prepared = await this.prepareScanSource(source, { allowExternalScan: egress.allowed });
     const pdf = Boolean(prepared.pdf);
     const content = prepared.content;
     const contentText = content.toString('utf8');
@@ -197,6 +203,25 @@ export class AgentForgeService {
   }
 
   async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
+    // E9: the chart this scan's answer reads, from the verified claims only.
+    // An OpenEMR-session request with live reads off is refused here, loudly;
+    // it never falls back to the fixture chart.
+    const chartSelection = selectChartSource(this.chartAdapter, verifiedContext);
+    if (chartSelection.status !== 'selected') return { status: 'blocked', reason: chartSelection.reason };
+    // The token must itself be allowed to read this patient's chart (a read
+    // or write-source-document scope, the same patient and clinician) before
+    // it picks and reads a live chart.
+    const chartAuthorization = this.authorizeChartRead(request, verifiedContext);
+    if (chartAuthorization.status !== 'authorized') return { status: 'blocked', reason: chartAuthorization.reason };
+    const chartReader = chartSelection.adapter;
+    const livePatient = isLiveChartRead(chartReader);
+    const chartRead = { chart_source: chartSelection.chart_source, label: chartSelection.label, status: 'not_read', reason: null, ...(livePatient ? { designated_patient: this.isDesignatedLivePatient(chartAuthorization.patient_uuid) } : {}) };
+    // F8 review fix, extended by E9: a live OpenEMR read with no explicit
+    // external-provider approval makes no outbound call at all: no answer
+    // model, no critic, no external OCR, and a local-only guideline
+    // retriever (no embed or rerank call).
+    const liveExternalBlocked = livePatient && !this.liveEgressAllowedFor(chartAuthorization.patient_uuid);
+    const guidelineRetriever = liveExternalBlocked ? localLexicalGuidelineRetriever : this.guidelineRetriever;
     let source;
     try {
       source = await this.readSourceDocument(id, request, { verifiedContext });
@@ -217,7 +242,7 @@ export class AgentForgeService {
       trace?.startStage('source_preparation');
       let prepared;
       try {
-        prepared = await this.prepareScanSource(source);
+        prepared = await this.prepareScanSource(source, { allowExternalScan: !liveExternalBlocked });
         trace?.finishStage('source_preparation', { status: 'complete' });
       } catch (error) {
         const errorCode = error.code || String(error.message || '').split(':')[0];
@@ -230,7 +255,7 @@ export class AgentForgeService {
           trace?.setEvaluation(evaluation);
           trace?.setVerification(verification);
           trace?.complete({ status: 'blocked' });
-          return { status: 'unreadable', synthetic_only: true, reason: 'document_unreadable', final_state: 'BLOCKED', source_document: source.source_document };
+          return { status: 'unreadable', synthetic_only: !livePatient, reason: 'document_unreadable', final_state: 'BLOCKED', source_document: source.source_document };
         }
         throw error;
       }
@@ -239,22 +264,34 @@ export class AgentForgeService {
       const contentText = content.toString('utf8');
       const layoutMatch = contentText.match(/layout=([^|\r\n]+)/);
       const pageCountMatch = contentText.match(/page_count=(\d+)/);
-      const targetPatient = await this.patientDemographics?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
-      // F8 review fix: honor allowExternalLiveProvider the same way briefings
-      // do -- a live OpenEMR chart with no explicit external-provider approval
-      // never reaches a real model for the answer (or the critic) either.
-      const liveExternalBlocked = this.chartAdapter?.name === 'openemr-rest' && !this.allowExternalLiveProvider;
+      // The default demographics source is the chart adapter, so it follows
+      // the request's chart source; an explicitly injected one is kept.
+      const demographicsSource = this.patientDemographics === this.chartAdapter ? chartReader : this.patientDemographics;
+      let targetPatient = null;
+      try {
+        targetPatient = await demographicsSource?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
+      } catch (error) {
+        // Identity then reads `unverified`, never a match; the reason is kept.
+        chartRead.identity_error = error.code || 'demographics_read_failed';
+      }
       // W1-SF4: a question naming another patient gets no answer. The
       // document's own extraction still runs and is stored; only the answer
       // is refused, and the question is not sent to retrieval either.
-      const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref);
+      const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref, chartReader);
       const answerQuery = answerRefused ? '' : query;
       let answerParts = null;
       const composeAnswer = async ({ extraction, evidence }) => {
         trace?.startStage('answer');
         let answer = null;
         try {
-          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref).catch(() => ({ patient_facts: [] }));
+          // A chart read failure leaves the answer without chart facts, and
+          // says so in `chart_source` and the trace; it is never silent.
+          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref, null, { verifiedContext, adapter: chartReader }).catch((error) => ({ status: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'failed', reason: error.code || error.message || 'chart_read_failed', patient_facts: [], coverage: [] }));
+          chartRead.status = chart.status === 'ready' ? (chart.patient_facts.length ? 'read' : 'empty') : chart.status;
+          chartRead.reason = chart.status === 'ready' ? null : chart.reason || null;
+          if (chart.failed_patient_groups?.length) chartRead.failed_groups = chart.failed_patient_groups;
+          for (const group of chart.coverage || []) trace?.recordRetrievalAttempt({ adapter: chartReadOrigin(chartReader), group: group.group, status: group.status, attempts: group.attempts, errorCode: group.error_class });
+          if (!chart.coverage?.length) trace?.recordRetrievalAttempt({ adapter: chartReadOrigin(chartReader), group: 'chart', status: chartRead.status === 'failed' ? 'failed' : chartRead.status, attempts: 1, errorCode: chartRead.reason });
           const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, medicationList: extraction?.medication_list || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [] };
           answerParts = partitionAnswerInputs(inputs);
           const withheldReview = (chart.withheld_patient_fields || []).map((item) => ({ kind: 'patient_record', field: item.field, reason: `${item.reason}_withheld` }));
@@ -272,6 +309,9 @@ export class AgentForgeService {
       const criticEnabled = Boolean(this.criticProvider) && !liveExternalBlocked;
       const critic = {
         enabled: criticEnabled,
+        // A configured critic that may not see a live read is skipped with its
+        // own status (skipped_not_approved), never labeled reviewed or disabled.
+        notApproved: Boolean(this.criticProvider) && liveExternalBlocked,
         disabledReason: this.criticProvider ? 'live_external_provider_not_approved' : (this.criticDisabledReason || 'critic_model_not_configured'),
         // Remaining scan budget, measured from the start of this request; the
         // critic never widens the deadline, it is skipped instead.
@@ -293,12 +333,12 @@ export class AgentForgeService {
         observer: trace,
         documentText: pdf ? prepared.ocrText : contentText,
         targetPatient,
-        retrievalAdapter: this.guidelineRetriever,
+        retrievalAdapter: guidelineRetriever,
         extractionCache: this.extractionCache,
         ocrMode: pdf ? (prepared.ocrMode || DEFAULT_OCR_MODE) : DEFAULT_OCR_MODE,
         signal: deadline.signal,
         reextractWithAlternateOcr: pdf ? async () => {
-          const alternate = await this.prepareScanSource(source, { ocrMode: ALTERNATE_OCR_MODE });
+          const alternate = await this.prepareScanSource(source, { ocrMode: ALTERNATE_OCR_MODE, allowExternalScan: !liveExternalBlocked });
           return { content: alternate.content, ocrMode: ALTERNATE_OCR_MODE };
         } : null,
         // E2: ANSWER composes inside the supervisor loop, so its decision
@@ -320,7 +360,9 @@ export class AgentForgeService {
       trace?.setEvaluation(evaluation);
       trace?.setVerification(verification);
       trace?.complete({ status: workflow.readiness === 'stopped' ? 'failure' : 'success' });
-      return { status: 'completed', synthetic_only: true, source_document: source.source_document, workflow, ...(answerRefused ? { answer_refusal: { disposition: 'blocked', reason: 'out_of_scope_patient' } } : {}), ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
+      // A live read is not vouched synthetic by this service; the label says
+      // what was read (chart_source, designated_patient).
+      return { status: 'completed', synthetic_only: !livePatient, source_document: source.source_document, chart_source: chartRead, workflow, ...(answerRefused ? { answer_refusal: { disposition: 'blocked', reason: 'out_of_scope_patient' } } : {}), ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
     } catch (error) {
       trace?.complete({ status: 'failure' });
       throw error;
@@ -329,19 +371,22 @@ export class AgentForgeService {
     }
   }
 
-  async prepareScanSource(source, { ocrMode } = {}) {
+  async prepareScanSource(source, { ocrMode, allowExternalScan = true } = {}) {
     // F6 review fix: default to whichever OCR mode this document's workflow
     // actually settled on (set by `runActiveSupervisorForDocument` below),
     // not always the initial default -- so a later `/source-preview` or
     // `/scan-form-evidence` read renders the boxes of the extraction that
     // was actually used, even after a low-confidence retry upgraded it.
     const resolvedOcrMode = ocrMode || this.resolvedOcrMode.get(source.source_document.id) || DEFAULT_OCR_MODE;
-    const id = `${source.source_document.id}:${resolvedOcrMode}`;
+    // An external scan provider (Gemini) only when the request may send data
+    // out (E9); the cache key keeps the two preparations apart.
+    const scanProvider = allowExternalScan ? this.scanProvider : null;
+    const id = `${source.source_document.id}:${resolvedOcrMode}:${scanProvider ? 'external' : 'local'}`;
     const cached = this.scanPreparations.get(id);
     if (cached) return cached;
     const pdf = source.content.subarray(0, 5).toString() === '%PDF-';
     const prepared = Promise.resolve().then(async () => pdf
-      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider: this.scanProvider, ocrMode: resolvedOcrMode, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
+      ? { ...(await extractPdfScanFixture({ content: source.content, documentType: source.source_document.document_type, scanProvider, ocrMode: resolvedOcrMode, ...(this.ocrEngine ? { ocrEngine: this.ocrEngine } : {}) })), pdf: true }
       : { content: source.content, pageCount: 1, pdf: false });
     if (this.scanPreparations.size >= 50) this.scanPreparations.delete(this.scanPreparations.keys().next().value);
     this.scanPreparations.set(id, prepared);
@@ -368,14 +413,16 @@ export class AgentForgeService {
    * catch it themselves; `retrieveFollowUpEvidence` deliberately still lets
    * it propagate to the server's existing 404 handling.
    */
-  async retrievePatientChartFacts(patientRef, caseId = null) {
-    const item = await this.chartAdapter.getCase(patientRef, caseId);
-    const retrieved = await this.chartAdapter.retrieve(item);
+  async retrievePatientChartFacts(patientRef, caseId = null, { verifiedContext = null, adapter = null } = {}) {
+    // E9: read through the request's own chart adapter (chartSourceRouter.js).
+    const chart = adapter || resolveChartAdapter(this.chartAdapter, verifiedContext);
+    const item = await chart.getCase(patientRef, caseId);
+    const retrieved = await chart.retrieve(item);
     const validation = validateRetrievalResult(retrieved);
-    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid', patient_facts: [], failed_patient_groups: [], withheld_patient_fields: [] };
+    if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid', patient_facts: [], failed_patient_groups: [], withheld_patient_fields: [], chart_source: chartRecordCitationSource(chart).chart_source };
     // Label the citation by the adapter that actually read the record: a
     // fixture read is never cited as an OpenEMR record (chartSource.js).
-    const citationSource = chartRecordCitationSource(this.chartAdapter);
+    const citationSource = chartRecordCitationSource(chart);
     const scopedRecords = retrieved.records.filter((record) => recordBelongsToPatient(record, item.patient.patient_ref) && recordIsCovered(record, retrieved.coverage));
     // Narrative that addresses an automated reader is withheld, never cited,
     // so injected text reaches neither the answer model nor the display.
@@ -389,7 +436,7 @@ export class AgentForgeService {
       return { source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author, citation };
     });
     const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
-    return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups, withheld_patient_fields: withheldPatientFields };
+    return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups, withheld_patient_fields: withheldPatientFields, coverage: retrieved.coverage, chart_source: citationSource.chart_source };
   }
 
   async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
@@ -397,22 +444,25 @@ export class AgentForgeService {
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     // W1-SF4: a question naming another patient is refused before any chart
     // read, so neither patient's data is disclosed.
-    if (await this.questionNamesOtherPatient(request.message, authorization.patient_uuid)) return { status: 'blocked', disposition: 'blocked', reason: 'out_of_scope_patient' };
-    const chart = await this.retrievePatientChartFacts(authorization.patient_uuid, request.case_id);
+    if (await this.questionNamesOtherPatient(request.message, authorization.patient_uuid, resolveChartAdapter(this.chartAdapter, verifiedContext))) return { status: 'blocked', disposition: 'blocked', reason: 'out_of_scope_patient' };
+    const chart = await this.retrievePatientChartFacts(authorization.patient_uuid, request.case_id, { verifiedContext });
     if (chart.status !== 'ready') return { status: 'blocked', reason: chart.reason };
     const patientFacts = chart.patient_facts;
     const failedGroups = chart.failed_patient_groups;
     const withheldFields = chart.withheld_patient_fields || [];
+    // E9: a live read without external-provider approval makes no outbound
+    // call, so the question is ranked by the local retriever only.
+    const guidelineRetriever = isLiveChartRead(resolveChartAdapter(this.chartAdapter, verifiedContext)) && !this.liveEgressAllowedFor(authorization.patient_uuid) ? localLexicalGuidelineRetriever : this.guidelineRetriever;
     let guideline;
     try {
-      guideline = await this.guidelineRetriever.retrieve(request.message, { topK });
+      guideline = await guidelineRetriever.retrieve(request.message, { topK });
     } catch {
       // An error code only — never `error.message`, which can carry
       // upstream HTTP/network detail (e.g. an internal host or a raw
       // provider error string) that must not reach an API response or trace.
-      guideline = { status: 'qualified', provider: this.guidelineRetriever.name || 'unknown', evidence: [], issues: ['guideline_retrieval_failed'] };
+      guideline = { status: 'qualified', provider: guidelineRetriever.name || 'unknown', evidence: [], issues: ['guideline_retrieval_failed'] };
     }
-    return { status: 'ready', synthetic_only: true, patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || this.guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups, withheld_patient_fields: withheldFields }, qualification: { required: Boolean(failedGroups.length || withheldFields.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...withheldFields.map((item) => `${item.reason}:${item.field}`), ...guideline.issues] } };
+    return { status: 'ready', synthetic_only: chart.chart_source !== 'openemr_live', patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups, withheld_patient_fields: withheldFields, chart_source: chart.chart_source }, qualification: { required: Boolean(failedGroups.length || withheldFields.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...withheldFields.map((item) => `${item.reason}:${item.field}`), ...guideline.issues] } };
   }
 
   /**
@@ -420,10 +470,12 @@ export class AgentForgeService {
    * patientMentions.js). Uses the chart adapter's patient list when it has
    * one; live OpenEMR REST has none, so only identifier shapes are checked.
    */
-  async questionNamesOtherPatient(message, patientRef) {
+  async questionNamesOtherPatient(message, patientRef, chart = this.chartAdapter) {
     if (!String(message ?? '').trim()) return false;
-    const knownPatients = typeof this.chartAdapter?.listPatientIdentifiers === 'function' ? this.chartAdapter.listPatientIdentifiers() : [];
-    const demographics = await this.patientDemographics?.getPatientDemographics?.(patientRef) ?? null;
+    const knownPatients = typeof chart?.listPatientIdentifiers === 'function' ? chart.listPatientIdentifiers() : [];
+    // The request's chart (E9 router) unless demographics were injected.
+    const demographicsSource = this.patientDemographics === this.chartAdapter ? chart : this.patientDemographics;
+    const demographics = await demographicsSource?.getPatientDemographics?.(patientRef) ?? null;
     return mentionsOtherPatient({ message, currentPatient: { patient_ref: patientRef, display_name: demographics?.name }, knownPatients });
   }
 
@@ -434,6 +486,33 @@ export class AgentForgeService {
   openPrepared(...args) { return this.preparation.openPrepared(...args); }
 
   followUp(...args) { return this.preparation.followUp(...args); }
+
+  /**
+   * E9: may this request's data leave the process (answer model, critic,
+   * external OCR, guideline embed/rerank)? Always for the fixture chart; for
+   * a live OpenEMR read only with AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED.
+   */
+  externalEgressFor(verifiedContext) {
+    const selection = selectChartSource(this.chartAdapter, verifiedContext);
+    if (selection.status !== 'selected') return { status: 'blocked', reason: selection.reason };
+    return { status: 'selected', allowed: !isLiveChartRead(selection.adapter) || this.liveEgressAllowedFor(verifiedContext?.patient_uuid) };
+  }
+
+  /** Approval flag and the designated-patient allowlist, both required (chartSourceRouter.js#liveEgressAllowed). */
+  liveEgressAllowedFor(patientRef) {
+    return liveEgressAllowed({ approved: this.allowExternalLiveProvider, livePatientAllowlist: this.livePatientAllowlist }, patientRef);
+  }
+
+  isDesignatedLivePatient(patientRef) {
+    return typeof patientRef === 'string' && Boolean(this.livePatientAllowlist?.has(patientRef.toLowerCase()));
+  }
+
+  /** Read authorization for the chart a context names: a chart-read scope, same patient and clinician (E9). */
+  authorizeChartRead(request, verifiedContext) {
+    if (!CHART_READ_SCOPES.includes(verifiedContext?.scope)) return { status: 'blocked', reason: verifiedContext ? 'chart_read_scope_invalid' : 'server_context_missing_or_invalid' };
+    if (typeof this.chartAdapter?.authorize !== 'function') return { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    return this.chartAdapter.authorize(request, verifiedContext, { requiredScope: verifiedContext.scope, requiredAcl: verifiedContext.acl });
+  }
 
   authorizeWriteback(request, verifiedContext, options = {}) {
     return this.writeback?.authorize

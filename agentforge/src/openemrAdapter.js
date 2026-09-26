@@ -59,6 +59,21 @@ export class OpenEMRRestAdapter {
   }
 
   /**
+   * PatientDemographicsSource for the live path: the OpenEMR patient's
+   * `{name, dob}` for the scan identity check, or `null` when OpenEMR has no
+   * such patient (the check then reports `unverified`, never a match).
+   */
+  async getPatientDemographics(patientRef) {
+    try {
+      const item = await this.getCase(patientRef);
+      return { name: item.openemr_patient.display_name, dob: item.openemr_patient.dob };
+    } catch (error) {
+      if (error.message === 'PATIENT_NOT_FOUND') return null;
+      throw error;
+    }
+  }
+
+  /**
    * Read chart groups with per-group coverage. Non-encounter rows must match
    * the patient UUID or PID; unmatched rows are dropped. Encounter rows rely
    * on OpenEMR's patient-scoped endpoint.
@@ -190,10 +205,21 @@ function normalizePatient(record, fallbackRef) {
 
 function mapIdentity(patient) { return { field: 'identity.patient', value: patient.display_name, recorded_at: null, author: null, source_ref: `openemr-patient-${patient.patient_ref}` }; }
 function publicPatient(patient) { return { patient_ref: patient.patient_ref, display_name: patient.display_name, dob: patient.dob }; }
-function mapProblem(record, index) { return [mappedRecord(`problem.${slug(record.title || record.problem || record.diagnosis || record.name || 'unknown')}.status`, record.status || record.active || record.title || record.problem || 'documented', record, index, 'problem')]; }
-function mapMedication(record, index) { return [mappedRecord(`medication.${slug(record.title || record.medication || record.name || 'unknown')}.status`, record.status || record.active || record.title || record.medication || 'documented', record, index, 'medication')]; }
+function mapProblem(record, index) { return [mappedRecord(`problem.${slug(record.title || record.problem || record.diagnosis || record.name || 'unknown')}.status`, record.status || record.active || listStatus(record) || record.title || record.problem || 'documented', record, index, 'problem')]; }
+function mapMedication(record, index) { return [mappedRecord(`medication.${slug(record.title || record.medication || record.name || 'unknown')}.status`, record.status || record.active || listStatus(record) || record.title || record.medication || 'documented', record, index, 'medication')]; }
+/**
+ * OpenEMR `lists` rows (problems, medications) have no status column; the
+ * chart shows a row with no end date as active. Returns null when the row has
+ * neither field, so the caller keeps its own fallback.
+ */
+function listStatus(record) {
+  if (!('enddate' in record) && !('begdate' in record)) return null;
+  return record.enddate ? `ended ${String(record.enddate).slice(0, 10)}` : 'active';
+}
+/** OpenEMR returns a coded reaction as an object keyed by code; its readable text is `reaction_title`. */
+function textValue(value) { return typeof value === 'string' && value.trim() ? value : null; }
 function mapEncounter(record, index) { return [mappedRecord('encounter.reason', record.reason || record.chief_complaint || record.encounter || record.type || 'encounter recorded', record, index, 'encounter')]; }
-function mapAllergy(record, index) { return [mappedRecord(`allergy.${slug(record.title || record.name || record.allergy || 'unknown')}`, record.reaction || record.status || record.title || record.name || 'documented', record, index, 'allergy')]; }
+function mapAllergy(record, index) { return [mappedRecord(`allergy.${slug(record.title || record.name || record.allergy || 'unknown')}`, textValue(record.reaction_title) || textValue(record.reaction) || textValue(record.status) || record.title || record.name || 'documented', record, index, 'allergy')]; }
 function mapNote(record, index) { return [mappedRecord(`note.${slug(record.title || record.filename || record.name || 'document')}`, record.title || record.filename || record.name || 'document recorded', record, index, 'note')]; }
 
 function mappedRecord(field, value, record, index, group) {

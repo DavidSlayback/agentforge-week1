@@ -1,4 +1,5 @@
 import { clinicalLabel } from './clinicalLanguage.js';
+import { CHART_RECORD_SOURCES } from './chartSource.js';
 
 const escapeHtml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -19,11 +20,26 @@ const SYNTHETIC_DEMO_PATIENTS = [
   ['fixture-patient-dup', 'Test Duplicate · duplicate identity'],
 ];
 
-export function renderAgentForgePage({ token = '', payload = null, publicBasePath = '', liveOpenEMR = false } = {}) {
+export function renderAgentForgePage({ token = '', payload = null, publicBasePath = '', liveOpenEMR = false, writeToken = '', chartSource = null, designatedPatient = false } = {}) {
   const patient = payload?.patient_uuid || '';
-  const clinician = liveOpenEMR ? (payload?.clinician_uuid || '') : 'fixture-physician-001';
-  const primaryProbePatient = liveOpenEMR ? '' : 'fixture-patient-001';
-  const secondaryProbePatient = liveOpenEMR ? '' : 'fixture-patient-006';
+  // E9: a page opened from the OpenEMR module launcher carries a verified
+  // openemr-session context. Its patient, clinician and write token come from
+  // that launch; the page never asks the synthetic demo endpoints for tokens.
+  const moduleSession = Boolean(payload && payload.issuer === 'openemr-module' && payload.authn === 'openemr-session');
+  const fixedContext = liveOpenEMR || moduleSession;
+  const clinician = fixedContext ? (payload?.clinician_uuid || '') : 'fixture-physician-001';
+  const primaryProbePatient = fixedContext ? '' : 'fixture-patient-001';
+  const secondaryProbePatient = fixedContext ? '' : 'fixture-patient-006';
+  const defaultChartSource = liveOpenEMR ? CHART_RECORD_SOURCES.openemr : CHART_RECORD_SOURCES.fixture;
+  const chartSourceLabel = chartSource?.label || defaultChartSource.label;
+  const chartSourceValue = chartSource?.chart_source || defaultChartSource.chart_source;
+  // The header says what the page reads: the synthetic demo, or the live
+  // OpenEMR chart of a designated synthetic patient (the launcher mints live
+  // tokens only for those; AGENTFORGE_LIVE_PATIENT_UUIDS).
+  const liveChartPage = (chartSource?.chart_source || chartSourceValue) === CHART_RECORD_SOURCES.openemr.chart_source;
+  const dataBadge = liveChartPage ? (designatedPatient ? 'Live OpenEMR chart (synthetic patient)' : 'Live OpenEMR chart') : 'Synthetic demonstration only';
+  const chartOperationLabels = Object.fromEntries(Object.values(CHART_RECORD_SOURCES).map((source) => [source.operation, [source.chart_source, source.label]]));
+  const scriptJson = (value) => JSON.stringify(value).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026');
   const patientControl = payload
     ? `<input type="hidden" name="patient_uuid" value="${escapeHtml(patient)}"><span class="patient-value" aria-label="Patient">${escapeHtml(patient)}</span>`
     : liveOpenEMR ? '<span class="patient-value" aria-label="Patient">Open this page from an authenticated OpenEMR patient context.</span>' : `<select name="patient_uuid" aria-label="Patient">${SYNTHETIC_DEMO_PATIENTS.map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select>`;
@@ -71,8 +87,8 @@ button:disabled{opacity:.6;cursor:wait}
 </style>
 </head>
 <body><main id="agentforge-app">
-<header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge">Synthetic demonstration only</span></div>
-<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="hint">Read-only · clinician review required</span></div></header>
+<header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge" id="data-origin">${escapeHtml(dataBadge)}</span></div>
+<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div></header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
 <form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Scan form workflow</h2><span class="hint">Synthetic local storage · OCR runs on this server</span></div><label>Document schema<select name="document_type"><option value="lab_pdf">Lab scan PDF</option><option value="intake_form">Patient intake form</option><option value="medication_list">Medication list</option></select></label><label>Filled synthetic PDF or .scan.txt envelope<input type="file" name="source_file" accept=".pdf,application/pdf,.scan.txt" required></label><p class="hint">Upload a synthetic filled lab PDF or a .scan.txt envelope. Local OCR (for a PDF) returns cited page regions and worker handoffs; unclear values require review.</p><button type="submit">Read filled form</button><p id="source-status" class="status" role="status"></p></form>
@@ -87,7 +103,14 @@ button:disabled{opacity:.6;cursor:wait}
 <script>
 (() => {
   const basePath = location.pathname.startsWith('/agentforge-w2') ? '/agentforge-w2' : location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
-  const state = { conversationId: null, patient: null, demoToken: ${JSON.stringify(token).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026')} };
+  const state = { conversationId: null, patient: null, demoToken: ${JSON.stringify(token).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026')}, writeToken: ${scriptJson(writeToken)} };
+  // E9: the launch tokens stay in memory only; strip them from the address
+  // bar and history so they are not bookmarked, shared or kept in history.
+  try { const launchUrl = new URL(location.href); if (launchUrl.searchParams.has('demo_token') || launchUrl.searchParams.has('write_token')) { launchUrl.searchParams.delete('demo_token'); launchUrl.searchParams.delete('write_token'); history.replaceState(null, '', launchUrl.pathname + (launchUrl.search || '') + launchUrl.hash); } } catch {}
+  const chartSourceBadge = document.getElementById('chart-source');
+  // Provenance comes from each response: the briefing's read operation, or the scan's chart_source.
+  const showChartSource = (value, label) => { if (!chartSourceBadge || !label) return; chartSourceBadge.dataset.chartSource = value; chartSourceBadge.textContent = 'Chart source: ' + label; };
+  const CHART_OPERATION_LABELS = ${scriptJson(chartOperationLabels)};
   const initialDemoToken = state.demoToken;
   const briefingForm = document.getElementById('briefing-form');
   const sourceDocumentForm = document.getElementById('source-document-form');
@@ -169,7 +192,7 @@ button:disabled{opacity:.6;cursor:wait}
     preparation = (async () => {
       try {
         let token = initialDemoToken;
-        if (!${liveOpenEMR}) {
+        if (!${fixedContext}) {
           const contextResponse = await fetch(basePath + '/v1/demo-context?patient_uuid=' + encodeURIComponent(patient));
           if (!contextResponse.ok) throw new Error('Patient context is unavailable.');
           token = (await contextResponse.json()).demo_token;
@@ -202,7 +225,7 @@ button:disabled{opacity:.6;cursor:wait}
       if (!response) throw new Error('Patient context changed. Open the selected patient again.');
       if (!['blocked', 'deadline-exceeded'].includes(response.disposition)) {
         // Opening always rechecks authorization and server cache expiry.
-        if (!${liveOpenEMR}) {
+        if (!${fixedContext}) {
           const contextResponse = await fetch(basePath + '/v1/demo-context?patient_uuid=' + encodeURIComponent(patient));
           if (!contextResponse.ok) throw new Error('Patient context is unavailable.');
           state.demoToken = (await contextResponse.json()).demo_token;
@@ -224,7 +247,9 @@ button:disabled{opacity:.6;cursor:wait}
       addMessage('assistant', response.text, response, 'briefing');
       const unavailable = ['blocked', 'deadline-exceeded'].includes(response.disposition);
       followupForm.classList.toggle('hidden', unavailable);
-      crossPatientProbe.classList.toggle('hidden', unavailable || ${liveOpenEMR});
+      crossPatientProbe.classList.toggle('hidden', unavailable || ${fixedContext});
+      const operation = CHART_OPERATION_LABELS[response.operations?.[0]?.operation];
+      if (operation) showChartSource(operation[0], operation[1]);
       setStatus(unavailable ? 'Briefing unavailable; no verified patient content was displayed.' : 'Prepared briefing opened. Ready for follow-up.');
     } catch (error) {
       preparation = null;
@@ -239,10 +264,17 @@ button:disabled{opacity:.6;cursor:wait}
     setBusy(true);
     sourceStatus.textContent = 'Uploading synthetic source evidence…';
     try {
-      const contextResponse = await fetch(basePath + '/v1/source-document-context?patient_uuid=' + encodeURIComponent(patient));
-      if (!contextResponse.ok) throw new Error('Source-document context is unavailable.');
-      const writeContext = await contextResponse.json();
-      if (!state.demoToken || state.patient !== patient) {
+      let writeContext;
+      if (${fixedContext}) {
+        // Launched from OpenEMR: the launcher's write token, or nothing.
+        if (!state.writeToken) throw new Error('Upload is unavailable for this OpenEMR launch (no write access or patient not allowlisted). Relaunch from the patient chart.');
+        writeContext = { demo_token: state.writeToken };
+      } else {
+        const contextResponse = await fetch(basePath + '/v1/source-document-context?patient_uuid=' + encodeURIComponent(patient));
+        if (!contextResponse.ok) throw new Error('Source-document context is unavailable.');
+        writeContext = await contextResponse.json();
+      }
+      if (!${fixedContext} && (!state.demoToken || state.patient !== patient)) {
         const readContextResponse = await fetch(basePath + '/v1/demo-context?patient_uuid=' + encodeURIComponent(patient));
         if (!readContextResponse.ok) throw new Error('Patient context is unavailable.');
         state.demoToken = (await readContextResponse.json()).demo_token;
@@ -260,6 +292,7 @@ button:disabled{opacity:.6;cursor:wait}
       // -- it is only an optional clinician question the server appends.
       const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: '' });
       const active = workflow.workflow;
+      if (workflow.chart_source) showChartSource(workflow.chart_source.chart_source, workflow.chart_source.label + (['read', 'empty'].includes(workflow.chart_source.status) ? '' : ' (' + (workflow.chart_source.reason || workflow.chart_source.status) + ')'));
       const workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
       const guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
       setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');

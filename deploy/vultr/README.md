@@ -88,7 +88,7 @@ OpenEMR readiness and AgentForge readiness before using the instance.
 AgentForge is a separate service beside OpenEMR. Caddy owns the public 80/443
 entrypoints and routes `/agentforge` to the service while routing the root path
 to OpenEMR. The module launcher reads the selected OpenEMR patient's UUID from
-the authenticated session's `pid` and creates a five-minute signed context. The
+the authenticated session's `pid` and creates a signed context (280 s). The
 AgentForge service then uses the allowlisted OpenEMR REST read routes with a
 server-only OAuth access token. The token must be provisioned through the
 approved OpenEMR OAuth client path; missing or invalid authorization keeps live
@@ -143,6 +143,107 @@ Lab read-back uses OpenEMR's FHIR Observation service in-process
 (`read_path: openemr-fhir-service-in-process`), not the `/fhir` HTTP API. That
 API was enabled on 2026-09-25 for the patient dashboard port; this proof does
 not use it.
+
+## Week 2 live chart reads from an OpenEMR session (E9)
+
+`agentforge-w2` keeps `AGENTFORGE_OPENEMR_MODE: synthetic`, so the public demo
+still reads the fixture chart. A page opened from the OpenEMR patient menu item
+"Prepare for visit" carries tokens minted by the module launcher
+(`oe-module-agentforge/public/index.php`: issuer `openemr-module`, authn
+`openemr-session`, 280 s). For those requests only, the service reads the real
+chart through the OpenEMR REST API when `AGENTFORGE_OPENEMR_LIVE_READS=on`
+(`W2_ARCHITECTURE.md` §3f). With `off` (the default) they are refused with
+`openemr_live_reads_disabled`, never served from fixtures.
+
+New `agentforge-w2` settings (Compose passes them through; defaults in
+parentheses):
+
+| Variable | Purpose |
+|---|---|
+| `AGENTFORGE_OPENEMR_LIVE_READS` (`off`) | `on` reads OpenEMR for launcher tokens; any value other than `on`/`off` stops startup |
+| `AGENTFORGE_OPENEMR_BASE_URL` (`http://openemr`) | REST base, over the Docker network |
+| `AGENTFORGE_OPENEMR_TOKEN_URL`, `AGENTFORGE_OPENEMR_CLIENT_ID`, `AGENTFORGE_OPENEMR_CLIENT_SECRET` (empty) | The server-only read client that owns the refresh token (the same values Week 1's live mode uses) |
+| `AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH` (fixed) | `/run/secrets/agentforge-openemr-token.json`, mounted from `secrets/openemr-token.json` |
+| `AGENTFORGE_OPENEMR_TIMEOUT_MS` (`5000`) | REST call timeout |
+| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` (`false`) | `true` lets a live read of a designated patient use the external services (Qwen answer and rerank, the OpenRouter critic, Gemini embeddings and OCR). Otherwise a live read makes no outbound call: deterministic answer, critic `skipped_not_approved`, local BM25 retrieval, and a live briefing is blocked |
+| `AGENTFORGE_LIVE_PATIENT_UUIDS` (empty) | The designated synthetic patients, on **both** `openemr` and `agentforge-w2`. The launcher mints live tokens only for these (anyone else gets a 403), and the approval above applies only to them. Empty means nobody |
+
+On the `openemr` service, `AGENTFORGE_SERVICE_URL` is where the launcher link
+points. For W2 it must be the public W2 path: `https://<canonical-host>/agentforge-w2`.
+
+### Operator runbook
+
+Steps 1, 2 and 5 run on the VM from `/opt/agentforge-week1/deploy/vultr`;
+step 4 runs `deploy.sh` from the repo root on the workstation, on the freeze
+SHA. Values are never printed.
+
+1. **Check that Week 1 does not use the token file.** Both services mount
+   `secrets/openemr-token.json`, and a refresh rotates the refresh token, so
+   only one service may use it: `docker compose --env-file
+   /opt/agentforge-week1/.env exec agentforge printenv AGENTFORGE_OPENEMR_MODE`
+   must print `synthetic` (or nothing). If it prints `live`, stop and ask.
+2. **Seed the synthetic patient** (idempotent; a second run prints `ALREADY
+   SEEDED`):
+   ```sh
+   docker compose --env-file /opt/agentforge-week1/.env exec -T mysql \
+     sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mariadb -uroot openemr' < seed/agentforge-live-chart-seed.sql
+   ```
+   The last result row is `AF-LIVE-01` with its `patient_uuid`. Run
+   `seed/agentforge-live-chart-check.sql` the same way to see the rows (and
+   that `grader` has a `users.uuid`). `seed/agentforge-live-chart-unseed.sql`
+   removes exactly the marked rows.
+3. **Set the env** in `/opt/agentforge-week1/.env`:
+   ```dotenv
+   AGENTFORGE_SERVICE_URL=https://<canonical-host>/agentforge-w2
+   AGENTFORGE_OPENEMR_LIVE_READS=on
+   # the designated synthetic patients: the launcher refuses everyone else
+   AGENTFORGE_LIVE_PATIENT_UUIDS=<af-live-01-patient-uuid>
+   # append the seeded uuid; keep the existing entries (uploads)
+   AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS=<existing-uuids>,<af-live-01-patient-uuid>
+   AGENTFORGE_OPENEMR_TOKEN_URL=https://<canonical-host>/oauth2/default/token
+   AGENTFORGE_OPENEMR_CLIENT_ID=<server-only-read-client-id>
+   AGENTFORGE_OPENEMR_CLIENT_SECRET=<server-only-read-client-secret>
+   # optional: let the external models (answer, critic, embed/rerank, OCR)
+   # see the designated synthetic patient's live chart; leave unset to keep
+   # every live read in-process
+   AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED=true
+   ```
+   (`AGENTFORGE_OPENEMR_BASE_URL` defaults to `http://openemr`.) If live
+   reads are on but these OpenEMR settings are missing, `agentforge-w2` logs
+   the missing names, `/ready` stays 503 and live requests are refused with
+   `openemr_live_reads_not_configured`. `grader` needs read access to
+   `patients/demo`, `patients/med`, `patients/docs`, `encounters/notes` and
+   `encounters/auth_a` (and `patients/docs` write for uploads).
+4. **Recreate the containers** so they see the env: `agentforge-w2` (deploy)
+   and `openemr` (changed `AGENTFORGE_SERVICE_URL` and allowlist):
+   `AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1 AGENTFORGE_DEPLOY_SERVICES="dashboard agentforge-w2" deploy/vultr/deploy.sh`
+   (drop `dashboard` if only W2 changed).
+5. **Check the OAuth refresh token.** `curl -s https://<canonical-host>/agentforge-w2/ready`
+   must answer 200 with `retrieval` ready: with live reads on, that check
+   includes an authenticated `GET /apis/default/api/patient?limit=1`. A 503
+   there means the refresh token or client is not valid; the fix is a new
+   authorization through the read client, not turning live reads off
+   silently.
+6. **Observe as `grader`.** Sign in to OpenEMR, open patient
+   `Test Patient One` (pubpid `AF-LIVE-01`), choose **Prepare for visit** in
+   the patient menu and open the link within about 4 minutes. The page badge
+   must say "Chart source: OpenEMR (live)". Run the "Lab result · Layout A"
+   sample: the scan answer's patient-record facts cite `openemr_record`
+   (Hypertension, Lisinopril, Penicillin, the blood-pressure follow-up
+   encounter), the badge stays "OpenEMR (live)", and "View source region"
+   opens the stored PDF. `/agentforge-w2/v1/traces` shows the scan's retrieval
+   attempts with `adapter: openemr`. The public demo at `/agentforge-w2/`
+   must still say "Chart source: synthetic fixture". If the launcher says
+   "Chart reads only", `grader` lacks `patients/docs` write or the uuid is not
+   on the write allowlist; "enabled only for designated synthetic patients"
+   means the uuid is not on `AGENTFORGE_LIVE_PATIENT_UUIDS` (or `openemr`
+   was not recreated after the change). The page header must say "Live
+   OpenEMR chart (synthetic patient)", and the address bar must not show the
+   token after the page loads.
+
+Known gaps on the live path: medication rows carry no dose (the fact reads
+`active` or `ended <date>`), and the document route returns 404 without a
+`path`, so the briefing is qualified with `notes:failed`.
 
 ## Patient dashboard port (`dashboard`)
 

@@ -338,6 +338,41 @@ cost and latency), and the README grader path. Add a W1-debt list to
 `W2_ARCHITECTURE.md` §4: each item marked resolved (with commit) or accepted
 (with reason). Correct this plan's stale completion record.
 
+**E9 — Real OpenEMR chart reads through a module-launched session.** Owner:
+"We never will have PHI in this thing. But we will want to have all the
+wiring that would handle it." The data stays synthetic; the code path is the
+real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
+- **Status (2026-09-26, E9 lane):** implemented and tested, not deployed.
+  The chart adapter is chosen per request from the HMAC-verified claims only
+  (`chartSourceRouter.js`): launcher tokens (`openemr-module` /
+  `openemr-session`) read `OpenEMRRestAdapter` when
+  `AGENTFORGE_OPENEMR_LIVE_READS=on`, else they are refused with
+  `openemr_live_reads_disabled`; demo tokens read fixtures. Labels: briefing
+  `operations`, citation `source_type` (E8's scheme, cherry-picked), scan
+  `chart_source`, trace `adapter`, UI badge. The launcher now mints a
+  `write-source-document` token (docs write ACL + allowlist), passes the
+  username to ACL checks and the user's uuid as `clinician_uuid` (both were
+  wrong before). Seed: `deploy/vultr/seed/agentforge-live-chart-*.sql`
+  (patient `AF-LIVE-01`), tested on the local dev stack (8.2.0-dev, not
+  8.0.0). Evidence: `chart-source-router.test.js`, `live-chart-http.test.js`,
+  `x9-live-chart-*` extension cases,
+  `docs/agentforge/evidence/E9-live-chart-regression.txt`. Not done: seed and
+  env on the VM, the OAuth refresh-token check, observation as `grader`
+  (runbook in `deploy/vultr/README.md`). Known gaps: no medication dose from
+  `lists`; the document route 404s without `path`, so `notes` fails.
+  Rebased on `fd6c959b` (E4, E5, E8 final): labels come from one table,
+  `chartSource.js`. A live read without
+  `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` makes no outbound call
+  (critic `skipped_not_approved`, local BM25, no external OCR).
+  Security review fixes: the launcher checks every ACO the REST reads
+  enforce and mints live tokens only for `AGENTFORGE_LIVE_PATIENT_UUIDS`;
+  egress needs approval and a designated patient; tokens are stripped from
+  the address bar, responses are `no-store` / `no-referrer`; live responses
+  say `synthetic_only: false`; a scan re-checks read scope; live reads on
+  without OpenEMR settings keep `/ready` at 503; the unseed counts every
+  pid-linked table. Accepted residuals (W2_ARCHITECTURE.md §3f): reads run
+  as a service identity; 280 s bearer tokens, no single-use exchange.
+
 **E7 — Freeze and prove (Sun 06:00–08:00).** One SHA on `main`. Deploy W2 and
 the dashboard from it and confirm both `/health` SHAs. Extend
 `w2-live-acceptance.mjs` with checks for the critic decision in the trace, a
@@ -852,7 +887,7 @@ got an independent adversarial review, with findings fixed before merge
 | E5 lab trend (X-4) | !102, `e0f9eb35` | Wired, tested (`x4-*`), observed live on `e0f9eb35` | `evidence/E5-lab-trend-regression.txt`, `evidence/E4-E5-E8-live.md` |
 | E8 W1 trust debt | !103, `fd6c959b` | Wired, tested (`no-eval-oracle.test.js`, `x8-*`, alert test), observed live on `fd6c959b` (chart facts labeled "Synthetic chart fixture"; p95 alert threshold 30000) | `evidence/E8-w1-trust-regression.txt`, `evidence/E4-E5-E8-live.md` |
 | E6 docs truth pass | branch `agentforge/e6-docs-truth` | This pass; not merged at the time of writing | — |
-| E9 real chart reads (D13) | — | In progress, not merged | — |
+| E9 real chart reads (D13) | branch `agentforge/e9-live-chart` | Wired, live reads off by default (`AGENTFORGE_OPENEMR_LIVE_READS`) until enabled on the VM; tested (`chart-source-router.test.js`, `live-chart-http.test.js`, `x9-live-chart-*`, module `tests/run.php`); not observed live | `evidence/E9-live-chart-regression.txt` |
 | E7 freeze and proof | — | Pending: one SHA for W2 and the dashboard, live acceptance re-run into `LEDGER.md`, screenshots | — |
 | Owner items | — | Pending: demo video, social post, Qwen and Vultr dev spend, submission link | — |
 

@@ -14,7 +14,7 @@ const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACT
 export const DECISIONS = Object.freeze({ EXTRACT: 'EXTRACT', RETRIEVE: 'RETRIEVE', ANSWER: 'ANSWER', CRITIQUE: 'CRITIQUE', DONE: 'DONE' });
 
 /** The `critic_status` each critic-skipping DONE reason ships with (E2). */
-export const CRITIC_SKIP_STATUS = Object.freeze({ critic_disabled: 'disabled', critic_skipped_budget: 'skipped_budget', no_claims_to_review: 'skipped_no_claims' });
+export const CRITIC_SKIP_STATUS = Object.freeze({ critic_disabled: 'disabled', critic_not_approved: 'skipped_not_approved', critic_skipped_budget: 'skipped_budget', no_claims_to_review: 'skipped_no_claims' });
 
 // EXTRACT, one low-confidence retry, RETRIEVE, ANSWER, CRITIQUE and DONE take
 // six decisions; the seventh is a spare, so the longest normal path never
@@ -88,6 +88,8 @@ function boundedCacheSet(cache, key, value, limit = EXTRACTION_CACHE_LIMIT) {
  * - `max_steps_reached`: a safety cap was hit -- DONE, qualified.
  * - After an answer is composed (E2): `answer_needs_review` routes to
  *   CRITIQUE; `critic_disabled` (no critic model configured),
+ *   `critic_not_approved` (a live OpenEMR read without external-provider
+ *   approval, E9),
  *   `no_claims_to_review` and `critic_skipped_budget` (the scan deadline
  *   leaves less than the critic's timeout) end at DONE without it; once the
  *   critic has run, `critique_<status>` ends at DONE.
@@ -125,6 +127,7 @@ export function decideNext(state = {}) {
     answer = null,
     critique = null,
     criticEnabled = false,
+    criticNotApproved = false,
     criticBudgetOk = false,
   } = state;
 
@@ -132,7 +135,7 @@ export function decideNext(state = {}) {
 
   if (answer) {
     if (critique) return { next: DECISIONS.DONE, reason: `critique_${critique.output_status}` };
-    if (!criticEnabled) return { next: DECISIONS.DONE, reason: 'critic_disabled' };
+    if (!criticEnabled) return { next: DECISIONS.DONE, reason: criticNotApproved ? 'critic_not_approved' : 'critic_disabled' };
     const claimCount = (answer.patient_facts?.length || 0) + (answer.guideline_evidence?.length || 0);
     if (!claimCount) return { next: DECISIONS.DONE, reason: 'no_claims_to_review' };
     if (!criticBudgetOk) return { next: DECISIONS.DONE, reason: 'critic_skipped_budget' };
@@ -269,6 +272,7 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
       answer,
       critique: criticWorker,
       criticEnabled: Boolean(critic?.enabled),
+      criticNotApproved: Boolean(critic?.notApproved),
       criticBudgetOk: Boolean(answer && critic?.enabled && critic.budgetOk?.()),
     });
     recordDecision(decision);

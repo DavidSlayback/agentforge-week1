@@ -340,9 +340,12 @@ export const NeedsReviewItem = z.object({
  * when no critic model is configured; `skipped_budget` when the scan
  * deadline left less time than the critic's timeout; `skipped_no_claims`
  * when the answer had no claims to review; `skipped_identity_only` when every
- * claim cited a patient-identity field, so none could be sent.
+ * claim cited a patient-identity field, so none could be sent;
+ * `skipped_not_approved` when the answer used a live OpenEMR read and
+ * AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED is not set (E9), so no claim
+ * may leave the process.
  */
-export const CRITIC_STATUS_VALUES = Object.freeze(['reviewed', 'failed', 'disabled', 'skipped_budget', 'skipped_no_claims', 'skipped_identity_only']);
+export const CRITIC_STATUS_VALUES = Object.freeze(['reviewed', 'failed', 'disabled', 'skipped_budget', 'skipped_no_claims', 'skipped_identity_only', 'skipped_not_approved']);
 
 export const GroundedAnswerResult = z.object({
   composer: z.enum(['model', 'deterministic-fallback', 'model+deterministic-topup']),
