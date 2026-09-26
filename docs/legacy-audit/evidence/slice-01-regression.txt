@@ -1,0 +1,183 @@
+Slice 01-01-01 deliberate-regression proof (MIGRATION-REACT.md §6.3 item 2; arc 01-01-01 'Deliberate regression')
+Date: 2026-09-26T00:40:24Z
+Branch: agentforge/w2-dashboard, parent commit 12de1be44f5129cf578cd4abafa276c32237bd23 (gate wired in 12de1be)
+Break: dashboard/core/rules/header.ts deriveStatus() changed to read Patient.active:
+  -  const hasDeceasedDate = typeof patient.deceasedDateTime === 'string' && patient.deceasedDateTime.length > 0;
+  -  return hasDeceasedDate || patient.deceasedBoolean === true ? 'Deceased' : 'Active';
+  +  return patient.active === false ? 'Deceased' : 'Active';
+Command: git add dashboard/core/rules/header.ts && git commit -m 'test(dashboard): deliberate regression ...'  (runs .githooks/pre-commit)
+Result: hook exit 1, commit refused (HEAD unchanged). Expected red tests: the pid 12 Deceased test and the active:false case -> both red below.
+Note: a first attempt with the same break that left the now-unused variable in place was also refused, by ESLint
+(@typescript-eslint/no-unused-vars) before the tests ran; the break was reduced to the two lines above so the tests go red.
+Output below: the Dashboard gate section of the hook output (ANSI colour codes stripped; the earlier AgentForge suites passed and are omitted).
+Synthetic data only: the uuids are local synthetic test patients; no names or DOBs appear.
+----------------------------------------------------------------------
+Dashboard gate: typecheck, lint, unit/contract/component tests, build...
+ RUN  v3.2.7 C:/Users/david/repos/agentforge-week1-w2-dashboard/dashboard
+ ✓  node  test/core/format.test.ts (17 tests) 4ms
+ ✓  node  test/lint/boundaries.test.ts (3 tests) 3349ms
+   ✓ lint boundaries > web importing the BFF fails the lint  2172ms
+   ✓ lint boundaries > core importing I/O or a framework fails the lint  1060ms
+ ✓  node  test/core/upstreamRoutes.test.ts (7 tests) 5ms
+ ❯  node  test/core/header.test.ts (9 tests | 5 failed) 51ms
+   × header parity: status is derived from deceased fields, never Patient.active > pid 12 (deceasedDateTime set) is Deceased with "Age at death" 21ms
+     → expected 'Active' to be 'Deceased' // Object.is equality
+   ✓ header parity: status is derived from deceased fields, never Patient.active > pid 13 (deceasedBoolean false) is Active with every field present 1ms
+   ✓ header parity: status is derived from deceased fields, never Patient.active > pid 3 (empty-state patient) is Active with every field present 17ms
+   × header parity: status is derived from deceased fields, never Patient.active > DASH-SYN-02 (dedicated deceased patient) is Deceased 8ms
+     → expected 'Active' to be 'Deceased' // Object.is equality
+   × header parity: status is derived from deceased fields, never Patient.active > active:false with no deceased fields is still Active (Patient.active is ignored) 1ms
+     → expected 'Deceased' to be 'Active' // Object.is equality
+   × header parity: status is derived from deceased fields, never Patient.active > active:true with a deceasedDateTime is Deceased 1ms
+     → expected 'Active' to be 'Deceased' // Object.is equality
+   × header parity: status is derived from deceased fields, never Patient.active > deceasedBoolean true (no date) is Deceased; false is Active 1ms
+     → expected 'Active' to be 'Deceased' // Object.is equality
+   ✓ header parity: status is derived from deceased fields, never Patient.active > MRN is the PT identifier only 0ms
+   ✓ header parity: status is derived from deceased fields, never Patient.active > missing fields become null (rendered "Not recorded"), never invented 1ms
+ ✓  node  test/bff/mapResponse.test.ts (10 tests) 54ms
+ ❯  node  test/contract/header.test.ts (12 tests | 1 failed) 117ms
+   ✓ header use case against shaped fixtures (contract) > pid 13: exactly the two allow-listed reads, status a2d4d063-d949-4f5a-9001-01c1d919afc6, pid resolved once 26ms
+   ✓ header use case against shaped fixtures (contract) > pid 3: exactly the two allow-listed reads, status a2c331a5-3b72-45c1-884e-94015f1f34fa, pid resolved once 17ms
+   × header use case against shaped fixtures (contract) > pid 12: exactly the two allow-listed reads, status a2d4d05f-5ff1-4d5d-9b6f-883f99ffc212, pid resolved once 9ms
+     → expected 'Active' to be 'Deceased' // Object.is equality
+   ✓ header use case against shaped fixtures (contract) > a FHIR Patient for another uuid is PATIENT_MISMATCH (5.04) 2ms
+   ✓ header use case against shaped fixtures (contract) > a REST patient for another uuid (another pid) is PATIENT_MISMATCH 2ms
+   ✓ header use case against shaped fixtures (contract) > a REST record whose pubpid disagrees with the FHIR MRN is PATIENT_MISMATCH 2ms
+   ✓ header use case against shaped fixtures (contract) > no header without both authorized reads (3.02): 403 → forbidden, 401 → reauth 2ms
+   ✓ header use case against shaped fixtures (contract) > HTTP 200 validationErrors and OperationOutcome are errors, never a header 2ms
+   ✓ header use case against shaped fixtures (contract) > a 500 carrying SQL text reaches neither the DTO nor the logs (6.01) 3ms
+   ✓ header use case against shaped fixtures (contract) > a timeout is an error, not a hang 36ms
+   ✓ patient selection by MRN (contract) > DASH-SYN-02 resolves to its uuid through exactly one allow-listed search 12ms
+   ✓ patient selection by MRN (contract) > an empty Bundle is not-found; an SS-only match is not-found; two PT matches is an error 2ms
+ ✓  node  test/bff/logRedaction.test.ts (1 test) 1616ms
+   ✓ log redaction across the full workflow > logs route templates, statuses and correlation ids, never PHI, ids or credentials  1615ms
+ ✓  node  test/bff/health.test.ts (7 tests) 1632ms
+   ✓ /dashboard/health and /dashboard/ready > health is compact JSON with the build SHA (deploy.sh greps "git_sha":"<sha>")  1585ms
+ ✓  node  test/bff/auth.test.ts (12 tests) 1937ms
+   ✓ GET /dashboard/login > redirects to the issuer authorize endpoint with S256, state, nonce and the exact scopes  1584ms
+ ❯  node  test/bff/security.test.ts (11 tests | 1 failed) 2250ms
+   ✓ security headers and caching > sends CSP, no-referrer and nosniff everywhere, and no-store on /bff, /login, /callback, /logout  1607ms
+   ✓ security headers and caching > form-action is plain self when OpenEMR shares the public origin (production shape) 6ms
+   ✓ security headers and caching > serves the SPA for deep links and redirects /dashboard to /dashboard/ 74ms
+   ✓ /bff request hygiene > returns 401 without a session 6ms
+   ✓ /bff request hygiene > rejects any query string with 400 and never forwards it 46ms
+   ✓ /bff request hygiene > rejects cross-site fetches (Sec-Fetch-Site) with 403 and accepts same-origin 61ms
+   ✓ /bff request hygiene > rejects an invalid patient id or MRN with 400 before any upstream call 42ms
+   ✓ /bff request hygiene > rejects a tampered session cookie 72ms
+   ✓ cookies and token confinement > session cookie is HttpOnly, SameSite=Lax, Path=/dashboard; Secure under an https (production) config 140ms
+   ✓ cookies and token confinement > no response body anywhere carries a token, the client secret or a JWT 74ms
+   × cookies and token confinement > the header endpoint returns the DTO only (no raw upstream fields) 121ms
+     → expected { kind: 'ok', …(3) } to match object { kind: 'ok', …(2) }
+(8 matching properties omitted from actual)
+ ✓  web  test/web/PatientHeader.test.tsx (10 tests) 271ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL   node  test/bff/security.test.ts > cookies and token confinement > the header endpoint returns the DTO only (no raw upstream fields)
+AssertionError: expected { kind: 'ok', …(3) } to match object { kind: 'ok', …(2) }
+(8 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "kind": "ok",
+    "patientId": "a2d4d05f-5ff1-4d5d-9b6f-883f99ffc212",
+    "rows": [
+      {
+-       "ageLabel": "Age at death",
+-       "status": "Deceased",
++       "ageLabel": "Age",
++       "status": "Active",
+      },
+    ],
+  }
+ ❯ test/bff/security.test.ts:168:18
+    166|     const res = await app.inject({ method: 'GET', url: `/dashboard/bff…
+    167|     const card: unknown = res.json();
+    168|     expect(card).toMatchObject({ kind: 'ok', patientId: PATIENT.p12, r…
+       |                  ^
+    169|     expect(res.body).not.toContain('resourceType');
+    170|     expect(res.body).not.toContain('"pid"');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+ FAIL   node  test/contract/header.test.ts > header use case against shaped fixtures (contract) > pid 12: exactly the two allow-listed reads, status a2d4d05f-5ff1-4d5d-9b6f-883f99ffc212, pid resolved once
+AssertionError: expected 'Active' to be 'Deceased' // Object.is equality
+Expected: "Deceased"
+Received: "Active"
+ ❯ test/contract/header.test.ts:56:34
+     54|     expect(card.patientId).toBe(id);
+     55|     expect(card.rows).toHaveLength(1);
+     56|     expect(card.rows[0]?.status).toBe(status);
+       |                                  ^
+     57|     expect(card.rows[0]?.ageLabel).toBe(status === 'Deceased' ? 'Age a…
+     58|     expect(resolved).toBe(pid);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+ FAIL   node  test/core/header.test.ts > header parity: status is derived from deceased fields, never Patient.active > pid 12 (deceasedDateTime set) is Deceased with "Age at death"
+AssertionError: expected 'Active' to be 'Deceased' // Object.is equality
+Expected: "Deceased"
+Received: "Active"
+ ❯ test/core/header.test.ts:22:22
+     20|   it('pid 12 (deceasedDateTime set) is Deceased with "Age at death"', …
+     21|     const h = deriveHeader(uuid(PATIENT.p12), fixturePatient('shaped/p…
+     22|     expect(h.status).toBe('Deceased');
+       |                      ^
+     23|     expect(h.ageLabel).toBe('Age at death');
+     24|     expect(h.deceasedDate).toBe('2026-08-30');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+ FAIL   node  test/core/header.test.ts > header parity: status is derived from deceased fields, never Patient.active > DASH-SYN-02 (dedicated deceased patient) is Deceased
+AssertionError: expected 'Active' to be 'Deceased' // Object.is equality
+Expected: "Deceased"
+Received: "Active"
+ ❯ test/core/header.test.ts:50:22
+     48|   it('DASH-SYN-02 (dedicated deceased patient) is Deceased', () => {
+     49|     const h = deriveHeader(uuid(PATIENT.dashSyn02), fixturePatient('sh…
+     50|     expect(h.status).toBe('Deceased');
+       |                      ^
+     51|     expect(h.mrn).toBe('DASH-SYN-02');
+     52|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+ FAIL   node  test/core/header.test.ts > header parity: status is derived from deceased fields, never Patient.active > active:false with no deceased fields is still Active (Patient.active is ignored)
+AssertionError: expected 'Deceased' to be 'Active' // Object.is equality
+Expected: "Active"
+Received: "Deceased"
+ ❯ test/core/header.test.ts:55:86
+     53| 
+     54|   it('active:false with no deceased fields is still Active (Patient.ac…
+     55|     expect(deriveStatus({ id: PATIENT.p13, active: false, deceasedBool…
+       |                                                                                      ^
+     56|     expect(deriveStatus({ id: PATIENT.p13, active: false })).toBe('Act…
+     57|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+ FAIL   node  test/core/header.test.ts > header parity: status is derived from deceased fields, never Patient.active > active:true with a deceasedDateTime is Deceased
+AssertionError: expected 'Active' to be 'Deceased' // Object.is equality
+Expected: "Deceased"
+Received: "Active"
+ ❯ test/core/header.test.ts:60:108
+     58| 
+     59|   it('active:true with a deceasedDateTime is Deceased', () => {
+     60|     expect(deriveStatus({ id: PATIENT.p12, active: true, deceasedDateT…
+       |                                                                                                            ^
+     61|   });
+     62| 
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+ FAIL   node  test/core/header.test.ts > header parity: status is derived from deceased fields, never Patient.active > deceasedBoolean true (no date) is Deceased; false is Active
+AssertionError: expected 'Active' to be 'Deceased' // Object.is equality
+Expected: "Deceased"
+Received: "Active"
+ ❯ test/core/header.test.ts:64:84
+     62| 
+     63|   it('deceasedBoolean true (no date) is Deceased; false is Active', ()…
+     64|     expect(deriveStatus({ id: PATIENT.p12, active: true, deceasedBoole…
+       |                                                                                    ^
+     65|     expect(deriveStatus({ id: PATIENT.p12, active: true, deceasedBoole…
+     66|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+ Test Files  3 failed | 8 passed (11)
+      Tests  7 failed | 92 passed (99)
+   Start at  19:39:52
+   Duration  17.44s (transform 1.04s, setup 0ms, collect 37.15s, tests 11.29s, environment 11.65s, prepare 5.10s)
+----------------------------------------------------------------------
+After revert: dashboard/core/rules/header.ts restored (git restore), then the next commit ran the full hook:
+Commit 976f748 'test(dashboard): name the header contract cases by label' -> hook exit 0. Dashboard gate section:
+Dashboard gate: typecheck, lint, unit/contract/component tests, build...
+ Test Files  11 passed (11)
+      Tests  99 passed (99)
+bundle-report: JS 70.3 kB gzip (budget 150.0 kB), CSS 0.6 kB gzip
+AgentForge gate: W2 50-case eval gate...
+W2 50-case gate: critical_failures [] and failed_cases [] (full hook passed).

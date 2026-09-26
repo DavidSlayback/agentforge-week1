@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "kind": "hand-built",
+    "note": "Hand-built error or edge shape; not recorded, not live. A search Bundle where a single Patient read was expected.",
+    "synthetic": true
+  },
+  "status": 200,
+  "body": {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "total": 0,
+    "entry": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "kind": "hand-built",
+    "note": "Hand-built error or edge shape; not recorded, not live. FHIR OperationOutcome inside an HTTP 200 (catalog 6.03).",
+    "synthetic": true
+  },
+  "status": 200,
+  "body": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "processing",
+        "diagnostics": "LEAKED_DIAGNOSTIC_MARKER"
+      }
+    ]
+  }
+}

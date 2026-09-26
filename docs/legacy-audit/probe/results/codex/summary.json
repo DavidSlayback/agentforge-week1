@@ -1,0 +1,154 @@
+{
+  "label": "codex",
+  "base": "http://localhost:8300",
+  "startedAt": "2026-09-25T16:13:19.066Z",
+  "login": {
+    "ms": 7026,
+    "landedOn": "http://localhost:8300/interface/main/tabs/main.php?token_main=jleysUQfbBt6ppg9kmOLlIS74wNdffW8cFq23KNF",
+    "dialogs": [
+      "OpenEMR Product Registration\n\nWe kindly ask you to take a moment to register your installation by providing an email. This ensures you receive timely updates, security alerts, and critical announcements from the OpenEMR Foundation. You can opt out of this by simply leaving this field blank.\n\nRegistration is not required for Anonymous Telemetry Opt-In\nI consent to share anonymous usage data with the OpenEMR Foundation. We are committed to continually improving OpenEMR. By opting in to anonymous t"
+    ]
+  },
+  "patients": {
+    "7": {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "timings": [
+        {
+          "wallToNetworkIdleMs": 5229,
+          "domContentLoaded": 3505,
+          "load": 4103,
+          "transferKB": 167,
+          "resources": 18
+        },
+        {
+          "wallToNetworkIdleMs": 4440,
+          "domContentLoaded": 2708,
+          "load": 3928,
+          "transferKB": 167,
+          "resources": 18
+        },
+        {
+          "wallToNetworkIdleMs": 3869,
+          "domContentLoaded": 2724,
+          "load": 3319,
+          "transferKB": 167,
+          "resources": 18
+        }
+      ],
+      "cardTitles": [
+        "Allergies",
+        "Medical Problems",
+        "Medications",
+        "Prescriptions",
+        "Care Team",
+        "Treatment Intervention Preferences",
+        "Care Experience Preferences",
+        "Demographics",
+        "Billing",
+        "Insurance",
+        "Messages",
+        "Patient Reminders",
+        "Disclosures",
+        "Amendments",
+        "Labs",
+        "Vitals",
+        "Patient Portal / API Access",
+        "Clinical Reminders",
+        "Recall",
+        "Appointments",
+        "Health Concerns",
+        "Immunizations"
+      ],
+      "inScopeFound": [
+        "allergies",
+        "problems",
+        "medications",
+        "prescriptions",
+        "care_team"
+      ],
+      "inScopeMissing": [
+        "notes"
+      ]
+    }
+  },
+  "fhirMetadata": {
+    "status": 200,
+    "fhirVersion": "4.0.1",
+    "resources": [
+      "AllergyIntolerance",
+      "Appointment",
+      "CarePlan",
+      "CareTeam",
+      "Condition",
+      "Coverage",
+      "Device",
+      "DiagnosticReport",
+      "DocumentReference",
+      "Binary",
+      "Encounter",
+      "Goal",
+      "Group",
+      "Immunization",
+      "Location",
+      "Media",
+      "Medication",
+      "MedicationDispense",
+      "MedicationRequest",
+      "Observation",
+      "Organization",
+      "Specimen",
+      "Patient",
+      "Person",
+      "Practitioner",
+      "PractitionerRole",
+      "Procedure",
+      "RelatedPerson",
+      "ServiceRequest",
+      "Provenance",
+      "Questionnaire",
+      "QuestionnaireResponse",
+      "ValueSet",
+      "OperationDefinition"
+    ]
+  },
+  "consoleErrors": [
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: top.restoreSession is not a function"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: top.restoreSession is not a function"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: Cannot read properties of undefined (reading 'setPatient')"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: top.restoreSession is not a function"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: top.restoreSession is not a function"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: Cannot read properties of undefined (reading 'setPatient')"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: top.restoreSession is not a function"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: top.restoreSession is not a function"
+    },
+    {
+      "url": "http://localhost:8300/interface/patient_file/summary/demographics.php?set_pid=7",
+      "text": "TypeError: Cannot read properties of undefined (reading 'setPatient')"
+    }
+  ],
+  "failedRequests": [],
+  "finishedAt": "2026-09-25T16:13:43.257Z"
+}

@@ -1,0 +1,16 @@
+{
+  "_meta": {
+    "kind": "hand-built",
+    "note": "Hand-built error or edge shape; not recorded, not live. REST 500 whose body leaks SQL text (catalog 6.01); must never reach a DTO or a log.",
+    "synthetic": true
+  },
+  "status": 500,
+  "body": {
+    "validationErrors": [],
+    "internalErrors": [
+      "SQLSTATE[42S22]: Column not found: 1054 Unknown column LEAKED_SQL_MARKER in where clause"
+    ],
+    "data": [],
+    "links": []
+  }
+}

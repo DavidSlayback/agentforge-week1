@@ -1,6 +1,7 @@
 # AgentForge agent rules
 
-AgentForge is the AI layer (`agentforge/`, `evals/`, `observability/`, `deploy/vultr/`)
+AgentForge is the AI layer (`agentforge/`, `evals/`, `observability/`, `deploy/vultr/`,
+plus the W2 dashboard port in `dashboard/`)
 in this OpenEMR fork. These rules exist because earlier work reported unfinished
 features as done. They override convenience.
 
@@ -8,6 +9,9 @@ features as done. They override convenience.
 
 - Requirements: `.scratch/assignments/w1.txt` and `w2.txt` (text of the local,
   gitignored assignment PDFs). Read the relevant section before planning.
+- W2 surprise challenge (patient dashboard port): read
+  `docs/legacy-audit/AGENT-BRIEF.md` first. It holds the decided client model,
+  per-card data sources and parity rules, backed by the audit in `docs/legacy-audit/`.
 - Hard-gate wording is literal. `./W2_ARCHITECTURE.md` means the repo root. A
   named field such as `page_or_section` means that exact key. "Required" means
   it is not optional.

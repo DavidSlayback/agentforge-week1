@@ -1,0 +1,13 @@
+{
+  "name": "legacy-audit-dashboard-probe",
+  "private": true,
+  "type": "module",
+  "description": "Phase 0 probe of the OpenEMR patient dashboard (local dev stack, synthetic data only).",
+  "scripts": {
+    "setup": "npm install && npx playwright install chromium",
+    "probe": "node probe-dashboard.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

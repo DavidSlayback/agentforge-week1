@@ -2,13 +2,16 @@
 # Deploy the committed HEAD to the Vultr VM and prove which SHA is running.
 #
 # Only a clean, committed tree ships (via git archive, which also stamps
-# agentforge/BUILD_SHA). The previous AgentForge sources are moved to a
-# timestamped backup on the VM so removed files cannot linger in the build.
+# agentforge/BUILD_SHA and dashboard/BUILD_SHA). The previous AgentForge
+# sources are moved to a timestamped backup on the VM so removed files cannot
+# linger in the build.
 #
 # Required env: AGENTFORGE_DEPLOY_HOST (user@host), AGENTFORGE_DEPLOY_KEY
 # (SSH private key path), AGENTFORGE_PUBLIC_URL (https://host, no trailing /).
 # Optional: AGENTFORGE_DEPLOY_SERVICES (default "agentforge-w2"; the Week 1
-# "agentforge" service is frozen and ships only when named explicitly),
+# "agentforge" service is frozen and ships only when named explicitly; the
+# patient dashboard port ships as "dashboard" and must report the SHA on
+# /dashboard/health),
 # AGENTFORGE_DEPLOY_ALLOW_UNMERGED=1 to ship a commit not yet on staging/main,
 # AGENTFORGE_DEPLOY_APPLY_MODULE_SQL=1 to apply the idempotent
 # oe-module-agentforge table.sql through the mysql container (its own env
@@ -23,7 +26,7 @@ public_url=${AGENTFORGE_PUBLIC_URL:?set AGENTFORGE_PUBLIC_URL}
 services=${AGENTFORGE_DEPLOY_SERVICES:-agentforge-w2}
 root=/opt/agentforge-week1
 # Build inputs are replaced wholesale so deleted files cannot linger in images.
-replaced="Dockerfile agentforge observability evals docs/agentforge"
+replaced="Dockerfile agentforge dashboard observability evals docs/agentforge"
 # These are bind-mounted into running containers (module dir, Caddyfile).
 # Moving them would leave containers attached to the backup copy, so they are
 # overwritten in place instead.
@@ -99,7 +102,7 @@ ssh_run "docker exec -u apache vultr-openemr-1 test -r /var/www/localhost/htdocs
 echo "Rebuilding: $services"
 ssh_run "$compose up -d --build --no-deps $services"
 
-for route in agentforge agentforge-w2; do
+for route in agentforge agentforge-w2 dashboard; do
   case " $services " in *" $route "*) ;; *) continue ;; esac
   i=0
   until curl -fsS -m 10 "$public_url/$route/health" 2>/dev/null | grep -q "\"git_sha\":\"$sha\""; do
