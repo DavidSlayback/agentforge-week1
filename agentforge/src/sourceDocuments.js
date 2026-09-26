@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-export const SOURCE_DOCUMENT_TYPES = new Set(['lab_pdf', 'intake_form']);
+export const SOURCE_DOCUMENT_TYPES = new Set(['lab_pdf', 'intake_form', 'medication_list']);
 export const MAX_SOURCE_DOCUMENT_BYTES = 5 * 1024 * 1024;
 
 function requireString(value, code) {

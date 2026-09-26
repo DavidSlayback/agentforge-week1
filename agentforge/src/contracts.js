@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { SOURCE_DOCUMENT_TYPES } from './sourceDocuments.js';
-import { Citation, GuidelineEvidence, IntakeForm, LabResult, parseOrIssues } from './schemas.js';
+import { Citation, GuidelineEvidence, IntakeForm, LabResult, MedicationList, parseOrIssues } from './schemas.js';
 
 /** Versioned request/response wire-shape authority; not an access grant. */
 export const CONTRACT_VERSION = '0.1';
@@ -285,7 +285,7 @@ export function validateClinicalActionResponse(value) {
  * Validate the typed contract of a scan-form extraction (`extractScanForm`
  * output) before it is returned by the `/scan-form-evidence` and
  * `/v1/scan-supervisor` endpoints: every fact's citation, every typed
- * `LabResult`, and the typed `IntakeForm` (when present) against the strict
+ * `LabResult`, and the typed `IntakeForm` or `MedicationList` (when present) against the strict
  * Zod schemas. This is deliberately independent of `validateScanExtraction`
  * (`scanFormContracts.js`), which also checks the layout-specific allowed
  * field list the server does not track — this validator checks only the
@@ -307,6 +307,9 @@ export function validateScanExtractionTypedOutput(extraction) {
   }
   if (extraction.intake_form !== null && extraction.intake_form !== undefined) {
     issues.push(...parseOrIssues(IntakeForm, extraction.intake_form).issues.map((issue) => `intake_form.${issue}`));
+  }
+  if (extraction.medication_list !== null && extraction.medication_list !== undefined) {
+    issues.push(...parseOrIssues(MedicationList, extraction.medication_list).issues.map((issue) => `medication_list.${issue}`));
   }
   return { valid: issues.length === 0, issues };
 }

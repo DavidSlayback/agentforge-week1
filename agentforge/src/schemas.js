@@ -130,6 +130,53 @@ export const IntakeForm = z.object({
 }).strict();
 
 /**
+ * One read part of a medication-list row (dose, unit, frequency or route).
+ *
+ * Every part of a row is read from the same printed line, so the row carries
+ * one `citation` (see `MedicationItem`) and each part carries only its own
+ * value and extractor confidence. A part the row does not show is
+ * `not_found_on_form` with a `null` value, never a guessed default.
+ */
+export const MedicationPart = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('observed'), value: z.string().min(1), confidence: z.number().min(0).max(1) }).strict(),
+  z.object({ status: z.literal('not_found_on_form'), value: z.null(), confidence: z.literal(0) }).strict(),
+]);
+
+/**
+ * One medication row of a medication list.
+ *
+ * `name` is always observed: a row whose drug name could not be read is not
+ * typed as a medication at all (it is reported as a typed issue instead).
+ * `citation` is the five-key document citation of the printed row, with its
+ * bounding box.
+ */
+export const MedicationItem = z.object({
+  name: z.object({ status: z.literal('observed'), value: z.string().min(1), confidence: z.number().min(0).max(1) }).strict(),
+  dose: MedicationPart,
+  unit: MedicationPart,
+  frequency: MedicationPart,
+  route: MedicationPart,
+  citation: Citation,
+}).strict();
+
+/**
+ * A structured, cited medication list (the third W2 document type).
+ *
+ * `list_date` is the date printed on the list. `prescriber_or_source` is the
+ * prescriber or record source the list names; many lists name neither, so it
+ * is often `not_found_on_form`, but the key is always present. `patient`
+ * carries the identity printed on the list, used only for the patient-identity
+ * check (`documentSafety.js`). `medications` is always present, even when no
+ * row could be read (an empty array).
+ */
+export const MedicationList = z.object({
+  list_date: IntakeStringField,
+  prescriber_or_source: IntakeStringField,
+  patient: z.object({ name: IntakeStringField, dob: IntakeStringField }).strict(),
+  medications: z.array(MedicationItem),
+}).strict();
+
+/**
  * A single retrieved and cited guideline evidence chunk.
  *
  * `snippet` is the chunk text surfaced to the answer model; `sparse_score`,

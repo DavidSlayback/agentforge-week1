@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { Citation, GuidelineEvidence, IntakeForm, LabResult, parseOrIssues } from '../src/schemas.js';
+import { Citation, GuidelineEvidence, IntakeForm, LabResult, MedicationList, parseOrIssues } from '../src/schemas.js';
 import { extractScanForm } from '../src/scanFormAdapter.js';
 import { extractPdfScanFixture } from '../src/pdfScanAdapter.js';
 
@@ -141,7 +141,7 @@ test('real scan path on a sample lab PDF produces schema-valid typed LabResult o
 });
 
 const schemasDocsDir = fileURLToPath(new URL('../../docs/agentforge/schemas/', import.meta.url));
-const EXPORTED_SCHEMAS = { Citation, LabResult, IntakeForm, GuidelineEvidence };
+const EXPORTED_SCHEMAS = { Citation, LabResult, IntakeForm, MedicationList, GuidelineEvidence };
 
 test('committed JSON Schema docs match what schemas.js generates today', () => {
   for (const [name, schema] of Object.entries(EXPORTED_SCHEMAS)) {
