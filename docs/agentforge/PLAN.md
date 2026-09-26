@@ -185,6 +185,12 @@ source document's Observations, not a patient's history.
 | Q4 | Production authorization | Standing authorization for this plan's merges to `main`, W2 deploys, the module route change, and demo uploads to the seeded synthetic patients. Each is reported after it happens, as for the dashboard. |
 | Q5 | Coordination with the dashboard freeze | The dashboard session finishes its a11y and `deploy.sh` work and merges, but the **final** deploy of both services happens once, from one SHA, in E7. |
 
+**Answers (user, 2026-09-26 ~08:15 CT):** Q1 `medication_list`; Q2 golden set stays at 50,
+plus an extension suite in the same hook; Q3 critic model by benchmark (agent's call);
+Q4 standing authorization for merges, W2 deploys, the module route change and seeded-patient
+demo uploads, each reported after it happens; Q5 the dashboard session is told to hold its
+final deploy for the single-SHA freeze in E7.
+
 ### Slices (lanes E2–E5 run in parallel worktrees; integration in order E3 → E2 → E4 → E5)
 
 **E1 — Click-to-source observed live (X-1). 30 min, first.** Run a sample lab
