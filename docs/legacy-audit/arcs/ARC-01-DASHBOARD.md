@@ -335,6 +335,13 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-02-02 — Medical Problems card
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `fbadb5e`):**
+  **wired, tested, not yet observed.** Built and gated (182 tests in the
+  hook); the deliberate regression (sort removed) was refused by the hook with
+  3 red tests (`docs/legacy-audit/evidence/slice-02-02-regression.txt`). Not
+  merged or deployed. Addition: rows are de-duplicated by uuid (the REST route
+  repeats a problem once per linked encounter; the PHP card does not).
+  Details: `DEV-LOG.md`, 01-02-02 entry.
 - **Time box:** 1.0 h, Sat 12:15–13:15.
 - **Goal:** the Medical Problems card shows the PHP-active problems sorted by
   `begdate` ascending, NULLs first, title only.
@@ -347,12 +354,13 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   `test/contract/problems.test.ts`, `test/web/ProblemsCard.test.tsx`;
   recorded fixtures; `test/integration/problems.it.ts`.
 - **Test gate**
-  - Contract: pid 13 gives **13** rows in `begdate` order (checked against
+  - [x] Contract: pid 13 gives **13** rows in `begdate` order (checked against
     the fixture's own `begdate` values, not a hard-coded id list); pid 3 gives
-    `empty`; 403 gives `forbidden` while the other cards stay `ok`.
-  - **Deliberate regression:** remove the sort, or filter on `activity`
+    `empty`; 403 gives `forbidden` while the other cards stay `ok`
+    (`test/contract/problems.test.ts`, `test/bff/cardRoutes.test.ts`).
+  - [x] **Deliberate regression:** remove the sort, or filter on `activity`
     instead of `outcome`/`enddate`. Expected red: the order or count test
-    (13 ≠ 39).
+    (13 ≠ 39). Done (sort removed): 3 red, commit refused, reverted.
 - **Live evidence**
   - [ ] pid 13: 13 rows, not 39.
   - [ ] pid 13: order matches `SELECT id, begdate … ORDER BY begdate ASC`

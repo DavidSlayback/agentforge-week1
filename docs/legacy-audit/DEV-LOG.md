@@ -58,6 +58,43 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-25 — Arc 01 / Story 01-02 / Slice 01-02-02 — Medical Problems card
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction) · **SHA:** code at `fbadb5e`; no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-3 (Problem List card) with its own forbidden state.
+Legacy behavior replaced: `walkthroughs/ISSUE-CARDS.md` (Medical Problems), `templates/patient/card/medical_problems.html.twig`.
+Layers touched: core (`rules/issues` `sortByBegdateAsc` + `dedupeByUuid`, `dto` `ProblemRow`, `guards` `isProblemRow`, `upstreamRoutes`) · bff (`upstream/schemas/problem`, `cards/problems`, `http/routes`) · web (`cards/ProblemsCard`, `App`) · tests · README.
+Upstream route added to the allow-list: `rest.problem.list` (`/api/patient/{puuid}/medical_problem`, no query keys, scope `user/medical_problem.rs`, ACL `encounters/notes`).
+Catalog IDs: 5.08 (shared rule), 3.14 (this route's ACL is `encounters/notes`; the card handles its own 403), M-8 (REST, not FHIR `Condition`: the FHIR rule would show 39 rows for pid 13).
+Deliberate regression: remove the sort → expected red: the order tests.
+Acceptance check (a user can do this): pid 13 shows the same 13 problems as the legacy card, in the same order.
+
+### Worked on
+- `sortByBegdateAsc` (stable; null, `''` and missing first, like MySQL `ORDER BY lists.begdate`; a bare date sorts as midnight) and `dedupeByUuid` in `core/rules/issues.ts`.
+- BFF `/dashboard/bff/patients/:puuid/problems`: `rest.patient.read` → `rest.problem.list` → per-row `puuid`/`pid` check → de-duplicate → `filterActiveIssues` → sort. The browser receives only the shown rows (13 for pid 13, not 39; asserted over HTTP in `test/bff/cardRoutes.test.ts`).
+- SPA `ProblemsCard` ("Medical Problems", title-only rows) under Allergies, the legacy order.
+- Fixtures: `rest.problem.list` added to `patient-13` (39 rows), `patient-3`, `dash-syn-01` (3 rows, one with a past enddate), `dash-syn-02` (none). `ConditionService::search()` has no `ORDER BY`, so the shaped rows are listed newest-id-first; locally id order equals begdate order, so an id-ordered fixture could not tell a sort from no sort (the `_meta` note says so).
+- Integration script: problems counts (pid 13: 13, pid 3: empty, DASH-SYN-01: 2).
+
+### Decisions
+- **One row per problem uuid.** `ConditionService::search()` LEFT JOINs `issue_encounter`/`form_encounter` and does not de-duplicate, so a problem linked to N encounters comes back N times; the PHP card (`PatientIssuesService`) shows it once. Locally no problem is linked to an encounter (pid 13: 39 joined rows = 39 distinct), so the fan-out is covered by a hand-edited fixture case only.
+- The 403 case is proved in contract and HTTP tests (the problems route 403s while Allergies returns `ok` from the same fake OpenEMR). It cannot be observed live with the admin role; that stays deferred to Arc 02 as the arc says.
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commit `fbadb5e`): 182 tests, all passing (+20): unit 69 · contract 33 (`problems` 8 new) · BFF 49 (`cardRoutes` +2; log redaction now also drives the problems card and checks every problem title and uuid is absent from the log) · lint-boundary 3 · component 28 (`ProblemsCard` 6 new, all with axe, 0 violations). Typecheck 0, lint 0, bundle 70.9 kB gzip JS.
+- Deliberate regression: `sortByBegdateAsc()` comparator `a.k < b.k ? -1 : 1` → `a.index - b.index` (keeps API order) → the hook refused the commit (exit 1, HEAD unchanged) with 3 red: contract `pid 13: 13 of 39 rows, in begdate order …`, contract `DASH-SYN-01: … the other two are sorted by begdate`, and unit `sortByBegdateAsc … orders ascending …` → reverted. Output: `docs/legacy-audit/evidence/slice-02-02-regression.txt` (synthetic titles in the diffs redacted).
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows 13 rows in the order of `SELECT id, begdate FROM lists WHERE pid=13 AND type='medical_problem' AND outcome != 1 AND (enddate IS NULL OR enddate > NOW()) ORDER BY begdate`; pid 3 "Nothing Recorded".
+- Hook output prints fixture titles when a contract test fails (vitest diffs). They are synthetic, but evidence files redact them; if that matters for CI logs later, compare by index instead of title.
+
 ## 2026-09-25 — Arc 01 / Story 01-02 / Slice 01-02-01 — Allergies card
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction) · **SHA:** code at `f83573c`; no merge SHA yet
