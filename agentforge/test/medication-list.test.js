@@ -164,3 +164,52 @@ test('summarizeExtractionConfidence counts medication-list fields', async () => 
   assert.equal(summary.count, 4 + 2 * 5);
   assert.equal(summary.min, 0.9);
 });
+
+// --- Fail loud (E4 layer 3): three-way detection and the list's identity check.
+const MEDLIST_TEXT = COMPLETE_LIST.join('\n');
+const LAB_TEXT = 'NORTHWIND CLINICAL LABORATORY\nHemoglobin value: 13.2\nHemoglobin unit: g/dL\nA1C reference range: under 5.7\nA1C collection date: 2026-09-20';
+const INTAKE_TEXT = 'PATIENT INTAKE\nPatient name: Test Patient One\nDate of birth: 1980-04-12\nChief concern: Fatigue\nCurrent medications: Metformin 500 mg daily\nAllergies: Penicillin';
+
+test('detection is three-way, and the existing golden documents are detected exactly as before', async () => {
+  const { detectDocumentType } = await import('../src/documentSafety.js');
+  const { loadGoldenFixtures } = await import('../src/w2RegressionGate.js');
+  assert.equal(detectDocumentType(MEDLIST_TEXT).detected, 'medication_list');
+  assert.equal(detectDocumentType(LAB_TEXT).detected, 'lab_pdf');
+  // An intake form's dosed medication line must not tip it toward a medication list.
+  assert.equal(detectDocumentType(INTAKE_TEXT).detected, 'intake_form');
+  assert.equal(detectDocumentType(INTAKE_TEXT).medication_list_hits, 0);
+  // Detected before E4 (two-way): the third type must not change any of them.
+  const before = { 'lab-a': 'lab_pdf', 'lab-b': 'lab_pdf', 'intake-a': 'intake_form', 'intake-b': 'intake_form', 'gen-lab-c-table': 'lab_pdf', 'gen-lab-d-flags': 'lab_pdf', 'gen-intake-c-conflict': 'intake_form', 'gen-intake-d-dob': 'intake_form', 'gen-lab-e-scanned': 'lab_pdf', 'gen-blank-page': 'undetermined', 'gen-corrupt': 'undetermined', 'scan-text-lab-a': 'lab_pdf', 'scan-text-intake-a': 'intake_form' };
+  const { docs } = loadGoldenFixtures();
+  for (const [id, detected] of Object.entries(before)) assert.equal(detectDocumentType(docs.get(id).sourceText).detected, detected, id);
+});
+
+test('any declared-versus-detected mismatch between the three types is QUALIFIED doc_type_mismatch', async () => {
+  const { assessDocumentSafety } = await import('../src/documentSafety.js');
+  const texts = { lab_pdf: LAB_TEXT, intake_form: INTAKE_TEXT, medication_list: MEDLIST_TEXT };
+  const extraction = { facts: [{ field_id: 'x' }], status: 'complete' };
+  for (const declared of Object.keys(texts)) {
+    for (const [actual, text] of Object.entries(texts)) {
+      const safety = assessDocumentSafety({ documentType: declared, documentText: text, extraction });
+      assert.equal(safety.checks.document_type.detected, actual);
+      assert.equal(safety.qualifying.includes('doc_type_mismatch'), declared !== actual, `${declared} declared, ${actual} content`);
+    }
+  }
+});
+
+test('a medication list is checked against the chart on its printed identity: match, mismatch, unverified; zero fields is BLOCKED', async () => {
+  const { assessDocumentSafety } = await import('../src/documentSafety.js');
+  const extraction = await extractMedicationList(COMPLETE_LIST);
+  const chart = { name: 'Test Patient One', dob: '1980-04-12' };
+  const ok = assessDocumentSafety({ documentType: 'medication_list', documentText: MEDLIST_TEXT, extraction, targetPatient: chart });
+  assert.deepEqual([ok.blocking, ok.qualifying, ok.checks.patient_identity.status, ok.checks.patient_identity.source], [[], [], 'match', 'medication_list_patient']);
+  const other = assessDocumentSafety({ documentType: 'medication_list', documentText: MEDLIST_TEXT, extraction, targetPatient: { name: 'Test Conflict', dob: '1968-07-21' } });
+  assert.deepEqual(other.blocking, ['patient_mismatch']);
+  const wrongDob = assessDocumentSafety({ documentType: 'medication_list', documentText: MEDLIST_TEXT, extraction, targetPatient: { name: 'Test Patient One', dob: '1980-12-04' } });
+  assert.deepEqual(wrongDob.checks.patient_identity.mismatched_fields, ['dob']);
+  const anonymous = await extractMedicationList(COMPLETE_LIST.filter((line) => !/^(Patient name|Date of birth)/.test(line)));
+  const unverified = assessDocumentSafety({ documentType: 'medication_list', documentText: MEDLIST_TEXT, extraction: anonymous, targetPatient: chart });
+  assert.ok(unverified.qualifying.includes('patient_identity_unverified'));
+  const blank = assessDocumentSafety({ documentType: 'medication_list', documentText: '', extraction: await extractMedicationList([]), targetPatient: chart });
+  assert.ok(blank.blocking.includes('no_fields_extracted'));
+});
