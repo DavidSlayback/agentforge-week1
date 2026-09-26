@@ -133,6 +133,21 @@ describe('upstream allow-list', () => {
     expect(() => buildUpstreamPath('rest.encounter.list', { puuid: PATIENT.dashSyn01 }, { _sort: 'date' })).toThrow(AllowListViolation);
   });
 
+  it('builds the MedicationRequest search with exactly the patient uuid and the fixed intent=plan (01-06-04)', () => {
+    expect(buildUpstreamPath('fhir.medicationrequest.search', {}, { patient: PATIENT.dashSyn01 })).toBe(
+      `/apis/default/fhir/MedicationRequest?patient=${PATIENT.dashSyn01}&intent=plan`,
+    );
+    expect(UPSTREAM_ROUTES['fhir.medicationrequest.search'].acl).toBe('patients/med');
+    expect(UPSTREAM_ROUTES['fhir.medicationrequest.search'].scope).toBe('user/MedicationRequest.rs');
+    // The intent is fixed (no reaching prescriptions' `order` rows), and nothing else is forwarded.
+    expect(() => buildUpstreamPath('fhir.medicationrequest.search', {}, { patient: PATIENT.dashSyn01, intent: 'order' })).toThrow(AllowListViolation);
+    for (const extra of ['status', '_id', '_lastUpdated', '_revinclude']) {
+      expect(() => buildUpstreamPath('fhir.medicationrequest.search', {}, { patient: PATIENT.dashSyn01, [extra]: 'x' }), extra).toThrow(AllowListViolation);
+    }
+    expect(() => buildUpstreamPath('fhir.medicationrequest.search', {}, { patient: '14' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.medicationrequest.search', {}, {})).toThrow(AllowListViolation);
+  });
+
   it('has no FHIR Observation route: FHIR vitals include soft-deleted sets (5.02 / M-5)', () => {
     for (const spec of Object.values(UPSTREAM_ROUTES)) expect(spec.pathTemplate, spec.id).not.toMatch(/Observation/i);
   });

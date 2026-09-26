@@ -208,6 +208,7 @@ request):
 ```
 openid api:oemr api:fhir
 user/Patient.rs user/CareTeam.rs user/Practitioner.rs user/Organization.rs
+user/MedicationRequest.rs
 user/patient.rs user/allergy.rs user/medical_problem.rs user/medication.rs
 user/prescription.rs user/encounter.rs user/vital.rs user/list.r
 ```
@@ -271,6 +272,7 @@ build an OpenEMR URL). REST prefix `/apis/default/api`, FHIR prefix
 | `rest.allergy.list` | `/api/patient/{puuid}/allergy` | puuid | none | `user/allergy.rs` | `patients/med` | 200 `data: []` → empty |
 | `rest.problem.list` | `/api/patient/{puuid}/medical_problem` | puuid | none | `user/medical_problem.rs` | `encounters/notes` | 200 `data: []` → empty |
 | `rest.medication.list` | `/api/patient/{pid}/medication` | pid (from `rest.patient.read`) | none | `user/medication.rs` | `patients/med` | 200 `[]` or **404 with an empty body** → empty; any other 404 → error |
+| `fhir.medicationrequest.search` (01-06-04) | `/fhir/MedicationRequest` | none | **`patient`** (= puuid) and **`intent`** (fixed value `plan`). Nothing else | `user/MedicationRequest.rs` | `patients/med` | Bundle `total: 0` → no instructions (the patient read succeeded); any failure (401 included) → the Medications list stays, with a "couldn't be loaded" note; an entry for another patient → `PATIENT_MISMATCH` |
 | `rest.prescription.search` | `/api/prescription` | none | **`patient_id`** (= pid, BFF-supplied) and **`source_table`** (fixed value `prescriptions`). Nothing else, ever (M-1 / 2.01, 4.10) | `user/prescription.rs` | `patients/med` | 200 `data: []` → empty |
 | `fhir.careteam.search` | `/fhir/CareTeam` | none | **`patient`** (= puuid) | `user/CareTeam.rs` | `patients/med` | Bundle `total: 0` → empty, **only** because `fhir.patient.read` already succeeded in this chain (6.03) |
 | `fhir.practitioner.read` / `fhir.organization.read` | `/fhir/Practitioner/{id}`, `/fhir/Organization/{id}` | id (from the CareTeam response, uuid-validated) | none | `user/Practitioner.rs` / `user/Organization.rs` | — | failure → that cell shows "Name unavailable" (logged); the card stays up |

@@ -30,12 +30,20 @@ no card route is called before that read succeeds.
   can be "Not authorized for this section" while the others load), one row per
   problem uuid, the same active-issue rule, sorted by `begdate` ascending with
   missing dates first; title only.
-- **Medications** (`/bff/patients/:puuid/medications`): REST
-  `/api/patient/:pid/medication` with the integer `pid` taken from the
-  patient read; the same active-issue rule and `begdate` sort; title only,
-  with the note "Dosage instructions: not available via API" (the route does
-  not join `lists_medication`). The route answers a patient with no rows with
-  HTTP 404 and an empty body; on this route only, that is "Nothing Recorded".
+- **Medications** (`/bff/patients/:puuid/medications`): hybrid. The list is
+  REST `/api/patient/:pid/medication` with the integer `pid` taken from the
+  patient read (only REST carries the `outcome` the active-issue rule needs);
+  the same active-issue rule and `begdate` sort. When at least one row is
+  active, the BFF also reads FHIR
+  `/fhir/MedicationRequest?patient=<puuid>&intent=plan` (exactly those two
+  keys) and joins each `dosageInstruction[].text` onto the REST row with the
+  same uuid, shown after the title as the legacy card does. Every entry's
+  `subject` must be the patient (else `PATIENT_MISMATCH`). If that read fails
+  for any reason (a client registered without `user/MedicationRequest.rs`
+  gets 401), the list still shows and a note says the instructions couldn't
+  be loaded; the card never asks to sign in again for it. The REST route
+  answers a patient with no rows with HTTP 404 and an empty body; on this
+  route only, that is "Nothing Recorded".
 
 - **Prescriptions** (`/dashboard/bff/patients/:puuid/prescriptions`): REST
   `/api/prescription?patient_id=<pid>&source_table=prescriptions`, with the

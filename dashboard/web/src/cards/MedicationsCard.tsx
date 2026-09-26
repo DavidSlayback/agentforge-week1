@@ -12,6 +12,14 @@ function MedicationRows({ rows }: { readonly rows: readonly MedicationRow[] }) {
         // Rows have no stable id on the wire and never reorder: keyed by position.
         <li key={i} className="issue">
           {row.title}
+          {row.dosage === null ? null : (
+            <>
+              {' '}
+              <span className="med-dosage" data-field="dosage">
+                {row.dosage}
+              </span>
+            </>
+          )}
         </li>
       ))}
     </ul>
@@ -19,9 +27,12 @@ function MedicationRows({ rows }: { readonly rows: readonly MedicationRow[] }) {
 }
 
 /**
- * Medications (legacy `templates/patient/card/medication.html.twig`): title
- * only, with the dosage-instructions gap noted under the rows (4.05). Rows
- * arrive filtered and sorted by `begdate` ascending.
+ * Medications (legacy `templates/patient/card/medication.html.twig`): the
+ * title, then the dosage instructions where recorded, as the legacy
+ * `<span>{{ m.drug_dosage_instructions }}</span>` does. Instructions come from
+ * FHIR MedicationRequest (slice 01-06-04); when they are missing for a reason
+ * other than "none recorded", the BFF sends a note. Rows arrive filtered and
+ * sorted by `begdate` ascending.
  */
 export function MedicationsCard({ state }: { readonly state: CardState<MedicationRow> }) {
   return <Card id="medications" title="Medications" source={MEDICATIONS_SOURCE} state={state} renderRows={(rows) => <MedicationRows rows={rows} />} />;

@@ -38,6 +38,10 @@ export const OAUTH_SCOPE = [
   'user/CareTeam.rs',
   'user/Practitioner.rs',
   'user/Organization.rs',
+  // 01-06-04: Medications dosage instructions. A client registered without it
+  // still signs in (OpenEMR drops unregistered scopes, ScopeRepository::finalizeScopes()),
+  // and the FHIR call then answers 401; the card keeps its list and says so.
+  'user/MedicationRequest.rs',
   'user/patient.rs',
   'user/allergy.rs',
   'user/medical_problem.rs',

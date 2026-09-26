@@ -83,13 +83,16 @@ export interface ProblemRow {
 }
 
 /**
- * One row of the Medications card (W2D-3): title only. The legacy card also
- * shows `lists_medication.drug_dosage_instructions`, which the REST route does
- * not return (4.05); the card says so in a note. Rows arrive filtered and
- * sorted by `begdate` ascending, NULLs first.
+ * One row of the Medications card (W2D-3): the title and, as in the legacy
+ * card, `lists_medication.drug_dosage_instructions` after it. The REST list
+ * has no instructions (4.05), so they are joined in from FHIR
+ * `MedicationRequest` by uuid (slice 01-06-04); `null` when none are recorded
+ * or the FHIR read failed (the card's note says which). Rows arrive filtered
+ * and sorted by `begdate` ascending, NULLs first.
  */
 export interface MedicationRow {
   readonly title: string;
+  readonly dosage: string | null;
 }
 
 /**
