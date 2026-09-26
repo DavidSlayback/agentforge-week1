@@ -30,8 +30,14 @@ no card route is called before that read succeeds.
   can be "Not authorized for this section" while the others load), one row per
   problem uuid, the same active-issue rule, sorted by `begdate` ascending with
   missing dates first; title only.
+- **Medications** (`/bff/patients/:puuid/medications`): REST
+  `/api/patient/:pid/medication` with the integer `pid` taken from the
+  patient read; the same active-issue rule and `begdate` sort; title only,
+  with the note "Dosage instructions: not available via API" (the route does
+  not join `lists_medication`). The route answers a patient with no rows with
+  HTTP 404 and an empty body; on this route only, that is "Nothing Recorded".
 
-Later slices add Medications, Prescriptions, Care Team and Vitals.
+Later slices add Prescriptions, Care Team and Vitals.
 
 ## Layout
 

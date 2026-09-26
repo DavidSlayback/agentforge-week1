@@ -8,7 +8,8 @@ import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
  *
  * Routes are added by the slice that needs them. Slice 01-01-01 needs the
  * header reads and the MRN lookup; 01-02-01 the allergy list and the
- * `severity_ccda` label list; 01-02-02 the medical problem list.
+ * `severity_ccda` label list; 01-02-02 the medical problem list; 01-02-03
+ * the medication list.
  */
 
 export type UpstreamRouteId =
@@ -17,7 +18,8 @@ export type UpstreamRouteId =
   | 'fhir.patient.search'
   | 'rest.allergy.list'
   | 'rest.list.read'
-  | 'rest.problem.list';
+  | 'rest.problem.list'
+  | 'rest.medication.list';
 
 /** What a parameter value must parse as before it is placed in a URL. */
 export type ParamKind = 'puuid' | 'pid' | 'mrn';
@@ -119,6 +121,18 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     query: [],
     scope: 'user/medical_problem.rs',
     acl: 'encounters/notes',
+    patientBinding: 'path',
+  },
+  // Medications card (01-02-03). This route takes the integer pid, which the
+  // BFF only ever takes from `rest.patient.read` for the requested puuid (10.04).
+  'rest.medication.list': {
+    id: 'rest.medication.list',
+    api: 'rest',
+    pathTemplate: '/patient/{pid}/medication',
+    pathParams: [{ name: 'pid', kind: 'pid' }],
+    query: [],
+    scope: 'user/medication.rs',
+    acl: 'patients/med',
     patientBinding: 'path',
   },
 };

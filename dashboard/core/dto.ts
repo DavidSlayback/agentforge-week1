@@ -81,3 +81,13 @@ export interface AllergyRow {
 export interface ProblemRow {
   readonly title: string;
 }
+
+/**
+ * One row of the Medications card (W2D-3): title only. The legacy card also
+ * shows `lists_medication.drug_dosage_instructions`, which the REST route does
+ * not return (4.05); the card says so in a note. Rows arrive filtered and
+ * sorted by `begdate` ascending, NULLs first.
+ */
+export interface MedicationRow {
+  readonly title: string;
+}

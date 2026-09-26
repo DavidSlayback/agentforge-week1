@@ -55,7 +55,11 @@ describe('log redaction across the full workflow', () => {
       const problems = routeFixture(file, 'rest.problem.list');
       fake.on('GET', `http://openemr/apis/default/api/patient/${id}/medical_problem`, problems);
       for (const row of (problems.body as { data: { title: string; uuid: string }[] }).data) clinical.push(row.title, row.uuid);
-      for (const card of ['allergies', 'problems']) {
+      const medications = routeFixture(file, 'rest.medication.list');
+      const pid = (routeFixture(file, 'rest.patient.read').body as { data: { pid: string } }).data.pid;
+      fake.on('GET', `http://openemr/apis/default/api/patient/${pid}/medication`, medications);
+      for (const row of medications.body as { title: string; uuid: string }[]) clinical.push(row.title, row.uuid);
+      for (const card of ['allergies', 'problems', 'medications']) {
         const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${id}/${card}`, cookies: { dashboard_sid: sessionCookie } });
         expect(res.json()).toMatchObject({ kind: 'ok' });
       }
@@ -107,5 +111,7 @@ describe('log redaction across the full workflow', () => {
     expect(log).toContain('"routeId":"rest.allergy.list"');
     expect(log).toContain('/dashboard/bff/patients/:puuid/problems');
     expect(log).toContain('"routeId":"rest.problem.list"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/medications');
+    expect(log).toContain('"routeId":"rest.medication.list"');
   });
 });

@@ -58,6 +58,16 @@ describe('card routes over HTTP (fastify.inject)', () => {
     expect(body.rows).toHaveLength(13);
   });
 
+  it('Medications: the upstream 404 with an empty body reaches the browser as "empty", never as an error', async () => {
+    const { app, fake, cookie } = await signedIn();
+    fake
+      .on('GET', api(`/patient/${PATIENT.p3}`), routeFixture('shaped/patient-3.json', 'rest.patient.read'))
+      .on('GET', api('/patient/3/medication'), routeFixture('shaped/patient-3.json', 'rest.medication.list'));
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p3}/medications`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
+  });
+
   it('401 without a session, 400 for a malformed puuid, 400 for any query string', async () => {
     const { app, cookie } = await signedIn();
     expect((await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/allergies` })).statusCode).toBe(401);

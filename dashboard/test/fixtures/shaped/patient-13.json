@@ -1046,5 +1046,95 @@
       ],
       "links": []
     }
+  },
+  "rest.medication.list": {
+    "status": 200,
+    "body": [
+      {
+        "id": "271",
+        "date": "2026-09-25 15:12:09",
+        "type": "medication",
+        "title": "Acetaminophen 325 MG Oral Tablet",
+        "begdate": "2023-02-12 20:25:42",
+        "enddate": "2023-02-23 20:25:42",
+        "activity": "1",
+        "comments": null,
+        "pid": "13",
+        "user": "10",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "a2d4d066-833f-4413-bc30-5044aed437fb"
+      },
+      {
+        "id": "270",
+        "date": "2026-09-25 15:12:09",
+        "type": "medication",
+        "title": "amLODIPine 2.5 MG Oral Tablet",
+        "begdate": "2020-03-01 20:06:27",
+        "enddate": "2020-03-01 20:06:27",
+        "activity": "1",
+        "comments": null,
+        "pid": "13",
+        "user": "10",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "a2d4d066-833d-482f-8e89-fc678992b8a6"
+      },
+      {
+        "id": "269",
+        "date": "2026-09-25 15:12:09",
+        "type": "medication",
+        "title": "sodium fluoride 0.0272 MG/MG Oral Gel",
+        "begdate": "2018-03-11 23:02:53",
+        "enddate": "2018-03-11 23:02:53",
+        "activity": "1",
+        "comments": null,
+        "pid": "13",
+        "user": "10",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "a2d4d066-833a-4db0-8cde-723b3ed3047d"
+      },
+      {
+        "id": "268",
+        "date": "2026-09-25 15:12:09",
+        "type": "medication",
+        "title": "Naproxen sodium 220 MG Oral Tablet",
+        "begdate": "2011-05-08 20:06:27",
+        "enddate": "2020-05-06 20:31:14",
+        "activity": "1",
+        "comments": null,
+        "pid": "13",
+        "user": "10",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "a2d4d066-8338-4b0d-a70f-729b10eb453b"
+      },
+      {
+        "id": "267",
+        "date": "2026-09-25 15:12:09",
+        "type": "medication",
+        "title": "Astemizole 10 MG Oral Tablet",
+        "begdate": "1979-08-09 20:06:27",
+        "enddate": null,
+        "activity": "1",
+        "comments": null,
+        "pid": "13",
+        "user": "10",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "a2d4d066-8335-4acd-93d6-ed714932bf4b"
+      }
+    ]
   }
 }

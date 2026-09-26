@@ -126,5 +126,9 @@
       "data": [],
       "links": []
     }
+  },
+  "rest.medication.list": {
+    "status": 404,
+    "body": null
   }
 }

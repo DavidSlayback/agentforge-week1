@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { pino } from 'pino';
 import { loadAllergies } from '../../bff/src/cards/allergies.ts';
 import { loadHeader } from '../../bff/src/cards/header.ts';
+import { loadMedications } from '../../bff/src/cards/medications.ts';
 import { loadProblems } from '../../bff/src/cards/problems.ts';
 import { localDateTimeInZone } from '../../bff/src/clock.ts';
 import { lookupPatientByMrn } from '../../bff/src/cards/patientLookup.ts';
@@ -83,6 +84,10 @@ const cardCases = [
   { card: 'problems', label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', rows: 13, load: loadProblems },
   { card: 'problems', label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', rows: 0, load: loadProblems },
   { card: 'problems', label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', rows: 2, load: loadProblems },
+  { card: 'medications', label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', rows: 1, load: loadMedications },
+  // pid 3: the upstream answers 404 with an empty body; the card must be empty, not an error.
+  { card: 'medications', label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', rows: 0, load: loadMedications },
+  { card: 'medications', label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', rows: 1, load: loadMedications },
 ] as const;
 for (const c of cardCases) {
   const patientId = parsePatientUuid(c.puuid);

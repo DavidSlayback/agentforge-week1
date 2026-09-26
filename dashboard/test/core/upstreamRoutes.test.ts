@@ -61,6 +61,14 @@ describe('upstream allow-list', () => {
     expect(() => buildUpstreamPath('rest.problem.list', { pid: 13 })).toThrow(AllowListViolation);
   });
 
+  it('builds the Medications route from an integer pid only (01-02-03)', () => {
+    expect(buildUpstreamPath('rest.medication.list', { pid: 13 })).toBe('/apis/default/api/patient/13/medication');
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: PATIENT.p13 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: '13 OR 1=1' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: 0 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.medication.list', { pid: 13 }, { type: 'allergy' })).toThrow(AllowListViolation);
+  });
+
   it('builds the issue-card routes with no query keys and a validated puuid (01-02-01)', () => {
     expect(buildUpstreamPath('rest.allergy.list', { puuid: PATIENT.p13 })).toBe(`/apis/default/api/patient/${PATIENT.p13}/allergy`);
     expect(buildUpstreamPath('rest.list.read')).toBe('/apis/default/api/list/severity_ccda');

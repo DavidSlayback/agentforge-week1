@@ -163,5 +163,44 @@
       ],
       "links": []
     }
+  },
+  "rest.medication.list": {
+    "status": 200,
+    "body": [
+      {
+        "id": "329",
+        "date": "2026-09-26 00:20:11",
+        "type": "medication",
+        "title": "Amoxicillin 500 MG Oral Capsule",
+        "begdate": "2022-01-05 00:00:00",
+        "enddate": "2022-01-15 00:00:00",
+        "activity": "1",
+        "comments": "ended [seed:dashboard]",
+        "pid": "14",
+        "user": "admin",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "8e5057db-b8c0-11f1-8c7a-0ed9af59d05d"
+      },
+      {
+        "id": "328",
+        "date": "2026-09-26 00:20:11",
+        "type": "medication",
+        "title": "Lisinopril 10 MG Oral Tablet",
+        "begdate": "2015-02-10 00:00:00",
+        "enddate": null,
+        "activity": "1",
+        "comments": "[seed:dashboard]",
+        "pid": "14",
+        "user": "admin",
+        "outcome": "0",
+        "reaction": "",
+        "severity_al": null,
+        "verification": "",
+        "uuid": "8e5057ca-b8c0-11f1-8c7a-0ed9af59d05d"
+      }
+    ]
   }
 }
