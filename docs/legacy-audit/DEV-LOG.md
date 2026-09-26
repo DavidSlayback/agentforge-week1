@@ -696,3 +696,94 @@ deployed or observed on the public URL.**
   held port 8790 and won the BFF restart race. It served a stale SPA and the
   old client. Both dev trees were stopped, and one clean server was run for
   the recorded runs.
+
+## 2026-09-26 ~07:50 CT — `deploy.sh` hardened after the SSH-reset incident (branch `agentforge/w2-dashboard`, not merged)
+
+Follow-up to the `a800e97` deploy incident above: the SSH session reset during
+`up -d --build`, and the dashboard container was left removed, giving about
+10 minutes of 502. Status: **wired and tested offline; not yet used for a real
+deploy.**
+
+### Worked on
+- **Keepalives.** `deploy/vultr/deploy.sh` routes every SSH call through
+  `ssh_run`, including the `git archive | tar` pipe and the polls. It now
+  passes `ServerAliveInterval=15`, `ServerAliveCountMax=8` and
+  `ConnectTimeout=20`.
+- **Build first, then replace.** A runner script on the VM runs
+  `docker compose build <services>`, then `up -d --no-deps <services>` only if
+  every build succeeded. `up --build` is gone, so a failed build no longer
+  touches the running containers.
+- **Detached from SSH.**
+  - The runner starts under `setsid nohup` (plain `nohup` without `setsid`).
+    It writes to `/tmp/agentforge-deploy-<stamp>/build.log` and records its
+    status atomically in `exit`.
+  - The laptop polls every 10 s with short SSH calls. A failed launch call
+    and up to 29 failed polls in a row are tolerated.
+  - The deploy fails if the runner never starts (3 polls), after 30 failed
+    polls, after 40 min, or on a non-zero status. It then prints the last 40
+    log lines.
+  - A run directory is never reused (`mkdir`, not `mkdir -p`), so an old
+    exit marker cannot pass for a new run.
+- **Unchanged.** The success criterion is still the SHA health loop. The
+  clean-tree and `staging/main` checks, the backup, the Caddy recreate and
+  the module readability check are also unchanged.
+- **Test seams** (env, with the production defaults unchanged):
+  `AGENTFORGE_DEPLOY_ROOT`, `_REMOTE_TMP`, `_POLL_SECONDS`,
+  `_BUILD_TIMEOUT_SECONDS` and `_HEALTH_SLEEP_SECONDS`.
+- **Docs.** `deploy/vultr/README.md` has a new section, "What `deploy.sh`
+  does".
+
+### Tests
+- New `deploy/vultr/test/deploy.test.sh`, about 20 s on Windows Git Bash.
+  - Fake `ssh`, `sudo`, `docker` and `curl` run the remote side locally,
+    against a throwaway repo whose `staging` remote is a local bare repo.
+  - 8 checks: the happy path; keepalives on every SSH call; build before
+    `up --no-deps` and never `--build`; a detached runner with a log and an
+    exit marker; a dropped launch session plus 3 failed polls still
+    succeeding; a failed build replacing nothing and failing; a never-started
+    build failing; a wrong SHA failing.
+- It is added to `.githooks/pre-commit` and mirrored as the `deploy-script`
+  job in `.gitlab-ci.yml` (alpine, with `git` and `coreutils`). The CI job has
+  never run, because the project has no runner.
+- **Deliberate regressions**, run by hand against the test and not committed:
+  - dropping the keepalive options gave 1 red;
+  - putting back the old attached `up -d --build` step gave 5 red.
+- `sh -n deploy/vultr/deploy.sh` passes. shellcheck is not installed here, so
+  the script was reviewed by hand:
+  - the remote command strings and `$services` are deliberately expanded on
+    the client side (SC2029, SC2086);
+  - every path in them is space-free;
+  - the runner here-doc escapes the runtime `$` it needs;
+  - every polled SSH call sits in an `if`, so `set -e` cannot abort on a
+    dropped session.
+
+### Incident while doing this (fixed)
+- **What happened.** The first commit attempt ran the new test inside
+  `.githooks/pre-commit`. Git had exported `GIT_DIR` and `GIT_INDEX_FILE`
+  for the real repository, so the test's throwaway `git init` reinitialized
+  the real shared git dir.
+- **Damage.** It set `core.bare = true` in
+  `C:/Users/david/repos/agentforge-week1/.git/config`. That config is shared
+  by the main checkout and every worktree, so git commands in the checkouts
+  failed ("must be run in a work tree"). The test's next git command failed
+  on the same error and the test stopped, so nothing else ran.
+- **Repair.** `core.bare` was set back to `false`, a few minutes later. The
+  main checkout is back on `agentforge/w2-final`. The staged files in this
+  worktree were intact.
+- **Not known.** The prior `core.repositoryformatversion` was not recorded.
+  It is 0 now, which works with the `worktreeConfig` extension the Codex
+  worktrees use.
+- **Prevention.** The test now unsets every `git rev-parse --local-env-vars`
+  variable. It builds the throwaway repo with explicit `--git-dir` and
+  `--work-tree`, and refuses to run unless plain `git` in that directory
+  resolves to it. Checked with `GIT_DIR` and `GIT_INDEX_FILE` pointing at a
+  decoy repository: all 8 checks pass and the decoy's config is byte-identical
+  afterwards.
+
+### Open
+- The first real deploy with this script is the first observation that
+  `setsid`/`nohup` survive an SSH reset on the VM. The offline test cannot
+  show it.
+- Check that `docker compose build agentforge` on the frozen, image-only W1
+  service is a no-op there, as it is designed to be. It ships only when named
+  explicitly.
