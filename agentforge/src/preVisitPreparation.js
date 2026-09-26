@@ -7,6 +7,9 @@ import { assessRecordTrust } from './recordTrust.js';
 import { chartReadOrigin, chartRecordCitationSource, isLiveChartRead } from './chartSource.js';
 import { mentionsOtherPatient } from './patientMentions.js';
 import { liveEgressAllowed, resolveChartAdapter } from './chartSourceRouter.js';
+import { findNotDocumented, MEASUREMENT_CONCEPTS, onlyNotDocumented } from './notDocumented.js';
+
+const conceptGroup = (id) => MEASUREMENT_CONCEPTS.find((concept) => concept.id === id)?.group;
 
 // A neutral trace label shared by fixture and live paths. The source origin is
 // intentionally not implied by this cache revision.
@@ -342,6 +345,21 @@ async function followUpFromBriefing(id, briefing, message, conversationProvider 
   const question = String(message || '').trim();
   const normalizedQuestion = question.toLowerCase();
   const claims = briefing.claims || [];
+  // F-CLIN (W1 debt item 20): a question asking only for measured values no
+  // verified chart record holds is answered "not documented", with no claims
+  // and no model call, instead of listing records that merely share a word
+  // with it (a "blood-pressure follow-up" visit reason is not a reading).
+  const documented = findNotDocumented({
+    question,
+    facts: claims.map((claim) => ({ field: claim.field, value: typeof claim.value === 'string' ? claim.value : JSON.stringify(claim.value ?? ''), source_type: 'chart_record' })),
+    withheldFields: briefing.withheld_fields || [],
+    // Absence is claimed only for data the chart adapter actually read. The
+    // fixture and OpenEMR adapters read identity, encounters, problems,
+    // medications, allergies and notes, never vitals or labs, so those come
+    // back `not_retrieved` unless a coverage group for them was read.
+    readGroups: (briefing.coverage || []).filter((group) => ['vitals', 'labs'].includes(group.group) && !isCoverageUnavailable(group.status)).map((group) => group.group),
+  });
+  if (onlyNotDocumented(documented)) return notDocumentedFollowUp(id, briefing, documented.notDocumented);
   const isChangeQuestion = /(what changed|change|since the last)/.test(normalizedQuestion);
   const topicWords = normalizedQuestion.split(/[^a-z0-9]+/).filter((word) => word.length > 2);
   const relevantClaims = isChangeQuestion ? claims : topicWords.length ? claims.filter((claim) => topicWords.some((word) => claim.field.toLowerCase().includes(word) || String(claim.value).toLowerCase().includes(word))) : claims;
@@ -399,6 +417,39 @@ async function followUpFromBriefing(id, briefing, message, conversationProvider 
     trace?.finishStage('model', { status: 'fallback' });
   }
   return response;
+}
+
+/** The follow-up answer when every value asked for is absent from the verified chart records. */
+function notDocumentedFollowUp(id, briefing, notDocumented) {
+  const unread = (briefing.coverage || []).filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
+  const absent = notDocumented.filter((item) => item.status === 'not_documented').map((item) => item.label);
+  const unretrieved = notDocumented.filter((item) => item.status === 'not_retrieved');
+  const join = (labels) => (labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels.at(-1).toLowerCase()}` : labels[0]);
+  const sentences = [];
+  if (absent.length) sentences.push(`${join(absent)} ${absent.length > 1 ? 'are' : 'is'} not documented in the verified chart records for this briefing.`);
+  for (const group of ['vitals', 'labs']) {
+    const labels = unretrieved.filter((item) => conceptGroup(item.concept) === group).map((item) => item.label);
+    if (labels.length) sentences.push(`${join(labels)} ${labels.length > 1 ? 'are' : 'is'} not available from the sources read (${group === 'vitals' ? 'vital signs are' : 'lab results are'} not retrieved for this briefing).`);
+  }
+  const text = `${sentences.join(' ')}${unread.length ? ` Chart groups that could not be read: ${unread.join(', ')}.` : ''}`;
+  return {
+    contract_version: CONTRACT_VERSION,
+    correlation_id: id,
+    disposition: briefing.disposition,
+    context: briefing.context,
+    patient: briefing.patient,
+    claims: [],
+    comparison: briefing.comparison,
+    withheld_fields: briefing.withheld_fields,
+    coverage: briefing.coverage,
+    qualification: briefing.qualification,
+    operations: briefing.operations,
+    text,
+    evidence: [],
+    not_documented: notDocumented.map((item) => ({ ...item, sources_checked: ['chart_record'] })),
+    verification: briefing.verification,
+    ...(briefing.deadline ? { deadline: briefing.deadline } : {}),
+  };
 }
 
 function formatClaim(claim) {

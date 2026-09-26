@@ -347,8 +347,54 @@ export const NeedsReviewItem = z.object({
  */
 export const CRITIC_STATUS_VALUES = Object.freeze(['reviewed', 'failed', 'disabled', 'skipped_budget', 'skipped_no_claims', 'skipped_identity_only', 'skipped_not_approved']);
 
+/**
+ * Where a clinical rule's threshold comes from (`clinicalRules.js`): a chunk
+ * of the guideline corpus (with its 5-key citation) or a named public
+ * reference outside the corpus.
+ */
+export const ThresholdSource = z.object({
+  kind: z.enum(['guideline_corpus', 'public_reference']),
+  publisher: z.string().min(1),
+  title: z.string().min(1),
+  url: z.string().url(),
+  citation: Citation.optional(),
+}).strict();
+
+/**
+ * One deterministic clinical-rule flag (`clinicalRules.js`, F-CLIN). A flag
+ * never carries a value of its own: `citations` are the unchanged 5-key
+ * citations of the facts that triggered it (plus the guideline chunk when
+ * the threshold is in the corpus), and `text` restates only their values.
+ */
+export const SafetyFlag = z.object({
+  code: z.enum(['critical_value', 'diabetes_range', 'drug_allergy_conflict']),
+  rule_id: z.enum(['potassium_critical_range', 'a1c_diabetes_range', 'allergy_medication_class']),
+  severity: z.enum(['critical', 'warning']),
+  text: z.string().min(1),
+  citations: z.array(Citation).min(1),
+  threshold_source: ThresholdSource,
+}).strict();
+
+/**
+ * A measured value the question asked for that no available fact records
+ * (`notDocumented.js`, F-CLIN). `sources_checked` names the kinds of source
+ * the answer had (e.g. `document`, `synthetic_chart_fixture`).
+ */
+export const NotDocumentedItem = z.object({
+  concept: z.string().min(1),
+  // `not_documented`: a source that holds this kind of data was read and has
+  // no value. `not_retrieved`: no source read holds this kind of data (e.g.
+  // the chart read does not include vitals), so absence is not claimed.
+  status: z.enum(['not_documented', 'not_retrieved']),
+  label: z.string().min(1),
+  text: z.string().min(1),
+  sources_checked: z.array(z.string().min(1)),
+}).strict();
+
 export const GroundedAnswerResult = z.object({
-  composer: z.enum(['model', 'deterministic-fallback', 'model+deterministic-topup']),
+  // `not-documented`: the question asked only for values no source records,
+  // so no claim was composed and `not_documented` says so (F-CLIN).
+  composer: z.enum(['model', 'deterministic-fallback', 'model+deterministic-topup', 'not-documented']),
   model_rejected_reason: z.enum(['all_claims_unverified', 'invalid_json', 'provider_error', 'deadline']).optional(),
   // E2 critic outcome; optional so an answer composed outside the scan
   // supervisor (unit tests, the composer alone) stays valid. The scan path
@@ -362,6 +408,14 @@ export const GroundedAnswerResult = z.object({
   patient_facts: z.array(AnswerClaim),
   guideline_evidence: z.array(AnswerClaim),
   needs_review: z.array(NeedsReviewItem),
+  // F-CLIN: optional so answers built outside the composer (tests, older
+  // stored answers) stay valid; `composeGroundedAnswer` always sets both.
+  safety_flags: z.array(SafetyFlag).optional(),
+  // Flags a rule raised that failed `verifyClaims` (dropped, never shipped),
+  // and flags the critic vetoed (removed from `safety_flags`).
+  safety_flags_dropped: z.number().int().nonnegative().optional(),
+  critic_flags_rejected: z.number().int().nonnegative().optional(),
+  not_documented: z.array(NotDocumentedItem).optional(),
   unverified_dropped: z.number().int().nonnegative(),
   model_claims_proposed: z.number().int().nonnegative(),
   model_claims_verified: z.number().int().nonnegative(),

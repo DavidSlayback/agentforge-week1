@@ -20,6 +20,15 @@ export const PDF_SCAN_FIELDS = Object.freeze({
 });
 
 /**
+ * Lab-report rows the PDF-OCR layout may carry beyond Hemoglobin and A1C
+ * (F-CLIN): potassium, read so the critical-potassium rule
+ * (`clinicalRules.js`) has a typed result. Optional, so a report without
+ * potassium is still complete; a partly read potassium row is still loud
+ * (`typed_lab_result_incomplete`, typedExtraction.js).
+ */
+export const LAB_PDF_OPTIONAL_FIELDS = Object.freeze(['lab.k.test_name', 'lab.k.value', 'lab.k.unit', 'lab.k.reference_range', 'lab.k.collection_date', 'lab.k.abnormal']);
+
+/**
  * Fields a medication list may carry beyond its required ones: the optional
  * prescriber/source, the printed patient identity, and every part of any row
  * (`medication.<n>.<part>`, n = 1..99). Only row 1 is required, because a
@@ -43,6 +52,7 @@ export function requiredScanFields({ documentType, layoutId } = {}) {
 /** Whether `fieldId` may appear in an extraction of this document type and layout. */
 export function allowedScanField({ documentType, layoutId, fieldId } = {}) {
   if (requiredScanFields({ documentType, layoutId }).includes(fieldId)) return true;
+  if (documentType === 'lab_pdf' && layoutId === 'pdf-ocr-lab_pdf') return LAB_PDF_OPTIONAL_FIELDS.includes(fieldId);
   if (documentType !== 'medication_list') return false;
   return MEDICATION_LIST_OPTIONAL_FIELDS.has(fieldId) || MEDICATION_ROW_FIELD.test(String(fieldId || ''));
 }

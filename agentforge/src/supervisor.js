@@ -136,7 +136,7 @@ export function decideNext(state = {}) {
   if (answer) {
     if (critique) return { next: DECISIONS.DONE, reason: `critique_${critique.output_status}` };
     if (!criticEnabled) return { next: DECISIONS.DONE, reason: criticNotApproved ? 'critic_not_approved' : 'critic_disabled' };
-    const claimCount = (answer.patient_facts?.length || 0) + (answer.guideline_evidence?.length || 0);
+    const claimCount = (answer.patient_facts?.length || 0) + (answer.guideline_evidence?.length || 0) + (answer.safety_flags?.length || 0);
     if (!claimCount) return { next: DECISIONS.DONE, reason: 'no_claims_to_review' };
     if (!criticBudgetOk) return { next: DECISIONS.DONE, reason: 'critic_skipped_budget' };
     return { next: DECISIONS.CRITIQUE, reason: 'answer_needs_review' };

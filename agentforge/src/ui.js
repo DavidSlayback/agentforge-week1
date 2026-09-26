@@ -364,32 +364,81 @@ button:disabled{opacity:.6;cursor:wait}
             const text = document.createElement('span');
             text.textContent = claim.text + ' ';
             row.append(text);
-            for (const citation of claim.citations) {
-              // F9 review fix: only a document-type citation has a source
-              // preview page behind it. A guideline citation's 5-key shape
-              // carries no URL (the S5 corpus URL lives on the evidence item,
-              // not the claim citation), and an openemr_record or
-              // synthetic_chart_fixture citation is a chart record with no document/preview at all --
-              // both render as plain, non-interactive text, never a link
-              // that goes nowhere real.
-              if (citation.source_type === 'document') {
-                const link = document.createElement('a');
-                link.href = basePath + '/v1/source-documents/' + encodeURIComponent(citation.source_id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken) + '#' + citationBoxId(citation.field_or_chunk_id);
-                link.target = '_blank';
-                link.textContent = '[' + citation.page_or_section + ']';
-                row.append(document.createTextNode(' '), link);
-              } else {
-                const span = document.createElement('span');
-                span.className = 'citation-text';
-                span.textContent = '[' + citation.page_or_section + ']';
-                row.append(document.createTextNode(' '), span);
-              }
-            }
+            appendCitations(row, claim.citations);
             list.append(row);
           }
           section.append(list);
           return section;
         };
+        const appendCitations = (row, citations) => {
+          for (const citation of citations) {
+            // F9 review fix: only a document-type citation has a source
+            // preview page behind it. A guideline citation's 5-key shape
+            // carries no URL (the S5 corpus URL lives on the evidence item,
+            // not the claim citation), and an openemr_record or
+            // synthetic_chart_fixture citation is a chart record with no document/preview at all --
+            // both render as plain, non-interactive text, never a link
+            // that goes nowhere real.
+            if (citation.source_type === 'document') {
+              const link = document.createElement('a');
+              link.href = basePath + '/v1/source-documents/' + encodeURIComponent(citation.source_id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken) + '#' + citationBoxId(citation.field_or_chunk_id);
+              link.target = '_blank';
+              link.textContent = '[' + citation.page_or_section + ']';
+              row.append(document.createTextNode(' '), link);
+            } else {
+              const span = document.createElement('span');
+              span.className = 'citation-text';
+              span.textContent = '[' + citation.page_or_section + ']';
+              row.append(document.createTextNode(' '), span);
+            }
+          }
+        };
+        // F-CLIN: values the question asked for that no source records, stated
+        // as such instead of listing unrelated evidence.
+        if ((answer.not_documented || []).length) {
+          const missingSection = document.createElement('section');
+          const missingTitle = document.createElement('h4');
+          missingTitle.textContent = 'Not documented (' + answer.not_documented.length + ')';
+          missingSection.append(missingTitle);
+          const missingList = document.createElement('ul');
+          for (const item of answer.not_documented) {
+            const row = document.createElement('li');
+            row.textContent = item.text + (item.sources_checked.length ? ' Sources checked: ' + item.sources_checked.join(', ') + '.' : '');
+            missingList.append(row);
+          }
+          missingSection.append(missingList);
+          answerPanel.append(missingSection);
+        }
+        // F-CLIN: deterministic clinical-rule flags (clinicalRules.js), each
+        // with the citations of the facts that triggered it and its threshold source.
+        if ((answer.safety_flags || []).length || answer.safety_flags_dropped || answer.critic_flags_rejected) {
+          const flagSection = document.createElement('section');
+          flagSection.className = 'safety-flags';
+          const flagTitle = document.createElement('h4');
+          const withheldFlags = (answer.safety_flags_dropped || 0) + (answer.critic_flags_rejected || 0);
+          flagTitle.textContent = 'Safety flags (' + answer.safety_flags.length + ')' + (withheldFlags ? '; ' + withheldFlags + ' withheld (failed verification or vetoed by the critic)' : '');
+          flagSection.append(flagTitle);
+          const flagList = document.createElement('ul');
+          for (const flag of answer.safety_flags) {
+            const row = document.createElement('li');
+            row.dataset.flagCode = flag.code;
+            const label = document.createElement('strong');
+            label.textContent = flag.severity + ' · ' + flag.code.replaceAll('_', ' ') + ': ';
+            const text = document.createElement('span');
+            text.textContent = flag.text + ' ';
+            row.append(label, text);
+            appendCitations(row, flag.citations);
+            const source = document.createElement('a');
+            source.href = flag.threshold_source.url;
+            source.target = '_blank';
+            source.rel = 'noopener';
+            source.textContent = 'Threshold source: ' + flag.threshold_source.title;
+            row.append(document.createTextNode(' '), source);
+            flagList.append(row);
+          }
+          flagSection.append(flagList);
+          answerPanel.append(flagSection);
+        }
         answerPanel.append(claimSection('Patient record', answer.patient_facts), claimSection('Guideline evidence', answer.guideline_evidence));
         if (answer.needs_review.length) {
           const reviewSection = document.createElement('section');

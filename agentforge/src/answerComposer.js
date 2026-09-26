@@ -36,8 +36,10 @@
  * shortcut — it is graded by the identical rule.
  */
 import { verifyClaims } from './claimBinding.js';
+import { applyClinicalRules } from './clinicalRules.js';
+import { findNotDocumented, onlyNotDocumented } from './notDocumented.js';
 import { BINDING_VOCABULARY } from './clinicalVocabulary.js';
-import { canonicalText } from './groundingText.js';
+import { canonicalText, isDirective, splitSentences } from './groundingText.js';
 import { GroundedAnswer, parseOrIssues } from './schemas.js';
 // F5 review fix: one canonical `isRecordLookupQuestion`, defined in
 // supervisor.js (the `record_lookup_only` routing decision owns it); this
@@ -372,7 +374,71 @@ export function partitionAnswerInputs({ labResults = [], intakeForm = null, medi
     if (!fact.citation) { needsReview.push({ kind: 'patient_record', field: fact.field || 'patient_record', reason: 'missing_citation' }); continue; }
     patientFactCitations.push(fact.citation);
   }
-  return { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence };
+  // F-CLIN clinical rules (clinicalRules.js), on confident facts only: a lab
+  // result a rule cannot trust (a flag contradicting its range, an
+  // unrecognized unit) leaves the answer for needs_review, and cited safety
+  // flags are added. Done here, not in the composer, so the critic's top-up
+  // (critic.js), which reuses this partition, can never re-add such a result.
+  const rules = applyClinicalRules({ verifiedLabResults, factCitations: [...verifiedIntakeCitations, ...patientFactCitations] });
+  needsReview.push(...rules.needsReview);
+  const flags = verifySafetyFlags(rules.safetyFlags, [...rules.labResults, ...verifiedIntakeCitations, ...patientFactCitations, ...guidelineEvidence]);
+  return { needsReview, verifiedLabResults: rules.labResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence, safetyFlags: flags.kept, safetyFlagsDropped: flags.dropped };
+}
+
+/**
+ * The claims that ground one safety flag, one per citation, built the same
+ * way the deterministic composer states each fact: the typed lab result
+ * behind a lab flag, a document line quoted as printed, a chart field and
+ * value, or the guideline chunk quoted verbatim. These are what
+ * `verifyClaims` checks, so a flag is only as trusted as the facts under it.
+ */
+function flagGroundingClaims(flag) {
+  return flag.citations.map((citation) => {
+    if (citation.source_type === 'guideline') return { kind: 'guideline', text: `"${citation.quote_or_value}"`, citations: [citation] };
+    const labResult = flag.grounding?.labResult;
+    if (labResult && labResult.citation === citation) return labResultClaim(labResult);
+    if (citation.source_type === 'document') return intakeFieldClaim(citation);
+    return fieldValueClaim(citation);
+  });
+}
+
+/**
+ * Every rule flag goes through `verifyClaims` before it ships (F-CLIN review
+ * blocker 2). Its grounding claims must all pass against exactly the facts
+ * the answer may cite (plus the rule's own guideline chunk), and its template
+ * text must not read as a directive. A flag that fails is dropped and counted
+ * (`safety_flags_dropped`), never repaired. The internal `grounding` link is
+ * not shipped.
+ */
+function verifySafetyFlags(flags, allowedValues) {
+  const kept = [];
+  let dropped = 0;
+  for (const flag of flags) {
+    const ruleSources = flag.citations.filter((citation) => citation.source_type === 'guideline');
+    const verification = verifyClaims({ claims: flagGroundingClaims(flag), allowedValues: [...allowedValues, ...ruleSources] });
+    const directive = splitSentences(flag.text).some((sentence) => isDirective(sentence));
+    if (verification.status !== 'passed' || directive) { dropped += 1; continue; }
+    kept.push({ code: flag.code, rule_id: flag.rule_id, severity: flag.severity, text: flag.text, citations: flag.citations, threshold_source: flag.threshold_source });
+  }
+  return { kept, dropped };
+}
+
+/**
+ * Every fact the answer has, for the "not documented" check: all lab
+ * results and intake/medication-list/chart facts at any confidence (a
+ * low-confidence reading is documented but needs review, which is not the
+ * same as absent).
+ */
+function notDocumentedFacts({ labResults = [], intakeForm = null, medicationList = null, patientFacts = [] }) {
+  const citationFact = (citation) => ({ field: citation.field_or_chunk_id, value: citation.quote_or_value, source_type: citation.source_type });
+  return {
+    labResults,
+    facts: [
+      ...collectIntakeLeaves(intakeForm).filter((leaf) => leaf.citation).map((leaf) => citationFact(leaf.citation)),
+      ...(medicationList?.medications || []).filter((item) => item.citation).map((item) => citationFact(item.citation)),
+      ...patientFacts.map((fact) => ({ field: fact.field || fact.citation?.field_or_chunk_id || '', value: fact.value === null || fact.value === undefined ? '' : (typeof fact.value === 'string' ? fact.value : JSON.stringify(fact.value)), source_type: fact.citation?.source_type || 'patient_record' })),
+    ],
+  };
 }
 
 /**
@@ -420,7 +486,30 @@ export function deterministicTopUpClaims({ verifiedLabResults = [], verifiedInta
  * contract the server validates before ever sending `workflow.answer`.
  */
 export async function composeGroundedAnswer({ labResults = [], intakeForm = null, medicationList = null, guidelineEvidence = [], patientFacts = [], question = '' } = {}, { provider, trace = null, correlationId = '', signal } = {}) {
-  const { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations } = partitionAnswerInputs({ labResults, intakeForm, medicationList, guidelineEvidence, patientFacts });
+  const { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations, safetyFlags, safetyFlagsDropped } = partitionAnswerInputs({ labResults, intakeForm, medicationList, guidelineEvidence, patientFacts });
+
+  // F-CLIN: a question asking for a measured value no source records gets a
+  // "not documented" answer. When that is all it asks, nothing else answers
+  // it, so no claim is composed (no model call) rather than listing
+  // unrelated facts or guideline chunks; safety flags and needs_review still ship.
+  // Only a lab report is a source of lab results here: the chart read has no
+  // labs or vitals group, so absence is claimed for labs only when this
+  // document is a lab report, and never for vitals.
+  const documented = findNotDocumented({ question, readGroups: labResults.length ? ['labs'] : [], ...notDocumentedFacts({ labResults, intakeForm, medicationList, patientFacts }) });
+  if (onlyNotDocumented(documented)) {
+    return {
+      composer: 'not-documented',
+      patient_facts: [],
+      guideline_evidence: [],
+      needs_review: needsReview,
+      safety_flags: safetyFlags,
+      safety_flags_dropped: safetyFlagsDropped,
+      not_documented: documented.notDocumented,
+      unverified_dropped: 0,
+      model_claims_proposed: 0,
+      model_claims_verified: 0,
+    };
+  }
 
   const allowedValues = [...verifiedLabResults, ...verifiedIntakeCitations, ...guidelineEvidence, ...patientFactCitations];
   // F1 review fix 2026-09-24: label every fact/chunk once so the prompt and
@@ -538,6 +627,9 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
     patient_facts: outcome.verified.filter((claim) => claim.kind === 'patient_fact'),
     guideline_evidence: outcome.verified.filter((claim) => claim.kind === 'guideline'),
     needs_review: needsReview,
+    safety_flags: safetyFlags,
+    safety_flags_dropped: safetyFlagsDropped,
+    not_documented: documented.notDocumented,
     unverified_dropped: unverifiedDropped,
     model_claims_proposed: modelClaimsProposed,
     model_claims_verified: modelClaimsVerified,
