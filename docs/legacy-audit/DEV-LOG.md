@@ -58,6 +58,43 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-25 — Arc 01 / Story 01-02 / Slice 01-02-03 — Medications card
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction) · **SHA:** code at `eecda54`; no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-3 (Medications card), with the dosage-instructions gap shown and a source label that separates it from Prescriptions.
+Legacy behavior replaced: `walkthroughs/ISSUE-CARDS.md` (Medications), `templates/patient/card/medication.html.twig`.
+Layers touched: core (`dto` `MedicationRow`, `guards` `isMedicationRow`, `upstreamRoutes`) · bff (`upstream/mapResponse` opt-in 404 mapping, `upstream/schemas/medication`, `cards/medications`, `http/routes`) · web (`cards/MedicationsCard`, `App`) · tests · README.
+Upstream route added to the allow-list: `rest.medication.list` (`/api/patient/{pid}/medication`; the path param is an integer pid that must parse as one, taken only from `rest.patient.read`; no query keys; scope `user/medication.rs`, ACL `patients/med`).
+Catalog IDs: 6.04 (404 + empty body = no rows), 6.07 (a 500 is an error like any other), 7.25 (source label), 4.05 (dosage gap noted), 8.02 (one extra patient read per card; timing in 01-06-01).
+Deliberate regression: map every 404 to error → expected red: pid 3 renders an error instead of "Nothing Recorded".
+Acceptance check (a user can do this): pid 13 shows the single active medication; pid 3 shows the empty state, not an error.
+
+### Worked on
+- `mapUpstream` gained `notFoundEmptyBodyIsEmpty`, set by the Medications use case only: HTTP 404 with an empty body → empty. A 404 with a body, non-JSON text, a 404 on any other route (including the patient read) and any other status stay errors; each is a test.
+- BFF `/dashboard/bff/patients/:puuid/medications`: `rest.patient.read` (pid) → `rest.medication.list` for that pid (bare array; `type` must be `medication`, every row's `pid` must be the resolved one) → `filterActiveIssues` → `sortByBegdateAsc` (the route itself orders by `date DESC`). `ok` carries the note "Dosage instructions: not available via API".
+- SPA `MedicationsCard` ("Medications") under Medical Problems with the one-line source label "The patient's medication list (active entries); prescriptions are listed separately." and the footnote.
+- Fixtures: `rest.medication.list` added to `patient-13` (5 rows, `ORDER BY date DESC, id DESC`: all 5 share one `date`), `patient-3` and `dash-syn-02` (404, empty body, as `responseHandler()` writes it), `dash-syn-01` (2 rows, one with a past enddate).
+- Integration script: medications counts (pid 13: 1, pid 3: empty despite the 404, DASH-SYN-01: 1). It logs route ids and status codes only.
+
+### Decisions
+- The 404 mapping is opt-in per call, not per route id, so the header, allergy and problem calls cannot inherit it by accident; the mapper test asserts both the opt-in and the default.
+- The footnote is shown with rows only (no rows, no dosage to miss).
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commit `eecda54`): 198 tests, all passing (+16): unit 70 · contract 40 (`medications` 7 new) · BFF 51 (`mapResponse` +1, `cardRoutes` +1; log redaction now drives all three issue cards and checks every allergy, problem and medication title and uuid is absent from the log) · lint-boundary 3 · component 34 (`MedicationsCard` 6 new, all with axe, 0 violations). Typecheck 0, lint 0, bundle 71.0 kB gzip JS.
+- Deliberate regression: the medication 404-with-empty-body branch returns `bad-status` instead of `empty-success` → the hook refused the commit (exit 1, HEAD unchanged) with 4 red: contract `pid 3: the route answers 404 with an empty body, which is "Nothing Recorded", not an error (6.04)`, contract `DASH-SYN-02 (404, empty body) is empty; …`, HTTP `Medications: the upstream 404 with an empty body reaches the browser as "empty", never as an error`, mapper `404 with an empty body is empty only on a route that opts in (6.04); …` → reverted. Output: `docs/legacy-audit/evidence/slice-02-03-regression.txt`.
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows 1 row (not 5) with no dosage text and the footnote; pid 3 shows "Nothing Recorded" while the upstream status is 404 (the integration log records the status code).
+- Story 01-02 is code-complete on the branch. Merge, deploy and the authenticated windows are the owner's; `DASHBOARD_OPENEMR_TZ` on the VM should be confirmed first (01-02-01 entry).
+
 ## 2026-09-25 — Arc 01 / Story 01-02 / Slice 01-02-02 — Medical Problems card
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction) · **SHA:** code at `fbadb5e`; no merge SHA yet

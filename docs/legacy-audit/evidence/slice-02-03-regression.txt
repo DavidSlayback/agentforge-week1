@@ -1,0 +1,184 @@
+Slice 01-02-03 (Medications) deliberate-regression proof (MIGRATION-REACT.md §6.3 item 2; arc 01-02-03 'Deliberate regression')
+Date: 2026-09-26T02:00Z
+Branch: agentforge/w2-dashboard, parent commit eecda5449ba5d05ec5e1d88bd9b416828850436d (the slice's feat commit, which passed the full hook)
+Break ("map every 404 to error"): dashboard/bff/src/upstream/mapResponse.ts classify() treats the medication route's
+404-with-empty-body like any other bad status:
+  -  if (outcome.status === 404 && outcome.bodyEmpty && notFoundEmptyBodyIsEmpty) return { c: 'empty-success' };
+  +  if (outcome.status === 404 && outcome.bodyEmpty && notFoundEmptyBodyIsEmpty) return { c: 'bad-status' };
+Command: git add dashboard/bff/src/upstream/mapResponse.ts && git commit -m 'test(dashboard): deliberate regression (must be refused by the hook)'  (runs .githooks/pre-commit)
+Result: hook exit 1, commit refused (HEAD before = after = eecda54). Expected red: pid 3 renders an error instead of
+"Nothing Recorded" -> 4 red:
+  - test/contract/medications.test.ts  "pid 3: the route answers 404 with an empty body, which is "Nothing Recorded", not an error (6.04)"
+  - test/contract/medications.test.ts  "DASH-SYN-02 (404, empty body) is empty; ..."
+  - test/bff/cardRoutes.test.ts        "Medications: the upstream 404 with an empty body reaches the browser as "empty", never as an error"
+  - test/bff/mapResponse.test.ts       "404 with an empty body is empty only on a route that opts in (6.04); ..."
+Reverted with git checkout; the working tree was clean afterwards.
+Output below: the Dashboard gate section of the hook output (ANSI colour codes stripped; the earlier AgentForge suites passed and are omitted).
+Synthetic data only: no names, DOBs or medication titles appear (checked with grep).
+----------------------------------------------------------------------
+Dashboard gate: typecheck, lint, unit/contract/component tests, build...
+
+ RUN  v3.2.7 C:/Users/david/repos/agentforge-week1-w2-dashboard/dashboard
+
+ ✓  node  test/core/issues.test.ts (34 tests) 13ms
+ ✓  node  test/core/format.test.ts (17 tests) 8ms
+ ✓  node  test/core/upstreamRoutes.test.ts (10 tests) 10ms
+ ✓  node  test/core/header.test.ts (9 tests) 14ms
+ ❯  node  test/bff/mapResponse.test.ts (13 tests | 1 failed) 28ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > parses a good REST envelope and a good FHIR resource 9ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > HTTP 200 with validationErrors is an error, not data or empty (6.02) 1ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > REST 200 data:[] is empty only where the caller allows it 0ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > a body that fails the schema is SCHEMA_MISMATCH, as is non-JSON 2ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > a Bundle where a Patient was expected is an error 1ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > an OperationOutcome inside a 200 is an error (6.03) 0ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > an empty Bundle is empty only where the caller allows it (6.03) 0ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > 401 → reauth, 403 → forbidden, other statuses → error 1ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > timeouts and network errors are errors 0ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > a REST envelope without data, or no envelope at all, is SCHEMA_MISMATCH, never empty 1ms
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > a bare REST array (responseHandler): [] is empty only where allowed; errors inside a 200 are errors 1ms
+   × mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > 404 with an empty body is empty only on a route that opts in (6.04); a 404 with a body never is 10ms
+     → expected { kind: 'failure', failure: { …(2) } } to deeply equal { kind: 'empty' }
+   ✓ mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > never carries upstream text into the result 1ms
+ ✓  node  test/contract/problems.test.ts (8 tests) 42ms
+ ✓  node  test/contract/allergies.test.ts (13 tests) 63ms
+ ❯  node  test/contract/medications.test.ts (7 tests | 2 failed) 57ms
+   ✓ Medications use case against shaped fixtures (contract) > pid 13: 1 of 5 rows, title only, with the dosage gap noted; the pid comes from the patient read 20ms
+   × Medications use case against shaped fixtures (contract) > pid 3: the route answers 404 with an empty body, which is "Nothing Recorded", not an error (6.04) 12ms
+     → expected { kind: 'error', …(3) } to deeply equal { kind: 'empty', …(1) }
+   × Medications use case against shaped fixtures (contract) > DASH-SYN-02 (404, empty body) is empty; DASH-SYN-01 keeps only the medication without a past enddate 3ms
+     → expected { kind: 'error', …(3) } to deeply equal { kind: 'empty', …(1) }
+   ✓ Medications use case against shaped fixtures (contract) > a 404 with a body is an error, and a 404 on any other route is an error 5ms
+   ✓ Medications use case against shaped fixtures (contract) > HTTP 200 [] is empty; 200 validationErrors, a 500 and an unexpected shape are errors 10ms
+   ✓ Medications use case against shaped fixtures (contract) > sorts active rows by begdate ascending, NULLs first (the route sorts by date DESC) 2ms
+   ✓ Medications use case against shaped fixtures (contract) > a row for another pid fails the card (PATIENT_MISMATCH); 403 is forbidden; 401 is reauth 4ms
+ ✓  node  test/contract/header.test.ts (12 tests) 84ms
+ ✓  node  test/bff/health.test.ts (7 tests) 279ms
+ ✓  node  test/bff/logRedaction.test.ts (1 test) 345ms
+   ✓ log redaction across the full workflow > logs route templates, statuses and correlation ids, never PHI, ids or credentials  344ms
+ ✓  node  test/bff/auth.test.ts (12 tests) 577ms
+ ❯  node  test/bff/cardRoutes.test.ts (7 tests | 1 failed) 729ms
+   ✓ card routes over HTTP (fastify.inject) > GET /bff/patients/:puuid/allergies returns the CardResult for that patient  389ms
+   ✓ card routes over HTTP (fastify.inject) > empty is a 200 with kind "empty" 32ms
+   ✓ card routes over HTTP (fastify.inject) > Medical Problems: a 403 on its route is forbidden for that card only; Allergies still loads 41ms
+   ✓ card routes over HTTP (fastify.inject) > Medical Problems: pid 13 sends 13 rows to the browser, not 39 43ms
+   × card routes over HTTP (fastify.inject) > Medications: the upstream 404 with an empty body reaches the browser as "empty", never as an error 43ms
+     → expected { kind: 'error', …(3) } to deeply equal { kind: 'empty', …(1) }
+   ✓ card routes over HTTP (fastify.inject) > 401 without a session, 400 for a malformed puuid, 400 for any query string 112ms
+   ✓ card routes over HTTP (fastify.inject) > an upstream 401 ends the BFF session (reauth) and later calls are 401 66ms
+ ✓  web  test/web/ProblemsCard.test.tsx (6 tests) 262ms
+ ✓  web  test/web/MedicationsCard.test.tsx (6 tests) 294ms
+ ✓  web  test/web/PatientHeader.test.tsx (10 tests) 270ms
+ ✓  web  test/web/AllergiesCard.test.tsx (12 tests) 377ms
+ ✓  node  test/bff/security.test.ts (11 tests) 1002ms
+   ✓ security headers and caching > sends CSP, no-referrer and nosniff everywhere, and no-store on /bff, /login, /callback, /logout  350ms
+ ✓  node  test/lint/boundaries.test.ts (3 tests) 4325ms
+   ✓ lint boundaries > web importing the BFF fails the lint  2984ms
+   ✓ lint boundaries > core importing I/O or a framework fails the lint  1187ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL   node  test/bff/cardRoutes.test.ts > card routes over HTTP (fastify.inject) > Medications: the upstream 404 with an empty body reaches the browser as "empty", never as an error
+AssertionError: expected { kind: 'error', …(3) } to deeply equal { kind: 'empty', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "kind": "empty",
++   "code": "UPSTREAM_STATUS",
++   "correlationId": "3b0f8be1-b137-45d4-b880-2bafac1d0832",
++   "kind": "error",
+    "patientId": "a2c331a5-3b72-45c1-884e-94015f1f34fa",
+  }
+
+ ❯ test/bff/cardRoutes.test.ts:68:24
+     66|     const res = await app.inject({ method: 'GET', url: `/dashboard/bff…
+     67|     expect(res.statusCode).toBe(200);
+     68|     expect(res.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 …
+       |                        ^
+     69|   });
+     70| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL   node  test/bff/mapResponse.test.ts > mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to this slice > 404 with an empty body is empty only on a route that opts in (6.04); a 404 with a body never is
+AssertionError: expected { kind: 'failure', failure: { …(2) } } to deeply equal { kind: 'empty' }
+
+- Expected
++ Received
+
+  {
+-   "kind": "empty",
++   "failure": {
++     "code": "UPSTREAM_STATUS",
++     "kind": "error",
++   },
++   "kind": "failure",
+  }
+
+ ❯ test/bff/mapResponse.test.ts:95:41
+     93|     const meds = { shape: 'rest-array', schema: z.array(z.unknown()), …
+     94|     const empty404: UpstreamOutcome = { kind: 'response', status: 404,…
+     95|     expect(mapUpstream(empty404, meds)).toEqual({ kind: 'empty' });
+       |                                         ^
+     96|     expect(mapUpstream({ kind: 'response', status: 404, body: { error:…
+     97|     // Non-JSON text is not an empty body either.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL   node  test/contract/medications.test.ts > Medications use case against shaped fixtures (contract) > pid 3: the route answers 404 with an empty body, which is "Nothing Recorded", not an error (6.04)
+AssertionError: expected { kind: 'error', …(3) } to deeply equal { kind: 'empty', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "kind": "empty",
++   "code": "UPSTREAM_STATUS",
++   "correlationId": "corr-3",
++   "kind": "error",
+    "patientId": "a2c331a5-3b72-45c1-884e-94015f1f34fa",
+  }
+
+ ❯ test/contract/medications.test.ts:85:35
+     83|     const raw = routeFixture(FILES[PATIENT.p3].file, 'rest.medication.…
+     84|     expect(raw).toEqual({ status: 404, body: null });
+     85|     expect(await run(PATIENT.p3)).toEqual({ kind: 'empty', patientId: …
+       |                                   ^
+     86|     expect(fake.calls.map((c) => c.url)).toEqual([patientUrl(PATIENT.p…
+     87|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL   node  test/contract/medications.test.ts > Medications use case against shaped fixtures (contract) > DASH-SYN-02 (404, empty body) is empty; DASH-SYN-01 keeps only the medication without a past enddate
+AssertionError: expected { kind: 'error', …(3) } to deeply equal { kind: 'empty', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "kind": "empty",
++   "code": "UPSTREAM_STATUS",
++   "correlationId": "corr-3",
++   "kind": "error",
+    "patientId": "8e5045ab-b8c0-11f1-8c7a-0ed9af59d05d",
+  }
+
+ ❯ test/contract/medications.test.ts:92:44
+     90|     const a = setup();
+     91|     serve(a.fake, PATIENT.dashSyn02);
+     92|     expect(await a.run(PATIENT.dashSyn02)).toEqual({ kind: 'empty', pa…
+       |                                            ^
+     93| 
+     94|     const b = setup();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  3 failed | 16 passed (19)
+      Tests  4 failed | 194 passed (198)
+   Start at  20:59:13
+   Duration  5.31s (transform 1.16s, setup 0ms, collect 13.41s, tests 8.78s, environment 3.93s, prepare 3.22s)
+
+EXIT=1
+HEAD before=eecda5449ba5d05ec5e1d88bd9b416828850436d after=eecda5449ba5d05ec5e1d88bd9b416828850436d

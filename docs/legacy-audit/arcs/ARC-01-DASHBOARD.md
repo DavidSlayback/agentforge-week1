@@ -374,6 +374,12 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-02-03 — Medications card
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `eecda54`):**
+  **wired, tested, not yet observed.** Built and gated (198 tests in the
+  hook); the deliberate regression (every 404 mapped to error) was refused by
+  the hook with 4 red tests
+  (`docs/legacy-audit/evidence/slice-02-03-regression.txt`). Not merged or
+  deployed. Details: `DEV-LOG.md`, 01-02-03 entry.
 - **Time box:** 1.0 h, Sat 13:15–14:15.
 - **Goal:** the Medications card shows PHP-active medications sorted by
   `begdate` ascending, title only. A footnote reads "Dosage instructions: not
@@ -385,11 +391,13 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   `web/src/cards/MedicationsCard.tsx`; tests, fixtures and
   `test/integration/medications.it.ts`.
 - **Test gate**
-  - Contract: pid 13 gives **1** row. pid 3's recorded **404 with an empty
+  - [x] Contract: pid 13 gives **1** row. pid 3's recorded **404 with an empty
     body** gives `empty`. A 404 with a body, or a 404 on any other route,
-    gives `error`.
-  - **Deliberate regression:** map every 404 to `error`. Expected red: pid 3
-    renders an error instead of "Nothing Recorded".
+    gives `error` (`test/contract/medications.test.ts`; the pid 3 404 is a
+    shaped fixture, not a recording).
+  - [x] **Deliberate regression:** map every 404 to `error`. Expected red: pid 3
+    renders an error instead of "Nothing Recorded". Done: 4 red, commit
+    refused, reverted.
 - **Live evidence**
   - [ ] pid 13: 1 row (not 5), with no dosage text.
   - [ ] pid 3: "Nothing Recorded", although the raw upstream status is 404
