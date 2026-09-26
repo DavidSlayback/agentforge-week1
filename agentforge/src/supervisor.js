@@ -11,9 +11,15 @@ const STATES = Object.freeze({ START: 'START', INTAKE_EXTRACTOR: 'INTAKE_EXTRACT
  * from `STATES` above (the existing workflow/transitions vocabulary, kept
  * unchanged for backward compatibility) -- these four name what the
  * supervisor's loop does *next*, not where the workflow ended up. */
-export const DECISIONS = Object.freeze({ EXTRACT: 'EXTRACT', RETRIEVE: 'RETRIEVE', ANSWER: 'ANSWER', DONE: 'DONE' });
+export const DECISIONS = Object.freeze({ EXTRACT: 'EXTRACT', RETRIEVE: 'RETRIEVE', ANSWER: 'ANSWER', CRITIQUE: 'CRITIQUE', DONE: 'DONE' });
 
-const DEFAULT_MAX_STEPS = 6;
+/** The `critic_status` each critic-skipping DONE reason ships with (E2). */
+export const CRITIC_SKIP_STATUS = Object.freeze({ critic_disabled: 'disabled', critic_skipped_budget: 'skipped_budget', no_claims_to_review: 'skipped_no_claims' });
+
+// EXTRACT, one low-confidence retry, RETRIEVE, ANSWER, CRITIQUE and DONE take
+// six decisions; the seventh is a spare, so the longest normal path never
+// ends on `max_steps_reached`.
+export const DEFAULT_MAX_STEPS = 7;
 const LOW_CONFIDENCE_RETRY_THRESHOLD = 0.7;
 const EXTRACTION_CACHE_LIMIT = 50;
 
@@ -80,6 +86,11 @@ function boundedCacheSet(cache, key, value, limit = EXTRACTION_CACHE_LIMIT) {
  * - `evidence_needed` / `extraction_needed`: the ordinary path.
  * - `facts_and_evidence_ready`: everything needed for ANSWER is present.
  * - `max_steps_reached`: a safety cap was hit -- DONE, qualified.
+ * - After an answer is composed (E2): `answer_needs_review` routes to
+ *   CRITIQUE; `critic_disabled` (no critic model configured),
+ *   `no_claims_to_review` and `critic_skipped_budget` (the scan deadline
+ *   leaves less than the critic's timeout) end at DONE without it; once the
+ *   critic has run, `critique_<status>` ends at DONE.
  *
  * Args (all in `state`, every key optional):
  *   stepCount, maxSteps: loop-iteration guard.
@@ -92,6 +103,10 @@ function boundedCacheSet(cache, key, value, limit = EXTRACTION_CACHE_LIMIT) {
  *   recordLookupOnly: `isRecordLookupQuestion(query)`.
  *   evidence: the evidence worker handoff once it has run, else `null`.
  *   retrieveSkipped: RETRIEVE was deliberately skipped (record lookup).
+ *   answer: the composed answer once ANSWER has run, else `null`.
+ *   critique: the critic worker handoff once it has run, else `null`.
+ *   criticEnabled: a critic model is configured.
+ *   criticBudgetOk: the remaining scan budget is at least the critic's timeout.
  *
  * Returns `{next, reason}`, `next` one of `DECISIONS`.
  */
@@ -107,9 +122,22 @@ export function decideNext(state = {}) {
     recordLookupOnly = false,
     evidence = null,
     retrieveSkipped = false,
+    answer = null,
+    critique = null,
+    criticEnabled = false,
+    criticBudgetOk = false,
   } = state;
 
   if (stepCount >= maxSteps) return { next: DECISIONS.DONE, reason: 'max_steps_reached' };
+
+  if (answer) {
+    if (critique) return { next: DECISIONS.DONE, reason: `critique_${critique.output_status}` };
+    if (!criticEnabled) return { next: DECISIONS.DONE, reason: 'critic_disabled' };
+    const claimCount = (answer.patient_facts?.length || 0) + (answer.guideline_evidence?.length || 0);
+    if (!claimCount) return { next: DECISIONS.DONE, reason: 'no_claims_to_review' };
+    if (!criticBudgetOk) return { next: DECISIONS.DONE, reason: 'critic_skipped_budget' };
+    return { next: DECISIONS.CRITIQUE, reason: 'answer_needs_review' };
+  }
 
   if (!extraction) {
     if (extractionCached) return { next: DECISIONS.EXTRACT, reason: 'extraction_cached' };
@@ -177,13 +205,25 @@ export function decideNext(state = {}) {
  *     loops the workflow.
  *   maxSteps: loop safety cap (`max_steps_reached`), default 6.
  *
+ * E2 additions (optional; omitted, the loop stops at ANSWER exactly as before
+ * and the caller composes the answer itself):
+ *   composeAnswer: `async ({ extraction, evidence, signal }) => answer`. When
+ *     given, ANSWER composes inside the loop and `decideNext` routes on to
+ *     CRITIQUE or DONE; the result carries `answer`.
+ *   critic: `{ enabled, disabledReason, budgetOk(), run(answer), skip(answer,
+ *     status, reason) }`. `run` is the critic worker plus its verdicts
+ *     applied, returning `{ answer, handoff, summary }`; `skip` labels an
+ *     answer the critic did not review, returning `{ answer, summary }`. The
+ *     critic handoff joins `handoffs`, and `summary` (codes and counts only)
+ *     goes to `observer.setCritic` and the result's `critique`.
+ *
  * Every decision the loop makes is pushed to `workflow.decisions[]` and, when
  * an `observer` is given, recorded via `observer.recordDecision(...)` (never
  * `observer.recordHandoff`, which carries a different, redaction-checked
  * shape) -- reasons are fixed codes, never values, so this is redaction-safe
  * by construction.
  */
-export async function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null, documentText = '', targetPatient = null, extractionCache = new Map(), ocrMode = 'psm6', reextractWithAlternateOcr = null, maxSteps = DEFAULT_MAX_STEPS, signal = null } = {}) {
+export async function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null, documentText = '', targetPatient = null, extractionCache = new Map(), ocrMode = 'psm6', reextractWithAlternateOcr = null, maxSteps = DEFAULT_MAX_STEPS, signal = null, composeAnswer = null, critic = null } = {}) {
   const retriever = retrievalAdapter || localLexicalGuidelineRetriever;
   const transitions = [STATES.START];
   const decisions = [];
@@ -198,6 +238,9 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
   let ocrRetryUsed = false;
   let evidenceWorker = null;
   let retrieveSkipped = false;
+  let answer = null;
+  let criticWorker = null;
+  let critique = null;
 
   const runExtraction = (extractContent) => {
     observer?.startStage('extraction');
@@ -223,8 +266,25 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
       recordLookupOnly,
       evidence: evidenceWorker,
       retrieveSkipped,
+      answer,
+      critique: criticWorker,
+      criticEnabled: Boolean(critic?.enabled),
+      criticBudgetOk: Boolean(answer && critic?.enabled && critic.budgetOk?.()),
     });
     recordDecision(decision);
+
+    if (decision.next === DECISIONS.DONE && answer && decision.reason !== 'max_steps_reached') {
+      if (!criticWorker) {
+        const status = CRITIC_SKIP_STATUS[decision.reason];
+        if (status && critic?.skip) {
+          const skipped = critic.skip(answer, status, status === 'disabled' ? (critic.disabledReason || decision.reason) : decision.reason);
+          answer = skipped.answer;
+          critique = skipped.summary;
+          observer?.setCritic?.(critique);
+        }
+      }
+      break;
+    }
 
     if (decision.next === DECISIONS.DONE) {
       if (decision.reason === 'max_steps_reached') return activeQualifiedStop('max_steps_reached', transitions, extractionWorker, evidenceWorker, safety, decisions, currentOcrMode);
@@ -310,23 +370,44 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
 
     if (decision.next === DECISIONS.ANSWER) {
       if (decision.reason === 'record_lookup_only') retrieveSkipped = true;
-      break;
+      if (!composeAnswer) break;
+      answer = await composeAnswer({ extraction: extractionWorker.extraction, evidence: evidenceWorker, signal });
+      continue;
+    }
+
+    if (decision.next === DECISIONS.CRITIQUE) {
+      observer?.startStage('critic');
+      let outcome = null;
+      try {
+        outcome = await critic.run(answer);
+      } finally {
+        observer?.finishStage('critic', { status: outcome?.handoff?.output_status || 'failed' });
+      }
+      criticWorker = outcome.handoff;
+      answer = outcome.answer;
+      critique = outcome.summary;
+      if (criticWorker.usage) observer?.recordModelUsage?.(criticWorker.usage);
+      observer?.setCritic?.(critique);
+      continue;
     }
   }
+
+  const answerFields = answer ? { answer, ...(critique ? { critique } : {}) } : {};
+  const criticHandoffs = criticWorker ? [criticWorker] : [];
 
   if (evidenceWorker) {
     const ready = evidenceWorker.output_status === 'ready' && !safety.qualifying.length;
     transitions.push(evidenceWorker.output_status === 'ready' ? STATES.VERIFY : STATES.CLARIFY);
     transitions.push(ready ? STATES.READY : STATES.QUALIFIED);
     const reasons = [...safety.qualifying, ...(evidenceWorker.output_status === 'ready' ? [] : evidenceWorker.qualification.reasons)];
-    return { workflow_version: 'w2-active-supervisor-v1', final_state: ready ? STATES.READY : STATES.QUALIFIED, readiness: ready ? 'ready' : 'qualified', stop_reason: null, qualification: { required: !ready, reasons }, safety_checks: safety.checks, transitions, decisions, ocr_mode: currentOcrMode, handoffs: [extractionWorker, evidenceWorker], typed_outputs: { extraction: extractionWorker.extraction, evidence: evidenceWorker } };
+    return { workflow_version: 'w2-active-supervisor-v1', final_state: ready ? STATES.READY : STATES.QUALIFIED, readiness: ready ? 'ready' : 'qualified', stop_reason: null, qualification: { required: !ready, reasons }, safety_checks: safety.checks, transitions, decisions, ocr_mode: currentOcrMode, handoffs: [extractionWorker, evidenceWorker, ...criticHandoffs], typed_outputs: { extraction: extractionWorker.extraction, evidence: evidenceWorker }, ...answerFields };
   }
 
   // Retrieval was deliberately skipped (record_lookup_only): the answer
   // rests on facts alone, so readiness depends only on the safety check.
   const ready = !safety.qualifying.length;
   transitions.push(STATES.VERIFY, ready ? STATES.READY : STATES.QUALIFIED);
-  return { workflow_version: 'w2-active-supervisor-v1', final_state: ready ? STATES.READY : STATES.QUALIFIED, readiness: ready ? 'ready' : 'qualified', stop_reason: null, qualification: { required: !ready, reasons: [...safety.qualifying] }, safety_checks: safety.checks, transitions, decisions, ocr_mode: currentOcrMode, handoffs: [extractionWorker], typed_outputs: { extraction: extractionWorker.extraction, evidence: null } };
+  return { workflow_version: 'w2-active-supervisor-v1', final_state: ready ? STATES.READY : STATES.QUALIFIED, readiness: ready ? 'ready' : 'qualified', stop_reason: null, qualification: { required: !ready, reasons: [...safety.qualifying] }, safety_checks: safety.checks, transitions, decisions, ocr_mode: currentOcrMode, handoffs: [extractionWorker, ...criticHandoffs], typed_outputs: { extraction: extractionWorker.extraction, evidence: null }, ...answerFields };
 }
 
 function activeStop(state, reason, transitions, extraction, evidence, safety, decisions = [], ocrMode = null) {

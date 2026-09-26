@@ -285,9 +285,29 @@ export const NeedsReviewItem = z.object({
  * but every one of its own claims failed content verification
  * (`model_rejected_reason: 'all_claims_unverified'`).
  */
+/**
+ * Closed set of `critic_status` labels (`critic.js`, E2). `reviewed` only
+ * when the critic model returned a valid verdict for every claim it was
+ * sent; `failed` for a provider error, timeout or invalid JSON; `disabled`
+ * when no critic model is configured; `skipped_budget` when the scan
+ * deadline left less time than the critic's timeout; `skipped_no_claims`
+ * when the answer had no claims to review; `skipped_identity_only` when every
+ * claim cited a patient-identity field, so none could be sent.
+ */
+export const CRITIC_STATUS_VALUES = Object.freeze(['reviewed', 'failed', 'disabled', 'skipped_budget', 'skipped_no_claims', 'skipped_identity_only']);
+
 export const GroundedAnswerResult = z.object({
   composer: z.enum(['model', 'deterministic-fallback', 'model+deterministic-topup']),
   model_rejected_reason: z.enum(['all_claims_unverified', 'invalid_json', 'provider_error', 'deadline']).optional(),
+  // E2 critic outcome; optional so an answer composed outside the scan
+  // supervisor (unit tests, the composer alone) stays valid. The scan path
+  // always sets it. `critic_rejected` counts claims removed from what ships;
+  // `critic_claims_not_sent` claims kept unreviewed by the identity guard;
+  // `critic_topup_unreviewed` claims added after the critic ran (unreviewed).
+  critic_status: z.enum(CRITIC_STATUS_VALUES).optional(),
+  critic_rejected: z.number().int().nonnegative().optional(),
+  critic_claims_not_sent: z.number().int().nonnegative().optional(),
+  critic_topup_unreviewed: z.number().int().nonnegative().optional(),
   patient_facts: z.array(AnswerClaim),
   guideline_evidence: z.array(AnswerClaim),
   needs_review: z.array(NeedsReviewItem),

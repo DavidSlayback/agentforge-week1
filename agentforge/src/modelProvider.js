@@ -17,6 +17,13 @@ function resolveCostUsd({ reportedCost, priceKey, inputTokens, outputTokens }) {
   return null;
 }
 
+/** Where a call's cost figure came from: the provider's own per-call
+ * report, the `pricing.js` table, or nowhere (`estimatedCostUsd` is null). */
+function costSourceFor(reportedCost, estimatedCostUsd) {
+  if (reportedCost !== undefined && reportedCost !== null) return 'provider_reported';
+  return estimatedCostUsd === null ? 'unknown' : 'price_table';
+}
+
 async function postJson({ endpoint, apiKey, body, timeoutMs, correlationId = '', headers = {}, fetchImpl = globalThis.fetch, parseJson = true, signal: parentSignal = null }) {
   const controller = new AbortController();
   const abortFromParent = () => controller.abort(parentSignal.reason);
@@ -63,17 +70,22 @@ export class DeterministicProvider {
  * or provider-eligibility policy.
  */
 export class OpenAICompatibleProvider {
-  constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge', fetchImpl = globalThis.fetch, priceKey = null }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; this.fetchImpl = fetchImpl; this.priceKey = priceKey; }
+  // `requestExtras` is spread into the request body (e.g. OpenRouter's
+  // `usage: { include: true }` for a per-call reported cost). Distinct from
+  // the Qwen `extraBody` other providers take, which this class never sent.
+  constructor({ endpoint, apiKey, model, timeoutMs = 8000, siteUrl = '', siteName = 'AgentForge', fetchImpl = globalThis.fetch, priceKey = null, requestExtras = {} }) { this.name = 'openai-compatible'; this.endpoint = endpoint; this.apiKey = apiKey; this.model = model; this.timeoutMs = timeoutMs; this.siteUrl = siteUrl; this.siteName = siteName; this.fetchImpl = fetchImpl; this.priceKey = priceKey; this.requestExtras = requestExtras; }
   async checkReady() { return Boolean(this.endpoint && this.apiKey && this.model); }
   async checkReachable() { return probeProviderEndpoint({ endpoint: this.endpoint, apiKey: this.apiKey, model: this.model, timeoutMs: Math.min(this.timeoutMs, 15000), body: { model: this.model, messages: [{ role: 'user', content: 'Return only OK.' }], temperature: 0, max_tokens: 16 }, fetchImpl: this.fetchImpl }); }
   async generate({ prompt, correlationId = '', signal, maxTokens = 300 }) {
     if (!(await this.checkReady())) throw new Error('MODEL_NOT_CONFIGURED');
-    const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, signal, fetchImpl: this.fetchImpl, headers: { ...(this.siteUrl ? { 'HTTP-Referer': this.siteUrl } : {}), ...(this.siteName ? { 'X-Title': this.siteName } : {}) }, body: { model: this.model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: maxTokens } });
+    const data = await postJson({ endpoint: this.endpoint, apiKey: this.apiKey, timeoutMs: this.timeoutMs, correlationId, signal, fetchImpl: this.fetchImpl, headers: { ...(this.siteUrl ? { 'HTTP-Referer': this.siteUrl } : {}), ...(this.siteName ? { 'X-Title': this.siteName } : {}) }, body: { ...this.requestExtras, model: this.model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: maxTokens } });
     const text = data.choices?.[0]?.message?.content;
     if (typeof text !== 'string' || !text.trim()) throw new Error('MODEL_EMPTY_OUTPUT');
     const inputTokens = data.usage?.prompt_tokens || 0;
     const outputTokens = data.usage?.completion_tokens || 0;
-    return { text: text.trim(), inputTokens, outputTokens, estimatedCostUsd: resolveCostUsd({ reportedCost: data.usage?.cost ?? data.cost, priceKey: this.priceKey, inputTokens, outputTokens }) };
+    const reportedCost = data.usage?.cost ?? data.cost;
+    const estimatedCostUsd = resolveCostUsd({ reportedCost, priceKey: this.priceKey, inputTokens, outputTokens });
+    return { text: text.trim(), inputTokens, outputTokens, estimatedCostUsd, costSource: costSourceFor(reportedCost, estimatedCostUsd) };
   }
 }
 

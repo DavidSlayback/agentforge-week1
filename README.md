@@ -234,6 +234,9 @@ narrative behind each group.
 | `AGENTFORGE_MODEL_SITE_URL` / `AGENTFORGE_MODEL_SITE_NAME` | Attribution headers some providers require | none / `AgentForge` | No | No |
 | `AGENTFORGE_OPENROUTER_ENDPOINT` / `AGENTFORGE_OPENROUTER_MODEL` / `AGENTFORGE_OPENROUTER_API_KEY` / `AGENTFORGE_OPENROUTER_TIMEOUT_MS` | OpenRouter provider lane (alternative to Qwen) | none | Only if `AGENTFORGE_PROVIDER_MODE=openrouter` | API key: yes |
 | `AGENTFORGE_CONVERSATION_PROVIDER_MODE` / `AGENTFORGE_CONVERSATION_OPENROUTER_*` | Separate short-follow-up conversation lane | none | No | API key: yes |
+| `AGENTFORGE_CRITIC_PROVIDER` | Critic lane for `/v1/scan-supervisor` answers (`agentforge-w2`): an LLM that can only veto claims. `openrouter` is the only value | `openrouter` | No | No |
+| `AGENTFORGE_CRITIC_MODEL` | OpenRouter model id for the critic. No default: unset means the critic is disabled and every answer says `critic_status: disabled`. Uses `AGENTFORGE_OPENROUTER_ENDPOINT` / `AGENTFORGE_OPENROUTER_API_KEY` | none | No | No |
+| `AGENTFORGE_CRITIC_TIMEOUT_MS` | Critic call timeout. The critic runs only if the scan deadline leaves at least this much time; otherwise `critic_status: skipped_budget` | `4000` | No | No |
 
 **Guideline RAG (hybrid retrieval + rerank)**
 

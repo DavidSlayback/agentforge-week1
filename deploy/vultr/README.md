@@ -210,6 +210,16 @@ fires, the OCR retry is skipped (the original extraction is kept) and the
 answer is composed deterministically (`workflow.answer.model_rejected_reason:
 "deadline"`), never left hanging.
 
+The E2 critic (`agentforge-w2` only) is an LLM that can only veto answer
+claims. It uses the OpenRouter key and endpoint above (now also passed to
+`agentforge-w2`) and its own `AGENTFORGE_CRITIC_MODEL` (no default: unset
+means disabled, labeled `critic_status: disabled`) and
+`AGENTFORGE_CRITIC_TIMEOUT_MS` (default 4000). It runs only when the scan
+deadline leaves at least its timeout; otherwise the answer ships as the
+verifier left it, labeled `critic_status: skipped_budget`. Pick the model with
+`node agentforge/scripts/benchmark-critic-models.mjs --models a,b,c` inside
+the container, where the key is set.
+
 As of S6 (the W2 grounded-answer composer), `agentforge-w2`'s compose block
 also sets these same `AGENTFORGE_MODEL_*` variables (previously only the W1
 `agentforge` block had them, so `AGENTFORGE_PROVIDER_MODE=qwen` on

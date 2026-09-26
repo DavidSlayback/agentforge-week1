@@ -302,7 +302,10 @@ button:disabled{opacity:.6;cursor:wait}
         const answerPanel = document.createElement('details');
         answerPanel.open = true;
         const answerHeading = document.createElement('summary');
-        answerHeading.textContent = 'Grounded answer (' + answer.composer + ')';
+        // E2: the critic's status is always shown, never implied reviewed.
+        const unreviewed = (answer.critic_claims_not_sent || 0) + (answer.critic_topup_unreviewed || 0);
+        const criticLabel = answer.critic_status ? '; critic: ' + answer.critic_status + (answer.critic_rejected ? ', ' + answer.critic_rejected + ' claim(s) removed' : '') + (unreviewed ? ', ' + unreviewed + ' claim(s) not reviewed' : '') : '';
+        answerHeading.textContent = 'Grounded answer (' + answer.composer + criticLabel + ')';
         answerPanel.append(answerHeading);
         const claimSection = (heading, claims) => {
           const section = document.createElement('section');

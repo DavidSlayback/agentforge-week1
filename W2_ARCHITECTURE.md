@@ -97,7 +97,7 @@ D12). The State column is current and is updated as each item lands.
 | Basic hybrid RAG plus rerank | Core | Built and live (§3c) |
 | 50-case golden dataset with boolean rubrics | Core | Built (§3e, `EVAL_GATE.md`) |
 | PR-blocking eval CI and an observable deployed demo | Core | Built: pre-commit gate (§3e), `/observability` |
-| Critic agent that rejects uncited claims or unsafe action suggestions | Extension (§4) | **No critic agent.** The same job is done by deterministic code in `claimBinding.js` `verifyClaims` (§3d). It drops any claim that doesn't bind to the facts or guideline text it cites, and flags directive wording as `UNSAFE_CLINICAL_ACTION_LANGUAGE`. It is a rule-based verifier, not an LLM agent, so we don't call it one. |
+| Critic agent that rejects uncited claims or unsafe action suggestions | Extension (§4) | Built, not yet observed live: an LLM critic that can only veto claims (`critic.js`, §3b). It runs after `verifyClaims` (§3d), which stays the authority, and can remove a claim as `UNCITED`, `UNSUPPORTED_BY_SOURCE` or `UNSAFE_ACTION`, never add or rewrite one. It is off until `AGENTFORGE_CRITIC_MODEL` is set on the VM (every answer then says `critic_status: disabled`). The extension suite checks the veto wiring with a fake critic model (`EVAL_GATE.md`); a real model's judgment is measured by `scripts/benchmark-critic-models.mjs`, not by the gate. |
 | Click-to-source UI with a simple document preview | Extension | Built: the scan result shows the PDF pages with a box per cited field; a citation's "View source region" link highlights its box (`ui.js`, `renderScanSourcePreview`). The page-image route is checked live (`docs/agentforge/evidence/LEDGER.md`, W2-C8); the drawn overlay has not yet been observed on the public URL. |
 | A third document type (referral fax, medication list) | Extension | Not built. Two types that work reliably come first (PRD, "Common Pitfalls"). |
 | Lab trend chart from extracted Observation data | Extension | Not built. Extracted labs are persisted and readable as FHIR `Observation` (§3a), which is the data such a chart would use. |
@@ -167,9 +167,12 @@ flowchart LR
     S[Supervisor<br/>decideNext loop] -->|EXTRACT| W1[intake-extractor worker]
     S -->|RETRIEVE| W2[evidence-retriever worker]
     S -->|ANSWER| A[Grounded answer composer]
+    S -->|CRITIQUE| W3[critic worker]
     S -->|DONE| Z[Stop: BLOCKED / QUALIFIED / READY]
     W1 -->|handoff + trace event| S
     W2 -->|handoff + trace event| S
+    A -->|answer| S
+    W3 -->|handoff + trace event| S
 ```
 
 `supervisor.js#decideNext(state) -> {next, reason}` is a pure function called
@@ -186,7 +189,12 @@ The reasons it can return:
 | Facts ready, question is a pure record lookup ("what was the hemoglobin value?") | `ANSWER` | `record_lookup_only` (RETRIEVE is skipped entirely) |
 | Facts ready, ordinary question | `RETRIEVE` | `evidence_needed` |
 | Facts and (if not skipped) evidence ready | `ANSWER` | `facts_and_evidence_ready` |
-| Loop safety cap (6 steps) hit | `DONE` | `max_steps_reached` (QUALIFIED, never BLOCKED — whatever was gathered is still returned) |
+| Loop safety cap (7 steps: the longest normal path, EXTRACT, retry, RETRIEVE, ANSWER, CRITIQUE, DONE, takes 6) hit | `DONE` | `max_steps_reached` (QUALIFIED, never BLOCKED — whatever was gathered is still returned) |
+| Answer composed, critic configured, answer has claims, scan budget left ≥ critic timeout | `CRITIQUE` | `answer_needs_review` |
+| Answer composed, no critic model configured | `DONE` | `critic_disabled` (answer labeled `critic_status: disabled`) |
+| Answer composed, no claims | `DONE` | `no_claims_to_review` (`skipped_no_claims`) |
+| Answer composed, scan budget left < critic timeout | `DONE` | `critic_skipped_budget` (`skipped_budget`; the deadline is never widened) |
+| Critic has run | `DONE` | `critique_reviewed` or `critique_failed` |
 
 The extraction cache is keyed by a SHA-256 of the extracted content plus the
 OCR mode, not by document id, so a re-uploaded or re-fixtured document with
@@ -207,6 +215,45 @@ guideline retriever. A pure record-lookup question skips it entirely — no
 guideline call is made when the answer needs none. Every retrieval attempt
 is recorded on the trace with the provider that actually answered (which may
 have degraded mid-call), never a static label.
+
+The critic worker (`critic.js#runCriticWorker`, E2) is an LLM critic that can
+only veto claims. It gets each shipped claim's text and the `quote_or_value`
+strings of its citations, which the clinician already sees, and nothing else:
+no patient reference, document id, name, date of birth or phone. A claim
+citing a patient-identity field (`patient.name`, `patient.date_of_birth`,
+`patient.phone`, an address and the like; not `lab.*.test_name` or a
+medication name) is not sent; it ships unreviewed and is counted in the
+answer's `critic_claims_not_sent`. If every claim is held back, the status is
+`skipped_identity_only`. The composer already keeps demographics out of
+claims, so this is a defense-in-depth path. It must return strict JSON with
+one verdict per claim: `keep`, or `reject` with `UNCITED`,
+`UNSUPPORTED_BY_SOURCE` or `UNSAFE_ACTION`. Verdicts are applied by claim
+index; the critic's own text is never read back, and a verdict for a claim it
+was not sent is ignored. A rejection is final: every fact or guideline chunk
+a rejected claim cited is barred, so neither the composer's deterministic
+top-up nor any fallback can bring a claim citing it back, whatever its text.
+The top-up may still fill a gap for a fact no rejected claim cited; such a
+claim was added after the critic ran and is counted in
+`critic_topup_unreviewed`, not as reviewed. If the vetoes remove every claim,
+the answer ships with none. `critic_rejected` equals the number of claims
+removed from what ships, and the UI shows it together with any unreviewed
+count. Why a model next to `verifyClaims`: the
+verifier is structural and has known gaps (a verbatim guideline span is exempt
+from its directive check; its directive patterns are a fixed list, so "The
+patient has to be taking lisinopril 10 mg daily." passes). The critic is a
+second, fallible check on those gaps, not proof of correctness.
+`critic_status` on the answer is `reviewed` only when the model returned a
+valid verdict for every claim sent; a provider error, timeout, the scan
+deadline or invalid JSON is `failed`, and the answer then ships exactly as the
+verifier left it. The provider is the OpenRouter lane with its own env
+(`AGENTFORGE_CRITIC_MODEL`, no default; `AGENTFORGE_CRITIC_TIMEOUT_MS`,
+default 4000). The trace gets a `critic` stage, a model-usage entry and a
+`critic` block with status, duration, tokens, cost (`null` with
+`cost_source` when the model has no known price) and verdict counts by
+reason code, claims removed and claims topped up unreviewed; no claim text.
+A failed or budget-skipped critic makes the per-encounter runtime evaluation
+`degraded`; claims shipped unreviewed (held back or topped up) make it
+`needs_review`.
 
 ### (c) RAG design
 

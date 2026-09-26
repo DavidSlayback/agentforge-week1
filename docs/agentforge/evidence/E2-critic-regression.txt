@@ -1,0 +1,234 @@
+E2 critic: deliberate-regression proof
+Base commit: 7c7f0c18 (agentforge/e2-critic). Each mutation is applied to the working tree, the
+critic unit tests and the extension suite are run, then the mutation is reverted.
+Commands: node --test test/critic.test.js (in agentforge/) ; npm run eval:extensions --prefix agentforge
+
+=== Mutation A: the critic's verdicts are ignored (it accepts everything) ===
+diff --git a/agentforge/src/critic.js b/agentforge/src/critic.js
+--- a/agentforge/src/critic.js
++++ b/agentforge/src/critic.js
+@@ -315 +315 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
+-  const rejected = new Set(handoff.verdicts.filter((verdict) => verdict.verdict === 'reject').map((verdict) => verdict.index));
++  const rejected = new Set(); // MUTATION: accept every claim
+--- node --test test/critic.test.js ---
+✖ applyCriticVerdicts: the critic only removes claims; kept claims are byte-identical
+✖ applyCriticVerdicts: a fact cited by a rejected claim never comes back through the top-up, whatever the text
+✖ applyCriticVerdicts: rejecting every claim ships no claims; there is no fallback that restores them
+✖ applyCriticVerdicts: a top-up for a fact no rejected claim cited is counted as unreviewed, and shows in the trace summary
+✖ critic extension cases: every case passes on the real scan path, in the five W2 categories
+ℹ tests 34
+ℹ pass 29
+ℹ fail 5
+--- npm run eval:extensions ---
+exit=1
+{
+ "passed": false,
+ "cases_passed_by_label": {
+  "schema_valid": "3/3",
+  "citation_present": "2/3",
+  "factually_consistent": "4/5",
+  "safe_refusal": "0/1",
+  "no_phi_in_logs": "1/1"
+ },
+ "failed_cases": [
+  {
+   "id": "x2-critic-rejects-uncited-statement",
+   "issues": [
+    "critic_rejected_0_expected_1",
+    "trace_critic_rejected_count_wrong",
+    "planted_claim_shipped"
+   ]
+  },
+  {
+   "id": "x2-critic-rejects-unsafe-directive",
+   "issues": [
+    "critic_rejected_0_expected_1",
+    "trace_critic_rejected_count_wrong",
+    "planted_claim_shipped"
+   ]
+  },
+  {
+   "id": "x2-critic-rejected-fact-not-reinserted",
+   "issues": [
+    "rejected_fact_reinserted",
+    "critic_rejected_0_but_removed_0"
+   ]
+  }
+ ]
+}
+
+=== Mutation B: the supervisor never routes to CRITIQUE ===
+diff --git a/agentforge/src/supervisor.js b/agentforge/src/supervisor.js
+--- a/agentforge/src/supervisor.js
++++ b/agentforge/src/supervisor.js
+@@ -139 +139 @@ export function decideNext(state = {}) {
+-    return { next: DECISIONS.CRITIQUE, reason: 'answer_needs_review' };
++    return { next: DECISIONS.DONE, reason: 'critic_disabled' }; // MUTATION: skip CRITIQUE
+--- node --test test/critic.test.js ---
+✖ decideNext: after ANSWER, CRITIQUE when a critic is configured and the budget allows, then DONE
+✖ active supervisor: with the answer and critic seams, the loop records ANSWER -> CRITIQUE -> DONE and the critic handoff
+✖ active supervisor: a low-confidence retry followed by a critic run finishes with a spare step (no max_steps_reached)
+✖ service: with 5 s left the same 4 s critic runs and the answer is reviewed
+✖ critic extension cases: every case passes on the real scan path, in the five W2 categories
+ℹ tests 34
+ℹ pass 29
+ℹ fail 5
+--- npm run eval:extensions ---
+exit=1
+{
+ "passed": false,
+ "cases_passed_by_label": {
+  "schema_valid": "2/3",
+  "citation_present": "2/3",
+  "factually_consistent": "2/5",
+  "safe_refusal": "0/1",
+  "no_phi_in_logs": "0/1"
+ },
+ "failed_cases": [
+  {
+   "id": "x2-critic-rejects-uncited-statement",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "critic_rejected_0_expected_1",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "trace_critic_rejected_count_wrong",
+    "trace_reason_count_UNCITED_wrong",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason",
+    "planted_claim_never_reached_critic",
+    "planted_claim_shipped"
+   ]
+  },
+  {
+   "id": "x2-critic-rejects-unsafe-directive",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "critic_rejected_0_expected_1",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "trace_critic_rejected_count_wrong",
+    "trace_reason_count_UNSAFE_ACTION_wrong",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason",
+    "planted_claim_never_reached_critic",
+    "planted_claim_shipped"
+   ]
+  },
+  {
+   "id": "x2-critic-keeps-clean-answer",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason"
+   ]
+  },
+  {
+   "id": "x2-critic-ignores-added-or-rewritten-claims",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason"
+   ]
+  },
+  {
+   "id": "x2-critic-rejected-fact-not-reinserted",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason",
+    "rejected_fact_reinserted",
+    "critic_rejected_0_but_removed_0"
+   ]
+  },
+  {
+   "id": "x2-critic-invalid-json-failed",
+   "issues": [
+    "critic_status_disabled_expected_failed",
+    "trace_error_code_not_invalid_json",
+    "critique_failed_decision_missing",
+    "runtime_evaluation_not_degraded_on_critic_failure"
+   ]
+  },
+  {
+   "id": "x2-critic-no-phi",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason",
+    "critic_never_called"
+   ]
+  }
+ ]
+}
+
+=== Mutation C: a veto only bars the identical text, so the top-up re-adds a claim for the vetoed fact ===
+diff --git a/agentforge/src/critic.js b/agentforge/src/critic.js
+--- a/agentforge/src/critic.js
++++ b/agentforge/src/critic.js
+@@ -319 +319 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
+-    ? deterministicTopUpClaims(parts, survivors).filter((claim) => !(claim.citations || []).some((citation) => barredFacts.has(factKey(citation))))
++    ? deterministicTopUpClaims(parts, survivors).filter((claim) => !claims.some((item, index) => rejected.has(index) && item.text === claim.text)) // MUTATION: text-only filter
+--- node --test test/critic.test.js ---
+✖ applyCriticVerdicts: a fact cited by a rejected claim never comes back through the top-up, whatever the text
+✖ applyCriticVerdicts: rejecting every claim ships no claims; there is no fallback that restores them
+✖ applyCriticVerdicts: a top-up for a fact no rejected claim cited is counted as unreviewed, and shows in the trace summary
+✖ critic extension cases: every case passes on the real scan path, in the five W2 categories
+ℹ tests 34
+ℹ pass 30
+ℹ fail 4
+--- npm run eval:extensions ---
+exit=1
+{
+ "passed": false,
+ "cases_passed_by_label": {
+  "schema_valid": "3/3",
+  "citation_present": "3/3",
+  "factually_consistent": "4/5",
+  "safe_refusal": "1/1",
+  "no_phi_in_logs": "1/1"
+ },
+ "failed_cases": [
+  {
+   "id": "x2-critic-rejected-fact-not-reinserted",
+   "issues": [
+    "rejected_fact_reinserted",
+    "critic_rejected_2_but_removed_0",
+    "unreviewed_topup_after_veto",
+    "trace_rejected_count_not_what_was_removed"
+   ]
+  }
+ ]
+}
+
+=== Reverted: back on 7c7f0c18 ===
+ℹ tests 34
+ℹ pass 34
+ℹ fail 0
+npm run eval:extensions exit=0
