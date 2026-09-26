@@ -11,9 +11,11 @@ import {
   type OAuthDeps,
 } from '../auth/oauth.ts';
 import { LOGIN_TX_TTL_MS, randomId, type Session, type SessionStore } from '../auth/session.ts';
-import { loadHeader } from '../cards/header.ts';
+import type { CardResult } from '../../../core/cardResult.ts';
+import { loadAllergies, type IssueCardDeps } from '../cards/allergies.ts';
+import { loadHeader, type CardContext } from '../cards/header.ts';
 import { lookupPatientByMrn } from '../cards/patientLookup.ts';
-import { isoDateInZone } from '../clock.ts';
+import { isoDateInZone, localDateTimeInZone } from '../clock.ts';
 import type { UpstreamClient } from '../upstream/client.ts';
 
 export const SESSION_COOKIE = 'dashboard_sid';
@@ -131,6 +133,28 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     }
     return card;
   });
+
+  // ---- Clinical cards: one route per card, each loads independently (7.08) --
+  const issueDeps: IssueCardDeps = {
+    upstream: deps.upstream,
+    nowLocal: () => localDateTimeInZone(deps.now(), config.openemrTimeZone),
+  };
+  const cardRoute = <T>(card: string, load: (ctx: CardContext) => Promise<CardResult<T>>): void => {
+    app.get<{ Params: { puuid: string } }>(`${base}/bff/patients/:puuid/${card}`, async (req, reply) => {
+      const session = currentSession(req);
+      if (!session) return reply.code(401).send({ kind: 'reauth' });
+      const patientId = parsePatientUuid(req.params.puuid);
+      if (patientId === null) return reply.code(400).send({ error: 'invalid patient id' });
+      const result = await load({ patientId, accessToken: session.accessToken, correlationId: randomUUID() });
+      if (result.kind === 'reauth') {
+        sessions.destroySession(session.id);
+        clearSession(reply);
+        return reply.code(401).send(result);
+      }
+      return result;
+    });
+  };
+  cardRoute('allergies', (ctx) => loadAllergies(issueDeps, ctx));
 
   app.get<{ Params: { mrn: string } }>(`${base}/bff/patients/by-mrn/:mrn`, async (req, reply) => {
     const session = currentSession(req);

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "kind": "shaped",
-    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists.",
+    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows).",
     "pid": 3,
     "role": "empty-state",
     "synthetic": true
@@ -83,6 +83,15 @@
         "deceased_reason": "",
         "status": ""
       },
+      "links": []
+    }
+  },
+  "rest.allergy.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [],
       "links": []
     }
   }

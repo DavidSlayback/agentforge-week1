@@ -7,10 +7,16 @@ import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
  * unscoped collection route (catalog 3.13); a test asserts it.
  *
  * Routes are added by the slice that needs them. Slice 01-01-01 needs the
- * header reads and the MRN lookup.
+ * header reads and the MRN lookup; 01-02-01 the allergy list and the
+ * `severity_ccda` label list.
  */
 
-export type UpstreamRouteId = 'fhir.patient.read' | 'rest.patient.read' | 'fhir.patient.search';
+export type UpstreamRouteId =
+  | 'fhir.patient.read'
+  | 'rest.patient.read'
+  | 'fhir.patient.search'
+  | 'rest.allergy.list'
+  | 'rest.list.read';
 
 /** What a parameter value must parse as before it is placed in a URL. */
 export type ParamKind = 'puuid' | 'pid' | 'mrn';
@@ -34,8 +40,11 @@ export interface UpstreamRouteSpec {
   readonly query: readonly QueryParamSpec[];
   readonly scope: string;
   readonly acl: string;
-  /** How the route is bound to one patient (3.13). */
-  readonly patientBinding: 'path' | 'query';
+  /**
+   * How the route is bound to one patient (3.13). `none` is allowed only for a
+   * fixed-literal code list with no parameters at all (`rest.list.read`).
+   */
+  readonly patientBinding: 'path' | 'query' | 'none';
 }
 
 export const API_PREFIX = { rest: '/apis/default/api', fhir: '/apis/default/fhir' } as const;
@@ -73,6 +82,30 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     scope: 'user/Patient.rs',
     acl: 'patients/demo',
     patientBinding: 'query',
+  },
+  // Allergies card (01-02-01). The route ignores the query string upstream
+  // (ALLERGY-SERVICES.md "Confirmed gap"); we never send one.
+  'rest.allergy.list': {
+    id: 'rest.allergy.list',
+    api: 'rest',
+    pathTemplate: '/patient/{puuid}/allergy',
+    pathParams: [{ name: 'puuid', kind: 'puuid' }],
+    query: [],
+    scope: 'user/allergy.rs',
+    acl: 'patients/med',
+    patientBinding: 'path',
+  },
+  // The allergy severity labels (`list_options` where list_id = severity_ccda).
+  // The list name is a fixed literal, never a parameter: no other list is reachable.
+  'rest.list.read': {
+    id: 'rest.list.read',
+    api: 'rest',
+    pathTemplate: '/list/severity_ccda',
+    pathParams: [],
+    query: [],
+    scope: 'user/list.r',
+    acl: 'lists/default',
+    patientBinding: 'none',
   },
 };
 

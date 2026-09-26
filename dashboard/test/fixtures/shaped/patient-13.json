@@ -1,7 +1,7 @@
 {
   "_meta": {
     "kind": "shaped",
-    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists.",
+    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows).",
     "pid": 13,
     "role": "data-rich",
     "synthetic": true
@@ -83,6 +83,60 @@
         "deceased_reason": "",
         "status": ""
       },
+      "links": []
+    }
+  },
+  "rest.allergy.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [
+        {
+          "id": "272",
+          "date": "2026-09-25 15:12:09",
+          "type": "allergy",
+          "title": "Allergic disposition (finding)",
+          "begdate": "1979-08-14 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": null,
+          "pid": "13",
+          "user": null,
+          "outcome": "0",
+          "reaction": "1",
+          "severity_al": "1",
+          "verification": "",
+          "uuid": "a2d4d066-8342-40a5-a952-9303efb3d004",
+          "patient_id": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "patient_uuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "reaction_title": "Moderate",
+          "verification_title": null
+        },
+        {
+          "id": "273",
+          "date": "2026-09-25 15:12:09",
+          "type": "allergy",
+          "title": "Aspirin",
+          "begdate": "1979-08-14 00:00:00",
+          "enddate": null,
+          "activity": "1",
+          "comments": null,
+          "pid": "13",
+          "user": null,
+          "outcome": "0",
+          "reaction": "1",
+          "severity_al": "1",
+          "verification": "",
+          "uuid": "a2d4d066-8344-4088-90e7-f632c2cf8d45",
+          "patient_id": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "patient_uuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "reaction_title": "Moderate",
+          "verification_title": null
+        }
+      ],
       "links": []
     }
   }

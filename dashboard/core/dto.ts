@@ -59,3 +59,17 @@ export type PatientLookupResult =
   | { readonly kind: 'forbidden' }
   | { readonly kind: 'reauth' }
   | { readonly kind: 'error'; readonly correlationId: string; readonly code: ErrorCode | 'AMBIGUOUS_MRN' };
+
+/**
+ * One row of the Allergies card (W2D-3), already filtered by
+ * `filterActiveIssues` and kept in API order (no client sort, 4.03).
+ */
+export interface AllergyRow {
+  readonly title: string;
+  /** Text shown in parentheses: the `severity_ccda` label, else the raw code ("1"), else "". */
+  readonly severityLabel: string;
+  /** Highlighted like the legacy `bg-warning` span: severe, life-threatening or fatal only. */
+  readonly severe: boolean;
+  /** `reaction_title`, shown in the row's tooltip as in the legacy card; null when none. */
+  readonly reaction: string | null;
+}
