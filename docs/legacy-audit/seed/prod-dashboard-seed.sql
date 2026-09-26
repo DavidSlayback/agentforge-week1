@@ -25,11 +25,13 @@ SELECT UNHEX(REPLACE(UUID(),'-','')), @pidA, 'DASH-SYN-01', 'Dana', 'Seedcase', 
 INSERT INTO patient_data (uuid, pid, pubpid, fname, lname, DOB, sex, date, regdate, providerID, deceased_date, deceased_reason)
 SELECT UNHEX(REPLACE(UUID(),'-','')), @pidB, 'DASH-SYN-02', 'Morgan', 'Seedcase', '1948-09-01', 'Male', NOW(), '2019-06-01', @user, '2026-08-30 14:00:00', '[seed:dashboard]' FROM DUAL WHERE @already = 0;
 
+-- Allergies are authored by NO user (user NULL): OpenEMR's AllergyIntoleranceService returns the author's
+-- raw binary uuid, which breaks JSON encoding (HTTP 500) when a user is set. See BUGS-MITIGATIONS 5.29 / evidence/parity/README.md.
 -- Allergies (A): one active severe, one resolved (outcome=1, hidden by the card). (B): one.
 INSERT INTO lists (uuid, date, type, title, begdate, enddate, outcome, severity_al, reaction, activity, pid, user, comments)
-SELECT UNHEX(REPLACE(UUID(),'-','')), NOW(), 'allergy', 'Penicillin', '2001-05-01', NULL, 0, 'severe', 'hives', 1, @pidA, 'admin', '[seed:dashboard]' FROM DUAL WHERE @already = 0
-UNION ALL SELECT UNHEX(REPLACE(UUID(),'-','')), NOW(), 'allergy', 'Latex', '2010-03-01', NULL, 1, 'mild', '', 1, @pidA, 'admin', 'resolved [seed:dashboard]' FROM DUAL WHERE @already = 0
-UNION ALL SELECT UNHEX(REPLACE(UUID(),'-','')), NOW(), 'allergy', 'Sulfa drugs', '1990-01-01', NULL, 0, 'moderate', '', 1, @pidB, 'admin', '[seed:dashboard]' FROM DUAL WHERE @already = 0;
+SELECT UNHEX(REPLACE(UUID(),'-','')), NOW(), 'allergy', 'Penicillin', '2001-05-01', NULL, 0, 'severe', 'hives', 1, @pidA, NULL, '[seed:dashboard]' FROM DUAL WHERE @already = 0
+UNION ALL SELECT UNHEX(REPLACE(UUID(),'-','')), NOW(), 'allergy', 'Latex', '2010-03-01', NULL, 1, 'mild', '', 1, @pidA, NULL, 'resolved [seed:dashboard]' FROM DUAL WHERE @already = 0
+UNION ALL SELECT UNHEX(REPLACE(UUID(),'-','')), NOW(), 'allergy', 'Sulfa drugs', '1990-01-01', NULL, 0, 'moderate', '', 1, @pidB, NULL, '[seed:dashboard]' FROM DUAL WHERE @already = 0;
 
 -- Problems (A): two open, one ended (hidden by the card).
 INSERT INTO lists (uuid, date, type, title, begdate, enddate, outcome, activity, pid, user, comments)
