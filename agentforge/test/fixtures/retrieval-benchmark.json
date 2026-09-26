@@ -1,0 +1,32 @@
+{
+  "schema_version": "agentforge-retrieval-benchmark-v1",
+  "labeled_at": "2026-09-26",
+  "labeling_rule": "A chunk is relevant when a clinician asking this query would accept its verbatim text as a direct answer or as the guideline context for the finding. Labels were written by reading corpus/guidelines/corpus.json before any retrieval change was measured. A1C_INTERPRETATION is the same five-chunk set the W2 gate accepts for an abnormal A1C (w2RegressionGate.js A1C_INTERPRETATION_SOURCES).",
+  "sets": {
+    "A1C_INTERPRETATION": ["cdc-a1c-diagnostic-ranges", "cdc-a1c-test-definition", "medlineplus-a1c-results-meaning", "medlineplus-a1c-what-it-is", "niddk-a1c-test-uses"]
+  },
+  "queries": [
+    { "id": "rb-01", "derived_from": "lab-a truth: A1C abnormal, formulated with no clinician question (gate fc-11)", "query": "Abnormal findings: A1C test result abnormal.", "relevant": ["$A1C_INTERPRETATION"] },
+    { "id": "rb-02", "derived_from": "lab-b truth: Hemoglobin abnormal, A1C abnormal, no clinician question", "query": "Abnormal findings: Hemoglobin test result abnormal, A1C test result abnormal.", "relevant": ["$A1C_INTERPRETATION", "medlineplus-cbc-hemoglobin-anemia"] },
+    { "id": "rb-03", "derived_from": "gen-lab-c-table truth: Hemoglobin A1C high, no clinician question", "query": "Abnormal findings: Hemoglobin A1C test result high.", "relevant": ["$A1C_INTERPRETATION"] },
+    { "id": "rb-04", "derived_from": "gen-lab-d-flags truth: Hemoglobin low, A1C high, no clinician question", "query": "Abnormal findings: Hemoglobin test result low, A1C test result high.", "relevant": ["$A1C_INTERPRETATION", "medlineplus-cbc-hemoglobin-anemia", "nhlbi-anemia-definition"] },
+    { "id": "rb-05", "derived_from": "intake-a truth: chief concern, no clinician question", "query": "Chief concern: Fatigue for two weeks.", "relevant": ["nhlbi-anemia-fatigue-symptoms"] },
+    { "id": "rb-06", "derived_from": "intake-b truth: chief concern, no clinician question", "query": "Chief concern: Dizziness after standing.", "relevant": ["nhlbi-anemia-fatigue-symptoms"] },
+    { "id": "rb-07", "derived_from": "gen-intake-d-dob truth: chief concern, no clinician question", "query": "Chief concern: Shortness of breath on stairs.", "relevant": ["nhlbi-anemia-fatigue-symptoms"] },
+    { "id": "rb-08", "derived_from": "gate query (fc-08): lab-a with the glycemic clinician question", "query": "Abnormal findings: A1C test result abnormal. A1C blood sugar diabetes diagnosis threshold", "relevant": ["$A1C_INTERPRETATION"] },
+    { "id": "rb-09", "derived_from": "gate query (fc-09): intake-a with the fatigue clinician question", "query": "Chief concern: Fatigue for two weeks. evaluate feeling tired and weak for possible anemia", "relevant": ["nhlbi-anemia-fatigue-symptoms", "medlineplus-cbc-hemoglobin-anemia"] },
+    { "id": "rb-10", "derived_from": "gate query (fc-10): intake-b with the medication reconciliation question", "query": "Chief concern: Dizziness after standing. reconcile current medicine list against prior records pharmacy", "relevant": ["cdc-medication-list-tell-doctor", "nhlbi-anemia-fatigue-symptoms"] },
+    { "id": "rb-11", "derived_from": "gate query: intake-a with the medication reconciliation question", "query": "Chief concern: Fatigue for two weeks. reconcile current medicine list against prior records pharmacy", "relevant": ["cdc-medication-list-tell-doctor", "nhlbi-anemia-fatigue-symptoms"] },
+    { "id": "rb-12", "derived_from": "gate query: gen-lab-c-table with the medication reconciliation question", "query": "Abnormal findings: Hemoglobin A1C test result high. reconcile current medicine list against prior records pharmacy", "relevant": ["$A1C_INTERPRETATION", "cdc-medication-list-tell-doctor"] },
+    { "id": "rb-13", "derived_from": "gate query: gen-lab-d-flags with the glycemic clinician question", "query": "Abnormal findings: Hemoglobin test result low, A1C test result high. A1C blood sugar diabetes diagnosis threshold", "relevant": ["$A1C_INTERPRETATION", "medlineplus-cbc-hemoglobin-anemia"] },
+    { "id": "rb-14", "derived_from": "clinician question about the lab-a A1C finding", "query": "What A1C percentage counts as prediabetes versus diabetes?", "relevant": ["cdc-a1c-diagnostic-ranges"] },
+    { "id": "rb-15", "derived_from": "clinician question: A1C follow-up for a diabetic patient (intake-a medication list)", "query": "How often should HbA1c be repeated in a patient with diabetes?", "relevant": ["niddk-a1c-testing-frequency"] },
+    { "id": "rb-16", "derived_from": "clinician question about the gen-lab-d-flags low hemoglobin", "query": "What can a low hemoglobin on a CBC indicate?", "relevant": ["medlineplus-cbc-hemoglobin-anemia", "nhlbi-anemia-definition", "nhlbi-anemia-causes"] },
+    { "id": "rb-17", "derived_from": "clinician question from intake-a family history (type 2 diabetes in a parent)", "query": "Is a parent with type 2 diabetes a risk factor for prediabetes?", "relevant": ["cdc-prediabetes-symptoms-riskfactors"] },
+    { "id": "rb-18", "derived_from": "clinician question combining the intake-a medication and the lab-a A1C", "query": "patient on metformin with elevated glycated hemoglobin", "relevant": ["$A1C_INTERPRETATION"] },
+    { "id": "rb-19", "derived_from": "clinician question from gen-intake-c-conflict (antihypertensive, family history of hypertension)", "query": "How often should blood pressure be screened in adults?", "relevant": ["uspstf-hypertension-screening-intervals", "uspstf-hypertension-screening-recommendation"] },
+    { "id": "rb-20", "derived_from": "clinician question: diabetic patient (intake-a) and kidney testing", "query": "Should kidney function be checked in a patient with diabetes?", "relevant": ["medlineplus-kidney-risk-factors"] },
+    { "id": "rb-21", "derived_from": "clinician question about an eGFR result", "query": "What does a low eGFR mean?", "relevant": ["medlineplus-gfr-results-meaning"] },
+    { "id": "rb-22", "derived_from": "clinician question combining the gen-lab-d-flags low hemoglobin and the intake-a fatigue", "query": "hgb low, tired and pale", "relevant": ["nhlbi-anemia-fatigue-symptoms", "medlineplus-cbc-hemoglobin-anemia"] }
+  ]
+}
