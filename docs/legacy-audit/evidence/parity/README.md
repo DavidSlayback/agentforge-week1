@@ -30,7 +30,7 @@ production) — see Findings.
 | Header | Page title only: "Medical Record Dashboard - Dana Seedcase" (no persistent identity bar outside the tabbed shell; DOB/sex/status not shown at all in that bar per `ui/DASHBOARD-HEADER.md`) | Name, DOB 1970-04-12 (Age: 56), **Sex: Female**, MRN DASH-SYN-01, **Status: Active** | **Intended**: sex + status are fields the legacy identity bar never has (4.04); this is a documented addition, not a parity break |
 | Allergies | "Penicillin ( **Severe** )" — 1 row shown (the `outcome=1` Latex allergy is hidden) | "Penicillin ( **Severe** )" — same 1 row, same highlight | Same (see Findings: this now matches only because of a seed-data workaround, not a code fix) |
 | Medical Problems | Essential hypertension; Prediabetes (2 rows; the past-enddate problem hidden) | Same 2 rows | Same |
-| Medications | Lisinopril 10 MG Oral Tablet (1 row) | Same, plus "Dosage instructions: not available via API" | **Intended**: dosage instructions gap, documented on-card |
+| Medications | Lisinopril 10 MG Oral Tablet (1 row) | Same, plus "Dosage instructions: not available via API" | **Intended at capture time**: dosage instructions gap, documented on-card. Superseded by slice 01-06-04: the card now joins instructions from FHIR `MedicationRequest` (none are recorded for this row, so with a client that holds `user/MedicationRequest.rs` it shows the title alone, as legacy does; without that scope it notes that the instructions could not be loaded) |
 | Prescriptions | 3 rows (Metformin, Lisinopril, Amoxicillin) with real Qty/Refills (1, 3, 0) and Filled dates | Same 3 rows, same drugs/qty/dates, **Refills: "Not available via API"** for all 3; no dosage-form suffix | **Intended** (documented deviation: "refills not available via API"; PrescriptionService's REST shape has no refill count, per `data/UUID-MAPPING.md` §6) |
 | Care Team | Card present but **collapsed by default** — 0 visible rows on the full-page screenshot (a row exists in the DOM per `capture-data.json` but needs a manual expand click, unlike Allergies/Problems/Medications which render already expanded) | 1 row shown inline: Provider, **Name unavailable**, Primary Care Provider, Great Clinic, Since 2020-01-15, Status/Note "Not available via API" | **Intended**: the port always renders expanded; "Name unavailable" and the status/note gaps are explained in-card (Practitioner/Organization reads need admin/users permission; the seeded provider is `admin`, which has no NPI, so the FHIR `Practitioner` read 404s) |
 | Vitals | Shows the **soft-deleted** 2026-05-01 set: BP 190/120, Temp 101 F, note "DELETED vitals, must be hidden [seed:dashboard]" | Shows the correct **non-deleted** 2026-04-05 set: BP 128/82, Temp 98.2 F, note "[seed:dashboard]" | **Intended, and the point of catalog 5.01/5.02**: the port fixes a Critical defect (legacy shows a soft-deleted vitals set); this is the deliberate divergence the arc calls out |
@@ -123,6 +123,36 @@ local stack): DASH-SYN-01 now shows "Penicillin (Severe)" and DASH-SYN-02 shows
   anything in `dashboard/` changed.
 
 No other unintended differences were found across the three patients and six cards.
+
+## Layout (slice 01-06-04, 2026-09-26)
+
+**Before this slice:** the port stacked all six cards at full width in one column, and its header scrolled away with them (`port-*.png` above).
+
+**What legacy does** (`legacy-dash-syn-01.png`, 1280 px): Allergies, Medical Problems and Medications sit side by side in one row of three equal columns. Prescriptions takes the full width, and so does Care Team. Vitals sits in the left column, about two-thirds of the width, and the right third holds legacy-only cards (portal, reminders, appointments, immunizations).
+
+**What the port does now:** `.cards` is a CSS grid (`dashboard/web/src/styles.css`). The card DOM order is unchanged, so reading and tab order equal the visual order.
+
+**Method.** A throwaway script ran the real BFF (`buildApp`) and the built SPA (`web/dist`) on localhost. The BFF's upstream was the test harness's fake OpenEMR, serving the committed shaped pid 13 fixtures (`dashboard/test/fixtures/shaped/patient-13.json`). Headless Chromium (Playwright, from the probe kit) then measured each card's box. This is **not** the live stack and not the public URL. The script was not committed, like the earlier capture scripts.
+
+| Card | Legacy (1280 px, x-range) | Port, 1280 px (x, width) | Port, 390 px (x, width) |
+|---|---|---|---|
+| Allergies | column 1 of 3 (x ≈ 8–418) | x 16, w 373 (column 1 of 3) | x 16, w 358 (full) |
+| Medical Problems | column 2 of 3 (x ≈ 436–845) | x 405, w 373 (column 2 of 3) | x 16, w 358 |
+| Medications | column 3 of 3 (x ≈ 862–1271) | x 795, w 373 (column 3 of 3) | x 16, w 358 |
+| Prescriptions | full width | x 16, w 1152 (full) | x 16, w 358 |
+| Care Team | full width | x 16, w 1152 (full) | x 16, w 358 |
+| Vitals | left two-thirds (x ≈ 8–845) | x 16, w 763 (columns 1–2) | x 16, w 358 |
+
+Result: **same arrangement and order.** Three differences remain:
+- The port's content is capped at 72 rem (1152 px). Legacy uses the full window, so at 1280 px each port card is about 35 px narrower.
+- Legacy's first row sizes each card to its own height. The port aligns them to the top of the row, which looks the same (`align-items: start`).
+- The right-hand third next to Vitals is empty in the port. It holds legacy cards that are not ported (see `PATIENT_DASHBOARD_MIGRATION.md`, "Legacy cards not ported").
+
+On a 390 px phone the port is one column in the same order, with no horizontal page scroll (`scrollWidth ≤ innerWidth`). Wide tables scroll inside their card.
+
+**Sticky header, same run.** After scrolling to the bottom of the page (scrollY 650 at 1280 px, 1497 at 390 px), the identity bar's top was 0 px and its computed `position` was `sticky`. The bar is 39 px tall at 1280 px and 97 px at 390 px, within the 5 rem / 9 rem `scroll-padding-top` reserved for it (`port-sticky-*.png`).
+
+Files: `port-layout-pid-13-wide-1280.png`, `port-layout-pid-13-narrow-390.png` (full page), `port-sticky-pid-13-wide-1280.png`, `port-sticky-pid-13-narrow-390.png` (viewport after scrolling). Synthetic seed data only.
 
 ## Timing (local laptop, not production)
 

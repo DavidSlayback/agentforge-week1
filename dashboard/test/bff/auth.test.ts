@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { IDLE_TIMEOUT_MS, SessionStore } from '../../bff/src/auth/session.ts';
 import { pkceChallenge, sanitizeReturnTo } from '../../bff/src/auth/oauth.ts';
+import { OAUTH_SCOPE } from '../../bff/src/config.ts';
+import { UPSTREAM_ROUTES } from '../../core/upstreamRoutes.ts';
 import {
   buildTestApp,
   cookieValue,
@@ -16,7 +18,14 @@ import {
 } from '../support/harness.ts';
 
 const EXPECTED_SCOPE =
-  'openid api:oemr api:fhir user/Patient.rs user/CareTeam.rs user/Practitioner.rs user/Organization.rs user/patient.rs user/allergy.rs user/medical_problem.rs user/medication.rs user/prescription.rs user/encounter.rs user/vital.rs user/list.r';
+  'openid api:oemr api:fhir user/Patient.rs user/CareTeam.rs user/Practitioner.rs user/Organization.rs user/MedicationRequest.rs user/patient.rs user/allergy.rs user/medical_problem.rs user/medication.rs user/prescription.rs user/encounter.rs user/vital.rs user/list.r';
+
+describe('OAuth scope string', () => {
+  it('requests the scope of every allow-listed upstream route (a missing one only shows up as a 401 on that route)', () => {
+    const requested = OAUTH_SCOPE.split(' ');
+    for (const spec of Object.values(UPSTREAM_ROUTES)) expect(requested, spec.id).toContain(spec.scope);
+  });
+});
 
 describe('GET /dashboard/login', () => {
   it('redirects to the issuer authorize endpoint with S256, state, nonce and the exact scopes', async () => {

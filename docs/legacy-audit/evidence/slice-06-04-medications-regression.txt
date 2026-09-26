@@ -1,0 +1,175 @@
+Slice 01-06-04 (requirement hardening, item 2: Medications FHIR dosage enrichment) deliberate-regression proof
+Date: 2026-09-26T04:56Z
+Branch: agentforge/w2-dashboard, parent commit eb8696cd294c01540994a1116d7a8990297de1b0
+  (feat(dashboard): join FHIR MedicationRequest dosage instructions into Medications, which passed the full hook)
+Break ("join by position, not by uuid": instructions from the Nth intent=plan MedicationRequest go to the Nth
+active medication, so after the begdate sort or with a missing request they land on the wrong drug):
+  dashboard/core/rules/medications.ts joinDosageInstructions()
+  -  const rows = medications.map((m): JoinedMedication => {
+  -    const key = m.uuid.toLowerCase();
+  +  // REGRESSION: join by position in the plan list instead of by uuid.
+  +  const positional = [...byId.keys()];
+  +  const rows = medications.map((m, i): JoinedMedication => {
+  +    const key = positional[i] ?? m.uuid.toLowerCase();
+Command: git add dashboard/core/rules/medications.ts && git commit -m 'test(dashboard): deliberate regression (must be refused by the hook)'  (runs .githooks/pre-commit)
+Result: hook exit 1, commit refused (HEAD before = after = eb8696c). Typecheck and lint passed; the tests caught it.
+Red (3 of 312):
+  - test/core/medications.test.ts  "attaches each plan request to the medication with the same uuid, case-insensitively, in the medications order"
+  - test/core/medications.test.ts  "counts medications without a matching request, and ignores requests without a medication" -> expected 2 to be 3
+  - test/contract/medications.test.ts  "the join is by uuid, not by position or title: instructions follow their own row after the begdate sort"
+Not red, and why: the DASH-SYN-01 hand-built case has one active medication whose request is first in the Bundle, so
+position and uuid agree there; the uuid-specific cases above are what pin the join.
+Reverted with git checkout; the working tree was clean afterwards.
+Output below: the Dashboard gate section of the hook output (ANSI colour codes stripped; the earlier AgentForge suites passed and are omitted).
+Synthetic data only: drug titles are the synthetic seed's; instruction texts are invented ("... [synthetic]", "late sig").
+----------------------------------------------------------------------
+Dashboard gate: typecheck, lint, unit/contract/component tests, build...
+
+ RUN  v3.2.7 C:/Users/david/repos/agentforge-week1-w2-dashboard/dashboard
+
+ ✓  node  test/core/issues.test.ts (34 tests) 11ms
+ ✓  node  test/core/prescriptions.test.ts (11 tests) 8ms
+ ✓  node  test/core/format.test.ts (17 tests) 6ms
+ ✓  node  test/core/vitals.test.ts (7 tests) 8ms
+ ❯  node  test/core/medications.test.ts (5 tests | 2 failed) 16ms
+   × joinDosageInstructions (slice 01-06-04, 4.05) > attaches each plan request to the medication with the same uuid, case-insensitively, in the medications order 12ms
+     → expected { …(2) } to deeply equal { …(2) }
+   ✓ joinDosageInstructions (slice 01-06-04, 4.05) > never takes instructions from a request whose intent is not plan (a prescription), even with the same uuid 0ms
+   ✓ joinDosageInstructions (slice 01-06-04, 4.05) > joins several instruction texts with "; ", trims them and drops blanks 0ms
+   × joinDosageInstructions (slice 01-06-04, 4.05) > counts medications without a matching request, and ignores requests without a medication 1ms
+     → expected 2 to be 3 // Object.is equality
+   ✓ joinDosageInstructions (slice 01-06-04, 4.05) > an empty medication list stays empty 0ms
+ ✓  node  test/core/careTeam.test.ts (8 tests) 5ms
+ ✓  node  test/bff/mapResponse.test.ts (14 tests) 21ms
+ ✓  node  test/core/header.test.ts (9 tests) 15ms
+ ✓  node  test/core/upstreamRoutes.test.ts (16 tests) 15ms
+ ✓  node  test/contract/problems.test.ts (8 tests) 54ms
+ ✓  node  test/contract/prescriptions.test.ts (8 tests) 60ms
+ ✓  node  test/contract/allergies.test.ts (13 tests) 80ms
+ ✓  node  test/contract/header.test.ts (12 tests) 88ms
+ ✓  node  test/contract/vitals.test.ts (12 tests) 121ms
+ ✓  node  test/contract/careTeam.test.ts (11 tests) 118ms
+ ❯  node  test/contract/medications.test.ts (17 tests | 1 failed) 126ms
+   ✓ Medications use case against shaped fixtures (contract) > pid 13: 1 of 5 rows; the pid comes from the patient read; dosage from FHIR intent=plan, joined by uuid (none recorded) 30ms
+   ✓ Medications use case against shaped fixtures (contract) > DASH-SYN-01 (hand-built instructions): the active row shows its own dosageInstruction text; an intent=order entry never attaches 5ms
+   × Medications use case against shaped fixtures (contract) > the join is by uuid, not by position or title: instructions follow their own row after the begdate sort 16ms
+     → expected [ Array(2) ] to deeply equal [ Array(2) ]
+   ✓ Medications use case against shaped fixtures (contract) > an active medication with no MedicationRequest of its uuid shows no instructions, and the card says how many 4ms
+   ✓ Medications use case against shaped fixtures (contract) > a failed MedicationRequest read (401 (a client registered without user/MedicationRequest.rs)) keeps the list and says the instructions could not be loaded; never reauth 3ms
+   ✓ Medications use case against shaped fixtures (contract) > a failed MedicationRequest read (403) keeps the list and says the instructions could not be loaded; never reauth 3ms
+   ✓ Medications use case against shaped fixtures (contract) > a failed MedicationRequest read (500 carrying SQL) keeps the list and says the instructions could not be loaded; never reauth 3ms
+   ✓ Medications use case against shaped fixtures (contract) > a failed MedicationRequest read (OperationOutcome in a 200) keeps the list and says the instructions could not be loaded; never reauth 5ms
+   ✓ Medications use case against shaped fixtures (contract) > a failed MedicationRequest read (a Bundle of another resource type) keeps the list and says the instructions could not be loaded; never reauth 4ms
+   ✓ Medications use case against shaped fixtures (contract) > a MedicationRequest about another patient fails the whole card (PATIENT_MISMATCH), as any cross-patient answer does 4ms
+   ✓ Medications use case against shaped fixtures (contract) > no active medication: the FHIR search is never called 4ms
+   ✓ Medications use case against shaped fixtures (contract) > pid 3: the route answers 404 with an empty body, which is "Nothing Recorded", not an error (6.04) 2ms
+   ✓ Medications use case against shaped fixtures (contract) > DASH-SYN-02 (404, empty body) is empty; DASH-SYN-01 keeps only the medication without a past enddate 5ms
+   ✓ Medications use case against shaped fixtures (contract) > a 404 with a body is an error, and a 404 on any other route is an error 4ms
+   ✓ Medications use case against shaped fixtures (contract) > HTTP 200 [] is empty; 200 validationErrors, a 500 and an unexpected shape are errors 21ms
+   ✓ Medications use case against shaped fixtures (contract) > sorts active rows by begdate ascending, NULLs first (the route sorts by date DESC) 4ms
+   ✓ Medications use case against shaped fixtures (contract) > a row for another pid fails the card (PATIENT_MISMATCH); 403 is forbidden; 401 is reauth 8ms
+ ✓  node  test/bff/health.test.ts (7 tests) 284ms
+ ✓  node  test/bff/logRedaction.test.ts (1 test) 440ms
+   ✓ log redaction across the full workflow > logs route templates, statuses and correlation ids, never PHI, ids or credentials  438ms
+ ✓  node  test/bff/auth.test.ts (13 tests) 777ms
+ ✓  node  test/bff/security.test.ts (11 tests) 1106ms
+   ✓ security headers and caching > sends CSP, no-referrer and nosniff everywhere, and no-store on /bff, /login, /callback, /logout  413ms
+ ✓  node  test/bff/cardRoutes.test.ts (13 tests) 1445ms
+   ✓ card routes over HTTP (fastify.inject) > GET /bff/patients/:puuid/allergies returns the CardResult for that patient  430ms
+ ✓  web  test/web/CareTeamCard.test.tsx (8 tests) 338ms
+ ✓  web  test/web/AllergiesCard.test.tsx (12 tests) 390ms
+ ✓  web  test/web/StickyHeader.test.tsx (5 tests) 318ms
+ ✓  web  test/web/PatientHeader.test.tsx (10 tests) 247ms
+ ✓  web  test/web/ProblemsCard.test.tsx (6 tests) 247ms
+ ✓  web  test/web/MedicationsCard.test.tsx (7 tests) 307ms
+ ✓  web  test/web/PrescriptionsCard.test.tsx (8 tests) 318ms
+ ✓  web  test/web/VitalsCard.test.tsx (6 tests) 310ms
+ ✓  node  test/lint/boundaries.test.ts (3 tests) 4324ms
+   ✓ lint boundaries > web importing the BFF fails the lint  3565ms
+   ✓ lint boundaries > core importing I/O or a framework fails the lint  659ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL   node  test/contract/medications.test.ts > Medications use case against shaped fixtures (contract) > the join is by uuid, not by position or title: instructions follow their own row after the begdate sort
+AssertionError: expected [ Array(2) ] to deeply equal [ Array(2) ]
+
+- Expected
++ Received
+
+  [
+-   "early sig; second line",
+    "late sig",
++   "early sig; second line",
+  ]
+
+ ❯ test/contract/medications.test.ts:120:68
+    118|     const card = await run(PATIENT.p13);
+    119|     expect(card).toMatchObject({ kind: 'ok', notes: [] });
+    120|     if (card.kind === 'ok') expect(card.rows.map((r) => r.dosage)).toE…
+       |                                                                    ^
+    121|   });
+    122| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL   node  test/core/medications.test.ts > joinDosageInstructions (slice 01-06-04, 4.05) > attaches each plan request to the medication with the same uuid, case-insensitively, in the medications order
+AssertionError: expected { …(2) } to deeply equal { …(2) }
+
+- Expected
++ Received
+
+  {
+    "rows": [
+      {
+-       "dosage": "sig A",
++       "dosage": "sig C",
+        "title": "Synthetic med A",
+      },
+      {
+-       "dosage": null,
++       "dosage": "sig A",
+        "title": "Synthetic med B",
+      },
+      {
+-       "dosage": "sig C",
++       "dosage": null,
+        "title": "Synthetic med C",
+      },
+    ],
+    "unmatched": 0,
+  }
+
+ ❯ test/core/medications.test.ts:18:20
+     16|       { id: 'aaaaaaaa-0000-4000-8000-000000000002', intent: 'plan', do…
+     17|     ]);
+     18|     expect(joined).toEqual({
+       |                    ^
+     19|       rows: [
+     20|         { title: 'Synthetic med A', dosage: 'sig A' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL   node  test/core/medications.test.ts > joinDosageInstructions (slice 01-06-04, 4.05) > counts medications without a matching request, and ignores requests without a medication
+AssertionError: expected 2 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ test/core/medications.test.ts:43:30
+     41|   it('counts medications without a matching request, and ignores reque…
+     42|     const joined = joinDosageInstructions(MEDS, [{ id: 'bbbbbbbb-0000-…
+     43|     expect(joined.unmatched).toBe(3);
+       |                              ^
+     44|     expect(joined.rows.every((r) => r.dosage === null)).toBe(true);
+     45|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed | 28 passed (30)
+      Tests  3 failed | 309 passed (312)
+   Start at  23:56:13
+   Duration  5.18s (transform 1.80s, setup 0ms, collect 19.25s, tests 11.60s, environment 6.46s, prepare 5.08s)

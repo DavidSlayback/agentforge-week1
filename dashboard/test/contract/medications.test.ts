@@ -1,11 +1,11 @@
 import { pino } from 'pino';
 import { describe, expect, it } from 'vitest';
 import { loadAllergies } from '../../bff/src/cards/allergies.ts';
-import { DOSAGE_NOT_AVAILABLE, loadMedications } from '../../bff/src/cards/medications.ts';
+import { DOSAGE_LOAD_FAILED, dosageNotReturned, loadMedications } from '../../bff/src/cards/medications.ts';
 import { loadProblems } from '../../bff/src/cards/problems.ts';
 import { createUpstreamClient } from '../../bff/src/upstream/client.ts';
 import { parsePatientUuid, type PatientUuid } from '../../core/ids.ts';
-import { FakeOpenEmr, PATIENT, responseFixture, routeFixture, type FixtureResponse } from '../support/harness.ts';
+import { FakeOpenEmr, PATIENT, readFixtureFile, responseFixture, routeFixture, type FixtureResponse } from '../support/harness.ts';
 
 const BASE = 'http://openemr';
 const TOKEN = 'synthetic-access-token-CONTRACT';
@@ -14,6 +14,8 @@ const NOW_LOCAL = '2026-09-25 13:00:00';
 const patientUrl = (id: string) => `${BASE}/apis/default/api/patient/${id}`;
 // The medication route takes the integer pid, never the uuid.
 const medicationUrl = (pid: number) => `${BASE}/apis/default/api/patient/${String(pid)}/medication`;
+// Dosage instructions (01-06-04): exactly the patient uuid and the fixed intent, nothing else.
+const medicationRequestUrl = (id: string) => `${BASE}/apis/default/fhir/MedicationRequest?patient=${id}&intent=plan`;
 
 const FILES = {
   [PATIENT.p13]: { file: 'shaped/patient-13.json', pid: 13 },
@@ -51,9 +53,12 @@ function setup() {
   };
 }
 
-function serve(fake: FakeOpenEmr, id: Id, medications?: FixtureResponse) {
+function serve(fake: FakeOpenEmr, id: Id, medications?: FixtureResponse, medicationRequests?: FixtureResponse) {
   const { file, pid } = FILES[id];
   fake.on('GET', patientUrl(id), routeFixture(file, 'rest.patient.read')).on('GET', medicationUrl(pid), medications ?? routeFixture(file, 'rest.medication.list'));
+  const shaped = Object.hasOwn(readFixtureFile(file), 'fhir.medicationrequest.search') ? routeFixture(file, 'fhir.medicationrequest.search') : undefined;
+  const fhir = medicationRequests ?? shaped;
+  if (fhir) fake.on('GET', medicationRequestUrl(id), fhir);
 }
 
 function apiRows(id: Id): ApiMedication[] {
@@ -61,20 +66,108 @@ function apiRows(id: Id): ApiMedication[] {
 }
 
 describe('Medications use case against shaped fixtures (contract)', () => {
-  it('pid 13: 1 of 5 rows, title only, with the dosage gap noted; the pid comes from the patient read', async () => {
+  it('pid 13: 1 of 5 rows; the pid comes from the patient read; dosage from FHIR intent=plan, joined by uuid (none recorded)', async () => {
     const { fake, run } = setup();
     serve(fake, PATIENT.p13);
     const card = await run(PATIENT.p13);
     expect(fake.unexpected).toEqual([]);
-    expect(fake.calls.map((c) => c.url)).toEqual([patientUrl(PATIENT.p13), medicationUrl(13)]);
-    for (const c of fake.calls) expect(new URL(c.url).search).toBe('');
+    expect(fake.calls.map((c) => c.url)).toEqual([patientUrl(PATIENT.p13), medicationUrl(13), medicationRequestUrl(PATIENT.p13)]);
+    for (const c of fake.calls.slice(0, 2)) expect(new URL(c.url).search).toBe('');
+    expect([...new URL(fake.calls[2]?.url ?? BASE).searchParams.keys()]).toEqual(['patient', 'intent']);
     expect(apiRows(PATIENT.p13)).toHaveLength(5);
-    expect(card).toMatchObject({ kind: 'ok', patientId: PATIENT.p13, notes: [DOSAGE_NOT_AVAILABLE] });
+    // Every active medication has its MedicationRequest, none with instructions: no gap note, no dosage text.
+    expect(card).toMatchObject({ kind: 'ok', patientId: PATIENT.p13, notes: [] });
     if (card.kind !== 'ok') return;
     expect(card.rows).toHaveLength(1);
     const kept = apiRows(PATIENT.p13).filter((r) => r.enddate === null);
-    expect(card.rows.map((r) => r.title)).toEqual(kept.map((r) => r.title));
-    expect(Object.keys(card.rows[0] ?? {})).toEqual(['title']);
+    expect(card.rows).toEqual(kept.map((r) => ({ title: r.title, dosage: null })));
+  });
+
+  it('DASH-SYN-01 (hand-built instructions): the active row shows its own dosageInstruction text; an intent=order entry never attaches', async () => {
+    const { fake, run } = setup();
+    serve(fake, PATIENT.dashSyn01, undefined, responseFixture('hand-built/fhir-medicationrequest-dosage-dash-syn-01.json'));
+    const card = await run(PATIENT.dashSyn01);
+    expect(fake.unexpected).toEqual([]);
+    expect(card).toEqual({
+      kind: 'ok',
+      patientId: PATIENT.dashSyn01,
+      rows: [{ title: 'Lisinopril 10 MG Oral Tablet', dosage: '1 tablet by mouth once daily [synthetic]' }],
+      notes: [],
+    });
+    expect(JSON.stringify(card)).not.toContain('PRESCRIPTION SIG');
+  });
+
+  it('the join is by uuid, not by position or title: instructions follow their own row after the begdate sort', async () => {
+    const { fake, run } = setup();
+    const base = apiRows(PATIENT.p13)[0];
+    if (!base) throw new Error('fixture');
+    const rows: ApiMedication[] = [
+      { ...base, uuid: 'u-late', title: 'Synthetic same title', begdate: '2024-01-01 00:00:00', enddate: null },
+      { ...base, uuid: 'u-early', title: 'Synthetic same title', begdate: '2001-01-01 00:00:00', enddate: null },
+    ];
+    const subject = { reference: `Patient/${PATIENT.p13}` };
+    const bundle = {
+      resourceType: 'Bundle',
+      total: 2,
+      entry: [
+        { resource: { resourceType: 'MedicationRequest', id: 'U-LATE', intent: 'plan', subject, dosageInstruction: [{ text: 'late sig' }] } },
+        { resource: { resourceType: 'MedicationRequest', id: 'u-early', intent: 'plan', subject, dosageInstruction: [{ text: 'early sig' }, { text: ' second line ' }] } },
+      ],
+    };
+    serve(fake, PATIENT.p13, { status: 200, body: rows }, { status: 200, body: bundle });
+    const card = await run(PATIENT.p13);
+    expect(card).toMatchObject({ kind: 'ok', notes: [] });
+    if (card.kind === 'ok') expect(card.rows.map((r) => r.dosage)).toEqual(['early sig; second line', 'late sig']);
+  });
+
+  it('an active medication with no MedicationRequest of its uuid shows no instructions, and the card says how many', async () => {
+    const { fake, run } = setup();
+    serve(fake, PATIENT.dashSyn01, undefined, { status: 200, body: { resourceType: 'Bundle', type: 'searchset', total: 0 } });
+    expect(await run(PATIENT.dashSyn01)).toEqual({
+      kind: 'ok',
+      patientId: PATIENT.dashSyn01,
+      rows: [{ title: 'Lisinopril 10 MG Oral Tablet', dosage: null }],
+      notes: [dosageNotReturned(1)],
+    });
+  });
+
+  const enrichmentFailures: [string, FixtureResponse][] = [
+    ['401 (a client registered without user/MedicationRequest.rs)', { status: 401, body: null }],
+    ['403', { status: 403, body: { error: 'forbidden' } }],
+    ['500 carrying SQL', responseFixture('hand-built/rest-500-sqlstate.json')],
+    ['OperationOutcome in a 200', responseFixture('hand-built/fhir-operation-outcome-200.json')],
+    ['a Bundle of another resource type', { status: 200, body: { resourceType: 'Bundle', entry: [{ resource: { resourceType: 'Observation', id: 'x' } }] } }],
+  ];
+  it.each(enrichmentFailures)('a failed MedicationRequest read (%s) keeps the list and says the instructions could not be loaded; never reauth', async (_label, response) => {
+    const { fake, run } = setup();
+    serve(fake, PATIENT.dashSyn01, undefined, response);
+    const card = await run(PATIENT.dashSyn01);
+    expect(card).toEqual({
+      kind: 'ok',
+      patientId: PATIENT.dashSyn01,
+      rows: [{ title: 'Lisinopril 10 MG Oral Tablet', dosage: null }],
+      notes: [DOSAGE_LOAD_FAILED],
+    });
+    expect(JSON.stringify(card)).not.toContain('SQLSTATE');
+  });
+
+  it('a MedicationRequest about another patient fails the whole card (PATIENT_MISMATCH), as any cross-patient answer does', async () => {
+    const { fake, run } = setup();
+    const shaped = routeFixture(FILES[PATIENT.dashSyn01].file, 'fhir.medicationrequest.search');
+    const body = structuredClone(shaped.body) as { entry: { resource: { subject: { reference: string } } }[] };
+    const second = body.entry[1];
+    if (second) second.resource.subject.reference = `Patient/${PATIENT.p13}`;
+    serve(fake, PATIENT.dashSyn01, undefined, { status: 200, body });
+    expect(await run(PATIENT.dashSyn01)).toMatchObject({ kind: 'error', code: 'PATIENT_MISMATCH' });
+  });
+
+  it('no active medication: the FHIR search is never called', async () => {
+    const { fake, run } = setup();
+    const base = apiRows(PATIENT.p13)[0];
+    if (!base) throw new Error('fixture');
+    serve(fake, PATIENT.p13, { status: 200, body: [{ ...base, enddate: '2001-01-01 00:00:00' }] });
+    expect(await run(PATIENT.p13)).toEqual({ kind: 'empty', patientId: PATIENT.p13 });
+    expect(fake.calls.map((c) => c.url)).toEqual([patientUrl(PATIENT.p13), medicationUrl(13)]);
   });
 
   it('pid 3: the route answers 404 with an empty body, which is "Nothing Recorded", not an error (6.04)', async () => {

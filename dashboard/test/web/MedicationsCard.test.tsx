@@ -14,8 +14,11 @@ function uuid(v: string): PatientUuid {
 const P13 = uuid('a2d4d063-d949-4f5a-9001-01c1d919afc6');
 
 // Synthetic display values.
-const ROWS: MedicationRow[] = [{ title: 'Synthetic medication 1' }, { title: 'Synthetic medication 2' }];
-const DOSAGE = { field: 'dosage', text: 'Dosage instructions: not available via API' };
+const ROWS: MedicationRow[] = [
+  { title: 'Synthetic medication 1', dosage: '1 tablet daily [synthetic]' },
+  { title: 'Synthetic medication 2', dosage: null },
+];
+const LOAD_FAILED = { field: 'dosage', text: "Dosage instructions: couldn't be loaded from the API (FHIR MedicationRequest); the medication list is complete." };
 
 async function expectNoAxeViolations(container: HTMLElement): Promise<void> {
   const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
@@ -28,12 +31,23 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('MedicationsCard', () => {
-  it('renders the legacy title, a one-line source label, title-only rows and the dosage footnote', async () => {
-    const { container } = render(<MedicationsCard state={{ kind: 'ok', patientId: P13, rows: ROWS, notes: [DOSAGE] }} />);
+  it('renders the legacy title, a one-line source label, and each title followed by its dosage instructions where recorded', async () => {
+    const { container } = render(<MedicationsCard state={{ kind: 'ok', patientId: P13, rows: ROWS, notes: [] }} />);
     expect(screen.getByRole('heading', { name: 'Medications' })).toBeTruthy();
     expect(container.querySelector('.card-source')?.textContent).toMatch(/medication list.*prescriptions are listed separately/);
-    expect([...container.querySelectorAll('li.issue')].map((li) => li.textContent)).toEqual(ROWS.map((r) => r.title));
-    expect(container.querySelector('[data-note="dosage"]')?.textContent).toBe('Dosage instructions: not available via API');
+    // Legacy medication.html.twig: <span>title</span> <span>drug_dosage_instructions</span>.
+    expect([...container.querySelectorAll('li.issue')].map((li) => li.textContent)).toEqual(['Synthetic medication 1 1 tablet daily [synthetic]', 'Synthetic medication 2']);
+    expect([...container.querySelectorAll('[data-field="dosage"]')].map((el) => el.textContent)).toEqual(['1 tablet daily [synthetic]']);
+    expect(container.querySelector('[data-note]')).toBeNull();
+    expect(container.textContent).not.toMatch(/not available via API/);
+    await expectNoAxeViolations(container);
+  });
+
+  it('when the instructions could not be loaded, the rows stay and the note says so', async () => {
+    const rows: MedicationRow[] = ROWS.map((r) => ({ ...r, dosage: null }));
+    const { container } = render(<MedicationsCard state={{ kind: 'ok', patientId: P13, rows, notes: [LOAD_FAILED] }} />);
+    expect([...container.querySelectorAll('li.issue')].map((li) => li.textContent)).toEqual(rows.map((r) => r.title));
+    expect(container.querySelector('[data-note="dosage"]')?.textContent).toBe(LOAD_FAILED.text);
     await expectNoAxeViolations(container);
   });
 

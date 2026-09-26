@@ -38,7 +38,9 @@ start from [`AGENT-BRIEF.md`](AGENT-BRIEF.md). Legacy code is pinned at tag
 
   All are verified in code; live checks come in Phase 6.
 - **API:** authenticated SQL injection via parameter names on `/api/prescription`.
-  It isn't reachable in production (no enabled client has a prescription scope).
+  It was unreachable in production until the dashboard's client was granted
+  `user/prescription.rs`. That exposure was accepted together with the BFF's
+  two-layer allow-list (`PATIENT_DASHBOARD_MIGRATION.md` §4, `evidence/slice-03-01-regression.txt`).
 - **Parity gaps "not available via API":** Rx refills, Care Team member status and
   note, `lists_touch`, squad restriction, `hide_dashboard_cards`. Patient Notes
   has no read API, so the extra section is **Vitals**.

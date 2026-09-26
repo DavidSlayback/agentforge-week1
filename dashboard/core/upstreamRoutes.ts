@@ -11,7 +11,8 @@ import { parseEncounterId, parseMrn, parsePatientUuid, parsePid, parseResourceUu
  * `severity_ccda` label list; 01-02-02 the medical problem list; 01-02-03
  * the medication list; 01-03-01 the prescription search; 01-04-01 the
  * CareTeam search and the Practitioner / Organization name reads; 01-05-01
- * the encounter list and the per-encounter vitals.
+ * the encounter list and the per-encounter vitals; 01-06-04 the FHIR
+ * MedicationRequest search that adds dosage instructions to Medications.
  */
 
 export type UpstreamRouteId =
@@ -22,6 +23,7 @@ export type UpstreamRouteId =
   | 'rest.list.read'
   | 'rest.problem.list'
   | 'rest.medication.list'
+  | 'fhir.medicationrequest.search'
   | 'rest.prescription.search'
   | 'fhir.careteam.search'
   | 'fhir.practitioner.read'
@@ -144,6 +146,28 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     scope: 'user/medication.rs',
     acl: 'patients/med',
     patientBinding: 'path',
+  },
+  // Medications dosage instructions (01-06-04). The REST medication list has no
+  // `drug_dosage_instructions` (4.05); FHIR MedicationRequest carries it as
+  // `dosageInstruction[].text` (FhirMedicationRequestService::populateDosageInstruction(),
+  // :253-266). `intent=plan` is an honored search parameter (:113) and is how the
+  // lists (medication) branch of PrescriptionService's UNION reports its rows
+  // (PrescriptionService.php:212); prescriptions default to `order` (:156). The
+  // BFF still joins by uuid and ignores any other intent. Exactly two keys: the
+  // patient uuid and the fixed intent. With a user-context token the route
+  // checks patients/med (`_rest_routes_fhir_r4_us_core_3_1_0.inc.php:470-480`).
+  'fhir.medicationrequest.search': {
+    id: 'fhir.medicationrequest.search',
+    api: 'fhir',
+    pathTemplate: '/MedicationRequest',
+    pathParams: [],
+    query: [
+      { key: 'patient', kind: 'puuid' },
+      { key: 'intent', kind: 'fixed', fixed: 'plan' },
+    ],
+    scope: 'user/MedicationRequest.rs',
+    acl: 'patients/med',
+    patientBinding: 'query',
   },
   // Prescriptions card (01-03-01). M-1 / 2.01: `PrescriptionService::getAll()`
   // builds its WHERE clause from the query-parameter NAMES, so this route is an

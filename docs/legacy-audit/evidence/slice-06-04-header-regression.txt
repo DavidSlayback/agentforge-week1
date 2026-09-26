@@ -1,0 +1,127 @@
+Slice 01-06-04 (requirement hardening, item 1: persistent identity bar) deliberate-regression proof
+Date: 2026-09-26T04:47Z
+Branch: agentforge/w2-dashboard, parent commit 93481168e093f2cae71c4bd4aa556fa100b6d52d
+  (feat(dashboard): make the patient identity bar persistent (sticky), which passed the full hook)
+Break ("the header scrolls away again"): drop the sticky positioning from the identity bar.
+  dashboard/web/src/styles.css
+  -.patient-header { position: sticky; top: 0; z-index: 10; border: ...
+  +.patient-header { z-index: 10; border: ...
+Command: git add dashboard/web/src/styles.css && git commit -m 'test(dashboard): deliberate regression (must be refused by the hook)'  (runs .githooks/pre-commit)
+Result: hook exit 1, commit refused (HEAD before = after = 9348116). Typecheck and lint passed; the tests caught it.
+Red (3 of 292), all in test/web/StickyHeader.test.tsx, which renders PatientView with the shipped stylesheet:
+  - "is sticky at the top, opaque and above the cards (computed from the shipped stylesheet)"  -> expected '' to be 'sticky'
+  - "stays rendered while cards load and fail, and across a patient switch (same element, never unmounted)" -> expected '' to be 'sticky'
+  - "a header failure keeps the bar in place, as an error state with no identity fields" -> expected '' to be 'sticky'
+Reverted with git checkout; the working tree was clean afterwards.
+Output below: the Dashboard gate section of the hook output (ANSI colour codes stripped; the earlier AgentForge suites passed and are omitted).
+Synthetic data only: the test uses invented display names ("Synthetic One"/"Synthetic Two"); no real names or DOBs.
+----------------------------------------------------------------------
+Dashboard gate: typecheck, lint, unit/contract/component tests, build...
+
+ RUN  v3.2.7 C:/Users/david/repos/agentforge-week1-w2-dashboard/dashboard
+
+ ✓  node  test/core/issues.test.ts (34 tests) 11ms
+ ✓  node  test/core/prescriptions.test.ts (11 tests) 5ms
+ ✓  node  test/core/format.test.ts (17 tests) 6ms
+ ✓  node  test/core/careTeam.test.ts (8 tests) 7ms
+ ✓  node  test/core/vitals.test.ts (7 tests) 8ms
+ ✓  node  test/core/upstreamRoutes.test.ts (15 tests) 12ms
+ ✓  node  test/core/header.test.ts (9 tests) 15ms
+ ✓  node  test/bff/mapResponse.test.ts (14 tests) 19ms
+ ✓  node  test/contract/medications.test.ts (7 tests) 63ms
+ ✓  node  test/contract/problems.test.ts (8 tests) 53ms
+ ✓  node  test/contract/prescriptions.test.ts (8 tests) 54ms
+ ✓  node  test/contract/allergies.test.ts (13 tests) 68ms
+ ✓  node  test/contract/header.test.ts (12 tests) 89ms
+ ✓  node  test/contract/careTeam.test.ts (11 tests) 106ms
+ ✓  node  test/contract/vitals.test.ts (12 tests) 99ms
+ ✓  node  test/bff/health.test.ts (7 tests) 308ms
+ ✓  node  test/bff/logRedaction.test.ts (1 test) 483ms
+   ✓ log redaction across the full workflow > logs route templates, statuses and correlation ids, never PHI, ids or credentials  481ms
+ ✓  node  test/bff/auth.test.ts (12 tests) 779ms
+ ✓  node  test/bff/cardRoutes.test.ts (11 tests) 1070ms
+   ✓ card routes over HTTP (fastify.inject) > GET /bff/patients/:puuid/allergies returns the CardResult for that patient  490ms
+ ✓  node  test/bff/security.test.ts (11 tests) 1137ms
+   ✓ security headers and caching > sends CSP, no-referrer and nosniff everywhere, and no-store on /bff, /login, /callback, /logout  465ms
+ ✓  web  test/web/AllergiesCard.test.tsx (12 tests) 411ms
+ ✓  web  test/web/CareTeamCard.test.tsx (8 tests) 299ms
+ ✓  web  test/web/PrescriptionsCard.test.tsx (8 tests) 285ms
+ ✓  web  test/web/PatientHeader.test.tsx (10 tests) 249ms
+ ✓  web  test/web/VitalsCard.test.tsx (6 tests) 270ms
+ ✓  web  test/web/ProblemsCard.test.tsx (6 tests) 252ms
+ ✓  web  test/web/MedicationsCard.test.tsx (6 tests) 251ms
+ ❯  web  test/web/StickyHeader.test.tsx (5 tests | 3 failed) 249ms
+   × the persistent identity bar (slice 01-06-04) > is sticky at the top, opaque and above the cards (computed from the shipped stylesheet) 73ms
+     → expected '' to be 'sticky' // Object.is equality
+   ✓ the persistent identity bar (slice 01-06-04) > reserves scroll padding so focused or linked elements are not hidden under the bar 2ms
+   ✓ the persistent identity bar (slice 01-06-04) > is a named landmark that comes before every card in reading order 105ms
+   × the persistent identity bar (slice 01-06-04) > stays rendered while cards load and fail, and across a patient switch (same element, never unmounted) 52ms
+     → expected '' to be 'sticky' // Object.is equality
+   × the persistent identity bar (slice 01-06-04) > a header failure keeps the bar in place, as an error state with no identity fields 16ms
+     → expected '' to be 'sticky' // Object.is equality
+ ✓  node  test/lint/boundaries.test.ts (3 tests) 4568ms
+   ✓ lint boundaries > web importing the BFF fails the lint  3524ms
+   ✓ lint boundaries > core importing I/O or a framework fails the lint  864ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL   web  test/web/StickyHeader.test.tsx > the persistent identity bar (slice 01-06-04) > is sticky at the top, opaque and above the cards (computed from the shipped stylesheet)
+AssertionError: expected '' to be 'sticky' // Object.is equality
+
+- Expected
++ Received
+
+- sticky
+
+ ❯ test/web/StickyHeader.test.tsx:95:28
+     93|     const { container } = render(<PatientView fetcher={fetcher} patien…
+     94|     const style = window.getComputedStyle(headerRegion(container));
+     95|     expect(style.position).toBe('sticky');
+       |                            ^
+     96|     expect(style.top).toBe('0px');
+     97|     expect(Number(style.zIndex)).toBeGreaterThan(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL   web  test/web/StickyHeader.test.tsx > the persistent identity bar (slice 01-06-04) > stays rendered while cards load and fail, and across a patient switch (same element, never unmounted)
+AssertionError: expected '' to be 'sticky' // Object.is equality
+
+- Expected
++ Received
+
+- sticky
+
+ ❯ test/web/StickyHeader.test.tsx:165:51
+    163|       expect(bar.querySelector('[data-field="name"]')?.textContent).to…
+    164|     });
+    165|     expect(window.getComputedStyle(bar).position).toBe('sticky');
+       |                                                   ^
+    166|   });
+    167| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL   web  test/web/StickyHeader.test.tsx > the persistent identity bar (slice 01-06-04) > a header failure keeps the bar in place, as an error state with no identity fields
+AssertionError: expected '' to be 'sticky' // Object.is equality
+
+- Expected
++ Received
+
+- sticky
+
+ ❯ test/web/StickyHeader.test.tsx:177:51
+    175|     });
+    176|     expect(bar.querySelector('[data-field]')).toBeNull();
+    177|     expect(window.getComputedStyle(bar).position).toBe('sticky');
+       |                                                   ^
+    178|   });
+    179| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed | 28 passed (29)
+      Tests  3 failed | 289 passed (292)
+   Start at  23:47:27
+   Duration  5.56s (transform 1.69s, setup 0ms, collect 19.07s, tests 11.23s, environment 6.74s, prepare 4.86s)
+

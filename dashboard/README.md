@@ -9,11 +9,14 @@ and `docs/agentforge/PLAN.md` (W2D-1…W2D-8, the status of record).
 
 Current scope. Slice 01-01-01 (walking skeleton): sign-in / sign-out through
 OpenEMR's OAuth2 server, patient selection by MRN (`pubpid`) or configured demo
-link, and the persistent patient header (name, DOB with age, sex, MRN, status).
+link, and the persistent patient header (name, DOB with age, sex, MRN, status;
+sticky at the top of the viewport since slice 01-06-04).
 Status is **Deceased** iff FHIR `deceasedDateTime` (or `deceasedBoolean: true`)
 is present; `Patient.active` is never read (OpenEMR hard-codes it `true`).
 
-Clinical cards (slice 01-02-01 on; all six are built), each loaded by its own BFF route with its
+Clinical cards (slice 01-02-01 on; all six are built), laid out as on the legacy page
+(Allergies | Medical Problems | Medications in one row, Prescriptions and Care
+Team full width, Vitals in the left two-thirds; one column on phones), each loaded by its own BFF route with its
 own loading, empty ("Nothing Recorded"), forbidden, error and sign-in-again
 state. Every card first resolves the patient through `GET /api/patient/:puuid`;
 no card route is called before that read succeeds.
@@ -30,12 +33,20 @@ no card route is called before that read succeeds.
   can be "Not authorized for this section" while the others load), one row per
   problem uuid, the same active-issue rule, sorted by `begdate` ascending with
   missing dates first; title only.
-- **Medications** (`/bff/patients/:puuid/medications`): REST
-  `/api/patient/:pid/medication` with the integer `pid` taken from the
-  patient read; the same active-issue rule and `begdate` sort; title only,
-  with the note "Dosage instructions: not available via API" (the route does
-  not join `lists_medication`). The route answers a patient with no rows with
-  HTTP 404 and an empty body; on this route only, that is "Nothing Recorded".
+- **Medications** (`/bff/patients/:puuid/medications`): hybrid. The list is
+  REST `/api/patient/:pid/medication` with the integer `pid` taken from the
+  patient read (only REST carries the `outcome` the active-issue rule needs);
+  the same active-issue rule and `begdate` sort. When at least one row is
+  active, the BFF also reads FHIR
+  `/fhir/MedicationRequest?patient=<puuid>&intent=plan` (exactly those two
+  keys) and joins each `dosageInstruction[].text` onto the REST row with the
+  same uuid, shown after the title as the legacy card does. Every entry's
+  `subject` must be the patient (else `PATIENT_MISMATCH`). If that read fails
+  for any reason (a client registered without `user/MedicationRequest.rs`
+  gets 401), the list still shows and a note says the instructions couldn't
+  be loaded; the card never asks to sign in again for it. The REST route
+  answers a patient with no rows with HTTP 404 and an empty body; on this
+  route only, that is "Nothing Recorded".
 
 - **Prescriptions** (`/dashboard/bff/patients/:puuid/prescriptions`): REST
   `/api/prescription?patient_id=<pid>&source_table=prescriptions`, with the

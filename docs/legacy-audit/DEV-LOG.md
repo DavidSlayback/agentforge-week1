@@ -540,3 +540,80 @@ Merged to main via MR !81, then MR !82 fixed a BUILD_SHA test that failed on the
 ## 2026-09-25 ~20:15 CT — slice 01-01-01 observed live
 
 David signed in as `grader` on the public URL and confirmed both headers. Slice 01 meets the AGENTS.md definition of done on `f8d7bdf`.
+
+## 2026-09-26 — slice 01-06-04, requirement hardening (branch `agentforge/w2-dashboard`, not merged)
+
+An independent compliance review of `main` (`660e091`) found gaps against the
+brief and the AGENTS.md honesty rules. The owner authorized the slice without
+per-slice approval. Status: **wired and tested; not merged, deployed or
+observed.**
+
+### Worked on
+- **Persistent identity bar.** `.patient-header` scrolled away with the
+  cards. It is now `position: sticky; top: 0` with an opaque background, a
+  z-index above the cards, and `scroll-padding-top` (5 rem, 9 rem on phones)
+  so focused elements are never hidden under it. The topbar still scrolls
+  away. Test: `test/web/StickyHeader.test.tsx` (computed styles from the
+  shipped stylesheet; the same element persists through card loading and
+  error states, a header error and a patient switch). Regression proof:
+  `evidence/slice-06-04-header-regression.txt` (sticky removed, 3 red,
+  refused).
+- **Medications dosage instructions from FHIR.** Checked in the code at
+  `legacy-baseline`:
+  - `intent` is an honored search parameter (`FhirMedicationRequestService.php:113`);
+  - lists rows report `intent = 'plan'` (`PrescriptionService.php:212`) and prescriptions `order` (:156);
+  - `dosageInstruction.text` is `drug_dosage_instructions` unless it is numeric (:253-266).
+
+  New allow-listed route `fhir.medicationrequest.search`, with keys exactly
+  `patient` and the fixed `intent=plan`, joined to the REST rows by uuid.
+  Non-plan entries are ignored client-side too. The route is called only
+  when a medication is active. A cross-patient entry gives `PATIENT_MISMATCH`.
+  Any other failure keeps the list and adds a "couldn't be loaded" note,
+  never reauth. **`OAUTH_SCOPE` gained `user/MedicationRequest.rs`.**
+  OpenEMR silently drops scopes a client did not register
+  (`ScopeRepository::finalizeScopes()`), so the production client needs its
+  registration updated. Until then the route answers 401 (scope check,
+  `HttpRestRouteHandler` maps `AccessDeniedException` to 401) and the card
+  shows the note. Regression proof:
+  `evidence/slice-06-04-medications-regression.txt` (join by position,
+  3 red, refused).
+- **Layout parity.** A CSS grid gives the legacy arrangement: three
+  columns, Prescriptions and Care Team spanning all, Vitals spanning two;
+  one column below 62 rem. Card bodies scroll horizontally on phones.
+  Test: `test/web/Layout.test.tsx`. Measured against the legacy screenshot
+  with the real BFF and SPA serving shaped fixtures (not live):
+  `evidence/parity/README.md`, "Layout".
+- **Docs.** `PATIENT_DASHBOARD_MIGRATION.md` gets a "Legacy cards not
+  ported" table (16 cards with reasons and read-API availability), a
+  concrete FHIR-divergence row per card, the 5.29 production scope note, and
+  `/dashboard/health` instead of a hard-coded SHA. Also updated:
+  `REQUIREMENTS-TRACE.md` statuses (DB-01…DB-11, and DB-02, DB-08 and the
+  Out-of-scope line corrected), this arc (statuses, ticks and slice
+  01-06-04), `PLAN.md` W2D-2/3/7/8, the parity README, `dashboard/README.md`,
+  `MIGRATION-REACT.md` (scope list, allow-list row) and a pointer in the
+  root `README.md`.
+
+- **Error-state drills** (open since 01-06-01), as tests against mocked
+  upstreams, not live. `test/support/drills.ts` defines six drills: 401,
+  403, 200 with `validationErrors`, the medication 404-as-empty, a 404 on
+  the patient read, and a 500 with SQL. `test/bff/drills.test.ts` pushes
+  each through the real BFF and asserts the exact wire answer; a 401 also
+  ends the session. `test/web/Drills.test.tsx` renders the same answers in
+  the real cards: four distinct states, no upstream text, axe clean.
+- Gate: 328 tests in 33 files (287 at `7b49460`).
+
+### Checks
+- Local DB (SELECT only): no `lists_medication` rows exist, so no synthetic
+  medication carries instructions. The dosage-present case is a hand-built
+  fixture, labelled as such. The local OAuth client also lacks
+  `user/MedicationRequest.rs`. There are 0 allergy rows authored by a real
+  user.
+- `git diff --stat legacy-baseline HEAD -- '*.php' sql/` is empty (DB-10 / W2D-8).
+
+### Open
+- Update the production OAuth client registration with
+  `user/MedicationRequest.rs` (owner). Then merge, deploy and observe the
+  three items on the public URL.
+- The manual keyboard and screen-reader pass. The new card-body horizontal
+  scroll regions hold no focusable content; Chrome makes such scrollers
+  keyboard-focusable, but this has not been checked by hand.

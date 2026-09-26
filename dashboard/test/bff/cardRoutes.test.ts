@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTestApp, FakeOpenEmr, makeIdTokenSigner, PATIENT, readFixtureFile, routeFixture, signIn } from '../support/harness.ts';
+import { buildTestApp, FakeOpenEmr, makeIdTokenSigner, PATIENT, readFixtureFile, responseFixture, routeFixture, signIn } from '../support/harness.ts';
 
 const api = (path: string) => `http://openemr/apis/default/api${path}`;
 
@@ -66,6 +66,36 @@ describe('card routes over HTTP (fastify.inject)', () => {
     const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p3}/medications`, cookies: { dashboard_sid: cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
+  });
+
+  it('Medications: DASH-SYN-01 reaches the browser with the FHIR dosage instructions joined onto its REST row (01-06-04)', async () => {
+    const { app, fake, cookie } = await signedIn();
+    fake
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}`), routeFixture('shaped/dash-syn-01.json', 'rest.patient.read'))
+      .on('GET', api('/patient/14/medication'), routeFixture('shaped/dash-syn-01.json', 'rest.medication.list'))
+      .on('GET', `http://openemr/apis/default/fhir/MedicationRequest?patient=${PATIENT.dashSyn01}&intent=plan`, responseFixture('hand-built/fhir-medicationrequest-dosage-dash-syn-01.json'));
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/medications`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      kind: 'ok',
+      patientId: PATIENT.dashSyn01,
+      rows: [{ title: 'Lisinopril 10 MG Oral Tablet', dosage: '1 tablet by mouth once daily [synthetic]' }],
+      notes: [],
+    });
+    expect(fake.unexpected).toEqual([]);
+  });
+
+  it('Medications: a 401 on the MedicationRequest search alone does not end the session; the list still reaches the browser', async () => {
+    const { app, fake, cookie } = await signedIn();
+    fake
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}`), routeFixture('shaped/dash-syn-01.json', 'rest.patient.read'))
+      .on('GET', api('/patient/14/medication'), routeFixture('shaped/dash-syn-01.json', 'rest.medication.list'))
+      .on('GET', `http://openemr/apis/default/fhir/MedicationRequest?patient=${PATIENT.dashSyn01}&intent=plan`, { status: 401, body: null });
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/medications`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ kind: 'ok', rows: [{ title: 'Lisinopril 10 MG Oral Tablet', dosage: null }], notes: [{ field: 'dosage' }] });
+    const session = await app.inject({ method: 'GET', url: '/dashboard/bff/session', cookies: { dashboard_sid: cookie } });
+    expect(session.json()).toMatchObject({ authenticated: true });
   });
 
   it('Prescriptions: DASH-SYN-01 reaches the browser with all 3 rows and the refills gap, and no refills value', async () => {

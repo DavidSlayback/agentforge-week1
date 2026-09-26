@@ -60,6 +60,13 @@ describe('log redaction across the full workflow', () => {
       const pid = (routeFixture(file, 'rest.patient.read').body as { data: { pid: string } }).data.pid;
       fake.on('GET', `http://openemr/apis/default/api/patient/${pid}/medication`, medications);
       for (const row of medications.body as { title: string; uuid: string }[]) clinical.push(row.title, row.uuid);
+      // Dosage instructions (01-06-04): DASH-SYN-01 gets the hand-built Bundle, so real instruction text flows through.
+      const medicationRequests =
+        id === PATIENT.dashSyn01 ? responseFixture('hand-built/fhir-medicationrequest-dosage-dash-syn-01.json') : routeFixture(file, 'fhir.medicationrequest.search');
+      fake.on('GET', `http://openemr/apis/default/fhir/MedicationRequest?patient=${id}&intent=plan`, medicationRequests);
+      for (const e of (medicationRequests.body as { entry: { resource: { id: string; dosageInstruction?: { text: string }[] } }[] }).entry) {
+        clinical.push(e.resource.id, ...(e.resource.dosageInstruction ?? []).map((d) => d.text));
+      }
       const prescriptions = routeFixture(file, 'rest.prescription.search');
       fake.on('GET', `http://openemr/apis/default/api/prescription?patient_id=${pid}&source_table=prescriptions`, prescriptions);
       for (const row of (prescriptions.body as { data: { drug: string; uuid: string }[] }).data) clinical.push(row.drug, row.uuid);
@@ -144,6 +151,7 @@ describe('log redaction across the full workflow', () => {
     expect(log).toContain('"routeId":"rest.problem.list"');
     expect(log).toContain('/dashboard/bff/patients/:puuid/medications');
     expect(log).toContain('"routeId":"rest.medication.list"');
+    expect(log).toContain('"routeId":"fhir.medicationrequest.search"');
     expect(log).toContain('/dashboard/bff/patients/:puuid/prescriptions');
     expect(log).toContain('"routeId":"rest.prescription.search"');
     expect(log).toContain('/dashboard/bff/patients/:puuid/care-team');

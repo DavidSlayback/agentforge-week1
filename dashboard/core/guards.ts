@@ -117,7 +117,7 @@ export function isProblemRow(v: unknown): v is ProblemRow {
 }
 
 export function isMedicationRow(v: unknown): v is MedicationRow {
-  return isRecord(v) && typeof v['title'] === 'string';
+  return isRecord(v) && typeof v['title'] === 'string' && (v['dosage'] === null || typeof v['dosage'] === 'string');
 }
 
 export function isPrescriptionRow(v: unknown): v is PrescriptionRow {
