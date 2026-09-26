@@ -665,7 +665,7 @@ start before David picks.
    - **pid 13:** Allergies 2 rows with "(1)"; Problems 13 of 39; Medications
      1 of 5; Rx 5 rows in order 66…62 with refills "not available via API";
      Care Team 1 team with 3 participants; Vitals set 27, never deleted set 28.
-   - **pid 3:** "Nothing Recorded" for the issue cards and Rx; Vitals set 14.
+   - **pid 3:** "Nothing Recorded" for the issue cards, "None" for Rx (its legacy text); Vitals set 14.
    - **pid 12:** deceased status.
 4. **Pre-commit gate hookup.**
    - Add `npm ci --prefix <app>`, the typecheck and `npm test --prefix <app>`

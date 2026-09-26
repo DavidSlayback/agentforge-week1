@@ -129,7 +129,7 @@ paths for API/service code (unchanged by this audit).
    the DB but never selected by `PrescriptionService`); Filled = raw
    `date_added` string (no timezone conversion needed — REST returns the
    same raw local string the card uses, unlike FHIR's UTC `authoredOn`).
-10. Empty state: `data.length === 0` → "Nothing Recorded" (or the port's
+10. Empty state (built in 01-03-01: "None", the legacy text): `data.length === 0` → "Nothing Recorded" (or the port's
     chosen empty-state wording; legacy's "None" is driven by row count only
     for this card, not by `lists_touch`, so this one is directly portable).
 
@@ -202,7 +202,7 @@ Checklist for the walking-skeleton slice:
    count above), all with `source_table: "prescriptions"`.
 3. `pid=3&source_table=prescriptions` returns HTTP **200** with `data: []`
    (not 404 — contrast the medication route's 404-on-empty) → card renders
-   "Nothing Recorded".
+   "None" (the legacy Rx text; owner decision in slice 01-03-01).
 4. Client-side sort of pid 13's 5 rows renders in `date_added` DESC order
    (66, 65, 64, 63, 62) — the active/date_modified keys are ties on this data,
    so this is the only key visibly exercised locally; note in the build that

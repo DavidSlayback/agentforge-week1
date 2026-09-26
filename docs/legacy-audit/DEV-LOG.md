@@ -58,6 +58,48 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-25 — Arc 01 / Story 01-03 / Slice 01-03-01 — Prescriptions card, allow-listed
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `959482e`; no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-3 (Prescriptions card) with the M-1 allow-list and its regression proof.
+Legacy behavior replaced: `walkthroughs/PRESCRIPTIONS.md`, `templates/prescription/general_fragment.html` inside `templates/patient/card/rx.html.twig`.
+Layers touched: core (`rules/prescriptions` `sortPrescriptions` + `prescriptionDetails`, `dto` `PrescriptionRow`, `guards` `isPrescriptionRow`, `upstreamRoutes`) · bff (`upstream/schemas/prescription`, `cards/prescriptions`, `http/routes`) · web (`cards/PrescriptionsCard`, `components/Card` + `States` `emptyText`, `App`, `styles.css`) · tests · README.
+Upstream route added to the allow-list: `rest.prescription.search` (`/api/prescription`, no path parameters; query keys exactly `patient_id` (kind `pid`, the integer pid from `rest.patient.read` only) and `source_table` (fixed `prescriptions`, cannot be supplied); scope `user/prescription.rs`, ACL `patients/med`; `patientBinding: 'query'`).
+Catalog IDs: 2.01 / M-1 (for our calls), 4.10 (form gap), 5.03 (show all rows), 5.06 / M-7 (refills gap), 8.13, 7.25 (source label).
+Deliberate regression: the allow-list forwards an unknown query key → expected red: the allow-list test and the outbound-request contract test.
+Acceptance check (a user can do this): pid 13 shows the same 5 prescriptions as the legacy card, in the same order; Refills is labelled unavailable.
+
+### Worked on
+- BFF `/dashboard/bff/patients/:puuid/prescriptions`: `rest.patient.read` (pid) → `rest.prescription.search?patient_id=<pid>&source_table=prescriptions` (REST envelope) → every row's `puuid` must be the requested patient's → `sortPrescriptions` → rows `{drug, details, quantity, refills: null, filled}` with two gap notes (refills, dosage form).
+- `sortPrescriptions`: `active` DESC, `date_modified` DESC with NULLs last, `date_added` DESC (MySQL DESC semantics), then `uuid` ascending as the documented tiebreak; keeps every row.
+- `prescriptionDetails`: `size` + unit title (no space), a space, `dosage`, plus " in <interval title>" only when `interval` is set (PHP `empty()`, so `"0"` counts as unset).
+- SPA `PrescriptionsCard` under Medications, the legacy order: a table with Drug, Details, Qty, Refills, Filled; every Refills cell reads "Not available via API"; source label "Prescriptions written in OpenEMR, every status, …; the medication list is separate."; empty reads "None". `Card`/`NonDataState` gained an optional `emptyText` (default "Nothing Recorded").
+- Fixtures (shaped, not recorded): `rest.prescription.search` added to `patient-13` (5 rows, ids 62–66), `dash-syn-01` (pid 14: 3 rows, one `active=0`), `patient-3` and `dash-syn-02` (HTTP 200, `data: []`). Rows are listed id-ascending (the query has no `ORDER BY`), so the sort is exercised. Values from read-only SELECT on `prescriptions`/`list_options`.
+- Integration script: prescription counts (pid 13: 5, pid 3: empty, DASH-SYN-01: 3).
+
+### Decisions
+- **Empty text is "None"** (owner decision): it is the legacy Rx card's own string (`{xlt t='None'}`), not the "Nothing Recorded" of the issue cards. The arc's live-evidence line was updated to match.
+- **Patient check on `puuid`.** The route's outer SELECT (`PrescriptionService::getBaseSql()`) has no `patient_id` or `pid` column, only `puuid` from the `patient_data` join, so each row's `puuid` must equal the requested uuid; a NULL `puuid` also fails (`PATIENT_MISMATCH`).
+- **`source_table` is a schema literal.** A row from the `lists` branch is `SCHEMA_MISMATCH`: the BFF asked for prescriptions only.
+- **Two layers against M-1.** `/bff/*` already refuses any query string (400, no upstream call; now also asserted for this route), and `buildUpstreamPath` throws on any key not on the route's list before a request is built. The regression proof removes the second layer and shows the gate go red without relying on the first.
+- Quantity renders as stored, "" when NULL (the legacy template prints the empty default). Filled is the raw `date_added` string.
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commit `959482e`): 229 tests, all passing (+31): unit 83 (`prescriptions` 11 new, `upstreamRoutes` +2) · contract 48 (`prescriptions` 8 new) · BFF 53 (`cardRoutes` +2; log redaction now also drives the prescriptions card and checks every drug name and uuid is absent from the log) · lint-boundary 3 · component 42 (`PrescriptionsCard` 8 new, 6 with axe, 0 violations). Typecheck 0, lint 0, bundle 71.3 kB gzip JS.
+- Deliberate regression: `buildUpstreamPath()` forwards a key that is not on the route's list instead of throwing → the hook refused the commit (exit 1, HEAD unchanged) with 6 red, including unit `rejects any client-supplied extra key on the prescription search: the route builds SQL from key NAMES (M-1 / 2.01)` and contract `a caller that adds any other query key never reaches OpenEMR (M-1): the client refuses before fetching` → reverted. Output: `docs/legacy-audit/evidence/slice-03-01-regression.txt`.
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows 5 rows in order 66 → 62 with no " in <form>" suffix and the Refills placeholder; pid 3 shows "None"; DASH-SYN-01 shows 3 rows with the inactive one last.
+- The API ACL is `patients/med`, the legacy card's is `patients/rx`: a user can see one and not the other (walkthrough (c)); not testable with the admin role.
+- The `form`-set Details case is not exercised by any seeded row (all `form` NULL or 0); it is a documented gap, not covered.
+
 ## 2026-09-25 — Arc 01 / Story 01-02 / Slice 01-02-03 — Medications card
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction) · **SHA:** code at `eecda54`; no merge SHA yet

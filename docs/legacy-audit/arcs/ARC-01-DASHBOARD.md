@@ -410,6 +410,16 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-03-01 — Prescriptions card, allow-listed
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `959482e`):**
+  **wired, tested, not yet observed.** Built and gated (229 tests in the
+  hook); the deliberate regression (the allow-list forwards an unknown key)
+  was refused by the hook with 6 red tests
+  (`docs/legacy-audit/evidence/slice-03-01-regression.txt`). Not merged or
+  deployed. Deviations: empty reads "None" (the legacy Rx card's own text,
+  owner decision), not "Nothing Recorded"; the patient check uses each row's
+  `puuid`, because the route's outer SELECT has no `patient_id` column;
+  Details appends " in <interval>" only (the API never selects `form`).
+  Details: `DEV-LOG.md`, 01-03-01 entry.
 - **Time box:** 1.5 h, Sat 14:15–15:45. Needs HD-4, which includes the
   `user/prescription.rs` approval.
 - **Goal:** the Prescriptions card shows **all** prescription rows, sorted by
@@ -426,25 +436,28 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   `test/web/PrescriptionsCard.test.tsx`; fixtures;
   `test/integration/prescriptions.it.ts`.
 - **Test gate**
-  - Core: the three-key sort, including hand-built cases where `active` and
-    `date_modified` differ (pid 13 exercises only `date_added`).
-  - Contract: the outbound URL is exactly
+  - [x] Core: the three-key sort, including hand-built cases where `active` and
+    `date_modified` differ (pid 13 exercises only `date_added`); DASH-SYN-01
+    (pid 14) also exercises both legs with shaped data
+    (`test/core/prescriptions.test.ts`, `test/contract/prescriptions.test.ts`).
+  - [x] Contract: the outbound URL is exactly
     `/apis/default/api/prescription?patient_id=<pid>&source_table=prescriptions`.
     pid 13 gives 5 rows in order 66, 65, 64, 63, 62. pid 3's 200 `[]` gives
-    `empty`. A row with another `patient_id` gives `PATIENT_MISMATCH`.
-  - Component: every Refills cell reads "Not available via API", never `0` or
-    blank.
-  - **Deliberate regression** (`walkthroughs/PRESCRIPTIONS.md` (e) item 7):
+    `empty`. A row with another patient's `puuid` (the rows carry no
+    `patient_id`) gives `PATIENT_MISMATCH`.
+  - [x] Component: every Refills cell reads "Not available via API", never `0` or
+    blank; empty reads "None" (`test/web/PrescriptionsCard.test.tsx`).
+  - [x] **Deliberate regression** (`walkthroughs/PRESCRIPTIONS.md` (e) item 7):
     let the BFF forward an arbitrary SPA query key into
     `rest.prescription.search`. Expected red: the allow-list test and the
-    outbound-URL contract test.
+    outbound-URL contract test. Done: 6 red, commit refused, reverted.
 - **Live evidence** (`walkthroughs/PRESCRIPTIONS.md` (e), with `patient_id`
   in place of `pid` per C-9)
   - [ ] Outbound request carries exactly `patient_id` and `source_table`,
     confirmed from the integration log's route id and key list.
   - [ ] pid 13: 5 rows, all `source_table: prescriptions`, in date order
     66 → 62.
-  - [ ] pid 3: HTTP 200 `[]` → "Nothing Recorded".
+  - [ ] pid 3: HTTP 200 `[]` → "None" (the legacy Rx card's empty text; owner decision 2026-09-25).
   - [ ] Refills placeholder on all 5 rows.
   - [ ] No " in <form>" suffix. The `form`-set gap is noted as untested, not
     claimed covered.

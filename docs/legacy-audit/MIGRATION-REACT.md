@@ -350,7 +350,7 @@ header.
 | 3.13 | Unscoped `user/` collection routes | The allow-list has no unscoped collection route; a test asserts it | 01-01-01 |
 | 3.16 | `set_pid` state change on GET | No session patient; `/bff/*` is read-only GET; logout is POST + Origin check | 01-01-01 |
 | 4.01 (High) | CORS preflight dead (M-3) | Same-origin serving through the BFF behind Caddy; no CORS needed | 01-01-01 |
-| 4.02 | Empty-state wording depends on `lists_touch` (no API) | Always "Nothing Recorded" for an empty list (documented deviation) | 01-02-01 (component), every card |
+| 4.02 | Empty-state wording depends on `lists_touch` (no API) | Always "Nothing Recorded" for an empty list (documented deviation); Prescriptions keeps its legacy "None" (not `lists_touch`-driven) | 01-02-01 (component), every card |
 | 4.04 | Identity bar has no sex/status | Header adds sex (`gender`) and status derived from `deceasedDateTime` (documented addition) | 01-01-01 |
 | 4.06 | No route by integer pid | Deep links keyed by puuid: `/dashboard/patients/:puuid` | 01-01-01 |
 | 5.01 (Critical) | Vitals card shows a deleted set (join bug, U-1) | Legacy fragment unused; REST per-encounter route (`deleted=0 AND formdir='vitals'`); pid 13 must show set 27, never 28 | 01-05-01 |
@@ -629,7 +629,7 @@ redirect URI `http://localhost:8790/dashboard/callback` (HD-2). Secrets live in
    - The log-redaction flow test (§5).
 4. **Component (`test/web`, jsdom).**
    - Every card in each state: loading, ok, empty, forbidden, error, reauth.
-   - "Nothing Recorded" is the exact empty text.
+   - "Nothing Recorded" is the exact empty text (Prescriptions: "None", its legacy text).
    - The Refills and Care Team Status/Note cells read "Not available via API".
    - The header renders before the cards resolve.
    - A late response for a previous puuid is discarded.
@@ -656,7 +656,7 @@ and integration expectations; the arc repeats them per slice.
 | Allergies | **2** rows, both labelled "(1)" (raw-code fallback), neither highlighted | "Nothing Recorded" | — |
 | Problems | **13** of 39 rows, `begdate` ascending | "Nothing Recorded" | — |
 | Medications | **1** of 5 rows, title only | "Nothing Recorded" (the upstream response is 404 with an empty body) | — |
-| Prescriptions | **5** rows in order 66, 65, 64, 63, 62; Refills "Not available via API"; no " in <form>" suffix | 200 `[]` → "Nothing Recorded" | — |
+| Prescriptions | **5** rows in order 66, 65, 64, 63, 62; Refills "Not available via API"; no " in <form>" suffix | 200 `[]` → "None" (the legacy Rx text) | — |
 | Care Team | **1** team, **3** participants (the legacy card shows 2: documented break 5.05); roles "Primary Care Provider" and "Nurse" on the active members | Bundle `total: 0` → "Nothing Recorded" | — |
 | Vitals | set **27** (2026-04-05) from encounter 367; **never set 28** (deleted) | set **14** (2014-02-01), encounter 12 (not empty) | — |
 

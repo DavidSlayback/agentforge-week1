@@ -1,0 +1,179 @@
+Slice 01-03-01 (Prescriptions) deliberate-regression proof (MIGRATION-REACT.md §6.3 item 2; arc 01-03-01 'Deliberate regression';
+walkthroughs/PRESCRIPTIONS.md (e) item 7)
+Date: 2026-09-26T02:16Z
+Branch: agentforge/w2-dashboard, parent commit 959482e7fe160eb7aa613f2abffe8d162688de63 (the slice's feat commit, which passed the full hook)
+Break ("let the BFF forward an arbitrary key into rest.prescription.search", catalog 2.01 / M-1): dashboard/core/upstreamRoutes.ts
+buildUpstreamPath() forwards a query key that is not on the route's allow-list instead of throwing:
+  -    if (!allowed) throw new AllowListViolation(`route ${routeId}: query key not allowed`);
+  +    if (!allowed) {
+  +      forwarded.append(key, String(query[key]));
+  +      continue;
+  +    }
+  ...
+  +  for (const [k, v] of forwarded) search.append(k, v);
+Command: git add dashboard/core/upstreamRoutes.ts && git commit -m 'test(dashboard): deliberate regression (must be refused by the hook)'  (runs .githooks/pre-commit)
+Result: hook exit 1, commit refused (HEAD before = after = 959482e). Typecheck and lint passed; the tests caught it.
+Expected red: the allow-list test and the outbound-request contract test -> 6 red:
+  - test/core/upstreamRoutes.test.ts        "rejects any client-supplied extra key on the prescription search: the route builds SQL from key NAMES (M-1 / 2.01)"
+  - test/contract/prescriptions.test.ts     "a caller that adds any other query key never reaches OpenEMR (M-1): the client refuses before fetching"
+  - test/core/upstreamRoutes.test.ts        "throws on an unknown query key (a client-supplied key is never forwarded)"
+  - test/core/upstreamRoutes.test.ts        "builds the Medical Problems route under encounters/notes, with no query keys (01-02-02)"
+  - test/core/upstreamRoutes.test.ts        "builds the Medications route from an integer pid only (01-02-03)"
+  - test/core/upstreamRoutes.test.ts        "builds the issue-card routes with no query keys and a validated puuid (01-02-01)"
+Not red, by design: the BFF HTTP test "a browser-supplied query key is refused at the BFF (400)" stays green, because /bff/* refuses
+any query string before a use case runs (bff/src/http/security.ts). That is the second, independent layer; this break removes the first.
+Reverted with git checkout; the working tree was clean afterwards.
+Output below: the Dashboard gate section of the hook output (ANSI colour codes stripped; the earlier AgentForge suites passed and are omitted).
+Synthetic data only: no names, DOBs or drug names appear (checked with grep).
+----------------------------------------------------------------------
+Dashboard gate: typecheck, lint, unit/contract/component tests, build...
+
+ RUN  v3.2.7 C:/Users/david/repos/agentforge-week1-w2-dashboard/dashboard
+
+ ✓  node  test/core/format.test.ts (17 tests) 7ms
+ ✓  node  test/core/issues.test.ts (34 tests) 12ms
+ ✓  node  test/core/prescriptions.test.ts (11 tests) 8ms
+ ❯  node  test/core/upstreamRoutes.test.ts (12 tests | 5 failed) 16ms
+   ✓ upstream allow-list > builds the header reads with no query keys 2ms
+   ✓ upstream allow-list > builds the MRN search with exactly one query key 0ms
+   × upstream allow-list > throws on an unknown query key (a client-supplied key is never forwarded) 6ms
+     → expected function to throw an error, but it didn't
+   ✓ upstream allow-list > throws on a missing or invalid parameter 1ms
+   ✓ upstream allow-list > throws on an unknown route id 0ms
+   ✓ upstream allow-list > has no unscoped collection route (3.13): every route is bound to one patient 1ms
+   × upstream allow-list > builds the Medical Problems route under encounters/notes, with no query keys (01-02-02) 1ms
+     → expected function to throw an error, but it didn't
+   × upstream allow-list > builds the Medications route from an integer pid only (01-02-03) 1ms
+     → expected function to throw an error, but it didn't
+   × upstream allow-list > builds the issue-card routes with no query keys and a validated puuid (01-02-01) 1ms
+     → expected function to throw an error, but it didn't
+   ✓ upstream allow-list > builds the prescription search with exactly patient_id and the fixed source_table (01-03-01, M-1) 0ms
+   × upstream allow-list > rejects any client-supplied extra key on the prescription search: the route builds SQL from key NAMES (M-1 / 2.01) 1ms
+     → pid
+   ✓ upstream allow-list > declares a scope and ACL for every route 1ms
+ ✓  node  test/bff/mapResponse.test.ts (13 tests) 19ms
+ ✓  node  test/core/header.test.ts (9 tests) 16ms
+ ✓  node  test/contract/problems.test.ts (8 tests) 46ms
+ ✓  node  test/contract/medications.test.ts (7 tests) 51ms
+ ❯  node  test/contract/prescriptions.test.ts (8 tests | 1 failed) 66ms
+   ✓ Prescriptions use case against shaped fixtures (contract) > pid 13: the outbound URL is exactly patient_id=<pid>&source_table=prescriptions, after the patient read 17ms
+   ✓ Prescriptions use case against shaped fixtures (contract) > pid 13: all 5 rows, newest date_added first (ids 66, 65, 64, 63, 62), Refills and form gaps noted 7ms
+   ✓ Prescriptions use case against shaped fixtures (contract) > DASH-SYN-01: all 3 rows including the inactive one, active first then date_modified DESC 3ms
+   ✓ Prescriptions use case against shaped fixtures (contract) > pid 3 and DASH-SYN-02: HTTP 200 with data [] is empty (the legacy "None"), not an error 5ms
+   ✓ Prescriptions use case against shaped fixtures (contract) > a row for another patient fails the card (PATIENT_MISMATCH), as does a row with no puuid 6ms
+   ✓ Prescriptions use case against shaped fixtures (contract) > a row from the lists branch, 200 validationErrors, a 500 with SQL and a bare array are errors, never data or "None" 10ms
+   ✓ Prescriptions use case against shaped fixtures (contract) > 403 is forbidden (the route needs patients/med), 401 is reauth, and no Rx call happens before the patient read succeeds 3ms
+   × Prescriptions use case against shaped fixtures (contract) > a caller that adds any other query key never reaches OpenEMR (M-1): the client refuses before fetching 13ms
+     → promise resolved "{ kind: 'response', status: 599, …(2) }" instead of rejecting
+ ✓  node  test/contract/allergies.test.ts (13 tests) 68ms
+ ✓  node  test/contract/header.test.ts (12 tests) 77ms
+ ✓  node  test/bff/health.test.ts (7 tests) 296ms
+ ✓  node  test/bff/logRedaction.test.ts (1 test) 401ms
+   ✓ log redaction across the full workflow > logs route templates, statuses and correlation ids, never PHI, ids or credentials  400ms
+ ✓  node  test/bff/auth.test.ts (12 tests) 698ms
+ ✓  node  test/bff/cardRoutes.test.ts (9 tests) 745ms
+   ✓ card routes over HTTP (fastify.inject) > GET /bff/patients/:puuid/allergies returns the CardResult for that patient  361ms
+ ✓  node  test/bff/security.test.ts (11 tests) 902ms
+   ✓ security headers and caching > sends CSP, no-referrer and nosniff everywhere, and no-store on /bff, /login, /callback, /logout  385ms
+ ✓  web  test/web/PrescriptionsCard.test.tsx (8 tests) 302ms
+ ✓  web  test/web/AllergiesCard.test.tsx (12 tests) 354ms
+ ✓  web  test/web/PatientHeader.test.tsx (10 tests) 230ms
+ ✓  web  test/web/MedicationsCard.test.tsx (6 tests) 228ms
+ ✓  web  test/web/ProblemsCard.test.tsx (6 tests) 218ms
+ ✓  node  test/lint/boundaries.test.ts (3 tests) 4489ms
+   ✓ lint boundaries > web importing the BFF fails the lint  3308ms
+   ✓ lint boundaries > core importing I/O or a framework fails the lint  1073ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL   node  test/contract/prescriptions.test.ts > Prescriptions use case against shaped fixtures (contract) > a caller that adds any other query key never reaches OpenEMR (M-1): the client refuses before fetching
+AssertionError: promise resolved "{ kind: 'response', status: 599, …(2) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "body": null,
++   "bodyEmpty": false,
++   "kind": "response",
++   "status": 599,
+  }
+
+ ❯ test/contract/prescriptions.test.ts:179:7
+    177|       await expect(
+    178|         upstream.get({ routeId: 'rest.prescription.search', query: { p…
+    179|       ).rejects.toThrow(AllowListViolation);
+       |       ^
+    180|     }
+    181|     expect(fake.calls).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL   node  test/core/upstreamRoutes.test.ts > upstream allow-list > throws on an unknown query key (a client-supplied key is never forwarded)
+AssertionError: expected function to throw an error, but it didn't
+ ❯ test/core/upstreamRoutes.test.ts:16:98
+     14| 
+     15|   it('throws on an unknown query key (a client-supplied key is never f…
+     16|     expect(() => buildUpstreamPath('fhir.patient.read', { puuid: PATIE…
+       |                                                                                                  ^
+     17|     expect(() => buildUpstreamPath('fhir.patient.search', {}, { identi…
+     18|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL   node  test/core/upstreamRoutes.test.ts > upstream allow-list > builds the Medical Problems route under encounters/notes, with no query keys (01-02-02)
+AssertionError: expected function to throw an error, but it didn't
+ ❯ test/core/upstreamRoutes.test.ts:60:115
+     58|     expect(buildUpstreamPath('rest.problem.list', { puuid: PATIENT.p13…
+     59|     expect(UPSTREAM_ROUTES['rest.problem.list'].acl).toBe('encounters/…
+     60|     expect(() => buildUpstreamPath('rest.problem.list', { puuid: PATIE…
+       |                                                                                                                   ^
+     61|     expect(() => buildUpstreamPath('rest.problem.list', { pid: 13 })).…
+     62|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL   node  test/core/upstreamRoutes.test.ts > upstream allow-list > builds the Medications route from an integer pid only (01-02-03)
+AssertionError: expected function to throw an error, but it didn't
+ ❯ test/core/upstreamRoutes.test.ts:69:95
+     67|     expect(() => buildUpstreamPath('rest.medication.list', { pid: '13 …
+     68|     expect(() => buildUpstreamPath('rest.medication.list', { pid: 0 })…
+     69|     expect(() => buildUpstreamPath('rest.medication.list', { pid: 13 }…
+       |                                                                                               ^
+     70|   });
+     71| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL   node  test/core/upstreamRoutes.test.ts > upstream allow-list > builds the issue-card routes with no query keys and a validated puuid (01-02-01)
+AssertionError: expected function to throw an error, but it didn't
+ ❯ test/core/upstreamRoutes.test.ts:76:98
+     74|     expect(buildUpstreamPath('rest.list.read')).toBe('/apis/default/ap…
+     75|     expect(() => buildUpstreamPath('rest.allergy.list', { puuid: '13' …
+     76|     expect(() => buildUpstreamPath('rest.allergy.list', { puuid: PATIE…
+       |                                                                                                  ^
+     77|     // The list name is fixed: it cannot be supplied as a parameter or…
+     78|     expect(() => buildUpstreamPath('rest.list.read', { list_name: 'rea…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL   node  test/core/upstreamRoutes.test.ts > upstream allow-list > rejects any client-supplied extra key on the prescription search: the route builds SQL from key NAMES (M-1 / 2.01)
+AssertionError: pid
+ ❯ test/core/upstreamRoutes.test.ts:92:112
+     90|     // patient key, a sort, and a key that is itself SQL.
+     91|     for (const extra of ['pid', 'drug', '_sort', 'active', "patient_id…
+     92|       expect(() => buildUpstreamPath('rest.prescription.search', {}, {…
+       |                                                                                                                ^
+     93|     }
+     94|     // The fixed key cannot be overridden (e.g. to reach the `lists` b…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  2 failed | 20 passed (22)
+      Tests  6 failed | 223 passed (229)
+   Start at  21:16:05
+   Duration  5.46s (transform 1.53s, setup 0ms, collect 16.11s, tests 9.25s, environment 4.82s, prepare 3.89s)
+
