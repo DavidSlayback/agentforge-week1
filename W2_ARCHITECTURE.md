@@ -753,8 +753,9 @@ not the primary write path.
 The PRD asks for Week 1 debt to be "documented and resolved before adding new
 surface area". This table lists all 25 items from the Week 1 review
 (`.scratch/assignments/REVIEW_2026-09-24.md` §2, audited on `0a1f3e06` and
-updated for E8 on `fd6c959b` and for F-API rows 15, 17 and 19). Status is for the W2 route (`/agentforge-w2`).
-Totals: 12 resolved, 5 partly resolved, 8 accepted.
+updated for E8 on `fd6c959b`, for F-API rows 15, 17 and 19, and for F-OBS rows 6, 9, 13
+and 18). Status is for the W2 route (`/agentforge-w2`). Totals are recomputed
+at the E7 freeze. F-OBS regression proof: `docs/agentforge/evidence/F-OBS-regression.txt`.
 
 | # | Item | Status on W2 | Evidence | Frozen W1 route (`84f232b`) |
 |---|---|---|---|---|
@@ -763,19 +764,19 @@ Totals: 12 resolved, 5 partly resolved, 8 accepted.
 | 3 | No clinical domain rules | Accepted (D8) | No `clinicalRules.js`; abnormal flags come from the document | Same |
 | 4 | No LLM tool calling; follow-ups routed by regex | Accepted (D4) | `decideNext` is deterministic by design (§4) | Same |
 | 5 | Fixture chart data labeled as an OpenEMR read | Resolved (E8) | `chartSource.js`: fixture facts cite `synthetic_chart_fixture`, "Synthetic chart fixture"; `chart-citation-source.test.js` | Still reports an OpenEMR read (`retrieve_openemr_read`) |
-| 6 | `/ready` does not probe OpenEMR or observability | Accepted (D8) | `FixtureAdapter.checkReady` returns true; Langfuse not configured on W2 | Same |
+| 6 | `/ready` does not probe OpenEMR or observability | Wired and tested (F-OBS); not yet observed deployed | `/ready` probes the OpenEMR module's signed `health` route when `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (set for W2), writes a probe file next to the trace store, and probes Langfuse only when it is configured (not on W2). A failure gives 503 with the names in `failing`. Network probes are cached 30 s. The chart is still the fixture for the public demo; the E9 REST probe is unchanged. `f-obs-server.test.js`, module test in `tests/run.php` | Same |
 | 7 | Unauthenticated token minting and ops endpoints; one role | Accepted (D4, D8) | `/v1/demo-context`, `/v1/source-document-context`, `/v1/traces`, `/v1/metrics`, `/v1/alerts` need no auth (`server.js`); the planned ops token was not built. Writes stay limited to the allowlisted synthetic patients | Same |
 | 8 | A question naming another patient was answered | Resolved (E8) | Refused as `out_of_scope_patient` on every answer path (§3d); ids and full names on fixtures, id patterns only on live OpenEMR; `x8-scope-other-patient-question` | Not fixed |
-| 9 | Correlation id missing from several calls and logs | Accepted (D8) | Chart retrieval and model calls carry it; getCase, token refresh, retriever and module client do not | Same |
+| 9 | Correlation id missing from several calls and logs | Wired and tested (F-OBS); not yet observed deployed | One id per request (`x-correlation-id` in, echoed out, else `af-<uuid>`). It names the scan trace and is sent on getCase, the chart reads, the OAuth token refresh, the guideline embed and rerank calls and every module call; server error logs carry it. `correlation-propagation.test.js` checks every call of one scan request; `f-obs-server.test.js` checks the HTTP wiring. Briefings keep their existing id, now also on getCase | Same |
 | 10 | Hand-rolled schemas; outputs unvalidated | Partly | W2 contracts are strict Zod (`schemas.js`); W1 briefing contracts and `getCase` output are not | Same |
 | 11 | Cost always $0 | Resolved | `pricing.js`; unknown cost is `null`; traces record `cost_usd` (`W2_COST_LATENCY.md`) | Still $0 |
 | 12 | Langfuse gets one flat span | Accepted (D8) | Not configured on W2 | Same |
-| 13 | Dashboard: 100-trace cap, no polling, wrong window label | Partly | 10 s polling, p99 and the real window label added; the cap remains | Not fixed |
+| 13 | Dashboard: 100-trace cap, no polling, wrong window label | Wired and tested (F-OBS); not yet observed deployed | 10 s polling, p99 and the window label (earlier). The cap is `AGENTFORGE_TRACE_LIMIT` (default 500), shown on the dashboard and in `/v1/metrics` `traceLimit`. W2 traces are on the `w2tracevolume` named volume (7-day retention), so a redeploy no longer empties the dashboard. `f-obs-server.test.js`, `w2-trace-volume.test.js` | Not fixed |
 | 14 | p95 alert at 2 s fires on every scan | Resolved (E8) | W2 compose sets `AGENTFORGE_ALERT_P95_MS=30000`; live `/v1/alerts` on `fd6c959b`: observed 21228 ms, not triggered | Still 2 s |
 | 15 | Load test: no p99, 8% timeouts, stale commit | Partly: tooling ready, run at freeze | `agentforge/scripts/load-test.mjs`: 10 and 50 users, ≥ 200 requests per level, route mix with a capped scan share, p50/p95/p99, error rate, per-route breakdown and raw JSON named by the target's SHA; percentile math tested (`agentforge/test/load-test.test.js`); local dry run on `7a625da0` (`docs/agentforge/evidence/load/dry-run/`). No run against the deployed service yet (`docs/agentforge/LOAD_TEST.md`) | Same |
 | 16 | Cost analysis has no LLM spend | Partly | Measured per-scan model cost in `W2_COST_LATENCY.md`; dev spend is pending the owner's console readback | Same |
 | 17 | API collection is a localhost PowerShell script | Partly: built and green locally, deployed run at freeze | Bruno collection `agentforge/api/bruno` (W1 and W2 endpoints, `local` and `deployed` environments, chained token → upload → scan); `collection.ps1` removed; 27/27 requests, 64/64 assertions on a local server from `4c630f5b` (`docs/agentforge/evidence/bruno/4c630f5b-local.json`). Not yet run against the public URL | Same |
-| 18 | Alerts computed only on request | Accepted | `evaluateAlerts` runs inside `GET /v1/alerts` | Same |
+| 18 | Alerts computed only on request | Wired and tested (F-OBS); not yet observed deployed | `AlertMonitor` evaluates every `AGENTFORGE_ALERT_EVAL_INTERVAL_MS` (default 60 s) and on `GET /v1/alerts`, and logs each rule's ok/firing change once as a JSON line with codes only (`agentforge_alert_transition`). No notification channel: the log line is the alert. `observability/test/f-obs.test.js`, `f-obs-server.test.js` | Same |
 | 19 | Evals never test unauthorized or ambiguous cases | Resolved (F-API) | The W1 runner (`evals/lib/adversarial.js`, run by `runner.js --service` and in the hook) sends 6 unauthorized cases (tampered payload, tampered signature, expired token, valid token for another patient, another patient's conversation, no token) and 3 ambiguous ones ("what changed?" with no prior visit, two identity records, a question naming two patients) to the running service; each fails when its protection is removed (`docs/agentforge/evidence/W1-evals-adversarial-regression.txt`). Run against a local server, not yet the public URL. The W2 gates also cover cross-patient scans and questions (`EVAL_GATE.md`) | Same |
 | 20 | Missing BP question dumps evidence instead of "not documented" | Accepted | No "not documented" handling | Same |
 | 21 | `AUDIT.md`, `ARCHITECTURE.md`, `USER.md` not at the root | Resolved (MR !99) | All at the repo root | n/a (docs) |
@@ -787,7 +788,7 @@ Totals: 12 resolved, 5 partly resolved, 8 accepted.
 Why some items are accepted: D4 put the role model and LLM tool-calling out of
 scope, and D8 limited Week 1 work to trust-critical debt that W2 depends on
 (`docs/agentforge/PLAN.md`). The accepted items are operational (auth on
-demo and ops routes, readiness probes, tracing)
+demo and ops routes, Langfuse span shape)
 or are W1 features W2 does not build on (domain rules, tool calling). The
 frozen `/agentforge` route keeps all of its Week 1 debt, including the `.some`
 verifier and $0 cost: it is the W1 submission snapshot, image-only, and

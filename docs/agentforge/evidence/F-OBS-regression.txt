@@ -1,0 +1,108 @@
+F-OBS deliberate-regression proof (2026-09-26 17:06 CDT, base cdc8a5ab on branch agentforge/f-obs). Each mutation is applied alone, the covering tests are run, and the file is reverted with git checkout. Test output is filtered to the TAP result lines.
+
+=== R1: the W2 trace file goes back into the container filesystem (/tmp), no volume ===
+diff --git a/deploy/vultr/docker-compose.yml b/deploy/vultr/docker-compose.yml
+index 4a815561..87790c36 100644
+--- a/deploy/vultr/docker-compose.yml
++++ b/deploy/vultr/docker-compose.yml
+@@ -206,7 +206,7 @@ services:
+       # the newest AGENTFORGE_TRACE_LIMIT traces for at most the retention
+       # window (7 days here; the server default is 24 h). Traces are redacted
+       # before they are written (observability/index.js).
+-      AGENTFORGE_TRACE_PATH: /data/w2-traces.json
++      AGENTFORGE_TRACE_PATH: /tmp/agentforge-w2-traces.json
+       AGENTFORGE_TRACE_LIMIT: ${AGENTFORGE_W2_TRACE_LIMIT:-500}
+       AGENTFORGE_TRACE_RETENTION_MS: ${AGENTFORGE_W2_TRACE_RETENTION_MS:-604800000}
+       # Alerts are evaluated in the background at this interval; each rule's
+
+$ node --test --test-reporter=tap agentforge/test/w2-trace-volume.test.js
+not ok 1 - the W2 trace file lives on a declared named volume, not in the container filesystem
+ok 2 - the W2 store is bounded and the new settings are explicit
+ok 3 - the frozen W1 service keeps its original trace configuration
+# pass 2
+# fail 1
+
+=== R2: the OpenEMR module client ignores the request id and mints its own ===
+diff --git a/agentforge/src/openemrModuleClient.js b/agentforge/src/openemrModuleClient.js
+index a6c4c70c..94c74f36 100644
+--- a/agentforge/src/openemrModuleClient.js
++++ b/agentforge/src/openemrModuleClient.js
+@@ -108,7 +108,7 @@ export class OpenEMRModuleClient {
+     const fullQuery = { route, site: this.site, ...query };
+     const bodyText = body === null ? '' : JSON.stringify(body);
+     const { headers } = signRequest({ secret: this.secret, method, query: fullQuery, body: bodyText, contextToken, timestamp: this.now(), nonce: this.nonce() });
+-    const correlationId = requestCorrelationId || this.correlationId();
++    const correlationId = this.correlationId();
+     const url = new URL(this.baseUrl);
+     for (const [key, value] of Object.entries(fullQuery)) url.searchParams.set(key, value);
+     const controller = new AbortController();
+
+$ node --test --test-reporter=tap agentforge/test/correlation-propagation.test.js
+not ok 1 - one scan request carries its correlation id into getCase, token refresh, embed, rerank and every module call
+ok 2 - without a request id the scan trace keeps its own id and the module client mints one per call
+not ok 3 - module errors carry the request id
+ok 4 - a failed token refresh carries the request id
+# pass 2
+# fail 2
+
+=== R3: the background alert monitor is never started (alerts only on GET /v1/alerts again) ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6aa4c9e8..01f644ce 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -622,4 +622,4 @@ const server = http.createServer(async (req, res) => {
+     if (error?.name === 'OpenEMRModuleError') { console.error('AgentForge OpenEMR module call failed', { code: error.code, status: error.status, correlation_id: error.correlationId || correlationId }); return json(res, error.httpStatus, { error: error.code.toLowerCase() }); }
+     console.error('AgentForge request failed', { correlation_id: correlationId, code: error?.code || null }, error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
+ });
+-server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => { alertMonitor.start(); console.log('AgentForge listening'); });
++server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => { console.log('AgentForge listening'); });
+
+$ node --test --test-reporter=tap --test-name-pattern=background agentforge/test/f-obs-server.test.js
+not ok 1 - alerts are evaluated in the background and a transition is logged once, with codes only
+# pass 0
+# fail 1
+
+=== R4: /ready no longer probes the OpenEMR module ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6aa4c9e8..7bbe36e1 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -272,7 +272,7 @@ const readiness = createReadinessChecker({
+   // A real write next to the trace file, not only an access-bit check.
+   trace: { checkReady: async () => traceSink.health().status === 'ok' && await traceSink.probeWritable() },
+   // The OpenEMR module (persistence) and Langfuse (export) only when configured.
+-  ...(openemrModuleReadiness ? { openemrModule: openemrModuleReadiness } : {}),
++
+   ...(langfuseReadiness ? { langfuse: langfuseReadiness } : {}),
+   // A missing/unreadable corpus/guidelines/corpus.json no longer crashes the
+   // process (guidelineEvidence.js resolves it lazily and degrades to
+
+$ node --test --test-reporter=tap --test-name-pattern=module agentforge/test/f-obs-server.test.js
+not ok 1 - /ready probes the OpenEMR module in openemr-module mode and names it when it fails
+# pass 0
+# fail 1
+
+=== R5: the trace cap is hard-coded back to 100 ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 6aa4c9e8..98e82606 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -233,7 +233,7 @@ const serviceExternalProviderAllowed = !(liveOpenEMR || liveReadsEnabled) || !ha
+ // volume so traces survive a container replacement. /v1/traces and the
+ // dashboard show everything retained, so the limit is also their cap.
+ const traceLimit = positiveIntegerFromEnv(process.env.AGENTFORGE_TRACE_LIMIT, DEFAULT_TRACE_LIMIT, 'AGENTFORGE_TRACE_LIMIT');
+-const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: traceLimit, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
++const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
+ const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
+ const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
+ // Alerts are evaluated in the background every AGENTFORGE_ALERT_EVAL_INTERVAL_MS
+
+$ node --test --test-reporter=tap --test-name-pattern=cap agentforge/test/f-obs-server.test.js
+not ok 1 - the trace cap is AGENTFORGE_TRACE_LIMIT: 500 by default, configurable, reported by /v1/metrics
+# pass 0
+# fail 1
+
+=== Reverted: git status of the mutated files ===
+(empty = all reverted)
+
+Scope note: these regressions are caught by the unit suites that .githooks/pre-commit runs (npm test --prefix agentforge, node --test observability/test). The 50-case gate and the extension suite grade answers and do not exercise these operational paths; both passed unchanged on cdc8a5ab (50 and 40 cases).

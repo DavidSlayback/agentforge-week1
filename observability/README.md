@@ -18,8 +18,9 @@ restore drills remain separate operational evidence.
 When `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY` are
 present, `LangfuseTraceSink` asynchronously exports the already-redacted trace
 as one OTLP span to Langfuse v4. The local file sink remains authoritative for
-tests and recovery; Langfuse ingestion is not part of request correctness or
-readiness. Export concurrency is bounded by `LANGFUSE_MAX_PENDING_EXPORTS` so
+tests and recovery; Langfuse ingestion is not part of request correctness.
+When it is configured, the server's `/ready` probes its public health route
+(`LangfuseOtelExporter#checkReachable`). Export concurrency is bounded by `LANGFUSE_MAX_PENDING_EXPORTS` so
 an outage cannot create unbounded fetch work. Credentials are read only from
 the environment and are never put in trace attributes, logs, or repository
 files.
