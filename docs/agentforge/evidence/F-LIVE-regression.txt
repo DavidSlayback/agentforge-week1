@@ -219,3 +219,58 @@ Reverted.
 
 After all reverts, git status --short prints: (nothing)
 Note: round 1's R2a tested the 9959575a behavior (comments read as the dose), which fix 4 reverses; R6 replaces it. R2b's "not recorded" wording is now "dose not available from this OpenEMR route".
+
+=== ROUND 3 === Docker-internal http://openemr token endpoint, deliberate-regression proof (2026-09-26 17:31 CDT, code at c7a55185 on branch agentforge/f-live). Each mutation is applied alone, the named tests run (node --test), and the file is reverted with git checkout. The unmutated runs pass (pre-commit hook on c7a55185: agentforge unit suite 624 tests, 621 pass, 0 fail, 3 skipped; 50-case gate and extension suite pass).
+
+=== R8: the Docker-internal exception removed: production’s http://openemr token URL is refused again (the break the coordinator found) ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index 7918058d..6926c844 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -183,7 +183,7 @@ export function tokenUrlIssue(tokenUrl) {
+   if (url.username || url.password) return 'OPENEMR_TOKEN_URL_INVALID';
+   if (url.protocol === 'https:') return null;
+   // WHATWG URL drops the default port, so `http://openemr:80` has origin `http://openemr` too.
+-  return url.origin === INTERNAL_HTTP_TOKEN_ORIGIN ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
++  return 'OPENEMR_TOKEN_URL_NOT_HTTPS';
+ }
+ 
+ /** Cache and refresh OAuth credentials used only for GET chart reads. */
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="token URL|URLs:|exchange as the expected user|Docker-internal" test/openemr-rest-adapter.test.js test/openemr-authorize-read-client.test.js test/live-chart-http.test.js)
+✔ live reads on with a plain-http OpenEMR token URL other than the Docker-internal http://openemr: refused like a missing setting (/ready 503, live requests refused), never sent (254.6554ms)
+✖ live reads on with production's Docker-internal token URL (http://openemr): accepted as configured, not refused as insecure (166.4632ms)
+✖ URLs: the authorize URL is https only (the browser opens it); the token URL is https or exactly the Docker-internal http://openemr (0.9844ms)
+✖ exchange as the expected user: writes the provider cache atomically (0600) and prints no token, code, verifier, uuid or secret (4.7976ms)
+✖ refusals before anything is sent: http token URL, running service, missing or malformed expected user (2.5745ms)
+✖ F-LIVE token URL: the refresh provider sends the client secret and refresh token over https or the Docker-internal http://openemr only (1.2442ms)
+ℹ pass 1
+ℹ fail 5
+exit=1
+Reverted.
+
+=== R9: the exception widened to any host named openemr on any port (http://openemr:8080 accepted) ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index 7918058d..f6451456 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -183,7 +183,7 @@ export function tokenUrlIssue(tokenUrl) {
+   if (url.username || url.password) return 'OPENEMR_TOKEN_URL_INVALID';
+   if (url.protocol === 'https:') return null;
+   // WHATWG URL drops the default port, so `http://openemr:80` has origin `http://openemr` too.
+-  return url.origin === INTERNAL_HTTP_TOKEN_ORIGIN ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
++  return url.hostname === 'openemr' ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
+ }
+ 
+ /** Cache and refresh OAuth credentials used only for GET chart reads. */
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="token URL|URLs:|refusals before anything" test/openemr-rest-adapter.test.js test/openemr-authorize-read-client.test.js)
+✖ URLs: the authorize URL is https only (the browser opens it); the token URL is https or exactly the Docker-internal http://openemr (1.3835ms)
+✖ refusals before anything is sent: http token URL, running service, missing or malformed expected user (7.1179ms)
+✖ F-LIVE token URL: the refresh provider sends the client secret and refresh token over https or the Docker-internal http://openemr only (1.2538ms)
+ℹ pass 0
+ℹ fail 3
+exit=1
+Reverted.
+
+After all reverts, git status --short prints: (nothing)
