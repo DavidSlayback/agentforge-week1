@@ -200,6 +200,11 @@ export function fieldRows(lines, documentType, layoutId = '') {
         ['a1c reference range', ['lab.a1c.reference_range', 'A1C reference range']], ['hba1c reference range', ['lab.a1c.reference_range', 'A1C reference range']],
         ['a1c collection date', ['lab.a1c.collection_date', 'A1C collection date']], ['hba1c collection date', ['lab.a1c.collection_date', 'A1C collection date']],
         ['a1c abnormal', ['lab.a1c.abnormal', 'A1C abnormal']], ['hba1c abnormal', ['lab.a1c.abnormal', 'A1C abnormal']],
+        // F-CLIN: potassium rows, so the critical-potassium rule
+        // (clinicalRules.js) has a typed K+ result to read on the PDF path.
+        ['potassium test name', ['lab.k.test_name', 'Potassium test name']], ['potassium value', ['lab.k.value', 'Potassium value']],
+        ['potassium unit', ['lab.k.unit', 'Potassium unit']], ['potassium reference range', ['lab.k.reference_range', 'Potassium reference range']],
+        ['potassium collection date', ['lab.k.collection_date', 'Potassium collection date']], ['potassium abnormal', ['lab.k.abnormal', 'Potassium abnormal']],
       ])
       : new Map([
         ['patient name', ['patient.name', 'Patient name']], ['name', ['patient.name', 'Patient name']],

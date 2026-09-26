@@ -36,6 +36,8 @@
  * shortcut — it is graded by the identical rule.
  */
 import { verifyClaims } from './claimBinding.js';
+import { applyClinicalRules } from './clinicalRules.js';
+import { findNotDocumented, onlyNotDocumented } from './notDocumented.js';
 import { BINDING_VOCABULARY } from './clinicalVocabulary.js';
 import { canonicalText } from './groundingText.js';
 import { GroundedAnswer, parseOrIssues } from './schemas.js';
@@ -372,7 +374,32 @@ export function partitionAnswerInputs({ labResults = [], intakeForm = null, medi
     if (!fact.citation) { needsReview.push({ kind: 'patient_record', field: fact.field || 'patient_record', reason: 'missing_citation' }); continue; }
     patientFactCitations.push(fact.citation);
   }
-  return { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence };
+  // F-CLIN clinical rules (clinicalRules.js), on confident facts only: a lab
+  // result a rule cannot trust (a flag contradicting its range, an
+  // unrecognized unit) leaves the answer for needs_review, and cited safety
+  // flags are added. Done here, not in the composer, so the critic's top-up
+  // (critic.js), which reuses this partition, can never re-add such a result.
+  const rules = applyClinicalRules({ verifiedLabResults, factCitations: [...verifiedIntakeCitations, ...patientFactCitations] });
+  needsReview.push(...rules.needsReview);
+  return { needsReview, verifiedLabResults: rules.labResults, verifiedIntakeCitations, patientFactCitations, guidelineEvidence, safetyFlags: rules.safetyFlags };
+}
+
+/**
+ * Every fact the answer has, for the "not documented" check: all lab
+ * results and intake/medication-list/chart facts at any confidence (a
+ * low-confidence reading is documented but needs review, which is not the
+ * same as absent).
+ */
+function notDocumentedFacts({ labResults = [], intakeForm = null, medicationList = null, patientFacts = [] }) {
+  const citationFact = (citation) => ({ field: citation.field_or_chunk_id, value: citation.quote_or_value, source_type: citation.source_type });
+  return {
+    labResults,
+    facts: [
+      ...collectIntakeLeaves(intakeForm).filter((leaf) => leaf.citation).map((leaf) => citationFact(leaf.citation)),
+      ...(medicationList?.medications || []).filter((item) => item.citation).map((item) => citationFact(item.citation)),
+      ...patientFacts.map((fact) => ({ field: fact.field || fact.citation?.field_or_chunk_id || '', value: fact.value === null || fact.value === undefined ? '' : (typeof fact.value === 'string' ? fact.value : JSON.stringify(fact.value)), source_type: fact.citation?.source_type || 'patient_record' })),
+    ],
+  };
 }
 
 /**
@@ -420,7 +447,26 @@ export function deterministicTopUpClaims({ verifiedLabResults = [], verifiedInta
  * contract the server validates before ever sending `workflow.answer`.
  */
 export async function composeGroundedAnswer({ labResults = [], intakeForm = null, medicationList = null, guidelineEvidence = [], patientFacts = [], question = '' } = {}, { provider, trace = null, correlationId = '', signal } = {}) {
-  const { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations } = partitionAnswerInputs({ labResults, intakeForm, medicationList, guidelineEvidence, patientFacts });
+  const { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations, safetyFlags } = partitionAnswerInputs({ labResults, intakeForm, medicationList, guidelineEvidence, patientFacts });
+
+  // F-CLIN: a question asking for a measured value no source records gets a
+  // "not documented" answer. When that is all it asks, nothing else answers
+  // it, so no claim is composed (no model call) rather than listing
+  // unrelated facts or guideline chunks; safety flags and needs_review still ship.
+  const documented = findNotDocumented({ question, ...notDocumentedFacts({ labResults, intakeForm, medicationList, patientFacts }) });
+  if (onlyNotDocumented(documented)) {
+    return {
+      composer: 'not-documented',
+      patient_facts: [],
+      guideline_evidence: [],
+      needs_review: needsReview,
+      safety_flags: safetyFlags,
+      not_documented: documented.notDocumented,
+      unverified_dropped: 0,
+      model_claims_proposed: 0,
+      model_claims_verified: 0,
+    };
+  }
 
   const allowedValues = [...verifiedLabResults, ...verifiedIntakeCitations, ...guidelineEvidence, ...patientFactCitations];
   // F1 review fix 2026-09-24: label every fact/chunk once so the prompt and
@@ -538,6 +584,8 @@ export async function composeGroundedAnswer({ labResults = [], intakeForm = null
     patient_facts: outcome.verified.filter((claim) => claim.kind === 'patient_fact'),
     guideline_evidence: outcome.verified.filter((claim) => claim.kind === 'guideline'),
     needs_review: needsReview,
+    safety_flags: safetyFlags,
+    not_documented: documented.notDocumented,
     unverified_dropped: unverifiedDropped,
     model_claims_proposed: modelClaimsProposed,
     model_claims_verified: modelClaimsVerified,

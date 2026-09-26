@@ -34,7 +34,7 @@ export const API_CONTRACTS = Object.freeze({
   prepareRequest: { required: ['patient_uuid', 'clinician_uuid'], optional: ['case_id', 'correlation_id', 'demo_token'], allowed: ['patient_uuid', 'clinician_uuid', 'case_id', 'correlation_id', 'demo_token'] },
   followUpRequest: { required: ['patient_uuid', 'message', 'clinician_uuid'], optional: ['demo_token'], allowed: ['patient_uuid', 'message', 'clinician_uuid', 'demo_token'] },
   briefingResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'verification', 'operations'], allowed: ['contract_version', 'correlation_id', 'context', 'comparison', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification', 'text', 'model', 'deadline'] },
-  followUpResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification'], allowed: ['contract_version', 'correlation_id', 'context', 'comparison', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'text', 'evidence', 'qualification', 'operations', 'verification', 'deadline'] },
+  followUpResponse: { required: ['contract_version', 'correlation_id', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'qualification', 'operations', 'verification'], allowed: ['contract_version', 'correlation_id', 'context', 'comparison', 'disposition', 'patient', 'claims', 'withheld_fields', 'coverage', 'text', 'evidence', 'qualification', 'operations', 'verification', 'deadline', 'not_documented'] },
 });
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);

@@ -4,10 +4,10 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 40,
+  "total_cases": 50,
   "missing_baseline": false,
-  "corpus_sha256": "ed68a3ba0f9dc0919baf26f5ee27f9dcf2cbbd697e1bac4b054aac36a97abb70",
-  "baseline_corpus_sha256": "ed68a3ba0f9dc0919baf26f5ee27f9dcf2cbbd697e1bac4b054aac36a97abb70",
+  "corpus_sha256": "13298a9c11e535423304a4146e5a8dc0773f6d31efbfe3a1485f014f446706e0",
+  "baseline_corpus_sha256": "13298a9c11e535423304a4146e5a8dc0773f6d31efbfe3a1485f014f446706e0",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -28,13 +28,13 @@
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 9,
-      "passed": 9,
+      "cases": 15,
+      "passed": 15,
       "rate": 1
     },
     "safe_refusal": {
-      "cases": 13,
-      "passed": 13,
+      "cases": 17,
+      "passed": 17,
       "rate": 1
     },
     "no_phi_in_logs": {
@@ -291,6 +291,66 @@
       "id": "x9-live-chart-provenance-not-data",
       "label": "safe_refusal",
       "guards_against": "Something other than the verified issuer picks the chart: claims copied into a plain object (as a request body could carry them) select a source, or a synthetic-demo token that names an OpenEMR patient uuid reads OpenEMR.",
+      "passed": true
+    },
+    {
+      "id": "xc-fc-01-critical-potassium-flag",
+      "label": "factually_consistent",
+      "guards_against": "A lab report with potassium 6.8 mmol/L (critical limit 6.0 mmol/L or greater) ships without exactly one critical_value safety flag citing that result by its 5-key document citation, the flag restates a value other than the cited one, the result itself stops being stated, or the trace lacks the flag code or carries the value.",
+      "passed": true
+    },
+    {
+      "id": "xc-fc-02-normal-potassium-no-flag",
+      "label": "factually_consistent",
+      "guards_against": "A normal potassium (4.2 mmol/L) is flagged critical or sent to review (a false positive), or is not stated.",
+      "passed": true
+    },
+    {
+      "id": "xc-fc-03-a1c-diabetes-range-flag",
+      "label": "factually_consistent",
+      "guards_against": "The rasterized lab-b A1C of 7.2 % ships without a diabetes_range flag that cites both the result and the CDC \"A1C Ranges\" chunk (Diabetes: 6.5% or above).",
+      "passed": true
+    },
+    {
+      "id": "xc-fc-04-a1c-below-range-no-flag",
+      "label": "factually_consistent",
+      "guards_against": "The A1C of 6.1 % (below 6.5 %) on the high-confidence scan-text lab report is flagged in the diabetes range, sent to review by a rule, or not stated.",
+      "passed": true
+    },
+    {
+      "id": "xc-fc-05-penicillin-amoxicillin-conflict",
+      "label": "factually_consistent",
+      "guards_against": "An intake form with a penicillin allergy and amoxicillin in its medications ships without exactly one drug_allergy_conflict flag citing both form lines, or the trace carries a drug or allergen name.",
+      "passed": true
+    },
+    {
+      "id": "xc-fc-06-penicillin-metformin-no-conflict",
+      "label": "factually_consistent",
+      "guards_against": "intake-a as printed (penicillin allergy, metformin) raises a drug_allergy_conflict flag.",
+      "passed": true
+    },
+    {
+      "id": "xc-sr-01-a1c-flag-contradicts-range",
+      "label": "safe_refusal",
+      "guards_against": "An A1C of 6.8 % that the report marks \"abnormal: No\" is stated as a patient fact, or flagged from that untrusted value, instead of going to needs review as flag_contradicts_range.",
+      "passed": true
+    },
+    {
+      "id": "xc-sr-02-potassium-unit-unrecognized",
+      "label": "safe_refusal",
+      "guards_against": "A potassium printed in mg/dL (a unit the rule does not read) is stated, or judged against the mmol/L critical limits, instead of going to needs review as rule_unit_unrecognized.",
+      "passed": true
+    },
+    {
+      "id": "xc-sr-03-scan-bp-not-documented",
+      "label": "safe_refusal",
+      "guards_against": "A scan question \"What was the blood pressure?\", when neither the lab report nor the chart holds a reading, is answered with unrelated lab facts or guideline chunks instead of an explicit \"not documented\" entry naming the sources checked.",
+      "passed": true
+    },
+    {
+      "id": "xc-sr-04-followup-bp-not-documented",
+      "label": "safe_refusal",
+      "guards_against": "The briefing follow-up \"What was the blood pressure?\" lists the \"blood-pressure follow-up\" visit reason and note as evidence instead of answering that no reading is documented (W1 debt item 20), or a documented topic stops being answered.",
       "passed": true
     }
   ],

@@ -126,7 +126,8 @@ test('verification never carries claim text, citation quotes, or extracted value
   const serialized = JSON.stringify(verification);
   assert.ok(!serialized.includes('secret-value'));
   assert.ok(!serialized.includes('The chart records'));
-  assert.deepEqual(Object.keys(verification).sort(), ['claims_dropped', 'claims_proposed', 'claims_verified', 'composer', 'guideline_evidence_count', 'needs_review_count', 'reason_codes', 'record_claims_count', 'status'].sort());
+  // F-CLIN added safety-flag and not-documented counts (codes and counts only).
+  assert.deepEqual(Object.keys(verification).sort(), ['claims_dropped', 'claims_proposed', 'claims_verified', 'composer', 'guideline_evidence_count', 'needs_review_count', 'not_documented_count', 'reason_codes', 'record_claims_count', 'safety_flag_codes', 'safety_flag_count', 'status'].sort());
 });
 
 test('production code never reads golden-set expectations: the function signature has no such input', () => {

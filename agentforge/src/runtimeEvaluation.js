@@ -76,8 +76,16 @@
  * closed reason codes only, never claim text, citation quotes, or extracted
  * values (AGENTS.md: no PHI in logs; W2 PRD §7: "must not contain raw PHI").
  */
+import { summarizeSafetyFlags } from './clinicalRules.js';
 
 export const RUNTIME_EVALUATION_KIND = 'runtime_encounter';
+
+// A list of codes, not a code->count map: the trace redactor masks any key
+// that looks sensitive (e.g. "critical_value"), so codes travel as values.
+function safetyFlagSummary(flags = []) {
+  const { count, codes } = summarizeSafetyFlags(flags);
+  return { safety_flag_count: count, safety_flag_codes: codes };
+}
 
 /** `answer.needs_review` reason codes are already a closed set
  * (`answerComposer.js`: `'low_confidence'`, `'missing_citation'`) -- no
@@ -94,6 +102,9 @@ function summarizeAnswerVerification(answer) {
       guideline_evidence_count: 0,
       needs_review_count: 0,
       reason_codes: [],
+      safety_flag_count: 0,
+      safety_flag_codes: [],
+      not_documented_count: 0,
     };
   }
   const claimsDropped = answer.unverified_dropped || 0;
@@ -116,6 +127,10 @@ function summarizeAnswerVerification(answer) {
     guideline_evidence_count: (answer.guideline_evidence || []).length,
     needs_review_count: needsReview.length,
     reason_codes: reasonCodes,
+    // F-CLIN: rule flags and "not documented" answers, as codes and counts
+    // only (a flag's text and citations carry values, so they stay out).
+    ...safetyFlagSummary(answer.safety_flags),
+    not_documented_count: (answer.not_documented || []).length,
   };
 }
 
