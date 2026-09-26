@@ -313,3 +313,38 @@ test('a dropped medication row keeps the list QUALIFIED extraction_incomplete: u
   // A clean list with only titles, identity and numbered rows stays complete.
   assert.equal((await extractMedicationList(COMPLETE_LIST)).status, 'complete');
 });
+
+// --- Review fix 2: an intake with a medication table is still an intake.
+const INTAKE_WITH_MEDICATION_TABLE = [
+  'NEW PATIENT INTAKE',
+  'Patient name: Test Patient One',
+  'Date of birth: 1980-04-12',
+  'Chief concern: Fatigue for two weeks',
+  'Current medications (name, dose, frequency, route)',
+  'Metformin 500 mg twice daily by mouth',
+  'Lisinopril 10 mg once daily by mouth',
+  'Preferred pharmacy: Northwind Pharmacy',
+  'Allergies: Penicillin',
+  'Family history: Mother has type 2 diabetes',
+];
+
+test('an intake with a "Current medications (name, dose, frequency, route)" table and a pharmacy line is detected as an intake, declared either way', async () => {
+  const { assessDocumentSafety, detectDocumentType } = await import('../src/documentSafety.js');
+  const text = INTAKE_WITH_MEDICATION_TABLE.join('\n');
+  const detection = detectDocumentType(text);
+  // Medication words are present (dose, frequency, route, pharmacy, by mouth,
+  // twice daily) but no medication-list anchor, so they do not compete.
+  assert.ok(detection.medication_list_hits >= 5, JSON.stringify(detection));
+  assert.equal(detection.medication_list_anchor_hits, 0);
+  assert.equal(detection.detected, 'intake_form');
+  const asIntake = assessDocumentSafety({ documentType: 'intake_form', documentText: text, extraction: { facts: [{ field_id: 'chief_concern' }], status: 'complete' } });
+  assert.equal(asIntake.qualifying.includes('doc_type_mismatch'), false);
+  const asMedicationList = assessDocumentSafety({ documentType: 'medication_list', documentText: text, extraction: await extractMedicationList(INTAKE_WITH_MEDICATION_TABLE), targetPatient: { name: 'Test Patient One', dob: '1980-04-12' } });
+  assert.ok(asMedicationList.qualifying.includes('doc_type_mismatch'), JSON.stringify(asMedicationList));
+  assert.equal(asMedicationList.checks.document_type.detected, 'intake_form');
+  // With two intake-only sections, only medication-list anchors compete: an
+  // intake that also prints one list anchor is still an intake.
+  assert.equal(detectDocumentType(`${text}\nPrescriber: Dr. Robin Example`).detected, 'intake_form');
+  // A real medication list that also names allergies stays a medication list.
+  assert.equal(detectDocumentType(`${MEDLIST_TEXT}\nAllergies: Penicillin`).detected, 'medication_list');
+});

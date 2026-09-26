@@ -11,6 +11,15 @@ const INTAKE_TERMS = [/\bdate of birth\b/, /\breason for visit\b/, /\bchief conc
 // Medication-list vocabulary. Plain "mg", "daily" and "medications" are left
 // out on purpose: intake forms list current medications with doses too.
 const MEDICATION_LIST_TERMS = [/\bmedication list\b/, /\bmedication reconciliation\b/, /\bprescriber\b/, /\bpharmacy\b/, /\b(?:medication|rx)\s*#?\s*\d{1,2}\s*:/, /\b(?:by mouth|orally|oral)\b/, /\b(?:once|twice|three times|four times) daily\b|\bat bedtime\b|\bevery \d+ hours\b/, /\blist date\b|\breviewed on\b/, /\bdose\b/, /\bfrequency\b/, /\broute\b/];
+// What makes a page a medication list rather than a form with a medication
+// section: its title, a prescriber, a reconciliation or list date, or
+// numbered drug rows. Without one, the dose/route/pharmacy words above are
+// read as an intake's medication section and do not count.
+const MEDICATION_LIST_ANCHORS = [/\bmedication list\b/, /\bmedication reconciliation\b/, /\bprescriber\b/, /\b(?:medication|rx)\s*#?\s*\d{1,2}\s*:/, /\blist date\b|\breviewed on\b/];
+// Sections only an intake form has. With two of them, the page is an intake
+// even when its medication section uses list words, so only the list anchors
+// above compete with it.
+const INTAKE_ONLY_ANCHORS = [/\breason for visit\b|\bchief concern\b/, /\ballerg(?:y|ies)\b/, /\bfamily history\b/, /\bintake\b/, /\bpatient information\b|\bnew patient\b/];
 const MIN_HITS = 2;
 const MIN_MARGIN = 2;
 const TYPE_TERMS = Object.freeze({ lab_pdf: LAB_TERMS, intake_form: INTAKE_TERMS, medication_list: MEDICATION_LIST_TERMS });
@@ -20,16 +29,23 @@ const TYPE_TERMS = Object.freeze({ lab_pdf: LAB_TERMS, intake_form: INTAKE_TERMS
  *
  * Returns:
  *   `{detected: 'lab_pdf'|'intake_form'|'medication_list'|'undetermined',
- *   lab_hits, intake_hits, medication_list_hits}`. A type is only claimed
- *   with at least two distinct keyword hits and a two-hit margin over every
- *   other type, so a lone "Allergies" line on a lab report does not flip it.
+ *   lab_hits, intake_hits, medication_list_hits, medication_list_anchor_hits}`.
+ *   A type is only claimed with at least two distinct keyword hits and a
+ *   two-hit margin over every other type, so a lone "Allergies" line on a
+ *   lab report does not flip it. Medication-list words count only when the
+ *   page has a medication-list anchor, and against a page with two
+ *   intake-only sections only the anchors count (see the constants above).
  */
 export function detectDocumentType(text) {
   const normalized = String(text || '').toLowerCase();
   const types = Object.keys(TYPE_TERMS);
   const hits = Object.fromEntries(types.map((type) => [type, TYPE_TERMS[type].filter((term) => term.test(normalized)).length]));
-  const detected = types.find((type) => hits[type] >= MIN_HITS && types.every((other) => other === type || hits[type] - hits[other] >= MIN_MARGIN)) || 'undetermined';
-  return { detected, lab_hits: hits.lab_pdf, intake_hits: hits.intake_form, medication_list_hits: hits.medication_list };
+  const count = (terms) => terms.filter((term) => term.test(normalized)).length;
+  const medicationAnchors = count(MEDICATION_LIST_ANCHORS);
+  const intakeAnchors = count(INTAKE_ONLY_ANCHORS);
+  const scores = { ...hits, medication_list: !medicationAnchors ? 0 : intakeAnchors >= 2 ? medicationAnchors : hits.medication_list };
+  const detected = types.find((type) => scores[type] >= MIN_HITS && types.every((other) => other === type || scores[type] - scores[other] >= MIN_MARGIN)) || 'undetermined';
+  return { detected, lab_hits: hits.lab_pdf, intake_hits: hits.intake_form, medication_list_hits: hits.medication_list, medication_list_anchor_hits: medicationAnchors };
 }
 
 const nameTokens = (value) => String(value || '').toLowerCase().replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter((token) => /[a-z]/.test(token)).sort().join(' ');
