@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "kind": "hand-built",
+    "note": "Hand-built error or edge shape; not recorded, not live. REST HTTP 200 envelope carrying validationErrors (catalog 6.02).",
+    "synthetic": true
+  },
+  "status": 200,
+  "body": {
+    "validationErrors": {
+      "uuid": [
+        "invalid or nonexisting value"
+      ]
+    },
+    "internalErrors": [],
+    "data": [],
+    "links": []
+  }
+}
