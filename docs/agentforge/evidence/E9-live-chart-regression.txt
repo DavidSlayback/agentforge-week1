@@ -1,19 +1,19 @@
-E9 deliberate-regression proof (2026-09-26 09:30 CDT, base 7f4ae4a8, branch agentforge/e9-live-chart)
+E9 deliberate-regression proof, rerun on the rebased code (2026-09-26 09:44 CDT, base d9875c48 on main fd6c959b). Each mutation is applied alone, the E9 tests and the extension gate are run, and the file is reverted with git checkout.
 
-=== R1: silent fallback. ChartSourceRouter.select() serves an openemr-session request from the fixture chart when live reads are off ===
+=== R1: silent fallback. An openemr-session request is served from the fixture chart when live reads are off ===
 diff --git a/agentforge/src/chartSourceRouter.js b/agentforge/src/chartSourceRouter.js
-index f900389d..0cc246d1 100644
+index a95d5b14..90f37e33 100644
 --- a/agentforge/src/chartSourceRouter.js
 +++ b/agentforge/src/chartSourceRouter.js
-@@ -53,7 +53,7 @@ export class ChartSourceRouter {
+@@ -51,7 +51,7 @@ export class ChartSourceRouter {
      if (!isVerifiedContext(verifiedContext)) return { status: 'blocked', reason: 'server_context_missing_or_invalid' };
      const { issuer, authn } = verifiedContext;
      if (issuer === 'openemr-module' && authn === 'openemr-session') {
 -      if (!this.liveReads) return { status: 'blocked', reason: 'openemr_live_reads_disabled' };
-+      if (!this.liveReads) return { status: 'selected', adapter: this.fixtureAdapter, ...CHART_SOURCES.synthetic_fixture };
-       return { status: 'selected', adapter: this.liveAdapter, ...CHART_SOURCES.openemr_live };
++      if (!this.liveReads) return { status: 'selected', adapter: this.fixtureAdapter, ...CHART_RECORD_SOURCES.fixture };
+       return { status: 'selected', adapter: this.liveAdapter, ...CHART_RECORD_SOURCES.openemr };
      }
-     if (issuer === 'synthetic-demo' && authn === 'synthetic') return { status: 'selected', adapter: this.fixtureAdapter, ...CHART_SOURCES.synthetic_fixture };
+     if (issuer === 'synthetic-demo' && authn === 'synthetic') return { status: 'selected', adapter: this.fixtureAdapter, ...CHART_RECORD_SOURCES.fixture };
 
 $ node --test test/chart-source-router.test.js test/live-chart-http.test.js
 ok 1 - parseLiveReads: default off, on/off accepted, anything else refuses to start
@@ -30,35 +30,29 @@ ok 11 - launch vector: a token minted by the PHP launcher verifies in Node with 
 ok 12 - live reads on: a module session reads the OpenEMR chart over REST, labels it, and drops other-patient rows
 ok 13 - live reads on: the public demo stays on fixtures, and tampered or non-allowlisted module tokens are refused
 not ok 14 - live reads off: a module session fails loudly with openemr_live_reads_disabled and never reads fixtures
-# pass 10
+ok 15 - live reads without external-provider approval: nothing leaves the process; the public demo and an approved live read do call out
+# pass 11
 # fail 4
 
 $ node agentforge/scripts/run-w2-extension-gate.mjs  (summary)
 exit=1
-passed=False safe_refusal={'cases': 3, 'passed': 2, 'rate': 0.6666666666666666}
+passed=False
 FAILED x9-live-chart-live-off-no-fallback ['live_off_scan_not_refused:completed:synthetic_fixture', 'live_off_briefing_not_refused:blocked']
+Reverted.
 
-$ git commit -am "regression: silent fixture fallback"   (the enforced pre-commit hook)
-commit exit=1
-AgentForge gate: module PHP lint and tests...
-AgentForge gate: unit suites...
-7f4ae4a8 test(agentforge): prove the patient id's shape never picks the chart source (E9)
-(The fail-loud.test.js failure in this hook run is its test server failing to start on port 18821, a synthetic-token path R1 does not touch; the same suite passes 506/506 on the reverted tree.)
-Reverted: git checkout -- agentforge/src/chartSourceRouter.js
-
-=== R2: provenance from data. select() picks OpenEMR when the token's patient id is a uuid, instead of by the verified issuer/authn ===
+=== R2: provenance from data. The chart source is chosen by the patient id's shape instead of the verified issuer/authn ===
 diff --git a/agentforge/src/chartSourceRouter.js b/agentforge/src/chartSourceRouter.js
-index f900389d..14dae8e3 100644
+index a95d5b14..0985052f 100644
 --- a/agentforge/src/chartSourceRouter.js
 +++ b/agentforge/src/chartSourceRouter.js
-@@ -52,7 +52,7 @@ export class ChartSourceRouter {
+@@ -50,7 +50,7 @@ export class ChartSourceRouter {
    select(verifiedContext) {
      if (!isVerifiedContext(verifiedContext)) return { status: 'blocked', reason: 'server_context_missing_or_invalid' };
      const { issuer, authn } = verifiedContext;
 -    if (issuer === 'openemr-module' && authn === 'openemr-session') {
 +    if (/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(verifiedContext.patient_uuid)) {
        if (!this.liveReads) return { status: 'blocked', reason: 'openemr_live_reads_disabled' };
-       return { status: 'selected', adapter: this.liveAdapter, ...CHART_SOURCES.openemr_live };
+       return { status: 'selected', adapter: this.liveAdapter, ...CHART_RECORD_SOURCES.openemr };
      }
 
 $ node --test test/chart-source-router.test.js test/live-chart-http.test.js
@@ -76,12 +70,102 @@ ok 11 - launch vector: a token minted by the PHP launcher verifies in Node with 
 ok 12 - live reads on: a module session reads the OpenEMR chart over REST, labels it, and drops other-patient rows
 ok 13 - live reads on: the public demo stays on fixtures, and tampered or non-allowlisted module tokens are refused
 ok 14 - live reads off: a module session fails loudly with openemr_live_reads_disabled and never reads fixtures
-# pass 10
+ok 15 - live reads without external-provider approval: nothing leaves the process; the public demo and an approved live read do call out
+# pass 11
 # fail 4
 
 $ node agentforge/scripts/run-w2-extension-gate.mjs  (summary)
 exit=1
-passed=False safe_refusal={'cases': 3, 'passed': 1, 'rate': 0.3333333333333333}
+passed=False
 FAILED x9-live-chart-live-off-no-fallback ['live_off_briefing_not_refused:blocked']
 FAILED x9-live-chart-provenance-not-data ['synthetic_token_for_uuid_patient:blocked']
-Reverted: git checkout -- agentforge/src/chartSourceRouter.js
+Reverted.
+
+=== R3: egress. The scan's guideline retriever ignores the approval flag (Gemini embed / rerank would get a live read's query) ===
+diff --git a/agentforge/src/service.js b/agentforge/src/service.js
+index 35a244b4..72883336 100644
+--- a/agentforge/src/service.js
++++ b/agentforge/src/service.js
+@@ -212,7 +212,7 @@ export class AgentForgeService {
+     // model, no critic, no external OCR, and a local-only guideline
+     // retriever (no embed or rerank call).
+     const liveExternalBlocked = isLiveChartRead(chartReader) && !this.allowExternalLiveProvider;
+-    const guidelineRetriever = liveExternalBlocked ? localLexicalGuidelineRetriever : this.guidelineRetriever;
++    const guidelineRetriever = this.guidelineRetriever;
+     let source;
+     try {
+       source = await this.readSourceDocument(id, request, { verifiedContext });
+
+$ node --test test/chart-source-router.test.js test/live-chart-http.test.js
+ok 1 - parseLiveReads: default off, on/off accepted, anything else refuses to start
+ok 2 - router: an openemr-session context reads through the REST adapter; a synthetic-demo context reads fixtures
+ok 3 - router: live reads off refuses an openemr-session context loudly and never falls back to fixtures
+ok 4 - router: spoofed and tampered claims are refused; only the HMAC-verified context decides
+ok 5 - router: the patient id decides nothing; a synthetic-demo token naming an OpenEMR uuid still reads fixtures
+ok 6 - router: reading without resolving the request adapter fails loudly
+ok 7 - briefing: operations and trace name the source; a live briefing reads REST with GET only
+ok 8 - briefing: live reads off gives a blocked briefing with the reason, never fixture content
+ok 9 - chart facts: live reads cite openemr_record and drop other-patient rows; fixtures cite synthetic_chart_fixture
+ok 10 - launch label: the page says which chart source the verified launch selects
+ok 11 - launch vector: a token minted by the PHP launcher verifies in Node with openemr-session claims
+ok 12 - live reads on: a module session reads the OpenEMR chart over REST, labels it, and drops other-patient rows
+ok 13 - live reads on: the public demo stays on fixtures, and tampered or non-allowlisted module tokens are refused
+ok 14 - live reads off: a module session fails loudly with openemr_live_reads_disabled and never reads fixtures
+ok 15 - live reads without external-provider approval: nothing leaves the process; the public demo and an approved live read do call out
+# pass 15
+# fail 0
+
+$ node agentforge/scripts/run-w2-extension-gate.mjs  (summary)
+exit=1
+passed=False
+FAILED x9-live-chart-no-egress-unapproved ['unapproved_live_egress:retriever:1']
+
+$ git commit -m "regression: live read retrieval calls out without approval"   (the enforced pre-commit hook)
+commit exit=1
+AgentForge gate: module PHP lint and tests...
+AgentForge gate: unit suites...
+✖ the committed extension suite passes against its baseline (185.9941ms)
+d9875c48 fix(agentforge): a live read without approval makes no outbound call (E9)
+Reverted.
+
+=== R4: egress. The critic runs on a live read without approval (claim text and quotes would go to OpenRouter) ===
+diff --git a/agentforge/src/service.js b/agentforge/src/service.js
+index 35a244b4..4ba7421a 100644
+--- a/agentforge/src/service.js
++++ b/agentforge/src/service.js
+@@ -297,7 +297,7 @@ export class AgentForgeService {
+           trace?.finishStage('answer', { status: answer ? answer.composer : 'failed' });
+         }
+       };
+-      const criticEnabled = Boolean(this.criticProvider) && !liveExternalBlocked;
++      const criticEnabled = Boolean(this.criticProvider);
+       const critic = {
+         enabled: criticEnabled,
+         // A configured critic that may not see a live read is skipped with its
+
+$ node --test test/chart-source-router.test.js test/live-chart-http.test.js
+ok 1 - parseLiveReads: default off, on/off accepted, anything else refuses to start
+ok 2 - router: an openemr-session context reads through the REST adapter; a synthetic-demo context reads fixtures
+ok 3 - router: live reads off refuses an openemr-session context loudly and never falls back to fixtures
+ok 4 - router: spoofed and tampered claims are refused; only the HMAC-verified context decides
+ok 5 - router: the patient id decides nothing; a synthetic-demo token naming an OpenEMR uuid still reads fixtures
+ok 6 - router: reading without resolving the request adapter fails loudly
+ok 7 - briefing: operations and trace name the source; a live briefing reads REST with GET only
+ok 8 - briefing: live reads off gives a blocked briefing with the reason, never fixture content
+ok 9 - chart facts: live reads cite openemr_record and drop other-patient rows; fixtures cite synthetic_chart_fixture
+ok 10 - launch label: the page says which chart source the verified launch selects
+ok 11 - launch vector: a token minted by the PHP launcher verifies in Node with openemr-session claims
+ok 12 - live reads on: a module session reads the OpenEMR chart over REST, labels it, and drops other-patient rows
+ok 13 - live reads on: the public demo stays on fixtures, and tampered or non-allowlisted module tokens are refused
+ok 14 - live reads off: a module session fails loudly with openemr_live_reads_disabled and never reads fixtures
+not ok 15 - live reads without external-provider approval: nothing leaves the process; the public demo and an approved live read do call out
+# pass 14
+# fail 1
+(test run exit=0)
+
+$ node agentforge/scripts/run-w2-extension-gate.mjs  (summary)
+exit=1
+passed=False
+FAILED x9-live-chart-no-egress-unapproved ['unapproved_live_egress:critic:1', 'unapproved_critic_status:failed']
+Reverted.
+(The first R4 run of the two test files hung with no per-test timeout and was stopped; it was rerun with --test-timeout=60000, output above.)
