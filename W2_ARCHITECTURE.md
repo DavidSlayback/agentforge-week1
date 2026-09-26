@@ -86,8 +86,9 @@ expansion of the Week 1 agent into two document types, two workers, and one
 regression gate" (p. 4). It also says "A critic agent is extension work, not
 core" (§4), and it closes by saying the best submissions "feel narrower than
 the original spec and stronger because of it". We read the first five items
-as core and the last five as extensions, and we built the core first. This
-is a deliberate reading (owner decision, 2026-09-26), not an oversight.
+as core and the last five as extensions, and we built the core first. On
+2026-09-26 the owner decided to build all ten (`docs/agentforge/PLAN.md`,
+D12). The State column is current and is updated as each item lands.
 
 | PRD item | Our reading | State |
 |---|---|---|

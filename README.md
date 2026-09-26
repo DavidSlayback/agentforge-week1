@@ -115,9 +115,9 @@ with extension items. We built the core five first (two document types,
 supervisor plus two workers, hybrid RAG plus rerank, the 50-case gate, a
 PR-blocking gate with an observable demo) and one extension (click-to-source).
 The critic agent, a third document type, the lab trend chart and contextual
-retrieval are not built. [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2,
-"Scope", gives the reading, the PRD wording behind it, and the state of each
-item.
+retrieval are in progress for the final submission.
+[`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2, "Scope", gives the current
+state of each item.
 
 ## Local setup
 
