@@ -224,8 +224,10 @@ services:
       AGENTFORGE_OPENEMR_CLIENT_SECRET: ${AGENTFORGE_OPENEMR_CLIENT_SECRET:-}
       AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: /run/secrets/agentforge-openemr-token.json
       AGENTFORGE_OPENEMR_TIMEOUT_MS: ${AGENTFORGE_OPENEMR_TIMEOUT_MS:-5000}
-      # Without `true`, an answer built from a live OpenEMR read uses the
-      # deterministic composer and no critic, and a live briefing is blocked
+      # Without `true`, a live OpenEMR read makes no outbound call: the
+      # deterministic composer answers, the critic is skipped
+      # (skipped_not_approved), guideline retrieval is local BM25 only, no
+      # external OCR, and a live briefing is blocked
       # (live_external_provider_not_approved). The public demo is unaffected.
       AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED: ${AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED:-false}
     volumes:

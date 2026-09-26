@@ -278,7 +278,9 @@ citing a patient-identity field (`patient.name`, `patient.date_of_birth`,
 `patient.phone`, an address and the like; not `lab.*.test_name` or a
 medication name) is not sent; it ships unreviewed and is counted in the
 answer's `critic_claims_not_sent`. If every claim is held back, the status is
-`skipped_identity_only`. The composer already keeps demographics out of
+`skipped_identity_only`. For an answer built from a live OpenEMR read
+without `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED`, the critic is not
+called and the status is `skipped_not_approved` (§3f). The composer already keeps demographics out of
 claims, so this is a defense-in-depth path. It must return strict JSON with
 one verdict per claim: `keep`, or `reject` with `UNCITED`,
 `UNSUPPORTED_BY_SOURCE` or `UNSAFE_ACTION`. Verdicts are applied by claim
@@ -600,9 +602,19 @@ body field; a copied claims object is refused):
   `AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS`. The module and the W2 service apply
   that allowlist to every issuer, so a real session cannot write to any
   other patient.
-- A live read is subject to `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED`:
-  without it, that answer uses the deterministic composer and no critic, and
-  a live briefing is blocked (`live_external_provider_not_approved`).
+- A live read without `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED=true` makes
+  no outbound call at all (`chartSource.js#isLiveChartRead`): the answer uses
+  the deterministic composer; the critic is skipped with `critic_status:
+  skipped_not_approved`; guideline evidence is ranked by local BM25 only (no
+  Gemini embed, no Qwen or Gemini rerank, even though the query is
+  sanitized); a configured external scan provider (Gemini OCR) is not used;
+  and a live briefing is blocked (`live_external_provider_not_approved`).
+  The same holds for `/v1/follow-up-evidence`. The only other network
+  traffic is to OpenEMR itself (REST reads, module writes) inside the Docker
+  network; `agentforge-w2` has no Langfuse keys, and its trace export would
+  carry codes and counts only. Tested with recording fakes of every seam
+  (`x9-live-chart-no-egress-unapproved`) and with a recording model server
+  over HTTP (`live-chart-http.test.js`).
 - Known gaps in the live mapping: OpenEMR `lists` rows carry no dose, so a
   medication fact reads `active` or `ended <date>`, not "10 mg daily"; the
   document route needs a `path` and returns 404, so the `notes` group is

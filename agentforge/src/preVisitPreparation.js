@@ -4,7 +4,7 @@ import { recordBelongsToPatient } from './recordScope.js';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 import { assessRecordTrust } from './recordTrust.js';
-import { chartReadOrigin, chartRecordCitationSource } from './chartSource.js';
+import { chartReadOrigin, chartRecordCitationSource, isLiveChartRead } from './chartSource.js';
 import { mentionsOtherPatient } from './patientMentions.js';
 import { resolveChartAdapter } from './chartSourceRouter.js';
 
@@ -55,7 +55,7 @@ export class PreVisitPreparation {
     const chart = resolveChartAdapter(this.adapter, verifiedContext);
     trace?.startStage('authorization');
     trace?.finishStage('authorization', { status: 'success' });
-    const liveProviderBlocked = chart.name === 'openemr-rest' && !this.allowExternalLiveProvider && [this.provider, this.conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
+    const liveProviderBlocked = isLiveChartRead(chart) && !this.allowExternalLiveProvider && [this.provider, this.conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
     if (liveProviderBlocked) {
       const result = blockedResult(id, 'live_external_provider_not_approved');
       trace?.setDisplay({ status: 'withheld' });

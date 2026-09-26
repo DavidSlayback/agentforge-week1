@@ -2,6 +2,7 @@ import test from 'node:test';
 import os from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from 'node:fs';
+import http from 'node:http';
 import assert from 'node:assert/strict';
 import { startFakeOpenEMRModule } from './fake-openemr-module.js';
 import { startFakeOpenEMRRest, LIVE_PATIENT, OTHER_PATIENT } from './helpers/fakeOpenemrRest.js';
@@ -25,7 +26,26 @@ const labEnvelope = [
 ].join('\n');
 const post = (base, route, body) => fetch(`${base}${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
-async function startStack(port, liveReads) {
+/**
+ * TEST-ONLY recording stand-in for every external model endpoint (the Qwen
+ * answer/rerank lane and the OpenRouter critic lane). It answers 503, so the
+ * service falls back, and records each request so a test can prove whether
+ * anything left the process.
+ */
+async function startRecordingModelServer() {
+  const requests = [];
+  const server = http.createServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    requests.push({ path: req.url, bytes: body.length });
+    res.writeHead(503, { 'content-type': 'application/json' });
+    res.end('{"error":"recording stand-in"}');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { url: `http://127.0.0.1:${server.address().port}`, requests, close: () => new Promise((resolve) => server.close(resolve)) };
+}
+
+async function startStack(port, liveReads, extraEnv = {}) {
   const rest = await startFakeOpenEMRRest();
   const module = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [LIVE_PATIENT] });
   const child = await startTestServer(port, {
@@ -39,6 +59,7 @@ async function startStack(port, liveReads) {
     AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: LIVE_PATIENT,
     AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: '',
     AGENTFORGE_TRACE_PATH: path.join(mkdtempSync(path.join(os.tmpdir(), 'agentforge-e9-')), 'traces.json'),
+    ...extraEnv,
   }, { path: '/health' });
   const base = `http://127.0.0.1:${port}`;
   return { base, rest, module, stop: async () => { child.kill(); await rest.close(); await module.close(); } };
@@ -143,4 +164,41 @@ test('live reads off: a module session fails loudly with openemr_live_reads_disa
     assert.equal(scanned.error, 'openemr_live_reads_disabled');
     assert.equal(rest.requests.length, 0, 'nothing reads OpenEMR when live reads are off');
   } finally { await stack.stop(); }
+});
+
+test('live reads without external-provider approval: nothing leaves the process; the public demo and an approved live read do call out', async () => {
+  const models = await startRecordingModelServer();
+  const modelEnv = (approved) => ({
+    AGENTFORGE_PROVIDER_MODE: 'qwen', AGENTFORGE_MODEL_PROTOCOL: 'compatible', AGENTFORGE_MODEL_ENDPOINT: `${models.url}/qwen/chat/completions`, AGENTFORGE_MODEL_API_KEY: 'synthetic-key', AGENTFORGE_MODEL: 'synthetic-model',
+    AGENTFORGE_CRITIC_MODEL: 'synthetic-critic', AGENTFORGE_OPENROUTER_ENDPOINT: `${models.url}/openrouter/chat/completions`, AGENTFORGE_OPENROUTER_API_KEY: 'synthetic-key',
+    AGENTFORGE_RERANK_PROVIDER: 'qwen', AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED: approved ? 'true' : 'false',
+  });
+  const unapproved = await startStack(18974, 'on', modelEnv(false));
+  try {
+    const write = moduleToken(LIVE_PATIENT, 'write-source-document');
+    const { scan, scanned } = await uploadAndScan(unapproved.base, write);
+    assert.equal(scan.status, 200);
+    assert.equal(scanned.chart_source.chart_source, 'openemr_live');
+    assert.equal(scanned.workflow.answer.critic_status, 'skipped_not_approved');
+    assert.equal(models.requests.length, 0, `a live read without approval made ${models.requests.length} outbound model request(s)`);
+    const briefing = await (await post(unapproved.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: moduleToken(LIVE_PATIENT) })).json();
+    assert.deepEqual(briefing.qualification.reasons, ['live_external_provider_not_approved']);
+    const evidence = await (await post(unapproved.base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: moduleToken(LIVE_PATIENT), message: 'blood pressure' })).json();
+    assert.equal(evidence.retrieval.guideline_provider, 'bm25-sparse-only');
+    assert.equal(models.requests.length, 0);
+    // Sensitivity: the same server calls out for the public demo's fixture chart.
+    const demo = await (await fetch(`${unapproved.base}/v1/source-document-context?patient_uuid=fixture-patient-001`)).json();
+    const demoRead = await (await fetch(`${unapproved.base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
+    await post(unapproved.base, '/v1/briefings', { patient_uuid: 'fixture-patient-001', clinician_uuid: demoRead.clinician_uuid, demo_token: demoRead.demo_token });
+    assert.ok(models.requests.length > 0, 'the fixture chart path does reach the model endpoint');
+    assert.ok(demo.demo_token);
+  } finally { await unapproved.stop(); }
+  const before = models.requests.length;
+  const approved = await startStack(18975, 'on', modelEnv(true));
+  try {
+    const { scan, scanned } = await uploadAndScan(approved.base, moduleToken(LIVE_PATIENT, 'write-source-document'));
+    assert.equal(scan.status, 200);
+    assert.notEqual(scanned.workflow.answer.critic_status, 'skipped_not_approved');
+    assert.ok(models.requests.length > before, 'with approval the live read reaches the model endpoint');
+  } finally { await approved.stop(); await models.close(); }
 });

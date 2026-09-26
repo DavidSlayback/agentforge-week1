@@ -29,3 +29,14 @@ export function chartReadOrigin(adapter) {
 export function chartRecordCitationSource(adapter) {
   return CHART_RECORD_SOURCES[chartReadOrigin(adapter)];
 }
+
+/**
+ * E9 egress rule: may this read's data be treated as live patient data? True
+ * for the real OpenEMR REST adapter and, conservatively, for anything that
+ * calls itself `openemr-rest`. Without AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED
+ * such a read makes no outbound call (answer model, critic, external OCR,
+ * guideline embed/rerank).
+ */
+export function isLiveChartRead(adapter) {
+  return chartReadOrigin(adapter) === 'openemr' || adapter?.name === 'openemr-rest';
+}

@@ -360,6 +360,10 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   env on the VM, the OAuth refresh-token check, observation as `grader`
   (runbook in `deploy/vultr/README.md`). Known gaps: no medication dose from
   `lists`; the document route 404s without `path`, so `notes` fails.
+  Rebased on `fd6c959b` (E4, E5, E8 final): labels come from one table,
+  `chartSource.js`. A live read without
+  `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` makes no outbound call
+  (critic `skipped_not_approved`, local BM25, no external OCR).
 
 **E7 — Freeze and prove (Sun 06:00–08:00).** One SHA on `main`. Deploy W2 and
 the dashboard from it and confirm both `/health` SHAs. Extend

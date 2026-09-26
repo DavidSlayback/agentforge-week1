@@ -224,7 +224,7 @@ narrative behind each group.
 | `AGENTFORGE_FIXTURES` | Path to the synthetic fixture patient set | built-in path | No | No |
 | `AGENTFORGE_PREPARATION_CACHE_TTL_MS` / `AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS` / `AGENTFORGE_MAX_PREWARM_JOBS` / `AGENTFORGE_PREWARM_DEADLINE_MS` / `AGENTFORGE_RECORD_DELAY_MS` | Briefing cache and prewarm tuning (Week 1 lane, shared) | see `server.js` | No | No |
 | `AGENTFORGE_SCAN_DEADLINE_MS` | End-to-end deadline for one `/v1/scan-supervisor` request (`agentforge-w2` only) | `25000` | No | No |
-| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` | Explicit approval to let a real model see live OpenEMR chart data (live mode, and `AGENTFORGE_OPENEMR_LIVE_READS=on` requests) | `false` | No | No |
+| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` | Explicit approval to let external services (answer model, critic, embed/rerank, external OCR) see a live OpenEMR read (live mode, and `AGENTFORGE_OPENEMR_LIVE_READS=on` requests). Without it such a request makes no outbound call | `false` | No | No |
 | `AGENTFORGE_TRACE_PATH` / `AGENTFORGE_TRACE_RETENTION_MS` | Redacted trace file location/retention | `/tmp/agentforge/traces.json` / 24h | No | No |
 | `AGENTFORGE_EVAL_REPORT_PATH` | Overrides which committed eval report `/evals` serves | committed default | No | No |
 | `AGENTFORGE_GIT_SHA` | Overrides the SHA `/health` reports | derived at build | No (Yes for `/health` proof) | No |

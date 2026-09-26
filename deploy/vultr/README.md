@@ -165,7 +165,7 @@ parentheses):
 | `AGENTFORGE_OPENEMR_TOKEN_URL`, `AGENTFORGE_OPENEMR_CLIENT_ID`, `AGENTFORGE_OPENEMR_CLIENT_SECRET` (empty) | The server-only read client that owns the refresh token (the same values Week 1's live mode uses) |
 | `AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH` (fixed) | `/run/secrets/agentforge-openemr-token.json`, mounted from `secrets/openemr-token.json` |
 | `AGENTFORGE_OPENEMR_TIMEOUT_MS` (`5000`) | REST call timeout |
-| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` (`false`) | `true` lets Qwen and the critic see chart facts read live; without it that answer is deterministic and a live briefing is blocked |
+| `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` (`false`) | `true` lets a live read use the external services (Qwen answer and rerank, the OpenRouter critic, Gemini embeddings and OCR). Without it a live read makes no outbound call: deterministic answer, critic `skipped_not_approved`, local BM25 retrieval, and a live briefing is blocked |
 
 On the `openemr` service, `AGENTFORGE_SERVICE_URL` is where the launcher link
 points. For W2 it must be the public W2 path: `https://<canonical-host>/agentforge-w2`.
@@ -200,7 +200,8 @@ SHA. Values are never printed.
    AGENTFORGE_OPENEMR_TOKEN_URL=https://<canonical-host>/oauth2/default/token
    AGENTFORGE_OPENEMR_CLIENT_ID=<server-only-read-client-id>
    AGENTFORGE_OPENEMR_CLIENT_SECRET=<server-only-read-client-secret>
-   # optional: let the answer model and critic see the synthetic live chart
+   # optional: let the external models (answer, critic, embed/rerank) see the
+   # synthetic live chart; leave unset to keep every live read in-process
    AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED=true
    ```
    (`AGENTFORGE_OPENEMR_BASE_URL` defaults to `http://openemr`.)

@@ -3,6 +3,7 @@ import { ChartSourceRouter } from '../chartSourceRouter.js';
 import { FixtureAdapter } from '../fixtureAdapter.js';
 import { OpenEMRRestAdapter } from '../openemrAdapter.js';
 import { defaultFixturePath } from '../service.js';
+import { localLexicalGuidelineRetriever } from '../guidelineEvidence.js';
 
 /**
  * E9 live chart reads: extension-suite cases for choosing the chart source
@@ -118,6 +119,33 @@ export const liveChartCaseChecks = {
     return issues;
   },
   /**
+   * A live read without AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED makes no
+   * outbound call: no answer model, no critic, no external OCR, no guideline
+   * embed/rerank. The critic says skipped_not_approved, never reviewed. With
+   * approval the same seams are called (so the check is not vacuous).
+   */
+  async noEgressWithoutApproval(run) {
+    const issues = [];
+    const service = run.h.service;
+    const fakes = recordingEgressFakes();
+    Object.assign(service, { answerProvider: fakes.answerProvider, criticProvider: fakes.criticProvider, guidelineRetriever: fakes.guidelineRetriever, scanProvider: fakes.scanProvider, ocrEngine: withPageImages(service.ocrEngine), allowExternalLiveProvider: false });
+    const { stored, result } = await moduleSessionScan(run);
+    if (!result) return [`module_upload_failed:${stored.reason || stored.status}`];
+    if (result.status !== 'completed') return [`module_scan_not_completed:${result.reason || result.status}`];
+    for (const [seam, count] of Object.entries(fakes.calls)) if (count) issues.push(`unapproved_live_egress:${seam}:${count}`);
+    if (result.workflow?.answer?.critic_status !== 'skipped_not_approved') issues.push(`unapproved_critic_status:${result.workflow?.answer?.critic_status}`);
+    if (result.chart_source?.chart_source !== 'openemr_live') issues.push('unapproved_scan_not_live');
+    // Sensitivity: approval turns the same seams on.
+    service.allowExternalLiveProvider = true;
+    service.scanProvider = null;
+    await moduleSessionScan(run).catch(() => null);
+    if (!fakes.calls.answer || !fakes.calls.critic || !fakes.calls.retriever) issues.push(`approved_seams_not_called:${JSON.stringify(fakes.calls)}`);
+    service.scanProvider = fakes.scanProvider;
+    await moduleSessionScan(run).catch(() => null);
+    if (!fakes.calls.scan) issues.push('approved_scan_provider_not_called');
+    return issues;
+  },
+  /**
    * Only verified provenance selects the source: copied claims naming the
    * module issuer select nothing, and a synthetic-demo token naming an OpenEMR
    * patient uuid still reads fixtures (the id's shape decides nothing).
@@ -137,11 +165,34 @@ export const liveChartCaseChecks = {
   },
 };
 
+/**
+ * Honestly named recording fakes for every seam that can send data out of the
+ * process on the scan path: the answer model, the critic model, the guideline
+ * retriever (Gemini embed + rerank in production) and the external scan
+ * provider (Gemini OCR). Each records the call and then fails, so a call that
+ * should not happen is counted even if the request survives it.
+ */
+function recordingEgressFakes() {
+  const calls = { answer: 0, critic: 0, retriever: 0, scan: 0 };
+  const refuse = (seam) => { calls[seam] += 1; throw Object.assign(new Error('GATE_FAKE_EGRESS'), { code: 'GATE_FAKE_EGRESS' }); };
+  return {
+    calls,
+    answerProvider: { name: 'gate-recording-answer-model', model: 'gate-recording', generate: async () => refuse('answer') },
+    criticProvider: { name: 'gate-recording-critic', model: 'gate-recording', generate: async () => refuse('critic') },
+    guidelineRetriever: { name: 'gate-recording-hybrid', retrieve: async (...args) => { calls.retriever += 1; return localLexicalGuidelineRetriever.retrieve(...args); } },
+    scanProvider: { name: 'gate-recording-scan', extract: async () => refuse('scan') },
+  };
+}
+
+/** The recorded OCR replay, with page images so an external scan provider would be handed them. */
+const withPageImages = (engine) => Object.freeze({ name: engine.name, async recognize(content, options) { const result = await engine.recognize(content, options); return { ...result, pages: result.pages.map((page) => ({ ...page, image_base64: 'Z2F0ZQ==' })) }; } });
+
 export function liveChartCases({ kase, scan }) {
   return [
     kase('x9-live-chart-synthetic-context-fixture', 'citation_present', 'A synthetic-demo scan with live reads on reaches OpenEMR, or its chart facts are cited as openemr_record / labeled anything but synthetic_fixture.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.syntheticStaysFixture(run) }),
     kase('x9-live-chart-module-session-openemr', 'citation_present', 'A module-session scan does not read the chart through OpenEMR REST, its chart citations are not openemr_record, its chart_source is not openemr_live, or another patient\'s row reaches the answer.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.moduleSessionReadsOpenEMR(run) }),
     kase('x9-live-chart-live-off-no-fallback', 'safe_refusal', 'With AGENTFORGE_OPENEMR_LIVE_READS off, a module-session scan or briefing is served from the fixture chart (a silent fallback) instead of being refused with openemr_live_reads_disabled.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(false) }), { custom: (run) => liveChartCaseChecks.liveReadsOffRefuses(run) }),
+    kase('x9-live-chart-no-egress-unapproved', 'no_phi_in_logs', 'A module-session scan without AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED sends chart-derived or document data out of the process (answer model, critic, guideline embed/rerank or external OCR), or labels the critic reviewed instead of skipped_not_approved.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.noEgressWithoutApproval(run) }),
     kase('x9-live-chart-provenance-not-data', 'safe_refusal', 'Something other than the verified issuer picks the chart: claims copied into a plain object (as a request body could carry them) select a source, or a synthetic-demo token that names an OpenEMR patient uuid reads OpenEMR.', scan('lab-a', 'lab_pdf', { service_overrides: routerOverrides(true) }), { custom: (run) => liveChartCaseChecks.provenanceNotData(run) }),
   ];
 }
