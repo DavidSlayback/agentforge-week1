@@ -36,7 +36,7 @@ function SignOutForm() {
   );
 }
 
-function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readonly patientId: PatientUuid }) {
+export function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readonly patientId: PatientUuid }) {
   const header = useCard(fetcher, `${BASE}/bff/patients/${patientId}/header`, patientId, isHeaderDto);
   // Cards load in parallel with the header, each with its own state (7.08).
   const allergies = useCard(fetcher, `${BASE}/bff/patients/${patientId}/allergies`, patientId, isAllergyRow);

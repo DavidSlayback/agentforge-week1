@@ -20,6 +20,8 @@ export default defineConfig({
           name: 'web',
           environment: 'jsdom',
           include: ['test/web/**/*.test.{ts,tsx}'],
+          // Process CSS so `styles.css?raw` is the shipped stylesheet (StickyHeader/layout tests), not an empty stub.
+          css: true,
         },
       },
     ],
