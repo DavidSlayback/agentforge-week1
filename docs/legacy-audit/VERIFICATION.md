@@ -62,3 +62,9 @@ checklist that slice will tick.
   (Problems list, vitals), `encounters/auth_a` (encounter list). The BFF's user role needs all three.
 - Not testable with the current seed: deceased-patient header status (no deceased patient);
   the Medical Problems ACL mismatch (admin has both ACLs).
+
+## Observed live on the public URL
+
+| Date | SHA | What | Observer |
+|---|---|---|---|
+| 2026-09-25 | `f8d7bdf` | Slice 01: sign-in via the BFF (confidential client) + persistent header; DASH-SYN-01 → Active, DASH-SYN-02 → Deceased | David (`grader`, phone) |

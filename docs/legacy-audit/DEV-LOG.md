@@ -179,3 +179,7 @@ Acceptance check (a user can do this): sign in, open pid 13 by link or MRN, see 
 ## 2026-09-25 ~20:00 CT — slice 01-01-01 deployed (f8d7bdf)
 
 Merged to main via MR !81, then MR !82 fixed a BUILD_SHA test that failed on the git-archive tree (the production image build runs the suite). Production client registered and enabled; env written on the VM. Public checks without login pass. Status: **wired, tested, deployed; human sign-in not yet observed** (grader login by David).
+
+## 2026-09-25 ~20:15 CT — slice 01-01-01 observed live
+
+David signed in as `grader` on the public URL and confirmed both headers. Slice 01 meets the AGENTS.md definition of done on `f8d7bdf`.
