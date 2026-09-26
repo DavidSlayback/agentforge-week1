@@ -1,0 +1,182 @@
+E2 critic: deliberate-regression proof
+Base commit: 89803ed6 (agentforge/e2-critic). Each mutation is applied to the working tree, the
+critic unit tests and the extension suite are run, then the mutation is reverted.
+Commands: node --test test/critic.test.js (in agentforge/) ; npm run eval:extensions --prefix agentforge
+
+=== Mutation A: the critic's verdicts are ignored (it accepts everything) ===
+diff --git a/agentforge/src/critic.js b/agentforge/src/critic.js
+--- a/agentforge/src/critic.js
++++ b/agentforge/src/critic.js
+@@ -288 +288 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
+-  const rejected = new Set(handoff.verdicts.filter((verdict) => verdict.verdict === 'reject').map((verdict) => verdict.index));
++  const rejected = new Set(); // MUTATION: accept every claim
+--- node --test test/critic.test.js ---
+✖ applyCriticVerdicts: the critic only removes claims; kept claims are byte-identical
+✖ applyCriticVerdicts: a gap left by a veto is refilled by the composer top-up, but a vetoed text is never re-added
+✖ critic extension cases: every case passes on the real scan path, in the five W2 categories
+ℹ tests 27
+ℹ pass 24
+ℹ fail 3
+--- npm run eval:extensions ---
+exit=1
+{
+ "passed": false,
+ "cases_passed_by_label": {
+  "schema_valid": "3/3",
+  "citation_present": "2/3",
+  "factually_consistent": "2/2",
+  "safe_refusal": "0/1",
+  "no_phi_in_logs": "1/1"
+ },
+ "regressions": {
+  "schema_valid": 0,
+  "citation_present": 0.3333,
+  "factually_consistent": 0,
+  "safe_refusal": 1,
+  "no_phi_in_logs": 0
+ },
+ "failed_cases": [
+  {
+   "id": "x2-critic-rejects-uncited-statement",
+   "issues": [
+    "critic_rejected_0_expected_1",
+    "planted_claim_shipped"
+   ]
+  },
+  {
+   "id": "x2-critic-rejects-unsafe-directive",
+   "issues": [
+    "critic_rejected_0_expected_1",
+    "planted_claim_shipped"
+   ]
+  }
+ ]
+}
+
+=== Mutation B: the supervisor never routes to CRITIQUE ===
+diff --git a/agentforge/src/supervisor.js b/agentforge/src/supervisor.js
+--- a/agentforge/src/supervisor.js
++++ b/agentforge/src/supervisor.js
+@@ -136 +136 @@ export function decideNext(state = {}) {
+-    return { next: DECISIONS.CRITIQUE, reason: 'answer_needs_review' };
++    return { next: DECISIONS.DONE, reason: 'critic_disabled' }; // MUTATION: skip CRITIQUE
+--- node --test test/critic.test.js ---
+✖ decideNext: after ANSWER, CRITIQUE when a critic is configured and the budget allows, then DONE
+✖ active supervisor: with the answer and critic seams, the loop records ANSWER -> CRITIQUE -> DONE and the critic handoff
+✖ service: with 5 s left the same 4 s critic runs and the answer is reviewed
+✖ critic extension cases: every case passes on the real scan path, in the five W2 categories
+ℹ tests 27
+ℹ pass 23
+ℹ fail 4
+--- npm run eval:extensions ---
+exit=1
+{
+ "passed": false,
+ "cases_passed_by_label": {
+  "schema_valid": "2/3",
+  "citation_present": "2/3",
+  "factually_consistent": "0/2",
+  "safe_refusal": "0/1",
+  "no_phi_in_logs": "0/1"
+ },
+ "regressions": {
+  "schema_valid": 0.3333,
+  "citation_present": 0.3333,
+  "factually_consistent": 1,
+  "safe_refusal": 1,
+  "no_phi_in_logs": 1
+ },
+ "failed_cases": [
+  {
+   "id": "x2-critic-rejects-uncited-statement",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "critic_rejected_0_expected_1",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "trace_critic_rejected_count_wrong",
+    "trace_reason_count_UNCITED_wrong",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason",
+    "planted_claim_never_reached_critic",
+    "planted_claim_shipped"
+   ]
+  },
+  {
+   "id": "x2-critic-rejects-unsafe-directive",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "critic_rejected_0_expected_1",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "trace_critic_rejected_count_wrong",
+    "trace_reason_count_UNSAFE_ACTION_wrong",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason",
+    "planted_claim_never_reached_critic",
+    "planted_claim_shipped"
+   ]
+  },
+  {
+   "id": "x2-critic-keeps-clean-answer",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason"
+   ]
+  },
+  {
+   "id": "x2-critic-ignores-added-or-rewritten-claims",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason"
+   ]
+  },
+  {
+   "id": "x2-critic-invalid-json-failed",
+   "issues": [
+    "critic_status_disabled_expected_failed",
+    "trace_error_code_not_invalid_json",
+    "critique_failed_decision_missing",
+    "runtime_evaluation_not_degraded_on_critic_failure"
+   ]
+  },
+  {
+   "id": "x2-critic-no-phi",
+   "issues": [
+    "critic_status_disabled_expected_reviewed",
+    "decisions_not_answer_critique_done",
+    "critic_handoff_missing",
+    "critic_handoff_not_traced",
+    "trace_critic_status_not_reviewed",
+    "critic_stage_not_traced",
+    "critic_model_usage_not_traced",
+    "unknown_critic_cost_not_null_with_reason",
+    "critic_never_called"
+   ]
+  }
+ ]
+}
+
+=== Reverted: back on 89803ed6 ===
+ℹ tests 27
+ℹ pass 27
+ℹ fail 0
+npm run eval:extensions exit=0
