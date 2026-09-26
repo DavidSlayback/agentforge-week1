@@ -1,71 +1,152 @@
-# Target user and use cases
-
-Status: planning. Target workflow, briefing content, follow-up use cases, and missing-data distinctions are agreed. Acceptance metrics and detailed evidence rules remain open.
+# AgentForge target user and use cases
 
 ## Target user
 
-A primary-care physician preparing to see a returning patient. The demo focuses on the period before entering the patient encounter, when the physician needs to recover relevant chart context.
+The initial user is a primary-care physician seeing returning patients in an
+outpatient clinic. The physician has a roughly 20-patient day with visits of
+about 30 minutes each. The AgentForge interaction is designed for a focused
+90–180-second orientation immediately before the encounter. They are
+responsible for deciding what matters in the
+current encounter, but the record is distributed across encounters, problems,
+medications, results, forms, documents, and narrative notes.
 
-David chose this workflow because it is clear and familiar to him. Prevalence relative to other workflows has not been verified and is not a selection claim.
+This is a workflow choice, not a claim that primary care is the largest or most
+valuable market. The first demonstration serves one physician preparing for a
+return visit involving one authorized patient. Other clinicians, new-patient
+intake, emergency care, inpatient rounding, population management, and staff
+workflows are explicitly out of scope for the first agent.
 
-## Scope
+## The moment the agent enters the workflow
 
-Primary-care return-visit preparation is the demo focus. Other workflows remain possible future directions, not current commitments.
+Between appointments, the physician opens the next returning patient's chart.
+In the 90–180 seconds before the next patient arrives, they have just finished
+the previous encounter and are trying to orient themselves. They need a compact
+answer to three questions:
 
-## Agreed briefing sequence
+1. Why is this patient here, based on the documented visit reason?
+2. What ongoing concerns and prior plans should remain in view?
+3. What has changed since this physician last completed an encounter with the
+   patient, and which changes require the physician's attention?
 
-First give a short orientation to the patient and existing documented concerns. Then identify documented changes grounded in source evidence. The orientation remains useful even when there are no changes: existing concerns can still matter to the visit.
+The physician opens an embedded **Prepare for visit** panel while the patient
+context is visible. AgentForge retrieves the authorized chart data and presents
+a short orientation followed by documented changes. Each expandable section
+starts with its own bottom line up front (BLUF). Inline citations expose the
+record type, author when available, exact date, and the supporting excerpt or
+original record. The physician uses the brief to decide what to ask, examine,
+or review during the visit; the agent does not recommend a new clinical action
+or write anything into the chart.
 
-Orientation covers the documented reason for today's visit, ongoing concerns, and where the previous documented plan left off. Medications and results support these points as relevant, with detail available on demand. It is not an exhaustive chart dump.
+Preparation may run asynchronously because visits are about 30 minutes apart.
+The physician still needs a bounded result within the 90–180-second orientation
+window, a clear deadline,
+and a useful partial result when some record groups cannot be retrieved. A
+failed identity or authorization check blocks the briefing entirely.
 
-## Interaction and evidence inspection
+## Use cases
 
-An embedded panel in the selected patient's chart provides a "Prepare for visit" button. It generates the orientation and documented changes, then supports follow-up conversation. Keep the selected patient's identity visible within the authorized session.
+### UC-1 — Prepare for a returning patient's visit
 
-Selecting a citation shows the supporting excerpt, record type, author when available, and exact date, with a route to the original record. The physician should not have to search the chart again to inspect the evidence.
+**Trigger:** The physician selects an authorized returning patient and chooses
+**Prepare for visit** before the encounter begins.
 
-When the physician switches patients, preserve the previous conversation for return, but isolate it from the new patient's conversation and context. Make the active patient explicit and require a fresh authorization check. No conversation may mix records across patients.
+**Output:** A compact orientation covering the documented visit reason, ongoing
+concerns, and prior documented plan, followed by evidence-grounded documented
+changes since this physician's last completed encounter. Relevant medications
+and results support the orientation without turning it into an exhaustive chart
+dump.
 
-## Clinical authority
+**Why an agent is the right solution:** The physician is not asking for one
+known field or a sortable list. They need several related record types gathered,
+temporally compared, attributed, and explained in the context of the current
+patient. A dashboard can display those sources, but it cannot preserve the
+physician's conversational context, explain why a change matters to the prior
+plan, or expose a qualified partial result in a single interaction. The agent's
+value is evidence-grounded synthesis with immediate source inspection.
 
-Surface chart evidence and plans already documented by clinicians. Highlight missing evidence of follow-through. Do not recommend new clinical actions. Attribute a recorded plan to its source rather than restating it as the assistant's recommendation.
+### UC-2 — Investigate a change to an existing concern
 
-Evidence boundary: a missing completion record supports "no completion found in the records reviewed," not proof that the patient failed to follow through. An explicit record of non-completion can be reported with attribution.
+**Trigger:** After reading the brief, the physician asks a follow-up such as,
+“What changed about the diabetes concern since I last saw them?”
 
-## Longitudinal context
+**Output:** The agent retrieves the relevant field-level latest evidence since
+the comparison baseline, retains exact dates, authors, and source references,
+and explains whether the record documents a change, no change, or insufficient
+evidence. A newer value is not described as reassessed unless the record
+explicitly documents reassessment.
 
-David wants intervening medical interactions since this particular physician last saw the patient to remain visible, with the latest visit especially relevant. A recent encounter does not reassess every concern or test; it must not implicitly replace older evidence on topics it did not address.
+**Why an agent is the right solution:** The starting concern and the physician's
+follow-up question are not known in advance, so a fixed dashboard view would
+either show too much or require the physician to navigate many unrelated
+records. A multi-turn agent can carry the active patient's context and narrow
+retrieval to the concern the physician names, while retaining evidence links
+for verification.
 
-Use this physician's last completed encounter as the comparison anchor. Prefer relative-time wording such as "Since your last visit three months ago." Preserve the exact date in the underlying evidence. Show the latest documented evidence for each topic; a later encounter's silence does not supersede earlier evidence.
+### UC-3 — Trace follow-through on a documented plan
 
-When this physician has no prior encounter, fall back to the most recent completed primary-care encounter and label it as a primary-care visit rather than falsely calling it "your" visit. Without a PCP baseline, provide dated history without an invented comparison.
+**Trigger:** The physician asks whether a prior documented plan appears to have
+been carried out.
 
-## Conflicting evidence
+**Output:** The agent gathers later chart evidence bearing on the plan, names
+the author and dates of the relevant records, and distinguishes documented
+completion, documented non-completion, and absence of follow-through evidence.
+Absence of evidence is not presented as proof that the plan was not completed.
+The agent surfaces the plan and evidence; it does not recommend a replacement
+plan.
 
-Surface unresolved disagreements with their sources. If later documentation explicitly resolves a disagreement, show the resolved result without presenting the old discrepancy as still open. Retain the resolution evidence and earlier provenance for inspection. Mere recency or omission is not an explicit resolution.
+**Why an agent is the right solution:** This is a cross-record, longitudinal
+question whose relevant evidence depends on the wording and date of the prior
+plan. A report or checklist could list events, but the conversational agent can
+resolve the physician's specific follow-up question, explain the evidence
+boundary in human language, and let the physician immediately ask for a
+supporting record.
 
-## Demo follow-up use cases
+### UC-4 — Explain conflicting records
 
-1. Investigate a concern: "What changed about [concern], and where is that documented?" The physician selects a topic from the briefing; the agent retrieves and explains its evidence while preserving patient and comparison context.
-2. Trace a documented plan: "What happened with the plan to [documented follow-up]?" The agent follows the selected plan through subsequent evidence, distinguishing documented completion, documented non-completion, and no completion evidence found.
-3. Explain a discrepancy: "Explain the conflicting records about [topic]." The agent brings together the selected records and any explicit later resolution, citing the evidence without independently choosing a clinical action.
+**Trigger:** The brief or a follow-up reveals conflicting values, statuses, or
+descriptions for the same clinical topic.
 
-Conversation earns its place by letting the physician choose which finding to investigate and ask context-preserving follow-ups. A fixed initial briefing alone would not justify an agent; each accepted follow-up requires targeted evidence retrieval and explanation beyond that overview.
+**Output:** The agent presents the competing evidence with provenance and dates.
+If later documentation explicitly settles the discrepancy, it presents the
+resolved result while retaining the supporting history. Recency alone does not
+resolve a conflict. If the discrepancy cannot be verified, the normal claim is
+withheld and a heavily qualified panel explains what could not be established
+and why.
 
-## Missing data and retrieval failures
+**Why an agent is the right solution:** The physician needs an explanation of a
+specific discrepancy, not another list of values. The agent can maintain the
+question's context, retrieve the records needed to investigate it, and explain
+the difference between resolution, recency, omission, and uncertainty. The
+source records remain one click away for the physician's judgment.
 
-- Empty chart after successful retrieval: state that no clinical records are available in the accessible chart. Do not imply the patient has no concerns.
-- No prior encounter: summarize available information without an invented visit comparison.
-- Retrieval failure: a tool call, API request, or record-loading operation failed or timed out. Identify the missing coverage rather than treating the failure as an empty result or no change.
+### UC-5 — Continue safely when the record is incomplete
 
-A successful lookup returning zero records is not a retrieval failure.
+**Trigger:** A requested record group is empty, stale, missing provenance,
+unauthorized, timed out, or fails to load.
 
-When only some retrieval tools succeed, qualify the summary as a whole as incomplete and identify exactly what could not be retrieved or verified. A section-level warning alone is insufficient. Supported evidence may be shown, but conclusions dependent on missing records must be withheld or explicitly marked unverifiable. Provide a retry path.
+**Output:** The agent distinguishes a successful empty result from no prior
+visit and from retrieval failure. It qualifies the whole brief when coverage is
+partial, identifies the specific unverifiable coverage in plain language,
+withholds dependent conclusions, and offers a bounded retry. The agreed retry
+policy is two retries plus the overall deadline. If identity or authorization
+cannot be established, no patient briefing is shown.
 
-If patient identity or authorization cannot be established, show no patient briefing or chart evidence. David raised a convenient authentication flow as a possibility. Proposed distinction, pending integration audit: expired/missing authentication can route through existing login and then recheck patient access; authenticated denial must not be treated as something login automatically fixes.
+**Why an agent is the right solution:** The important behavior is not merely
+displaying an error; it is adapting the conversation to the exact missing
+coverage and answering the physician's next question without inventing a
+clinical conclusion. A static dashboard can show missing data, but it cannot
+explain the impact on this particular answer or guide a safe, patient-scoped
+retry.
 
-## Decisions still needed
+## Product boundaries derived from the user
 
-- Detailed evidence rules for recognizing an explicit resolution, including later contradictory evidence.
-- Exact hyperlink and visual-density presentation.
-- Quantitative success metrics, eval oracles, and measurement method.
+The first agent is a read-only, physician-reviewed chart assistant. It will not
+write notes, diagnoses, medications, orders, appointments, messages, or other
+patient data. It will not issue clinical recommendations, silently reconcile
+conflicts, mix conversations across patients, or treat chart text as an agent
+instruction. The active patient, authenticated physician, authorization scope,
+retrieval coverage, evidence provenance, and verification outcome must remain
+visible to the system and traceable in observability.
+
+Future `ARCHITECTURE.md` capabilities must map to UC-1 through UC-5. A
+capability without a use-case mapping is not part of the first implementation.
