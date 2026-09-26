@@ -62,6 +62,22 @@ final readonly class SqlWriteLedger implements WriteLedger
         ));
     }
 
+    public function findLabResultsForPatient(int $pid): array
+    {
+        $rows = QueryUtils::fetchRecords(
+            "SELECT * FROM agentforge_write_ledger WHERE pid = ? AND operation = 'lab' ORDER BY created_at",
+            [$pid],
+        );
+        $entries = [];
+        foreach (is_array($rows) ? $rows : [] as $row) {
+            $entry = self::entry($row);
+            if ($entry !== null) {
+                $entries[] = $entry;
+            }
+        }
+        return $entries;
+    }
+
     public function insert(LedgerEntry $entry): void
     {
         QueryUtils::sqlStatementThrowException(

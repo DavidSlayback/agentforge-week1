@@ -46,6 +46,7 @@ use OpenEMR\Modules\AgentForge\Persistence\LedgerEntry;
 use OpenEMR\Modules\AgentForge\Persistence\NonceStore;
 use OpenEMR\Modules\AgentForge\Persistence\WriteLedger;
 use OpenEMR\Modules\AgentForge\Persistence\WriteOutcome;
+use OpenEMR\Modules\AgentForge\Read\LabHistoryAssembler;
 use OpenEMR\Modules\AgentForge\Write\LabRowPlanner;
 use OpenEMR\Modules\AgentForge\Api\AclChecker;
 use OpenEMR\Modules\AgentForge\Api\AgentForgeApi;
@@ -118,6 +119,17 @@ class InMemoryLedger implements WriteLedger
             }
         }
         return null;
+    }
+
+    public function findLabResultsForPatient(int $pid): array
+    {
+        $rows = [];
+        foreach ($this->rows as $row) {
+            if (($this->ignorePid || $row->pid === $pid) && $row->operation === 'lab') {
+                $rows[] = $row;
+            }
+        }
+        return $rows;
     }
 
     public function transaction(callable $work): mixed
@@ -587,6 +599,12 @@ final class FakeChart implements ChartGateway
         return ['resourceType' => 'Bundle'];
     }
 
+    public function readLabObservationHistory(PatientUuid $patient, array $labRows): array
+    {
+        $this->reads[] = 'history:' . $patient->value . ':' . implode(',', array_map(static fn(LedgerEntry $row): string => $row->pid . '/' . $row->documentId, $labRows));
+        return ['resourceType' => 'Bundle', 'scope' => LabHistoryAssembler::SCOPE];
+    }
+
     public function storeListItem(int $pid, ListItemKind $kind, string $title, int $sourceDocumentId, string $confirmationEventId, Actor $actor): WriteOutcome
     {
         $this->writes[] = "list:$pid:{$kind->value}";
@@ -823,6 +841,94 @@ check('dispatcher: a lab report is not a list-item source', function (): void {
     [$status, $body] = call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [['kind' => 'medication', 'title' => 'Metformin', 'field_id' => 'medication.1']]), contextToken(PATIENT_A, 'write-clinical-action'));
     same([404, 'document_not_found'], [$status, $body['error']]);
     same(['document:1:57'], $chart->writes);
+});
+
+// ---------------------------------------------------------------------------
+// E5 lab history (GET lab-observations without source_document_id).
+// ---------------------------------------------------------------------------
+
+/**
+ * Stores a lab PDF and its lab rows for $patient through the dispatcher.
+ *
+ * @return int the stored document id
+ */
+function storeLab(AgentForgeApi $api, string $patient, string $bytes): int
+{
+    [, $doc] = call($api, 'POST', ['route' => 'documents'], pdfBody($patient, $bytes), contextToken($patient));
+    $id = $doc['document_id'];
+    $lab = ['patient_uuid' => $patient, 'source_document_id' => $id, 'source_sha256' => hash('sha256', $bytes), 'results' => [['field_id' => 'lab.hgb', 'loinc_code' => '718-7', 'test_name' => 'Hemoglobin', 'value' => '13.2', 'unit' => 'g/dL', 'reference_range' => '12.0-16.0', 'abnormal' => 'no', 'collection_date' => '2026-09-20', 'page' => 1]]];
+    same(201, call($api, 'POST', ['route' => 'lab-results'], $lab, contextToken($patient))[0], 'lab rows stored');
+    return $id;
+}
+
+/**
+ * @return list<string>
+ */
+function historyReads(FakeChart $chart): array
+{
+    return array_values(array_filter($chart->reads, static fn(string $read): bool => str_starts_with($read, 'history:')));
+}
+
+check('lab history: no source_document_id reads every module lab row of this patient, read scope allowed', function (): void {
+    [$api, , $chart, $acl] = makeApi();
+    $first = storeLab($api, PATIENT_A, "%PDF-1.4\nlab one\n");
+    $second = storeLab($api, PATIENT_A, "%PDF-1.4\nlab two\n");
+    storeLab($api, PATIENT_B, "%PDF-1.4\nother patient\n");
+    $acl->checks = [];
+    [$status, $body] = call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'));
+    same([200, LabHistoryAssembler::SCOPE], [$status, $body['scope']]);
+    same(['history:' . PATIENT_A . ":1/$first,1/$second"], historyReads($chart));
+    same(['patients/lab/read'], $acl->checks, 'lab read ACL is enforced');
+});
+
+check("lab history: never includes another patient's rows, even if the ledger lookup ignores the patient", function (): void {
+    [$api, $ledger, $chart] = makeApi();
+    storeLab($api, PATIENT_B, "%PDF-1.4\nother patient\n");
+    $ledger->ignorePid = true;
+    same(200, call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'))[0]);
+    same(['history:' . PATIENT_A . ':'], historyReads($chart), 'leaky lookup yields no rows');
+});
+
+check('lab history: a lab row whose source is not a module-stored lab PDF is excluded', function (): void {
+    [$api, $ledger, $chart] = makeApi();
+    $stored = storeLab($api, PATIENT_A, "%PDF-1.4\nlab one\n");
+    // A lab ledger row pointing at a document id the module never stored.
+    $ledger->insert(new LedgerEntry('lab:v1:orphan', 'lab', 1, str_repeat('a', 64), 999, 5, ['observation_ids' => ['x']], str_repeat('b', 64), 1, 'synthetic-demo'));
+    call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'));
+    same(['history:' . PATIENT_A . ":1/$stored"], historyReads($chart));
+});
+
+check('lab history: patient scope, allowlist and a malformed source_document_id still refuse', function (): void {
+    [$api, , $chart] = makeApi();
+    storeLab($api, PATIENT_A, "%PDF-1.4\nlab one\n");
+    [$status, $body] = call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_B, 'read-briefing'));
+    same([403, 'patient_scope_mismatch'], [$status, $body['error']]);
+    [$status, $body] = call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_C], null, contextToken(PATIENT_C, 'read-briefing'));
+    same([403, 'demo_patient_not_allowed'], [$status, $body['error']]);
+    same(400, call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A, 'source_document_id' => '0'], null, contextToken(PATIENT_A, 'read-briefing'))[0]);
+    same([], historyReads($chart));
+});
+
+check('lab history assembler: only ledger-recorded Observations, linked to their source document, local collection date', function (): void {
+    $row = static fn(int $doc, array $ids): LedgerEntry => new LedgerEntry("lab:$doc", 'lab', 1, str_repeat('a', 64), $doc, 9, ['results' => array_map(static fn(string $id): array => ['field_id' => 'lab.a1c', 'observation_id' => $id], $ids), 'observation_ids' => $ids], str_repeat('b', 64), 1, 'synthetic-demo');
+    $observation = static fn(string $id, int $doc, string $effective): array => ['resourceType' => 'Observation', 'id' => $id, 'effectiveDateTime' => $effective, 'note' => [['text' => "agentforge:v1 doc=$doc page=2 field=lab.a1c"]]];
+    $bundle = LabHistoryAssembler::assemble(
+        [$row(57, ['o1']), $row(60, ['o2', 'o3'])],
+        [
+            $observation('o1', 57, '2026-09-20T05:00:00+00:00'),
+            $observation('chart-lab', 57, '2026-09-20T05:00:00+00:00'), // not written by this module
+            $observation('o2', 61, '2026-06-18T05:00:00+00:00'),        // note names another document
+        ],
+        new DateTimeZone('America/Chicago'),
+        'openemr-fhir-service-in-process',
+    );
+    same(1, $bundle['total']);
+    same('o1', $bundle['entry'][0]['resource']['id']);
+    same([57, 'lab.a1c', 2, '2026-09-20'], [$bundle['entry'][0]['source_document_id'], $bundle['entry'][0]['field_id'], $bundle['entry'][0]['page'], $bundle['entry'][0]['collection_date']]);
+    same(['o2', 'o3'], $bundle['missing_observation_ids']);
+    same(['o2'], $bundle['unlinked_observation_ids']);
+    same([57, 60], $bundle['source_document_ids']);
+    same('2026-09-20', LabHistoryAssembler::assemble([$row(57, ['o1'])], [$observation('o1', 57, '2026-09-20T00:00:00+00:00')], new DateTimeZone('UTC'), 'x')['entry'][0]['collection_date']);
 });
 
 echo "\n$passes passed, $failures failed\n";

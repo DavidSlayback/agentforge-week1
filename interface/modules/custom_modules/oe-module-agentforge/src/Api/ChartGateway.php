@@ -48,5 +48,14 @@ interface ChartGateway
      */
     public function readLabObservations(PatientUuid $patient, LedgerEntry $labRow): array;
 
+    /**
+     * The patient's lab history: Observations of every given module-written
+     * lab row, each annotated with its source document id.
+     *
+     * @param list<LedgerEntry> $labRows
+     * @return array<string, mixed>
+     */
+    public function readLabObservationHistory(PatientUuid $patient, array $labRows): array;
+
     public function storeListItem(int $pid, ListItemKind $kind, string $title, int $sourceDocumentId, string $confirmationEventId, Actor $actor): WriteOutcome;
 }

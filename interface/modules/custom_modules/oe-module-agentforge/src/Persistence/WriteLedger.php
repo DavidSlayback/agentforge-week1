@@ -38,6 +38,14 @@ interface WriteLedger
     public function findBySourceDocument(int $pid, string $operation, int $documentId): ?LedgerEntry;
 
     /**
+     * Every "lab" ledger row (procedure rows this module wrote) for the patient,
+     * oldest first.
+     *
+     * @return list<LedgerEntry>
+     */
+    public function findLabResultsForPatient(int $pid): array;
+
+    /**
      * @template T
      * @param callable(): T $work
      * @return T

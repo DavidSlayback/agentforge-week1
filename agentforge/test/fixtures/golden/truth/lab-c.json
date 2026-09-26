@@ -1,0 +1,12 @@
+{
+  "schema_version": "agentforge-golden-truth-v1",
+  "document_id": "lab-c",
+  "written_from": "agentforge/scripts/generate-lab-trend-sample.mjs (the text drawn into the vector PDF)",
+  "document_kind": "lab_pdf",
+  "patient_ref": "fixture-patient-001",
+  "header": { "patient_name": "Test Patient One", "dob": "1980-04-12" },
+  "lab_results": [
+    { "test_name": "Hemoglobin", "printed_label": "Hemoglobin", "value": "12.4", "unit": "g/dL", "reference_range": "12.0-16.0", "collection_date": "2026-06-18", "flag_text": "No", "abnormal_flag": "normal" },
+    { "test_name": "A1C", "printed_label": "A1C", "value": "6.8", "unit": "%", "reference_range": "under 5.7", "collection_date": "2026-06-18", "flag_text": "Yes", "abnormal_flag": "abnormal" }
+  ]
+}
