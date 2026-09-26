@@ -101,6 +101,47 @@ Lab read-back uses OpenEMR's FHIR Observation service in-process
 (`read_path: openemr-fhir-service-in-process`); the `/fhir` HTTP API remains
 disabled on this deployment (`rest_fhir_api=0`) and is not what this proves.
 
+## Patient dashboard port (`dashboard`)
+
+The `dashboard` service (`dashboard/Dockerfile`) serves the React SPA and its
+Fastify BFF at `/dashboard/` (Caddy `handle /dashboard/*`, all three site
+blocks). The BFF is a confidential OAuth client of this OpenEMR; tokens and the
+client secret stay in the container. It is not in `proxy.depends_on`, so a
+failing dashboard returns 502 on `/dashboard/*` only.
+
+**Prerequisite for every deploy once this Compose file is on the VM:** the
+`DASHBOARD_*` variables marked required below use `${VAR:?}`, and Compose
+refuses to interpolate the file (for any service) while one is missing. Add
+them to `/opt/agentforge-week1/.env` before the next `deploy.sh` run.
+
+```dotenv
+# Browser-facing origin, no path (the redirect URI is <origin>/dashboard/callback)
+DASHBOARD_PUBLIC_ORIGIN=https://<canonical-host>
+# OpenEMR issuer exactly as its id tokens' iss: <site_addr_oath>/oauth2/default
+DASHBOARD_OAUTH_ISSUER=https://<canonical-host>/oauth2/default
+# Confidential client "AgentForge Dashboard" registered on this OpenEMR with
+# redirect https://<canonical-host>/dashboard/callback, ONE post-logout URI
+# https://<canonical-host>/dashboard/, and the scope string in
+# dashboard/bff/src/config.ts (OAUTH_SCOPE); then enabled.
+DASHBOARD_OAUTH_CLIENT_ID=<client-id>
+DASHBOARD_OAUTH_CLIENT_SECRET=<client-secret>
+# At least 32 random characters
+DASHBOARD_SESSION_SECRET=<long-random-value>
+# Optional (defaults shown or empty)
+DASHBOARD_OPENEMR_INTERNAL_URL=http://openemr
+DASHBOARD_OPENEMR_TZ=America/Chicago
+DASHBOARD_DEMO_PATIENTS=Demo A (data-rich)=<patient-uuid>,Demo B (deceased)=<patient-uuid>
+```
+
+Ship it with `AGENTFORGE_DEPLOY_SERVICES="dashboard" sh deploy/vultr/deploy.sh`
+(only from a commit on `staging/main`); the health loop then requires
+`/dashboard/health` to report the deployed SHA. Afterwards run the
+unauthenticated checks: `node dashboard/scripts/live-check.mjs
+"$AGENTFORGE_PUBLIC_URL" "$(git rev-parse HEAD)"`. The server-side `/token` and
+JWKS calls go to `DASHBOARD_OPENEMR_INTERNAL_URL` while the browser authorizes
+against the public origin (risk R-3 in `MIGRATION-REACT.md`); if OpenEMR
+rejects that split, point `DASHBOARD_OPENEMR_INTERNAL_URL` at the public origin.
+
 ## Optional synthetic live-provider lane
 
 The deterministic provider remains the local/default fallback. Historical

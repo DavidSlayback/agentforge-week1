@@ -206,6 +206,45 @@ services:
           cpus: "0.50"
           memory: 512M
 
+  # Patient dashboard port (docs/legacy-audit/MIGRATION-REACT.md §7): React SPA
+  # + Fastify BFF holding a confidential OpenEMR OAuth client. Served at
+  # /dashboard/ by Caddy. Not in proxy.depends_on on purpose: a failing
+  # dashboard must not keep Caddy (and OpenEMR, AgentForge) from starting.
+  dashboard:
+    restart: unless-stopped
+    build:
+      context: ../..
+      dockerfile: dashboard/Dockerfile
+    environment:
+      PORT: 8790
+      NODE_ENV: production
+      DASHBOARD_BASE_PATH: /dashboard
+      DASHBOARD_PUBLIC_ORIGIN: ${DASHBOARD_PUBLIC_ORIGIN:?DASHBOARD_PUBLIC_ORIGIN is required}
+      # OpenEMR's issuer exactly as its id tokens carry it: <site_addr_oath>/oauth2/default
+      DASHBOARD_OAUTH_ISSUER: ${DASHBOARD_OAUTH_ISSUER:?DASHBOARD_OAUTH_ISSUER is required}
+      DASHBOARD_OPENEMR_INTERNAL_URL: ${DASHBOARD_OPENEMR_INTERNAL_URL:-http://openemr}
+      DASHBOARD_OAUTH_CLIENT_ID: ${DASHBOARD_OAUTH_CLIENT_ID:?DASHBOARD_OAUTH_CLIENT_ID is required}
+      DASHBOARD_OAUTH_CLIENT_SECRET: ${DASHBOARD_OAUTH_CLIENT_SECRET:?DASHBOARD_OAUTH_CLIENT_SECRET is required}
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:?DASHBOARD_SESSION_SECRET is required}
+      # Placeholder default; slice 01-02-01 confirms the timezone OpenEMR's NOW() runs in.
+      DASHBOARD_OPENEMR_TZ: ${DASHBOARD_OPENEMR_TZ:-America/Chicago}
+      DASHBOARD_DEMO_PATIENTS: ${DASHBOARD_DEMO_PATIENTS:-}
+    expose:
+      - "8790"
+    depends_on:
+      openemr:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:8790/dashboard/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
   proxy:
     restart: always
     image: caddy:2.9.1-alpine

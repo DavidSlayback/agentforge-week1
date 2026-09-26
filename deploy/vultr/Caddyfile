@@ -17,6 +17,11 @@
 
 dtstest.64.177.10.182.nip.io {
     import agentforge_module_internal_only
+    # Patient dashboard port: the app owns its /dashboard prefix (handle, not handle_path).
+    redir /dashboard /dashboard/ 308
+    handle /dashboard/* {
+        reverse_proxy dashboard:8790
+    }
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }
@@ -30,6 +35,11 @@ dtstest.64.177.10.182.nip.io {
 
 :80 {
     import agentforge_module_internal_only
+    # Patient dashboard port: the app owns its /dashboard prefix (handle, not handle_path).
+    redir /dashboard /dashboard/ 308
+    handle /dashboard/* {
+        reverse_proxy dashboard:8790
+    }
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }
@@ -44,6 +54,11 @@ dtstest.64.177.10.182.nip.io {
 :443 {
     tls internal
     import agentforge_module_internal_only
+    # Patient dashboard port: the app owns its /dashboard prefix (handle, not handle_path).
+    redir /dashboard /dashboard/ 308
+    handle /dashboard/* {
+        reverse_proxy dashboard:8790
+    }
     handle_path /agentforge-w2* {
         reverse_proxy agentforge-w2:8788
     }
