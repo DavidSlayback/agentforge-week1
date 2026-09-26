@@ -237,3 +237,13 @@ test('the grounded answer states each confident medication row as a cited patien
   assert.equal(reviewed.patient_facts.length, 0);
   assert.deepEqual(reviewed.needs_review.map((item) => item.kind), ['medication_list_item', 'medication_list_item']);
 });
+
+test('the answer-model prompt labels medication-list rows as [medication list], not [intake form]', async () => {
+  const { composeGroundedAnswer } = await import('../src/answerComposer.js');
+  const extraction = await extractMedicationList(COMPLETE_LIST, { confidence: 0.95 });
+  let prompt = '';
+  const capture = { name: 'capture-prompt-test', model: 'test', async checkReady() { return true; }, async generate(args) { prompt = args.prompt; return { text: JSON.stringify({ claims: [] }), inputTokens: 1, outputTokens: 1, estimatedCostUsd: 0 }; } };
+  await composeGroundedAnswer({ medicationList: extraction.medication_list }, { provider: capture });
+  assert.match(prompt, /\[medication list\] Medication 1: Metformin 500 mg twice daily oral/);
+  assert.doesNotMatch(prompt, /\[intake form\]/);
+});

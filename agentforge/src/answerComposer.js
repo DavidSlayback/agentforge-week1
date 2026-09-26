@@ -168,7 +168,7 @@ function intakeFactLine(citation) {
 
 // A medication-list row cites its name part (`medication.<n>.name`); intake
 // medication leaves use `medications` or `medication.<drug>`.
-const MEDICATION_LIST_ROW_CITATION = /^medication.d+.name$/;
+const MEDICATION_LIST_ROW_CITATION = /^medication\.\d+\.name$/;
 
 /** Compact prompt line for one OpenEMR chart-record fact: the field it
  * belongs to (words the verifier derives from the same `field_or_chunk_id`)

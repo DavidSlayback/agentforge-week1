@@ -141,7 +141,7 @@ final readonly class AgentForgeApi
     {
         $input = DocumentWriteRequest::fromBody($request->body);
         if ($input->sourceDocumentId !== null) {
-            $this->ownedDocument($pid, $input->sourceDocumentId, [DocumentType::LabPdf->ledgerOperation(), DocumentType::IntakeForm->ledgerOperation()], 'source_document_not_found');
+            $this->ownedDocument($pid, $input->sourceDocumentId, array_map(static fn(DocumentType $type): string => $type->ledgerOperation(), DocumentType::sourceTypes()), 'source_document_not_found');
         }
         $key = $input->documentType === DocumentType::DerivedFacts && $input->sourceDocumentId !== null
             ? IdempotencyKey::forDerivedFacts($pid, $input->sourceDocumentId)
@@ -218,7 +218,24 @@ final readonly class AgentForgeApi
     private function storeClinicalListItems(SignedRequest $request, int $pid, Actor $actor): array
     {
         $input = ClinicalListItemInput::fromBody($request->body);
-        $this->ownedDocument($pid, $input->sourceDocumentId, [DocumentType::IntakeForm->ledgerOperation()], 'source_intake_document_not_found');
+        $listSources = [DocumentType::IntakeForm, DocumentType::MedicationList];
+        $source = $this->ownedDocument($pid, $input->sourceDocumentId, array_map(static fn(DocumentType $type): string => $type->ledgerOperation(), $listSources), 'source_list_document_not_found');
+        $sourceType = null;
+        foreach ($listSources as $type) {
+            if ($type->ledgerOperation() === $source->operation) {
+                $sourceType = $type;
+            }
+        }
+        $allowedKinds = $sourceType === null ? [] : $sourceType->confirmableListItemKinds();
+        $disallowed = [];
+        foreach ($input->items as $index => $item) {
+            if (!in_array($item['kind'], $allowedKinds, true)) {
+                $disallowed[] = "items[$index].kind_not_allowed_for_source";
+            }
+        }
+        if ($disallowed !== []) {
+            throw ApiError::invalid($disallowed);
+        }
         $chart = $this->chart;
         $items = [];
         $created = false;

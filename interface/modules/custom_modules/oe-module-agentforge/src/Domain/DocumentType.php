@@ -18,6 +18,7 @@ enum DocumentType: string
 {
     case LabPdf = 'lab_pdf';
     case IntakeForm = 'intake_form';
+    case MedicationList = 'medication_list';
     case DerivedFacts = 'derived_facts';
 
     /**
@@ -28,7 +29,7 @@ enum DocumentType: string
     {
         return match ($this) {
             self::LabPdf => 'Lab Report',
-            self::IntakeForm, self::DerivedFacts => 'Medical Record',
+            self::IntakeForm, self::MedicationList, self::DerivedFacts => 'Medical Record',
         };
     }
 
@@ -41,7 +42,7 @@ enum DocumentType: string
             // text/plain carries the synthetic tagged scan-form envelope used
             // by the deployed demo's "included scan sample"; it is still a
             // source document the extraction ran on.
-            self::LabPdf, self::IntakeForm => ['application/pdf', 'text/plain'],
+            self::LabPdf, self::IntakeForm, self::MedicationList => ['application/pdf', 'text/plain'],
             self::DerivedFacts => ['application/json'],
         };
     }
@@ -49,5 +50,31 @@ enum DocumentType: string
     public function ledgerOperation(): string
     {
         return 'doc:' . $this->value;
+    }
+
+    /**
+     * Source document kinds (everything the extraction runs on; derived facts
+     * link to one of these).
+     *
+     * @return list<self>
+     */
+    public static function sourceTypes(): array
+    {
+        return [self::LabPdf, self::IntakeForm, self::MedicationList];
+    }
+
+    /**
+     * Clinician-confirmed list entries this source may yield (A3): an intake
+     * form lists medications and allergies; a medication list only medications.
+     *
+     * @return list<ListItemKind>
+     */
+    public function confirmableListItemKinds(): array
+    {
+        return match ($this) {
+            self::IntakeForm => [ListItemKind::Medication, ListItemKind::Allergy],
+            self::MedicationList => [ListItemKind::Medication],
+            self::LabPdf, self::DerivedFacts => [],
+        };
     }
 }

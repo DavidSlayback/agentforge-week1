@@ -16,7 +16,7 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
   const ledger = new Map();
   const documents = new Map();
   const labBySource = new Map();
-  const counts = { documents: 0, procedure_orders: 0, procedure_results: 0, requests: 0, rejected: 0 };
+  const counts = { documents: 0, procedure_orders: 0, procedure_results: 0, requests: 0, rejected: 0, list_item_requests: 0 };
   let nextDocumentId = 57;
   let nextOrderId = 9;
   let nextResultId = 21;
@@ -37,6 +37,7 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
     const url = new URL(req.url, 'http://fake-module');
     if (url.pathname === '/__counts') return reply(res, 200, counts);
     const query = Object.fromEntries(url.searchParams.entries());
+    if (query.route === 'clinical-list-items') counts.list_item_requests += 1;
     const body = rawBody ? JSON.parse(rawBody) : {};
     const header = (name) => req.headers[name] || '';
     const contextToken = header('x-agentforge-context-token');
