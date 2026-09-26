@@ -175,3 +175,7 @@ Acceptance check (a user can do this): sign in, open pid 13 by link or MRN, see 
   §16). The most pressing are C-1 and C-2 (the FHIR wording in W2D-3 and
   W2D-4) and C-6 (this log and the arc file set against the "one plan file"
   rule).
+
+## 2026-09-25 ~20:00 CT — slice 01-01-01 deployed (f8d7bdf)
+
+Merged to main via MR !81, then MR !82 fixed a BUILD_SHA test that failed on the git-archive tree (the production image build runs the suite). Production client registered and enabled; env written on the VM. Public checks without login pass. Status: **wired, tested, deployed; human sign-in not yet observed** (grader login by David).
