@@ -4,8 +4,9 @@ import { recordBelongsToPatient } from './recordScope.js';
 import { PreparationCache } from './preparationCache.js';
 import { clinicalFact, clinicalLabel } from './clinicalLanguage.js';
 import { assessRecordTrust } from './recordTrust.js';
-import { chartReadOrigin } from './chartSource.js';
+import { chartReadOrigin, chartRecordCitationSource } from './chartSource.js';
 import { mentionsOtherPatient } from './patientMentions.js';
+import { resolveChartAdapter } from './chartSourceRouter.js';
 
 // A neutral trace label shared by fixture and live paths. The source origin is
 // intentionally not implied by this cache revision.
@@ -49,9 +50,12 @@ export class PreVisitPreparation {
       return result;
     }
     const scopedRequest = { ...request, patient_uuid: authorization.patient_uuid, clinician_uuid: authorization.clinician_uuid };
+    // E9: the adapter this request reads through, picked from the verified
+    // claims (chartSourceRouter.js); a plain adapter resolves to itself.
+    const chart = resolveChartAdapter(this.adapter, verifiedContext);
     trace?.startStage('authorization');
     trace?.finishStage('authorization', { status: 'success' });
-    const liveProviderBlocked = this.adapter.name === 'openemr-rest' && !this.allowExternalLiveProvider && [this.provider, this.conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
+    const liveProviderBlocked = chart.name === 'openemr-rest' && !this.allowExternalLiveProvider && [this.provider, this.conversationProvider].some((candidate) => candidate && candidate.name !== 'deterministic');
     if (liveProviderBlocked) {
       const result = blockedResult(id, 'live_external_provider_not_approved');
       trace?.setDisplay({ status: 'withheld' });
@@ -62,8 +66,8 @@ export class PreVisitPreparation {
     let retrieval;
     try {
       retrieval = await runWithinDeadline(async (signal) => {
-        const item = await this.adapter.getCase(authorization.patient_uuid, scopedRequest.case_id, { signal });
-        return { item, retrieved: await this.adapter.retrieve(item, { correlationId: id, signal }) };
+        const item = await chart.getCase(authorization.patient_uuid, scopedRequest.case_id, { signal });
+        return { item, retrieved: await chart.retrieve(item, { correlationId: id, signal }) };
       }, remainingDeadline());
     } catch (error) {
       completeTraceFailure(trace, 'retrieval');
@@ -87,7 +91,7 @@ export class PreVisitPreparation {
     }
     // Operational adapter label only; it does not prove live OpenEMR or
     // production reachability.
-    const retrievalAdapter = chartReadOrigin(this.adapter);
+    const retrievalAdapter = chartReadOrigin(chart);
     for (const group of retrieved.coverage) trace?.recordRetrievalAttempt({ adapter: retrievalAdapter, group: group.group, status: group.status, attempts: group.attempts, errorCode: group.error_class });
     const coverage = Array.isArray(retrieved.coverage) ? retrieved.coverage : [];
     trace?.finishStage('retrieval', { status: coverage.some((group) => isCoverageUnavailable(group.status)) ? 'partial' : 'success' });
@@ -121,7 +125,7 @@ export class PreVisitPreparation {
     ];
     const qualification = { required: qualificationReasons.length > 0, reasons: [...new Set(qualificationReasons)] };
     const disposition = coverage.some((group) => isCoverageFailure(group.status)) ? 'partial' : qualification.required ? 'qualified' : 'complete';
-    const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: authorization.clinician_uuid, authorized: true, authorization_source: authorization.source }, patient: item.patient, disposition, claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: this.adapter.name === 'openemr-rest' ? 'retrieve_openemr_read' : 'retrieve_synthetic_fixture_read' }] };
+    const response = { contract_version: CONTRACT_VERSION, correlation_id: id, context: { patient_ref: item.patient.patient_ref, requester_ref: authorization.clinician_uuid, authorized: true, authorization_source: authorization.source }, patient: item.patient, disposition, claims, withheld_fields: withheld, coverage: retrieved.coverage, qualification, operations: [{ type: 'read', operation: chartRecordCitationSource(chart).operation }] };
     response.comparison = buildComparison(claims);
     trace?.startStage('verification');
     const verification = verify({ patientRef: item.patient.patient_ref, claims, coverage: retrieved.coverage, qualification, operations: response.operations, disposition: response.disposition });
@@ -231,7 +235,10 @@ export class PreVisitPreparation {
     }
     // A question that names another patient is refused before any chart
     // evidence is selected, so neither patient's data is disclosed (W1-SF4).
-    const knownPatients = typeof this.adapter.listPatientIdentifiers === 'function' ? this.adapter.listPatientIdentifiers() : [];
+    // The request's own chart (E9 router): the fixture patient list for a demo
+    // token; live OpenEMR has none, so only identifier shapes are checked.
+    const scopedChart = resolveChartAdapter(this.adapter, verifiedContext);
+    const knownPatients = typeof scopedChart.listPatientIdentifiers === 'function' ? scopedChart.listPatientIdentifiers() : [];
     if (mentionsOtherPatient({ message: request.message, currentPatient: cacheResult.entry.response.patient, knownPatients })) {
       const result = blockedResult(id, 'out_of_scope_patient');
       trace?.setCache({ status: cacheResult.status });

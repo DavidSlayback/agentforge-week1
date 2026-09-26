@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { DashScopeMultimodalProvider, DeterministicProvider, OpenAICompatibleProvider, OpenAIResponsesProvider, ResilientProvider, modelExtraBodyFromEnv } from './modelProvider.js';
 import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter } from './openemrAdapter.js';
 import { FixtureAdapter } from './fixtureAdapter.js';
+import { ChartSourceRouter, describeLaunchChartSource, parseLiveReads } from './chartSourceRouter.js';
 import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 import { createOpenEMRModuleWritebackFromEnv } from './openemrModuleWriteback.js';
@@ -128,6 +129,13 @@ const criticConfig = createCriticProviderFromEnv(process.env);
 const openEMRMode = process.env.AGENTFORGE_OPENEMR_MODE || 'synthetic';
 const liveOpenEMR = openEMRMode === 'live';
 const validOpenEMRMode = openEMRMode === 'synthetic' || openEMRMode === 'live';
+// E9: in the synthetic mode, a request whose verified context was minted by the
+// OpenEMR module launcher (issuer openemr-module, authn openemr-session) reads
+// the real chart through the REST adapter when this is `on`; with `off` (the
+// default) such a request is refused with openemr_live_reads_disabled, never
+// served from fixtures. The public demo's own tokens always read fixtures.
+const liveReadsEnabled = parseLiveReads(process.env.AGENTFORGE_OPENEMR_LIVE_READS);
+if (liveReadsEnabled && liveOpenEMR) throw new Error('AGENTFORGE_OPENEMR_LIVE_READS applies to the synthetic OpenEMR mode only; the live mode already reads every request from OpenEMR');
 const scanProviderMode = process.env.AGENTFORGE_SCAN_PROVIDER_MODE || 'local';
 if (!['local', 'gemini'].includes(scanProviderMode)) throw new Error('AGENTFORGE_SCAN_PROVIDER_MODE must be local or gemini');
 if (scanProviderMode === 'gemini' && liveOpenEMR) throw new Error('Gemini scan extraction is restricted to synthetic mode');
@@ -160,7 +168,7 @@ const guidelineRetriever = ragProviderMode === 'cohere'
   : ragProviderMode === 'gemini-hybrid'
     ? createGeminiHybridGuidelineRetriever({ embedClient: guidelineEmbedClient, reranker: guidelineReranker })
     : null;
-const openEMRTokenProvider = liveOpenEMR && process.env.AGENTFORGE_OPENEMR_CLIENT_ID && process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET && process.env.AGENTFORGE_OPENEMR_TOKEN_URL && process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH
+const openEMRTokenProvider = (liveOpenEMR || liveReadsEnabled) && process.env.AGENTFORGE_OPENEMR_CLIENT_ID && process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET && process.env.AGENTFORGE_OPENEMR_TOKEN_URL && process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH
   ? new OpenEMRRefreshTokenProvider({ tokenUrl: process.env.AGENTFORGE_OPENEMR_TOKEN_URL, clientId: process.env.AGENTFORGE_OPENEMR_CLIENT_ID, clientSecret: process.env.AGENTFORGE_OPENEMR_CLIENT_SECRET, cachePath: process.env.AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) })
   : null;
 // Live mode requires caller-supplied signed context. This server does not
@@ -191,7 +199,10 @@ function injectTestAnswerFault(answer) {
   if (!testInvalidAnswer || !answer) return answer;
   return { ...answer, composer: 'test-only-invalid-injection' };
 }
-const chartAdapter = liveOpenEMR ? new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) }) : new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath());
+const buildRestAdapter = () => new OpenEMRRestAdapter({ baseUrl: process.env.AGENTFORGE_OPENEMR_BASE_URL, accessToken: process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN, tokenProvider: openEMRTokenProvider, requiredIssuer: 'openemr-module', requiredAuthn: 'openemr-session', requiredRole: 'clinician', timeoutMs: Number(process.env.AGENTFORGE_OPENEMR_TIMEOUT_MS || 5000) });
+// The synthetic mode routes each request by its verified claims (E9,
+// chartSourceRouter.js); the live mode reads every request from OpenEMR.
+const chartAdapter = liveOpenEMR ? buildRestAdapter() : new ChartSourceRouter({ fixtureAdapter: new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath()), liveAdapter: liveReadsEnabled ? buildRestAdapter() : null, liveReads: liveReadsEnabled });
 // Persistence is chosen independently of the chart mode: the W2 service keeps
 // the synthetic chart but stores uploads in OpenEMR through the module.
 const persistenceMode = process.env.AGENTFORGE_PERSISTENCE_MODE || 'in-memory-synthetic';
@@ -199,13 +210,17 @@ if (!['in-memory-synthetic', 'openemr-module'].includes(persistenceMode)) throw 
 const writeback = persistenceMode === 'openemr-module' ? createOpenEMRModuleWritebackFromEnv(process.env) : liveOpenEMR ? null : new SyntheticWriteback({ ...(syntheticSourceDocumentStore ? { sourceDocumentStore: syntheticSourceDocumentStore } : {}), ...(syntheticClinicalActionStore ? { clinicalActionStore: syntheticClinicalActionStore } : {}) });
 const hasExternalProvider = [provider, conversationProvider, criticConfig.provider].some((candidate) => candidate && candidate.name !== 'deterministic');
 const liveExternalProviderAllowed = !liveOpenEMR || !hasExternalProvider || process.env.AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED === 'true';
+// The same approval covers E9 live reads: without it, a request that read the
+// OpenEMR chart gets the deterministic composer and no critic, and a briefing
+// is blocked (live_external_provider_not_approved). /ready keeps the W1 rule.
+const serviceExternalProviderAllowed = !(liveOpenEMR || liveReadsEnabled) || !hasExternalProvider || process.env.AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED === 'true';
 // FileTraceSink redacts before persistence and listing; these endpoints expose
 // operational metadata, not raw briefing or chart content.
 const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
-const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: liveExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000), criticProvider: criticConfig.provider, criticTimeoutMs: criticConfig.timeoutMs, criticDisabledReason: criticConfig.disabledReason });
+const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: serviceExternalProviderAllowed, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000), criticProvider: criticConfig.provider, criticTimeoutMs: criticConfig.timeoutMs, criticDisabledReason: criticConfig.disabledReason });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
 // provider probe; it is not output-quality or production-compliance proof.
 // `/health` is process liveness.
@@ -456,7 +471,18 @@ const server = http.createServer(async (req, res) => {
         return validation.valid ? json(res, 200, response) : invalidResponse(res, 'invalid_clinical_action_response', validation.issues);
       } catch (error) { return json(res, clinicalActionErrorStatus(error), { error: error.code || error.message }); }
     }
-    if (req.method === 'GET' && req.url.startsWith('/')) { const token = new URL(req.url, 'http://localhost').searchParams.get('demo_token') || ''; return html(res, renderAgentForgePage({ token, payload: tokenPayload(token), publicBasePath, liveOpenEMR })); }
+    if (req.method === 'GET' && req.url.startsWith('/')) {
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const token = query.get('demo_token') || '';
+      const payload = tokenPayload(token);
+      // E9: the module launcher also hands over a write-source-document token.
+      // It is used only when it is verified and belongs to the same OpenEMR
+      // session, patient and clinician as the read token.
+      const writeCandidate = query.get('write_token') || '';
+      const writePayload = writeCandidate ? tokenPayload(writeCandidate) : null;
+      const writeToken = payload && writePayload && writePayload.issuer === 'openemr-module' && writePayload.authn === 'openemr-session' && payload.issuer === 'openemr-module' && writePayload.scope === 'write-source-document' && writePayload.patient_uuid === payload.patient_uuid && writePayload.clinician_uuid === payload.clinician_uuid ? writeCandidate : '';
+      return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken, chartSource: describeLaunchChartSource(chartAdapter, payload) }));
+    }
     let body;
     try { body = await readJsonBody(req); } catch (error) { return json(res, error.code === 'REQUEST_BODY_TOO_LARGE' ? 413 : 400, { error: error.code === 'REQUEST_BODY_TOO_LARGE' ? error.code.toLowerCase() : 'invalid_json' }); }
     if (req.method === 'POST' && req.url === '/v1/source-documents') {
