@@ -39,7 +39,7 @@ describe('header use case against shaped fixtures (contract)', () => {
     ['pid 13', PATIENT.p13, 'shaped/patient-13.json', 'Active', 13],
     ['pid 3', PATIENT.p3, 'shaped/patient-3.json', 'Active', 3],
     ['pid 12', PATIENT.p12, 'shaped/patient-12.json', 'Deceased', 12],
-  ] as const)('%s: exactly the two allow-listed reads, status %s, pid resolved once', async (_label, id, file, status, pid) => {
+  ] as const)('%s: exactly the two allow-listed reads, the expected status, pid resolved once', async (_label, id, file, status, pid) => {
     const { fake, run } = setup();
     serve(fake, id, routeFixture(file, 'fhir.patient.read'), routeFixture(file, 'rest.patient.read'));
     const { card, pid: resolved } = await run(id);
