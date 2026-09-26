@@ -1,7 +1,22 @@
 import { formulateEvidenceQuery } from '../activeWorkers.js';
 import { validateScanExtractionTypedOutput } from '../contracts.js';
 import { MedicationList, parseOrIssues } from '../schemas.js';
-import { citationIssues, extractionOf } from '../w2RegressionGate.js';
+import { createRecordedOcrReplay } from '../pdfScanAdapter.js';
+import { citationIssues, extractionOf, loadGoldenFixtures } from '../w2RegressionGate.js';
+
+/**
+ * The recorded medlist-a OCR with its third row's "Medication 3:" label
+ * removed, so the row reads like a drug line that no row label claims. Built
+ * from the committed recording (same bytes, same boxes), used by a case's
+ * `service_overrides` to replay it for the medlist-a upload.
+ */
+function medlistAWithUnlabeledThirdRow() {
+  const recording = structuredClone(loadGoldenFixtures().docs.get('medlist-a').ocr);
+  const line = recording.pages[0].lines.find((item) => item.text.startsWith('Medication 3: '));
+  line.text = line.text.slice('Medication 3: '.length);
+  line.words = line.text.split(' ');
+  return createRecordedOcrReplay([recording]);
+}
 
 /**
  * X-3 third document type (E4): `medication_list`, run end to end through the
@@ -117,6 +132,7 @@ export function medicationListCases({ kase, scan, P2 }) {
     kase('x3-sr-04-medlist-declared-intake', 'safe_refusal', 'A medication list uploaded as an intake form is reported READY instead of QUALIFIED doc_type_mismatch.', scan('medlist-b', 'intake_form'), { refusal: { final_state: 'QUALIFIED', reasons_include: ['doc_type_mismatch'], detected_type: 'medication_list' } }),
     kase('x3-sr-05-blank-medlist', 'safe_refusal', 'A blank page declared as a medication list proceeds to retrieval instead of BLOCKED no_fields_extracted.', scan('gen-blank-page', 'medication_list'), { refusal: { final_state: 'BLOCKED', stop_reason: 'no_fields_extracted', retrieval_ran: false } }),
     kase('x3-sr-06-medlist-other-patient', 'safe_refusal', "A medication list printed for this patient is attached to another patient's chart instead of BLOCKED patient_mismatch.", scan('medlist-a', 'medication_list', { upload_patient: P2 }), { refusal: { final_state: 'BLOCKED', stop_reason: 'patient_mismatch', identity: 'mismatch', retrieval_ran: false } }),
+    kase('x3-sr-07-medlist-unlabeled-row', 'safe_refusal', 'A drug line with no row label ("Atorvastatin 20 mg at bedtime oral") is silently dropped and the medication list is reported READY with two drugs instead of QUALIFIED extraction_incomplete.', scan('medlist-a', 'medication_list', { service_overrides: () => ({ ocrEngine: medlistAWithUnlabeledThirdRow() }) }), { refusal: { final_state: 'QUALIFIED', reasons_include: ['extraction_incomplete'] } }),
     kase('x3-np-01-medlist-a', 'no_phi_in_logs', 'Drug names, the list date, the prescriber or the printed name/DOB of a medication list reach the stored trace or stdout/stderr.', scan('medlist-a', 'medication_list'), { no_phi: {} }),
     kase('x3-np-02-medlist-b', 'no_phi_in_logs', 'Rasterized medication-list OCR text or raw handoffs reach the trace or console.', scan('medlist-b', 'medication_list'), { no_phi: { raw_handoffs: true } }),
   ];

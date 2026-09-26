@@ -152,6 +152,35 @@ function medicationListRows(lines) {
   return fields;
 }
 
+// Any "Medication 123:"-style label, including numbers the row map refuses.
+const MEDICATION_ANY_ROW_LABEL = /^(?:medication|med|rx)\s*#?\s*\d+$/;
+
+/** A line whose text reads like a drug row: a dose with its unit, a route at the end, or a dosing frequency. */
+const looksLikeMedicationRow = (text) => MEDICATION_DOSE_UNIT.test(text) || MEDICATION_ROUTE_AT_END.test(text) || MEDICATION_FREQUENCY.test(text);
+
+/**
+ * Lines of a medication list that look like a drug row but were not read as
+ * one: an unlabeled row ("Warfarin 5 mg once daily oral"), or a numbered row
+ * whose number the row map refuses ("Medication 100:"). A dropped drug is the
+ * worst failure a medication list can have, so each one is reported as an
+ * unreadable field (reason codes only, never the text), which keeps the
+ * extraction QUALIFIED instead of complete.
+ */
+export function unreadMedicationRows(lines, documentType, layoutId = '') {
+  if (documentType !== 'medication_list' || layoutId !== `pdf-ocr-${documentType}`) return [];
+  const unread = [];
+  for (const line of lines) {
+    const separator = line.text.indexOf(':');
+    const labelKey = separator > 0 ? line.text.slice(0, separator).trim().toLowerCase().replace(/\s+/g, ' ') : '';
+    const value = separator > 0 ? line.text.slice(separator + 1).trim() : line.text.trim();
+    if (separator > 0 && MEDICATION_ROW_LABEL.test(labelKey)) continue;
+    if (separator > 0 && MEDICATION_LIST_LABELS.has(labelKey)) continue;
+    if (separator > 0 && MEDICATION_ANY_ROW_LABEL.test(labelKey)) unread.push({ field_id: `medication.unread.${unread.length + 1}`, reason: 'medication_row_number_out_of_range' });
+    else if (looksLikeMedicationRow(separator > 0 ? value : line.text)) unread.push({ field_id: `medication.unread.${unread.length + 1}`, reason: 'unlabeled_medication_row' });
+  }
+  return unread;
+}
+
 export function fieldRows(lines, documentType, layoutId = '') {
   // Only the PDF-OCR layout is defined for medication lists; any other layout
   // reads nothing rather than borrowing the intake patterns below.
@@ -373,6 +402,8 @@ export async function extractPdfScanFixture({ content, documentType, layoutId = 
     const confidence = field.confidence ?? line?.confidence ?? 0;
     fixture.push(`FIELD|field_id=${field.field_id}|label=${safe(field.label)}|value=${safe(field.value)}|unit=${safe(field.unit)}|quote=${safe(field.quote)}|page=${page}|box=${box.join(',')}|confidence=${confidence.toFixed(2)}`);
   }
+  // Read from the OCR lines whichever provider mapped the fields.
+  for (const row of unreadMedicationRows(ocrLines, documentType, layoutId)) fixture.push(`UNREADABLE|field_id=${row.field_id}|reason=${row.reason}`);
   // `ocrText` stays in memory for document-type detection; it is never logged or traced.
   return { content: Buffer.from(fixture.join('\n')), pageCount: pages, candidateFields: extracted.length, provider: modelResult ? modelResult.model : ocrEngine.name, ocrText: ocrLines.map((line) => line.text).join('\n'), ocrMode };
 }

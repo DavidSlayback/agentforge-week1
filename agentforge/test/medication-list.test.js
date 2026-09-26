@@ -286,3 +286,30 @@ test('the no-PHI check knows a medication list\'s identifiers (drug names, list 
   const { words } = phiIdentifiers(loadGoldenFixtures().docs.get('medlist-b').truth);
   for (const word of ['Test Patient One', '1980-04-12', '2026-09-23', 'Northwind Pharmacy dispensing record', 'Levothyroxine', 'Albuterol 90 mcg']) assert.ok(words.includes(word), word);
 });
+
+// --- Review fix 1: a medication row that is not read never leaves the list complete.
+test('a dropped medication row keeps the list QUALIFIED extraction_incomplete: unlabeled row, out-of-range number, gap in the numbering', async () => {
+  const { assessDocumentSafety } = await import('../src/documentSafety.js');
+  const head = ['MEDICATION LIST', 'Patient name: Test Patient One', 'Date of birth: 1980-04-12', 'List date: 2026-09-22'];
+  const chart = { name: 'Test Patient One', dob: '1980-04-12' };
+  const reproductions = {
+    unlabeled_third_row: { lines: [...head, 'Medication 1: Metformin 500 mg twice daily oral', 'Medication 2: Lisinopril 10 mg once daily oral', 'Warfarin 5 mg once daily oral'], unreadable: 'unlabeled_medication_row' },
+    row_number_100: { lines: [...head, 'Medication 1: Metformin 500 mg twice daily oral', 'Medication 100: Warfarin 5 mg once daily oral'], unreadable: 'medication_row_number_out_of_range' },
+    rows_1_and_3_only: { lines: [...head, 'Medication 1: Metformin 500 mg twice daily oral', 'Medication 3: Warfarin 5 mg once daily oral'], typedIssue: 'typed_medication_row_missing:medication.2' },
+  };
+  for (const [name, { lines, unreadable, typedIssue }] of Object.entries(reproductions)) {
+    const extraction = await extractMedicationList(lines);
+    assert.notEqual(extraction.status, 'complete', name);
+    if (unreadable) assert.ok(extraction.uncertain_fields.some((field) => field.reason === `unreadable:${unreadable}`), `${name}: ${JSON.stringify(extraction.uncertain_fields)}`);
+    if (typedIssue) assert.ok(extraction.typed_issues.includes(typedIssue), `${name}: ${extraction.typed_issues}`);
+    const safety = assessDocumentSafety({ documentType: 'medication_list', documentText: lines.join('\n'), extraction, targetPatient: chart });
+    assert.deepEqual([safety.blocking, safety.qualifying], [[], ['extraction_incomplete']], name);
+  }
+  // The unreadable marker carries a reason code only, never the row text.
+  const { extractPdfScanFixture } = await import('../src/pdfScanAdapter.js');
+  const prepared = await extractPdfScanFixture({ content: PDF, documentType: 'medication_list', ocrEngine: fakeOcr(reproductions.unlabeled_third_row.lines) });
+  assert.match(prepared.content.toString('utf8'), /^UNREADABLE\|field_id=medication\.unread\.1\|reason=unlabeled_medication_row$/m);
+  assert.doesNotMatch(prepared.content.toString('utf8').split('\n').filter((line) => line.startsWith('UNREADABLE')).join('\n'), /Warfarin/);
+  // A clean list with only titles, identity and numbered rows stays complete.
+  assert.equal((await extractMedicationList(COMPLETE_LIST)).status, 'complete');
+});

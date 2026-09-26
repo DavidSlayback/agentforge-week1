@@ -192,7 +192,8 @@ const MEDICATION_ROW = /^medication\.([1-9][0-9]?)\.(name|dose|unit|frequency|ro
  * the row does not show is `not_found_on_form` and also a
  * `typed_medication_incomplete` issue, so the extraction cannot be
  * `complete` with a half-read row. A row whose drug name was not read is not
- * typed as a medication at all (`typed_medication_row_without_name`). Every
+ * typed as a medication at all (`typed_medication_row_without_name`), and a
+ * gap in the row numbers is `typed_medication_row_missing`. Every
  * other fact that does not map is reported, never dropped.
  *
  * Returns:
@@ -221,6 +222,10 @@ export function buildTypedMedicationList(facts) {
     row[match[2]] = fact;
     rows.set(Number(match[1]), row);
   }
+  // Rows are numbered from 1; a gap ("Medication 1", "Medication 3") means a
+  // drug was not read, so the list cannot be complete.
+  const highestRow = Math.max(0, ...rows.keys());
+  for (let index = 1; index < highestRow; index++) if (!rows.has(index)) issues.push(`typed_medication_row_missing:medication.${index}`);
   for (const [index, row] of [...rows.entries()].sort(([a], [b]) => a - b)) {
     const rowId = `medication.${index}`;
     if (!row.name) { issues.push(`typed_medication_row_without_name:${rowId}`); continue; }
