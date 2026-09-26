@@ -230,7 +230,10 @@ explicit approval (HD-4), and only because the BFF sends allow-listed keys.
 - CSP: `default-src 'self'; script-src 'self'; style-src 'self'; img-src
   'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none';
   base-uri 'none'; form-action 'self'`.
-- `Referrer-Policy: no-referrer`, because the puuid is in the URL.
+- `Referrer-Policy: strict-origin` (header and the SPA's `<meta name="referrer">`), because the
+  puuid is in the URL: a Referer never carries a path. Not `no-referrer`: under it browsers send
+  `Origin: null` on the same-origin sign-out POST, which the logout Origin check refuses (found in the
+  real-browser pass, `evidence/a11y/README.md` K-1; sign-out answered 403 until then).
 - `X-Content-Type-Options: nosniff`.
 - `Cache-Control: no-store` on `/bff/*`, `/login`, `/callback` and `/logout`,
   so PHI is never cached.

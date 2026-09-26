@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { REFERRER_POLICY } from '../../bff/src/http/security.ts';
 import {
   buildTestApp,
   FakeOpenEmr,
@@ -30,20 +32,32 @@ async function signedInApp(configOverrides: Record<string, string> = {}) {
 }
 
 describe('security headers and caching', () => {
-  it('sends CSP, no-referrer and nosniff everywhere, and no-store on /bff, /login, /callback, /logout', async () => {
+  it('sends CSP, a strict-origin referrer policy and nosniff everywhere, and no-store on /bff, /login, /callback, /logout', async () => {
     const { app, sessionCookie } = await signedInApp();
     const spa = await app.inject({ method: 'GET', url: '/dashboard/' });
     expect(spa.statusCode).toBe(200);
     expect(spa.headers['content-security-policy']).toBe(
       "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://openemr.test",
     );
-    expect(spa.headers['referrer-policy']).toBe('no-referrer');
+    expect(spa.headers['referrer-policy']).toBe('strict-origin');
     expect(spa.headers['x-content-type-options']).toBe('nosniff');
     for (const url of [`/dashboard/bff/patients/${PATIENT.p13}/header`, '/dashboard/bff/session', '/dashboard/login']) {
       const res = await app.inject({ method: 'GET', url, cookies: { dashboard_sid: sessionCookie } });
       expect(res.headers['cache-control'], url).toBe('no-store');
       expect(res.headers['content-security-policy'], url).toBeDefined();
     }
+  });
+
+  it('uses a referrer policy under which the sign-out POST carries a real Origin and no Referer carries the patient uuid', () => {
+    // Real-browser finding (docs/legacy-audit/evidence/a11y/README.md, K-1): under `no-referrer`,
+    // Chromium sends `Origin: null` on the same-origin sign-out form POST (Fetch "serialize a request
+    // origin"), so the logout Origin check answered 403 and nobody could sign out. `same-origin`
+    // would fix that but send the full path (the puuid) to OpenEMR, which shares the production
+    // origin. Only these two keep a real Origin on same-origin POSTs and never send a path.
+    expect(['strict-origin', 'origin']).toContain(REFERRER_POLICY);
+    // The SPA's own meta tag must say the same, or the document policy overrides the header.
+    const html = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
+    expect(/<meta name="referrer" content="([^"]+)"/.exec(html)?.[1]).toBe(REFERRER_POLICY);
   });
 
   it('form-action is plain self when OpenEMR shares the public origin (production shape)', async () => {
