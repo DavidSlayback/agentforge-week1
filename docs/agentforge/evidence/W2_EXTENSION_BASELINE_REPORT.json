@@ -1,0 +1,68 @@
+{
+  "schema_version": "w2-extension-gate-v1",
+  "synthetic_only": true,
+  "passed": true,
+  "thresholds_passed": true,
+  "injected_defect": false,
+  "total_cases": 2,
+  "missing_baseline": false,
+  "corpus_sha256": "8fc3730cba6dfb81679976d9b248d2884721bbf7173a1384f22ce247b5228236",
+  "baseline_corpus_sha256": "8fc3730cba6dfb81679976d9b248d2884721bbf7173a1384f22ce247b5228236",
+  "baseline_mismatch": false,
+  "judge_config": {
+    "version": "w2-assignment-rubrics-v3",
+    "per_label_min_rate": 0.95,
+    "max_regression": 0.05,
+    "critical_failure_tolerance": 0,
+    "no_phi_in_logs_required": true
+  },
+  "by_label": {
+    "schema_valid": {
+      "cases": 0,
+      "passed": 0,
+      "rate": 0
+    },
+    "citation_present": {
+      "cases": 2,
+      "passed": 2,
+      "rate": 1
+    },
+    "factually_consistent": {
+      "cases": 0,
+      "passed": 0,
+      "rate": 0
+    },
+    "safe_refusal": {
+      "cases": 0,
+      "passed": 0,
+      "rate": 0
+    },
+    "no_phi_in_logs": {
+      "cases": 0,
+      "passed": 0,
+      "rate": 0
+    }
+  },
+  "regressions": {
+    "citation_present": 0
+  },
+  "critical_failures": [],
+  "failed_cases": [],
+  "cases": [
+    {
+      "id": "x1-click-to-source-lab-a",
+      "label": "citation_present",
+      "guards_against": "The source preview stops drawing a box for a cited field, or a \"View source region\" link no longer lands on its box (click-to-source broken on a vector lab PDF).",
+      "passed": true
+    },
+    {
+      "id": "x1-click-to-source-intake-b",
+      "label": "citation_present",
+      "guards_against": "Click-to-source breaks on a rasterized intake PDF: a cited field has no box on the page image, or a link targets a missing box.",
+      "passed": true
+    }
+  ],
+  "evidence_command": "npm run eval:extensions --prefix agentforge",
+  "mutation_command": "npm run eval:extensions --prefix agentforge -- --inject-defect",
+  "rebaseline_command": "npm run eval:extensions --prefix agentforge -- --update-baseline"
+}

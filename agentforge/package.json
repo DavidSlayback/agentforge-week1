@@ -9,7 +9,8 @@
     "eval:trust-probes": "node scripts/trust-probes.mjs",
     "eval:pdf-samples": "node scripts/benchmark-pdf-samples.mjs",
     "eval:metrics": "node scripts/measure-key-metrics.mjs",
-    "export:schemas": "node scripts/export-schemas.mjs"
+    "export:schemas": "node scripts/export-schemas.mjs",
+    "eval:extensions": "node scripts/run-w2-extension-gate.mjs"
   },
   "dependencies": {
     "zod": "4.6.5"

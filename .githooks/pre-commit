@@ -65,3 +65,10 @@ npm run --silent --prefix dashboard check
 
 echo "AgentForge gate: W2 50-case eval gate..."
 node agentforge/scripts/run-w2-gate.mjs
+
+
+# W2 extension suite (D12: the PRD p.5-6 extension items). Same judge,
+# labels, per-label threshold and regression rule as the 50-case gate; the
+# golden set itself stays at exactly 50. Mirrored in .gitlab-ci.yml.
+echo "AgentForge gate: W2 extension suite..."
+node agentforge/scripts/run-w2-extension-gate.mjs

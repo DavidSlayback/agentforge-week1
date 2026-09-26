@@ -41,6 +41,7 @@ w2-regression-gate:
   stage: eval
   script:
     - npm run eval:gate --prefix agentforge
+    - npm run eval:extensions --prefix agentforge
 
 # Mirrors the deploy.sh step of .githooks/pre-commit.
 deploy-script:
