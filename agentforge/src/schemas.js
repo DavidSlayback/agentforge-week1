@@ -279,7 +279,7 @@ export const GroundedAnswer = z.object({
  * verification — those are counted separately in `unverified_dropped`).
  */
 export const NeedsReviewItem = z.object({
-  kind: z.enum(['lab_result', 'intake_field', 'patient_record']),
+  kind: z.enum(['lab_result', 'intake_field', 'medication_list_item', 'patient_record']),
   field: z.string().min(1),
   reason: z.string().min(1),
 }).strict();

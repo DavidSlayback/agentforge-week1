@@ -213,3 +213,27 @@ test('a medication list is checked against the chart on its printed identity: ma
   const blank = assessDocumentSafety({ documentType: 'medication_list', documentText: '', extraction: await extractMedicationList([]), targetPatient: chart });
   assert.ok(blank.blocking.includes('no_fields_extracted'));
 });
+
+// --- Workflow (E4 layer 4): evidence query and grounded answer.
+test('formulateEvidenceQuery turns a medication list into a reconciliation query and leaves lab/intake queries unchanged', async () => {
+  const { formulateEvidenceQuery } = await import('../src/activeWorkers.js');
+  const extraction = await extractMedicationList(COMPLETE_LIST);
+  assert.equal(formulateEvidenceQuery({ medicationList: extraction.medication_list }), 'Medication reconciliation: review the current medication list (Metformin, Lisinopril) against prior records.');
+  assert.equal(formulateEvidenceQuery({ medicationList: { ...extraction.medication_list, medications: [] }, clinicianQuestion: 'q' }), 'q');
+  assert.equal(formulateEvidenceQuery({ medicationList: null, intakeForm: { chief_concern: { status: 'observed', value: 'Fatigue' } } }), 'Chief concern: Fatigue.');
+  assert.doesNotThrow(() => formulateEvidenceQuery({ medicationList: { medications: [{}] } }));
+});
+
+test('the grounded answer states each confident medication row as a cited patient fact and sends low-confidence rows to review', async () => {
+  const { composeGroundedAnswer } = await import('../src/answerComposer.js');
+  const { GroundedAnswerResult } = await import('../src/schemas.js');
+  const confident = await extractMedicationList(COMPLETE_LIST, { confidence: 0.95 });
+  const answer = await composeGroundedAnswer({ medicationList: confident.medication_list }, { provider: null });
+  assert.equal(parseOrIssues(GroundedAnswerResult, answer).ok, true);
+  assert.deepEqual(answer.patient_facts.map((claim) => claim.text), ['Medication 1: Metformin 500 mg twice daily oral.', 'Medication 2: Lisinopril 10 mg once daily oral.']);
+  assert.ok(answer.patient_facts.every((claim) => claim.citations[0].source_type === 'document'));
+  const shaky = await extractMedicationList(COMPLETE_LIST, { confidence: 0.6 });
+  const reviewed = await composeGroundedAnswer({ medicationList: shaky.medication_list }, { provider: null });
+  assert.equal(reviewed.patient_facts.length, 0);
+  assert.deepEqual(reviewed.needs_review.map((item) => item.kind), ['medication_list_item', 'medication_list_item']);
+});

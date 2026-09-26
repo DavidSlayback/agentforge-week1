@@ -162,8 +162,13 @@ function labFactLine(result) {
  * "<label>: <value>" quote, same text `intakeFieldClaim` echoes. The
  * verifier binds on the whole quote, label included. */
 function intakeFactLine(citation) {
-  return `[intake form] ${citation.quote_or_value} | must contain: "${citation.quote_or_value}"`;
+  const source = MEDICATION_LIST_ROW_CITATION.test(citation.field_or_chunk_id || '') ? 'medication list' : 'intake form';
+  return `[${source}] ${citation.quote_or_value} | must contain: "${citation.quote_or_value}"`;
 }
+
+// A medication-list row cites its name part (`medication.<n>.name`); intake
+// medication leaves use `medications` or `medication.<drug>`.
+const MEDICATION_LIST_ROW_CITATION = /^medication.d+.name$/;
 
 /** Compact prompt line for one OpenEMR chart-record fact: the field it
  * belongs to (words the verifier derives from the same `field_or_chunk_id`)
@@ -338,10 +343,10 @@ function citationKey(citation) {
  * Split the composer's raw inputs into what an answer may cite and what is
  * held back for human review: lab results and intake leaves under
  * `LOW_CONFIDENCE_THRESHOLD`, and chart records with no citation, go to
- * `needsReview`. Exported so the critic step (`critic.js`) reuses exactly
+ * `needsReview`; so do medication-list rows under it. Exported so the critic step (`critic.js`) reuses exactly
  * this rule when it tops up a gap its vetoes left, instead of re-deriving it.
  */
-export function partitionAnswerInputs({ labResults = [], intakeForm = null, guidelineEvidence = [], patientFacts = [] } = {}) {
+export function partitionAnswerInputs({ labResults = [], intakeForm = null, medicationList = null, guidelineEvidence = [], patientFacts = [] } = {}) {
   const needsReview = [];
   const verifiedLabResults = [];
   for (const result of labResults) {
@@ -353,6 +358,14 @@ export function partitionAnswerInputs({ labResults = [], intakeForm = null, guid
   for (const leaf of intakeLeaves) {
     if (typeof leaf.confidence === 'number' && leaf.confidence < LOW_CONFIDENCE_THRESHOLD) needsReview.push({ kind: 'intake_field', field: leaf.citation?.field_or_chunk_id || 'intake_field', reason: 'low_confidence' });
     else if (leaf.citation) verifiedIntakeCitations.push(leaf.citation);
+  }
+  // Medication-list rows join the same verbatim-quote lane as intake leaves:
+  // each row's citation quotes the whole printed row. A row is only as
+  // confident as its least confident observed part.
+  for (const item of medicationList?.medications || []) {
+    const confidence = Math.min(...['name', 'dose', 'unit', 'frequency', 'route'].filter((key) => item[key]?.status === 'observed').map((key) => item[key].confidence));
+    if (confidence < LOW_CONFIDENCE_THRESHOLD) needsReview.push({ kind: 'medication_list_item', field: item.citation?.field_or_chunk_id || 'medication_list_item', reason: 'low_confidence' });
+    else if (item.citation) verifiedIntakeCitations.push(item.citation);
   }
   const patientFactCitations = [];
   for (const fact of patientFacts) {
@@ -406,8 +419,8 @@ export function deterministicTopUpClaims({ verifiedLabResults = [], verifiedInta
  * Returns a `GroundedAnswerResult`-shaped object (schemas.js), the exact
  * contract the server validates before ever sending `workflow.answer`.
  */
-export async function composeGroundedAnswer({ labResults = [], intakeForm = null, guidelineEvidence = [], patientFacts = [], question = '' } = {}, { provider, trace = null, correlationId = '', signal } = {}) {
-  const { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations } = partitionAnswerInputs({ labResults, intakeForm, guidelineEvidence, patientFacts });
+export async function composeGroundedAnswer({ labResults = [], intakeForm = null, medicationList = null, guidelineEvidence = [], patientFacts = [], question = '' } = {}, { provider, trace = null, correlationId = '', signal } = {}) {
+  const { needsReview, verifiedLabResults, verifiedIntakeCitations, patientFactCitations } = partitionAnswerInputs({ labResults, intakeForm, medicationList, guidelineEvidence, patientFacts });
 
   const allowedValues = [...verifiedLabResults, ...verifiedIntakeCitations, ...guidelineEvidence, ...patientFactCitations];
   // F1 review fix 2026-09-24: label every fact/chunk once so the prompt and

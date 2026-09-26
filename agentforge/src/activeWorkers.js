@@ -81,19 +81,31 @@ function chiefConcernPhrase(intakeForm) {
 }
 
 /**
+ * Describe a medication list for the retrieval query as a reconciliation
+ * task naming the drugs it lists, e.g. "Medication reconciliation: review the
+ * current medication list (Metformin, Lisinopril) against prior records."
+ * An empty or unread list adds nothing.
+ */
+function medicationListPhrase(medicationList) {
+  const names = (medicationList?.medications || []).map((item) => item?.name?.status === 'observed' ? item.name.value : null).filter(Boolean);
+  if (!names.length) return '';
+  return `Medication reconciliation: review the current medication list (${names.join(', ')}) against prior records.`;
+}
+
+/**
  * Build the guideline-retrieval query from the extraction's own typed
  * output, not from whatever text the client happened to send.
  *
- * The primary signal is the document's abnormal lab findings and the
- * intake's chief concern — both grounded in what was actually extracted.
+ * The primary signal is the document's abnormal lab findings, the
+ * intake's chief concern and a medication list's drugs — both grounded in what was actually extracted.
  * `clinicianQuestion` (the client-supplied free-text `message`) is appended
  * only as an optional, secondary refinement; when there is no typed
  * evidence to build from (no lab results, no intake form, or none of their
  * fields are abnormal/observed), the formulated query is exactly the
  * clinician's question, unchanged.
  */
-export function formulateEvidenceQuery({ labResults = [], intakeForm = null, clinicianQuestion = '' } = {}) {
-  const formulated = [abnormalLabPhrase(labResults), chiefConcernPhrase(intakeForm)].filter(Boolean).join(' ');
+export function formulateEvidenceQuery({ labResults = [], intakeForm = null, medicationList = null, clinicianQuestion = '' } = {}) {
+  const formulated = [abnormalLabPhrase(labResults), chiefConcernPhrase(intakeForm), medicationListPhrase(medicationList)].filter(Boolean).join(' ');
   const question = String(clinicianQuestion || '').trim();
   return [formulated, question].filter(Boolean).join(' ');
 }
@@ -113,7 +125,7 @@ export function formulateEvidenceQuery({ labResults = [], intakeForm = null, cli
  */
 export async function runEvidenceWorker({ clinicianQuestion = '', patientFacts = [], documentFacts = [], extraction = null, retrieve = retrieveGuidelineEvidence, topK = 3 }) {
   const steps = [{ name: 'inspect', decision: 'accepted scoped evidence request' }];
-  const normalizedQuery = formulateEvidenceQuery({ labResults: extraction?.lab_results, intakeForm: extraction?.intake_form, clinicianQuestion });
+  const normalizedQuery = formulateEvidenceQuery({ labResults: extraction?.lab_results, intakeForm: extraction?.intake_form, medicationList: extraction?.medication_list, clinicianQuestion });
   steps.push({ name: 'formulate_query', decision: normalizedQuery ? 'query_ready' : 'empty_query' });
   let guideline;
   try {
