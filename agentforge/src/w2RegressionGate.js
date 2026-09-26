@@ -842,7 +842,9 @@ export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_G
   // The 50-case corpus hash predates function-valued case fields and must not
   // change, so only the extension suite hashes function source (its checks
   // live in `expect.custom`).
-  const replacer = hashFunctions ? (_key, value) => (typeof value === 'function' ? `fn:${value.toString()}` : value) : undefined;
+  // Function source is hashed with LF line endings, so a Windows (CRLF)
+  // checkout and a Linux (LF) clone agree on the same baseline.
+  const replacer = hashFunctions ? (_key, value) => (typeof value === 'function' ? `fn:${normalizeEol(value.toString())}` : value) : undefined;
   const { manifest, rawFiles, extensionManifest, extensionRawFiles } = golden();
   const payload = { judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() };
   // Only the extension suite covers the extension documents (see readGolden).

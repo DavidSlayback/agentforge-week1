@@ -51,3 +51,15 @@ test('clickToSourceIssues flags a link without a box and a cited fact without a 
   const noBox = good.replace(/<a class="source-box[^>]*><\/a>/, '');
   assert.ok(clickToSourceIssues(noBox, extraction).includes('cited_fact_without_box:lab.hgb.value'));
 });
+
+test('the extension corpus hash ignores line endings in check functions (CRLF checkout == LF clone)', async () => {
+  const { goldenCorpusHash } = await import('../src/w2RegressionGate.js');
+  const body = 'const issues = [];\nif (!run) issues.push("x");\nreturn issues;';
+  // eslint-disable-next-line no-new-func
+  const lf = new Function('run', body);
+  // eslint-disable-next-line no-new-func
+  const crlf = new Function('run', body.replace(/\n/g, '\r\n'));
+  const spec = (check) => [kase('x0-eol', 'schema_valid', 'line endings change the corpus hash', scan('lab-a', 'lab_pdf'), { custom: check })];
+  assert.notEqual(lf.toString(), crlf.toString());
+  assert.equal(goldenCorpusHash(spec(lf), { caseCount: 1, hashFunctions: true }), goldenCorpusHash(spec(crlf), { caseCount: 1, hashFunctions: true }));
+});
