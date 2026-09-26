@@ -36,6 +36,7 @@ function SignOutForm() {
   );
 }
 
+/** The patient page: the sticky identity bar, then the six cards in the legacy order. */
 export function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readonly patientId: PatientUuid }) {
   const header = useCard(fetcher, `${BASE}/bff/patients/${patientId}/header`, patientId, isHeaderDto);
   // Cards load in parallel with the header, each with its own state (7.08).
@@ -48,6 +49,8 @@ export function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher;
   return (
     <>
       <PatientHeader state={header} />
+      {/* Legacy arrangement (styles.css `.cards`): Allergies | Problems | Medications in one row, then
+          Prescriptions and Care Team full width, then Vitals (7.24). DOM order = visual order. */}
       <div className="cards">
         <AllergiesCard state={allergies} />
         <ProblemsCard state={problems} />

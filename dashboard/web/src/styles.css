@@ -43,13 +43,27 @@ main { padding: 1rem; max-width: 72rem; }
 .signout button { background: transparent; color: var(--link); }
 .mrn-form { display: flex; gap: 0.5rem; align-items: center; }
 .mrn-form input { padding: 0.3rem; font: inherit; }
-.cards { display: grid; gap: 1rem; }
+/*
+ * Card arrangement (slice 01-06-04, layout parity with legacy demographics.php; compare
+ * docs/legacy-audit/evidence/parity/legacy-*.png): Allergies, Medical Problems and Medications share
+ * one row of three columns; Prescriptions and Care Team take the full width; Vitals sits in the
+ * two-thirds-wide left column the legacy page gives it. Narrow screens get a single column in the
+ * same order. Cards are placed by their data-card attribute, so the DOM (reading and tab) order is
+ * the visual order.
+ */
+.cards { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 62rem) {
+  .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+  .cards > [data-card='prescriptions'], .cards > [data-card='care-team'] { grid-column: 1 / -1; }
+  .cards > [data-card='vitals'] { grid-column: 1 / span 2; }
+}
 .card { border: 1px solid var(--border); }
 .card-head { display: flex; align-items: center; justify-content: space-between; background: var(--bar); border-bottom: 1px solid var(--border); padding: 0.25rem 0.75rem; }
 .card-head h2 { font-size: 1rem; margin: 0; }
 .card-toggle { background: transparent; color: var(--link); padding: 0.1rem 0.5rem; }
 .card-source { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0.75rem 0; }
-.card-body { padding: 0.25rem 0.75rem; }
+/* Wide tables (Prescriptions, Care Team) scroll inside their card on phones instead of widening the page. */
+.card-body { padding: 0.25rem 0.75rem; overflow-x: auto; }
 .card-notes { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0; padding-left: 1rem; }
 .issue-list { list-style: none; margin: 0; padding: 0; }
 .issue { padding: 0.25rem 0; border-bottom: 1px solid var(--border); }
