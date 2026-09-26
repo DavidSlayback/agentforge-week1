@@ -25,8 +25,10 @@
 //                    A query whose rerank pool has no recorded response is
 //                    counted as unmeasured, never scored from the stub.
 //
-// Each stage runs once per configuration: `off` (no contextual changes) and
-// `on` (the deployed default). Read-only: writes nothing.
+// Each stage runs once per configuration (guidelineEvidence.js
+// DEFAULT_CONTEXTUAL_RETRIEVAL): `off` (no contextual change), `headers`
+// (contextual chunk headers only; measured, not kept) and `on` (the deployed
+// default: weighted query expansion). Read-only: writes nothing.
 import { createRecordedOrStubGeminiClient, readRetrievalFixtureManifest } from '../src/geminiClient.js';
 import { corpusEmbeddingsFingerprint, createGeminiHybridGuidelineRetriever, loadCorpusEmbeddings, loadGuidelineCorpus, retrieveGuidelineEvidence } from '../src/guidelineEvidence.js';
 import { configuredRerankProviderAndModel, createRecordedOrStubReranker } from '../src/reranker.js';
@@ -47,6 +49,7 @@ const denseAvailable = Boolean(realEmbeddings && manifest?.embeddings_fingerprin
 
 const CONFIGURATIONS = Object.freeze({
   off: { chunkHeaders: false, queryExpansion: false },
+  headers: { chunkHeaders: true, queryExpansion: false },
   on: undefined,
 });
 

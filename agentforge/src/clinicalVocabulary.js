@@ -45,6 +45,32 @@ export const LAB_NAME_ALIASES = Object.freeze({
   hemoglobin: ['hemoglobin', 'hgb', 'hb'],
 });
 
+/**
+ * Retrieval query expansion (E3, X-5), keyed by a lab test's canonical token
+ * (after `TERM_SYNONYMS`). `retrievalContext.js#queryExpansionTerms` adds a
+ * group's `terms` (the test's other names and the condition it measures) to
+ * the local BM25 query, unless the query already names one of the group's
+ * `unlessQueryHas` words: a query that already says "diabetes" has its
+ * context, and extra condition words would only dilute its own words.
+ * Nothing from the query is copied, so the expansion cannot carry patient
+ * text. Every word is a lowercase token found in `corpus/guidelines/
+ * corpus.json` (a test enforces it), so no entry is a silent no-op.
+ */
+export const RETRIEVAL_QUERY_EXPANSIONS = Object.freeze({
+  hba1c: { terms: ['a1c', 'hba1c', 'diabetes', 'prediabetes', 'glucose', 'sugar'], unlessQueryHas: ['diabetes', 'prediabetes', 'glucose', 'sugar'] },
+  hemoglobin: { terms: ['hemoglobin', 'anemia', 'hematocrit', 'iron'], unlessQueryHas: ['anemia', 'hematocrit', 'iron'] },
+  glucose: { terms: ['glucose', 'sugar', 'diabetes', 'prediabetes'], unlessQueryHas: ['diabetes', 'prediabetes'] },
+  creatinine: { terms: ['creatinine', 'kidney', 'gfr'], unlessQueryHas: ['kidney'] },
+  egfr: { terms: ['egfr', 'gfr', 'kidney'], unlessQueryHas: ['kidney'] },
+  gfr: { terms: ['gfr', 'egfr', 'kidney'], unlessQueryHas: ['kidney'] },
+  cholesterol: { terms: ['cholesterol', 'lipid', 'lipoprotein', 'ldl', 'hdl'], unlessQueryHas: ['lipid', 'lipoprotein'] },
+  ldl: { terms: ['ldl', 'cholesterol', 'lipid'], unlessQueryHas: ['cholesterol', 'lipid'] },
+  hdl: { terms: ['hdl', 'cholesterol', 'lipid'], unlessQueryHas: ['cholesterol', 'lipid'] },
+  triglycerides: { terms: ['triglycerides', 'cholesterol', 'lipid'], unlessQueryHas: ['cholesterol', 'lipid'] },
+  bloodpressure: { terms: ['blood', 'pressure', 'hypertension'], unlessQueryHas: ['hypertension'] },
+  hypertension: { terms: ['hypertension', 'blood', 'pressure'], unlessQueryHas: ['pressure'] },
+});
+
 const DRUGS = [
   'lisinopril', 'metformin', 'warfarin', 'amoxicillin', 'ampicillin', 'penicillin', 'piperacillin',
   'nafcillin', 'sulfamethoxazole', 'trimethoprim', 'sulfadiazine', 'insulin', 'atorvastatin',

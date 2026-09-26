@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buildBm25Index, tokenize } from './bm25.js';
+import { contextualChunkText, expandLexicalQuery } from './retrievalContext.js';
 
 const CORPUS_PATH = fileURLToPath(new URL('../corpus/guidelines/corpus.json', import.meta.url));
 const EMBEDDINGS_PATH = fileURLToPath(new URL('../corpus/embeddings.json', import.meta.url));
@@ -60,6 +61,37 @@ export function corpusEmbeddingsFingerprint(embeddings) {
 
 const chunkText = (chunk) => `${chunk.title}\n${chunk.section}\n${chunk.text}`;
 
+/**
+ * Contextual retrieval (E3, X-5), measured by `scripts/benchmark-retrieval.mjs`
+ * on the labeled queries in `test/fixtures/retrieval-benchmark.json`.
+ *
+ * - `queryExpansion` (on): when BM25 alone decides the answer (the
+ *   `local-lexical` provider and the hybrid retriever's `sparse_only`
+ *   fallback), the BM25 query also carries the condition words for each lab
+ *   test it names (`retrievalContext.js#queryExpansionTerms`, e.g. hgb adds
+ *   anemia). The words come from a fixed list, stay in this process, and
+ *   never reach the embed or rerank call.
+ *   The hybrid rerank pool keeps the unexpanded BM25 ranking on purpose:
+ *   expanding it lowered pool recall@12 on the measurable queries (1.000 to
+ *   0.976) and changed 5 of the 14 rerank requests the W2 gate replays from
+ *   recorded fixtures.
+ * - `chunkHeaders` (off): indexing a `publisher | title | section` header
+ *   changed no ranking, because BM25 already indexes title and section and
+ *   the publisher names match no query word. It stays as an option only so
+ *   the benchmark keeps showing that result.
+ */
+export const DEFAULT_CONTEXTUAL_RETRIEVAL = Object.freeze({ chunkHeaders: false, queryExpansion: true });
+
+function resolveContextualRetrieval(options) {
+  return { ...DEFAULT_CONTEXTUAL_RETRIEVAL, ...(options || {}) };
+}
+
+function buildLexicalIndex(corpus, settings) {
+  return buildBm25Index(corpus, { getText: settings.chunkHeaders ? contextualChunkText : chunkText });
+}
+
+const lexicalSearch = (index, query, settings, topK) => index.search(settings.queryExpansion ? expandLexicalQuery(query) : query, { topK });
+
 function cosineSimilarity(left, right) {
   if (!Array.isArray(left) || !Array.isArray(right) || !left.length || left.length !== right.length) return 0;
   let dot = 0;
@@ -107,7 +139,7 @@ const SPARSE_ONLY_PROVIDER = 'bm25-sparse-only';
  * it came from an explicit sparse-only configuration or from a hybrid
  * pipeline that could not reach Gemini.
  */
-export function retrieveGuidelineEvidence(query, { topK = 3, corpus } = {}) {
+export function retrieveGuidelineEvidence(query, { topK = 3, corpus, contextualRetrieval } = {}) {
   const trimmed = String(query || '').trim();
   if (!trimmed) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: '', evidence: [], issues: ['empty_query'], degraded: 'sparse_only' };
   // Loaded here (not as a default parameter) so a missing/unreadable corpus
@@ -119,8 +151,9 @@ export function retrieveGuidelineEvidence(query, { topK = 3, corpus } = {}) {
   if (!resolvedCorpus) {
     try { resolvedCorpus = loadGuidelineCorpus(); } catch { return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence: [], issues: ['guideline_corpus_unavailable'], degraded: 'sparse_only' }; }
   }
-  const index = buildBm25Index(resolvedCorpus, { getText: chunkText });
-  const ranked = index.search(trimmed, { topK: Math.max(topK, 1) });
+  const settings = resolveContextualRetrieval(contextualRetrieval);
+  const index = buildLexicalIndex(resolvedCorpus, settings);
+  const ranked = lexicalSearch(index, trimmed, settings, Math.max(topK, 1));
   if (!ranked.length) return { status: 'qualified', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence: [], issues: ['insufficient_guideline_evidence'], degraded: 'sparse_only' };
   const evidence = ranked.slice(0, topK).map(({ document, score, matchedTerms }) => guidelineEvidenceItem(document, { sparseScore: score, denseScore: 0, rerankScore: score, matchedTerms, degraded: 'sparse_only' }));
   return { status: 'complete', provider: SPARSE_ONLY_PROVIDER, query: trimmed, evidence, issues: [], degraded: 'sparse_only' };
@@ -260,6 +293,7 @@ export function createGeminiHybridGuidelineRetriever({
   embeddings,
   candidateCount = 20,
   rerankThreshold = 0.5,
+  contextualRetrieval,
 } = {}) {
   // Resolved here, inside the factory body, rather than as a default
   // parameter: a default parameter expression runs eagerly as part of the
@@ -274,7 +308,8 @@ export function createGeminiHybridGuidelineRetriever({
     try { resolvedCorpus = loadGuidelineCorpus(); } catch (error) { corpusError = error?.message || 'GUIDELINE_CORPUS_UNAVAILABLE'; resolvedCorpus = []; }
   }
   const resolvedEmbeddings = embeddings !== undefined ? embeddings : (corpusError ? null : loadCorpusEmbeddings());
-  const bm25 = buildBm25Index(resolvedCorpus, { getText: chunkText });
+  const lexicalSettings = resolveContextualRetrieval(contextualRetrieval);
+  const bm25 = buildLexicalIndex(resolvedCorpus, lexicalSettings);
   const embeddingsUsable = Boolean(resolvedEmbeddings?.vectors && Object.keys(resolvedEmbeddings.vectors).length);
   const hybridProvider = `hybrid:${embedClient?.model || embedClient?.name || 'unconfigured'}+${reranker?.name || 'unconfigured'}`;
   // Built once, from the corpus that is actually loaded — so the allowlist
@@ -282,7 +317,7 @@ export function createGeminiHybridGuidelineRetriever({
   const externalModelVocabulary = buildExternalModelVocabulary(resolvedCorpus);
 
   function sparseOnly(query, topK, issue, extraUsage = []) {
-    const ranked = bm25.search(query, { topK: Math.max(topK, 1) });
+    const ranked = lexicalSearch(bm25, query, lexicalSettings, Math.max(topK, 1));
     const evidence = ranked.slice(0, topK).map(({ document, score, matchedTerms }) => guidelineEvidenceItem(document, { sparseScore: score, denseScore: 0, rerankScore: score, matchedTerms, degraded: 'sparse_only' }));
     return {
       status: evidence.length ? 'complete' : 'qualified',
@@ -319,6 +354,8 @@ export function createGeminiHybridGuidelineRetriever({
     let embedUsage = null;
     let candidates;
     try {
+      // Unexpanded on purpose (see DEFAULT_CONTEXTUAL_RETRIEVAL): the rerank
+      // pool, and so the recorded rerank requests, stay as they were.
       const sparseCandidates = bm25.search(trimmed, { topK: candidateCount });
       const embedResult = await embedClient.embed(sanitizedQuery, 'RETRIEVAL_QUERY');
       const queryVector = embedResult.values;
