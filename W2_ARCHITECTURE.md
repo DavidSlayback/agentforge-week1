@@ -501,6 +501,60 @@ Tests: `cross-patient-question.test.js`, `answer-paths-scope.test.js` and
 the extension case `x8-scope-other-patient-question`; regression proof in
 `docs/agentforge/evidence/E8-w1-trust-regression.txt`.
 
+**Clinical rules and "not documented" answers (F-CLIN).** Three
+deterministic rules in `clinicalRules.js` run inside `partitionAnswerInputs`,
+on the facts that cleared the 0.85 confidence threshold. The critic's top-up
+reuses the same partition, so it cannot re-add a result a rule held back. A
+rule does one of two things. It adds a cited flag to `safety_flags`, or it
+moves a lab result from the answer to `needs_review` with a reason code. A
+rule never changes a value, converts a unit or makes a claim. A flag's
+`citations` are the unchanged 5-key citations of the facts that triggered it,
+and its `text` repeats only their values.
+
+| Rule | Flag or review | Threshold and source |
+|---|---|---|
+| Critical potassium | `critical_value` for K+ ≤ 3.0 or ≥ 6.0 mmol/L (mEq/L accepted, since they are equal for K+). Any other unit goes to review as `rule_unit_unrecognized`, a non-numeric value as `rule_value_unparseable` | Adult (no hemolysis) limits from Parrish Medical Center, "Clinical Laboratory Critical Value List" (revised 2017-01-31). The guideline corpus has no potassium chunk. Critical limits vary by laboratory: a 2002 survey of 623 US labs found low limits from 2.5 to 3.0 mmol/L |
+| A1C diabetes range | `diabetes_range` for A1C ≥ 6.5 %. If the document flags that result `normal` or `low`, it goes to review as `flag_contradicts_range` and is not stated | CDC "A1C Ranges", corpus chunk `cdc-a1c-diagnostic-ranges` ("Diabetes: 6.5% or above"), cited in the flag. The module throws at first use if the chunk stops saying it |
+| Allergy vs medication class | `drug_allergy_conflict` when a documented penicillin allergy meets a penicillin-class drug, or a sulfonamide allergy meets a sulfonamide antibiotic, across the intake form, medication list and chart. An allergy recorded as unknown, none or NKDA is not an allergy | MedlinePlus drug pages for amoxicillin (a685001), ampicillin (a685002) and co-trimoxazole (a684026); WHO ATC groups J01C and J01E |
+
+A document citation is read by its quoted line only, because some document
+field ids are fixed labels (the legacy intake layout calls every allergy line
+`allergy.penicillin`). A chart citation also contributes its field id, which
+names the drug or allergen there. The PDF lab label map now reads potassium
+rows, as optional fields, so a report without potassium is still complete.
+The answer panel shows a "Safety flags" section, with citation links and the
+threshold source. The trace records only the flag codes and a count
+(`verification.safety_flag_codes`, `safety_flag_count`), plus the new review
+reason codes. Known limits: no age-specific limits (the fixtures are adults),
+no cross-class reactivity (e.g. penicillin and cephalosporins), and no rule
+for a fact below the confidence threshold, which is already in
+`needs_review`.
+
+`notDocumented.js` handles W1 debt item 20. A closed list of measurement
+concepts says how a question asks for each one (blood pressure, heart rate,
+temperature, weight, BMI, potassium, A1C, hemoglobin, glucose, sodium,
+creatinine, eGFR, cholesterol). It also says how a fact records one: a typed
+lab result, a chart field with a number in it, or a quote that prints a
+reading ("BP 128/82"). A word match is not a reading. Patient 001's
+"blood-pressure follow-up" visit reason does not document a blood pressure.
+Questions about a target, threshold or recommendation are not value
+questions. If a question asks only for values that nothing records, the
+answer says so, with no claims and no model call. The scan answer does this
+with `composer: 'not-documented'`, a `not_documented` entry per concept and
+the sources checked. The briefing follow-up does it with "Blood pressure is
+not documented in the verified chart records for this briefing". Safety flags
+and `needs_review` still ship. A concept whose chart field was withheld is
+not reported as not documented. A question that also names another topic
+("documented medication and blood pressure") keeps its normal answer plus the
+`not_documented` entry.
+
+Tests: `clinical-rules.test.js` and `not-documented.test.js` cover
+boundaries, units, false positives and the answer wiring. The extension
+suite has ten `xc-*` cases (listed in `EVAL_GATE.md`). Disabling the
+potassium rule and the not-documented path fails 8 unit tests and 4 extension
+cases (`docs/agentforge/evidence/F-CLIN-regression.txt`). This work is
+implemented and tested, but not yet merged to `main` or deployed.
+
 ### (e) Eval gate
 
 ```mermaid
@@ -815,15 +869,15 @@ not the primary write path.
 The PRD asks for Week 1 debt to be "documented and resolved before adding new
 surface area". This table lists all 25 items from the Week 1 review
 (`.scratch/assignments/REVIEW_2026-09-24.md` §2, audited on `0a1f3e06` and
-updated for E8 on `fd6c959b`, for F-API rows 15, 17 and 19, and for F-OBS rows 6, 9, 13
-and 18). Status is for the W2 route (`/agentforge-w2`). Totals are recomputed
-at the E7 freeze. F-OBS regression proof: `docs/agentforge/evidence/F-OBS-regression.txt`.
+updated for E8 on `fd6c959b`, for F-API rows 15, 17 and 19, for F-OBS rows 6, 9, 13
+and 18, and for F-CLIN rows 3 and 20). Status is for the W2 route (`/agentforge-w2`).
+Totals are recomputed at the E7 freeze. F-OBS regression proof: `docs/agentforge/evidence/F-OBS-regression.txt`.
 
 | # | Item | Status on W2 | Evidence | Frozen W1 route (`84f232b`) |
 |---|---|---|---|---|
 | 1 | Verifier used `.some`, so invented sentences passed | Resolved | `verifier.js` checks every clinical sentence (`UNANCHORED_CLAIM`); `claimBinding.js` binds every W2 claim; `verifier.test.js` warfarin probe | Still `.some` |
 | 2 | Production code read the eval answer key (`expected`) | Resolved (E8) | Briefing trust derived from record data (`recordTrust.js`); `test/no-eval-oracle.test.js` walks the import graph from `server.js` | Still reads it |
-| 3 | No clinical domain rules | Accepted (D8) | No `clinicalRules.js`; abnormal flags come from the document | Same |
+| 3 | No clinical domain rules | Implemented, not deployed (F-CLIN) | `clinicalRules.js`: critical potassium, A1C diabetes range with `flag_contradicts_range`, and allergy vs medication class (§3d); `clinical-rules.test.js`, extension cases `xc-fc-01`–`06`, `xc-sr-01`, `xc-sr-02`; `docs/agentforge/evidence/F-CLIN-regression.txt` | Same |
 | 4 | No LLM tool calling; follow-ups routed by regex | Accepted (D4) | `decideNext` is deterministic by design (§4) | Same |
 | 5 | Fixture chart data labeled as an OpenEMR read | Resolved (E8) | `chartSource.js`: fixture facts cite `synthetic_chart_fixture`, "Synthetic chart fixture"; `chart-citation-source.test.js` | Still reports an OpenEMR read (`retrieve_openemr_read`) |
 | 6 | `/ready` does not probe OpenEMR or observability | Wired and tested (F-OBS); not yet observed deployed | `/ready` probes the OpenEMR module's signed `health` route when `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (set for W2), checks the trace store (a corrupt file is moved aside at startup and reported as `TRACE_STORE_CORRUPT`, never a crash loop) with a probe write, and probes Langfuse only when it is configured (not on W2). A failure gives 503 with the names in `failing` and a reason code. Probes are cached 30 s and concurrent calls share one in-flight probe. The chart is still the fixture for the public demo; the E9 REST probe is unchanged. `f-obs-server.test.js`, module test in `tests/run.php` | Same |
@@ -840,7 +894,7 @@ at the E7 freeze. F-OBS regression proof: `docs/agentforge/evidence/F-OBS-regres
 | 17 | API collection is a localhost PowerShell script | Partly: built and green locally, deployed run at freeze | Bruno collection `agentforge/api/bruno` (W1 and W2 endpoints, `local` and `deployed` environments, chained token → upload → scan); `collection.ps1` removed; 27/27 requests, 64/64 assertions on a local server from `4c630f5b` (`docs/agentforge/evidence/bruno/4c630f5b-local.json`). Not yet run against the public URL | Same |
 | 18 | Alerts computed only on request | Wired and tested (F-OBS); not yet observed deployed | `AlertMonitor` evaluates every `AGENTFORGE_ALERT_EVAL_INTERVAL_MS` (default 60 s) and on `GET /v1/alerts`, and logs each rule's ok/firing change once as a JSON line with codes only (`agentforge_alert_transition`). No notification channel: the log line is the alert. `observability/test/f-obs.test.js`, `f-obs-server.test.js` | Same |
 | 19 | Evals never test unauthorized or ambiguous cases | Resolved (F-API) | The W1 runner (`evals/lib/adversarial.js`, run by `runner.js --service` and in the hook) sends 6 unauthorized cases (tampered payload, tampered signature, expired token, valid token for another patient, another patient's conversation, no token) and 3 ambiguous ones ("what changed?" with no prior visit, two identity records, a question naming two patients) to the running service; each fails when its protection is removed (`docs/agentforge/evidence/W1-evals-adversarial-regression.txt`). Run against a local server, not yet the public URL. The W2 gates also cover cross-patient scans and questions (`EVAL_GATE.md`) | Same |
-| 20 | Missing BP question dumps evidence instead of "not documented" | Accepted | No "not documented" handling | Same |
+| 20 | Missing BP question dumps evidence instead of "not documented" | Implemented, not deployed (F-CLIN) | `notDocumented.js` on the scan answer and the briefing follow-up (§3d); `not-documented.test.js`, `xc-sr-03`, `xc-sr-04`; `/v1/follow-up-evidence` is unchanged | Same |
 | 21 | `AUDIT.md`, `ARCHITECTURE.md`, `USER.md` not at the root | Resolved (MR !99) | All at the repo root | n/a (docs) |
 | 22 | Root `USERS.md` was a stale planning draft | Resolved (MR !99) | Replaced with the current version | n/a |
 | 23 | `START_HERE.md` said nothing was built | Resolved | Rewritten as an index (`40cd32a2`) | n/a |
@@ -851,7 +905,8 @@ Why some items are accepted: D4 put the role model and LLM tool-calling out of
 scope, and D8 limited Week 1 work to trust-critical debt that W2 depends on
 (`docs/agentforge/PLAN.md`). The accepted items are operational (auth on
 demo and ops routes, Langfuse span shape)
-or are W1 features W2 does not build on (domain rules, tool calling). The
+or are W1 features W2 does not build on (tool calling). Domain rules and
+"not documented" answers were later built for W2 (F-CLIN, items 3 and 20). The
 frozen `/agentforge` route keeps all of its Week 1 debt, including the `.some`
 verifier and $0 cost: it is the W1 submission snapshot, image-only, and
 `/agentforge-w2` supersedes it.

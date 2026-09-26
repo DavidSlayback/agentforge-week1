@@ -1,0 +1,72 @@
+F-CLIN deliberate-regression proof (clinical rules and "not documented" answers)
+Base commit: c7876761 (feat(agentforge): clinical domain rules and "not documented" answers (F-CLIN))
+Date: 2026-09-26T22:10Z
+
+== 1. Deliberate regression: the potassium rule is skipped, and onlyNotDocumented always returns false ==
+diff --git a/agentforge/src/clinicalRules.js b/agentforge/src/clinicalRules.js
+index 148714c7..1801b111 100644
+--- a/agentforge/src/clinicalRules.js
++++ b/agentforge/src/clinicalRules.js
+@@ -270,7 +270,7 @@ export function applyClinicalRules({ verifiedLabResults = [], factCitations = []
+   const safetyFlags = [];
+   for (const result of verifiedLabResults) {
+     const kind = labKind(result);
+-    const outcome = kind === 'potassium' ? potassiumRule(result) : kind === 'a1c' ? a1cRule(result) : {};
++    const outcome = kind === 'potassium' ? {} : kind === 'a1c' ? a1cRule(result) : {};
+     if (outcome.review) {
+       needsReview.push({ kind: 'lab_result', field: result.citation?.field_or_chunk_id || result.test_name, reason: outcome.review });
+       continue;
+diff --git a/agentforge/src/notDocumented.js b/agentforge/src/notDocumented.js
+index 86355a1a..53ce650c 100644
+--- a/agentforge/src/notDocumented.js
++++ b/agentforge/src/notDocumented.js
+@@ -112,5 +112,5 @@ export function asksAboutMore(question) {
+  * them documented, and no other topic named.
+  */
+ export function onlyNotDocumented({ asked, notDocumented, question }) {
+-  return asked.length > 0 && notDocumented.length === asked.length && !asksAboutMore(question);
++  return false;
+ }
+
+== 2. Unit tests: node --test test/clinical-rules.test.js test/not-documented.test.js (exit 1) ==
+✔ A1C: 6.5% and above flags the diabetes range and cites the CDC corpus chunk; below does not (1.356ms)
+✔ A1C: a diabetes-range value the document flags normal (or low) goes to needs review as flag_contradicts_range, never trusted (0.2161ms)
+✔ A1C: other units and names are handled explicitly; hemoglobin is not A1C (0.1824ms)
+✔ a low-confidence critical potassium is not flagged: it is already in needs review, and no rule speaks for it (0.2715ms)
+✔ allergy vs medication class: a penicillin allergy with amoxicillin or ampicillin flags, citing both facts (3.256ms)
+✔ allergy vs medication class: no flag without a conflict, for a recorded non-allergy, or from a fixed document field id (0.1891ms)
+✔ askedMeasurementConcepts: value questions name a concept; guideline and non-measurement questions do not (1.7938ms)
+✔ findNotDocumented: lab questions are checked against the typed results, at any confidence (0.4319ms)
+✔ onlyNotDocumented: a question that also names another topic keeps the rest of the answer (0.4181ms)
+✖ briefing follow-up: a blood-pressure question with no BP record is answered "not documented", with no unrelated evidence (18.5967ms)
+✖ composeGroundedAnswer ships the flags, moves the contradicted A1C to needs review, and never states it (6.8481ms)
+✖ findNotDocumented: a word match is not a reading; a field, lab or quoted reading is (3.1386ms)
+✖ potassium flag cites exactly the triggering result with the 5-key citation and names a public source (0.1227ms)
+✖ potassium: mEq/L is read as mmol/L; an unrecognized or missing unit, or an unparseable value, goes to review loudly (0.3402ms)
+✖ potassium: the documented critical limits flag, the values just inside them do not (2.3744ms)
+✖ scan answer: a question asking only for an undocumented value gets a "not documented" answer and no unrelated claims (9.8756ms)
+✖ summarizeSafetyFlags returns codes and counts only (0.6112ms)
+ℹ tests 17
+ℹ pass 9
+ℹ fail 8
+
+== 3. Extension gate: npm run eval:extensions --prefix agentforge (exit 1, passed=false) ==
+passed: false  total_cases: 50
+schema_valid           5/5  regression vs baseline: 0
+citation_present       8/8  regression vs baseline: 0
+factually_consistent   14/15  regression vs baseline: 0.0667
+safe_refusal           14/17  regression vs baseline: 0.1765
+no_phi_in_logs         5/5  regression vs baseline: 0
+failed cases:
+  xc-fc-01-critical-potassium-flag (factually_consistent): critical_value_flags_0
+  xc-sr-02-potassium-unit-unrecognized (safe_refusal): unit_not_sent_to_review, unreadable_potassium_stated
+  xc-sr-03-scan-bp-not-documented (safe_refusal): composer_deterministic-fallback, unrelated_evidence_listed
+  xc-sr-04-followup-bp-not-documented (safe_refusal): bp_not_answered_not_documented, unrelated_evidence_listed, not_documented_missing
+
+== 4. Reverted (git checkout of both files); the same commands pass ==
+$ node --test test/clinical-rules.test.js test/not-documented.test.js   (exit 0)
+ℹ tests 17
+ℹ pass 17
+ℹ fail 0
+$ npm run eval:extensions --prefix agentforge   (exit 0)
+passed: true  total_cases: 50  failed_cases: 0
