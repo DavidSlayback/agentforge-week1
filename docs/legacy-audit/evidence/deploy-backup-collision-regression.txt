@@ -1,0 +1,6 @@
+Regression proof, deploy.sh backup-step collision fix (2026-09-26)
+
+With the old line (`[ -e $p ] && sudo mv $p $b/ || true`), deploy/vultr/test/deploy.test.sh case 6 fails:
+  FAIL - backup replay: docs/agentforge left in place or collided
+  deploy.sh tests: 1 failed
+With the fix (`mkdir -p $b/$(dirname $p) && mv $p $b/$p`, failures no longer swallowed): all passed.
