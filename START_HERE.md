@@ -5,7 +5,10 @@
 ## Key Resources
 
 - **Plan and progress:** [`docs/agentforge/PLAN.md`](docs/agentforge/PLAN.md)
-- **W2 architecture:** [`docs/agentforge/W2_ARCHITECTURE.md`](docs/agentforge/W2_ARCHITECTURE.md)
+- **W2 architecture:** [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md)
+- **Key metrics:** [`KEY_METRICS.md`](KEY_METRICS.md) · **Cost and latency:** [`W2_COST_LATENCY.md`](W2_COST_LATENCY.md)
+- **Patient dashboard port:** [`PATIENT_DASHBOARD_MIGRATION.md`](PATIENT_DASHBOARD_MIGRATION.md)
+- **Week 1 documents:** [`AUDIT.md`](AUDIT.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`USERS.md`](USERS.md)
 - **Evaluation gate:** [`EVAL_GATE.md`](EVAL_GATE.md)
 - **W1 is frozen** at commit `84f232b` and no longer updated.
 
