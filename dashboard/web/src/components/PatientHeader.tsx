@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, type RefObject } from 'react';
 import type { HeaderDto } from '../../../core/dto.ts';
 import type { CardState } from '../useCard.ts';
 import { NonDataState } from './States.tsx';
@@ -42,9 +43,38 @@ function HeaderFields({ header }: { readonly header: HeaderDto }) {
  * The persistent patient header (W2D-2). It renders only from a successful,
  * authorized BFF answer for the patient in the route (3.02, 7.04).
  */
+/** Room kept between the bottom of the sticky bar and a focused or scrolled-to element. */
+const FOCUS_GAP_PX = 8;
+
+/**
+ * Keeps `--sticky-header-offset` (the page's `scroll-padding-top`) equal to the bar's real height.
+ * The stylesheet's fixed fallbacks (5 rem, 9 rem on phones) are too small when the fields wrap onto
+ * more lines (a long name, a 320 px viewport), which left focused controls partly under the bar
+ * (WCAG 2.4.11). Without ResizeObserver the fallbacks stay.
+ */
+function useStickyOffset(ref: RefObject<HTMLElement | null>): void {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const root = document.documentElement;
+    const update = (): void => {
+      root.style.setProperty('--sticky-header-offset', `${Math.ceil(el.getBoundingClientRect().height) + FOCUS_GAP_PX}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--sticky-header-offset');
+    };
+  }, [ref]);
+}
+
 export function PatientHeader({ state }: { readonly state: CardState<HeaderDto> }) {
+  const ref = useRef<HTMLElement>(null);
+  useStickyOffset(ref);
   return (
-    <section className="patient-header" aria-label="Patient header">
+    <section ref={ref} className="patient-header" aria-label="Patient header">
       {state.kind === 'ok' && state.rows[0] ? (
         <HeaderFields header={state.rows[0]} />
       ) : state.kind === 'ok' ? (

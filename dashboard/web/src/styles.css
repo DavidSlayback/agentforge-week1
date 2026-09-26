@@ -43,6 +43,10 @@ main { padding: 1rem; max-width: 72rem; }
 .signout button { background: transparent; color: var(--link); }
 .mrn-form { display: flex; gap: 0.5rem; align-items: center; }
 .mrn-form input { padding: 0.3rem; font: inherit; }
+/* Demo patient links are stacked targets: at least 24 x 24 CSS px each with space between (WCAG 2.5.8). */
+.demo-patients { padding-left: 1.25rem; }
+.demo-patients li { margin: 0.25rem 0; }
+.demo-patients a { display: inline-block; min-height: 1.5rem; line-height: 1.5rem; }
 /*
  * Card arrangement (slice 01-06-04, layout parity with legacy demographics.php; compare
  * docs/legacy-audit/evidence/parity/legacy-*.png): Allergies, Medical Problems and Medications share
@@ -64,6 +68,8 @@ main { padding: 1rem; max-width: 72rem; }
 .card-source { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0.75rem 0; }
 /* Wide tables (Prescriptions, Care Team) scroll inside their card on phones instead of widening the page. */
 .card-body { padding: 0.25rem 0.75rem; overflow-x: auto; }
+/* When a card body scrolls sideways it becomes a named, focusable region (Card.tsx); its focus ring sits inside the card border. */
+.card-body[tabindex]:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
 .card-notes { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0; padding-left: 1rem; }
 .issue-list { list-style: none; margin: 0; padding: 0; }
 .issue { padding: 0.25rem 0; border-bottom: 1px solid var(--border); }
@@ -81,7 +87,18 @@ main { padding: 1rem; max-width: 72rem; }
 .vitals-fields { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 1rem; margin: 0.25rem 0; }
 .vitals-fields dt { font-weight: 600; }
 .vitals-fields dd { margin: 0; }
-/* On narrow screens the five header fields wrap onto several lines, so more room is reserved. */
+/* On narrow screens the five header fields wrap onto several lines, so more room is reserved.
+   PatientHeader.tsx replaces both values with the bar's measured height once it has rendered. */
 @media (max-width: 48rem) {
   :root { --sticky-header-offset: 9rem; }
+}
+/*
+ * Very short viewports (about 400 % zoom on a laptop, 320 CSS px tall or less): a sticky bar would
+ * cover 70-90 % of the screen and leave almost no room to read or to see the focused control
+ * (WCAG 1.4.10, 2.4.11). There the bar scrolls with the page like the legacy one, and no scroll
+ * padding is reserved for it. At 200 % zoom (1280 x 720 -> 640 x 360 CSS px) it stays sticky.
+ */
+@media (max-height: 20rem) {
+  .patient-header { position: static; }
+  html { scroll-padding-top: 0; }
 }
