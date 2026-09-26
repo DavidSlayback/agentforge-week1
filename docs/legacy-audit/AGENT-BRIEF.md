@@ -55,6 +55,8 @@ This work is **in place**: the legacy code and the port share one repo.
     (`Patient.active` is always `true`).
   - Care Team uses FHIR `CareTeam`. Inactive members can't be hidden.
   - Allergies, Problems, Meds, Rx and Vitals use REST with client-side filters.
+    Since slice 01-06-04, Meds is hybrid: the list is REST, and the dosage
+    instructions come from FHIR `MedicationRequest` (`intent=plan`), joined by uuid.
 - **Parity rules (decided).**
   - Reproduce `filterActiveIssues()` (outcome ≠ 1 and enddate empty or future).
   - Rx shows **all** rows, sorted `active DESC, date_modified DESC, date_added DESC`.

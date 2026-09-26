@@ -392,7 +392,7 @@ is U-1's mechanism. 5.02 cross-references it.
 - **Location:** `src/Services/ListService.php:50`
 - **Description:** The route returns bare `lists` rows, so fields stored in `lists_medication` are missing. Impact: API consumers get a thinner medication record than the database holds.
 - **Mitigation:** Reuse `PatientIssuesService::search` for this route. *Disposition:* fix in legacy.
-- **Port relevance:** port depends on it. The Medications card shows only the fields the route returns.
+- **Port relevance:** port depends on it. The Medications list comes from this route. Since slice 01-06-04, `drug_dosage_instructions` is joined in from FHIR `MedicationRequest` (`intent=plan`, by uuid), which does read `lists_medication`.
 - **Sources:** `modules/MEDICATION-SERVICES.md#5`
 
 ### 4.06 `PatientService::findByPid()` has no REST or FHIR route — Medium

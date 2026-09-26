@@ -36,6 +36,14 @@ for anyone working on the underlying EHR.
 | Eval report | `<W2 URL>/evals` |
 | Health / deployed SHA | `<W2 URL>/health` returns `{status, git_sha}` |
 
+**Patient dashboard port (W2 surprise challenge).** A React SPA with a BFF that
+reimplements OpenEMR's PHP patient dashboard on its REST/FHIR API. It runs at
+<https://dtstest.64.177.10.182.nip.io/dashboard/> (deployed SHA:
+`/dashboard/health`). Sign in, then open demo patient MRN `DASH-SYN-01`
+(data-rich) or `DASH-SYN-02` (deceased). The defense is in
+[`PATIENT_DASHBOARD_MIGRATION.md`](PATIENT_DASHBOARD_MIGRATION.md), and the
+code is in [`dashboard/`](dashboard/README.md).
+
 **Sample documents.** Four synthetic filled PDFs exercise both document types
 and both OCR layouts — a vector-text layout and a rasterized-page layout that
 exercises real OCR over pixels:

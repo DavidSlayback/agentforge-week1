@@ -9,11 +9,14 @@ and `docs/agentforge/PLAN.md` (W2D-1…W2D-8, the status of record).
 
 Current scope. Slice 01-01-01 (walking skeleton): sign-in / sign-out through
 OpenEMR's OAuth2 server, patient selection by MRN (`pubpid`) or configured demo
-link, and the persistent patient header (name, DOB with age, sex, MRN, status).
+link, and the persistent patient header (name, DOB with age, sex, MRN, status;
+sticky at the top of the viewport since slice 01-06-04).
 Status is **Deceased** iff FHIR `deceasedDateTime` (or `deceasedBoolean: true`)
 is present; `Patient.active` is never read (OpenEMR hard-codes it `true`).
 
-Clinical cards (slice 01-02-01 on; all six are built), each loaded by its own BFF route with its
+Clinical cards (slice 01-02-01 on; all six are built), laid out as on the legacy page
+(Allergies | Medical Problems | Medications in one row, Prescriptions and Care
+Team full width, Vitals in the left two-thirds; one column on phones), each loaded by its own BFF route with its
 own loading, empty ("Nothing Recorded"), forbidden, error and sign-in-again
 state. Every card first resolves the patient through `GET /api/patient/:puuid`;
 no card route is called before that read succeeds.

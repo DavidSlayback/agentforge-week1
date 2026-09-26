@@ -1,6 +1,13 @@
 # Arc 01 — Patient dashboard port, to the deadline
 
-**Status:** planned · **Depends on:** HD-1…HD-8 in
+**Status (2026-09-26):** in progress. Slices 01-01-01 … 01-06-02 are merged
+to `main` and deployed (last dashboard merge `660e091`). The per-card checks
+were observed on the public URL on `f8d7bdf`, `2246417` and `7b49460`
+([`../VERIFICATION.md`](../VERIFICATION.md), "Observed live"). Slice 01-06-04
+(requirement hardening) is on branch `agentforge/w2-dashboard`: wired and
+tested, not merged, deployed or observed. Slice 01-06-03 (the freeze) is not
+done. The manual keyboard and screen-reader pass is still open. ·
+**Planned as:** **Depends on:** HD-1…HD-8 in
 [`../MIGRATION-REACT.md`](../MIGRATION-REACT.md) §15 (per slice below) ·
 **Estimated:** about 18.5 h of work, Fri 2026-09-25 evening → Sun 2026-09-27
 09:00 CT. Freeze at 08:00 and deadline at 12:00 (`docs/agentforge/PLAN.md`).
@@ -45,6 +52,7 @@ live. At that SHA, a clinician can:
 | Sat 17:45–19:45 | 01-05-01 Vitals | 2.0 h | — |
 | Sat 20:00–21:30 | 01-06-01 Parity evidence and hardening | 1.5 h | **Window 2** (authenticated): 01-02-02 … 01-05-01 |
 | Sat 21:30–23:30 | 01-06-02 `PATIENT_DASHBOARD_MIGRATION.md` | 2.0 h | — |
+| Sat (added 2026-09-26) | 01-06-04 Requirement hardening (sticky header, Medications dosage, layout, docs) | — | not yet |
 | Sun 07:00–08:00 | Buffer; last merge before the freeze | 1.0 h | — |
 | Sun 08:00–09:00 | 01-06-03 Freeze deploy and evidence (inside PLAN S11) | 1.0 h | **Window 3** (authenticated): everything at the freeze SHA |
 
@@ -120,7 +128,8 @@ not struck through, because the legacy bug remains.
 
 ### Slice 01-01-01 — Walking skeleton: sign-in via BFF + persistent header, deployed
 
-- [ ] **Merged** · [ ] **Observed on the public URL**
+- [x] **Merged** · [x] **Observed on the public URL** (`f8d7bdf`, VERIFICATION row 1)
+- **Update 2026-09-26:** the status paragraph below is the pre-merge snapshot. Since then the slice was merged, deployed on `f8d7bdf`, and observed by David as `grader` (DASH-SYN-01 Active, DASH-SYN-02 Deceased). The header was not sticky until slice 01-06-04; it scrolled away with the cards.
 - **Status (2026-09-25, local part, branch `agentforge/w2-dashboard`):**
   implemented and gated (`npm run check --prefix dashboard` in
   `.githooks/pre-commit` since `12de1be`; deliberate regression shown red,
@@ -246,7 +255,8 @@ not struck through, because the legacy bug remains.
 
 ### Slice 01-02-01 — Allergies card
 
-- [ ] **Merged** · [ ] **Observed**
+- [x] **Merged** · [x] **Observed** (`2246417`, VERIFICATION row 2)
+- **Update 2026-09-26:** merged, deployed and observed (DASH-SYN-01: severe highlighted, resolved hidden). The "not merged or deployed" status below is the pre-merge snapshot. Catalog 5.29 (allergy REST 500 for user-authored rows) was found in 01-06-01.
 - **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `f83573c`):**
   **wired, tested, not yet observed.** The BFF route and SPA card are built
   and gated (162 tests in the hook); the deliberate regression (`>` → `>=` in
@@ -334,7 +344,8 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-02-02 — Medical Problems card
 
-- [ ] **Merged** · [ ] **Observed**
+- [x] **Merged** · [x] **Observed** (`2246417`, VERIFICATION row 2)
+- **Update 2026-09-26:** merged, deployed and observed (ended problem hidden). The status below is the pre-merge snapshot.
 - **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `fbadb5e`):**
   **wired, tested, not yet observed.** Built and gated (182 tests in the
   hook); the deliberate regression (sort removed) was refused by the hook with
@@ -373,7 +384,8 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-02-03 — Medications card
 
-- [ ] **Merged** · [ ] **Observed**
+- [x] **Merged** · [x] **Observed** (`2246417`, VERIFICATION row 2)
+- **Update 2026-09-26:** merged, deployed and observed (ended medication hidden). The status below is the pre-merge snapshot. The "Dosage instructions: not available via API" footnote is replaced in slice 01-06-04 by instructions joined from FHIR `MedicationRequest`; that change is not yet deployed.
 - **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `eecda54`):**
   **wired, tested, not yet observed.** Built and gated (198 tests in the
   hook); the deliberate regression (every 404 mapped to error) was refused by
@@ -409,7 +421,8 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-03-01 — Prescriptions card, allow-listed
 
-- [ ] **Merged** · [ ] **Observed**
+- [x] **Merged** · [x] **Observed** (`7b49460`, VERIFICATION row 3)
+- **Update 2026-09-26:** merged, deployed and observed. The status below is the pre-merge snapshot.
 - **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `959482e`):**
   **wired, tested, not yet observed.** Built and gated (229 tests in the
   hook); the deliberate regression (the allow-list forwards an unknown key)
@@ -470,7 +483,8 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-04-01 — Care Team card from FHIR
 
-- [ ] **Merged** · [ ] **Observed**
+- [x] **Merged** · [x] **Observed** (`7b49460`, VERIFICATION row 3; member name shown after option B)
+- **Update 2026-09-26:** merged, deployed and observed. The status below is the pre-merge snapshot.
 - **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `3d3d719`):**
   **wired, tested, not yet observed.** Built and gated (258 tests in the
   hook); the deliberate regression (the first team in Bundle order, whatever
@@ -538,7 +552,8 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-05-01 — Vitals card via REST per encounter
 
-- [ ] **Merged** · [ ] **Observed**
+- [x] **Merged** · [x] **Observed** (`7b49460`, VERIFICATION row 3: 2026-04-05 set; deleted set not shown)
+- **Update 2026-09-26:** merged, deployed and observed. The status below is the pre-merge snapshot.
 - **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `1d37a47` + `0f94550`):**
   **wired, tested, not yet observed.** Built and gated (287 tests in the
   hook); the deliberate regression (the latest set across FHIR vital-signs
@@ -601,7 +616,7 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-06-01 — Parity evidence and hardening
 
-- [ ] **Merged** · [ ] **Observed**
+- [x] **Merged** (evidence on `main`) · [ ] **Complete**: the manual keyboard and screen-reader pass is still open (below)
 - **Time box:** 1.5 h, Sat 20:00–21:30. Window 2 runs at the start: David
   signs in and the card checklists for 01-02-02 … 01-05-01 are ticked.
 - **Goal**
@@ -652,7 +667,7 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-06-02 — `PATIENT_DASHBOARD_MIGRATION.md` (graded, repo root)
 
-- [ ] **Merged** · [ ] **Reconciled with the freeze SHA**
+- [x] **Merged** · [ ] **Reconciled with the freeze SHA** (reconciled with slice 01-06-04 on the branch; the freeze has not happened)
 - **Time box:** 2.0 h, Sat 21:30–23:30.
 - **Goal:** write the defense, tied to this implementation (PLAN W2D-7):
   1. Why React + TS + Vite + Fastify BFF: the weighted scoring (110/135), the
@@ -687,6 +702,64 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
     evidence file. Nothing is called "live" unless it was observed.
 - **Acceptance check:** a grader reading only this file can say why this
   framework, what was gained, and what it cost, with numbers from this repo.
+
+### Slice 01-06-04 — Requirement hardening (added 2026-09-26)
+
+- [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-26, branch `agentforge/w2-dashboard`):** **wired and
+  tested; not merged, deployed or observed.** An independent compliance
+  review found gaps against the brief and the honesty rules. Each item below
+  is its own commit through the full hook.
+- **Goal**
+  1. **Persistent identity bar** (brief: "the persistent identity bar"). The
+     header scrolled away. It is now `position: sticky; top: 0`, opaque,
+     above the cards, and still a named landmark. `scroll-padding-top`
+     keeps focused elements out from under it. The topbar still scrolls away.
+  2. **Medications FHIR enrichment.** The list stays REST, because FHIR has
+     no `outcome` for `filterActiveIssues`. Dosage instructions come from FHIR
+     `MedicationRequest?patient=<puuid>&intent=plan` (`dosageInstruction.text`
+     = `drug_dosage_instructions`), joined by uuid. The route is allow-listed
+     with exactly `patient` and the fixed `intent`. The OAuth scope string
+     gains `user/MedicationRequest.rs`. **The production client registration
+     must be updated to include it.** Until it is, OpenEMR drops the scope
+     and the route answers 401, and the card keeps its list with a
+     "couldn't be loaded" note.
+  3. **Layout parity.** Allergies, Medical Problems and Medications share one
+     three-column row. Prescriptions and Care Team take the full width, and
+     Vitals the left two-thirds, as on the legacy page. Phones get one column.
+  4. **Docs.** A "Legacy cards not ported" table and per-card FHIR divergence
+     rows in `PATIENT_DASHBOARD_MIGRATION.md`, current statuses in
+     `REQUIREMENTS-TRACE.md`, this arc, `PLAN.md` W2D-7/W2D-8, a README
+     pointer, the parity layout comparison and a DEV-LOG entry.
+- **Test gate**
+  - [x] `test/web/StickyHeader.test.tsx` checks the computed sticky, top and
+    z-index from the shipped stylesheet, the opaque background, the scroll
+    padding and the landmark. It also checks that the same header element
+    stays through card loading and error states, a header error and a
+    patient switch. **Deliberate regression** (sticky removed): 3 red,
+    commit refused (`evidence/slice-06-04-header-regression.txt`).
+  - [x] Medications: core join rules (`test/core/medications.test.ts`); the
+    allow-list keys (`test/core/upstreamRoutes.test.ts`); every route's
+    scope requested (`test/bff/auth.test.ts`); the contract against shaped
+    pid 13 / DASH-SYN-01 Bundles (SELECT-only) and a hand-built Bundle with
+    synthetic instructions, covering 401/403/500/OperationOutcome/wrong-type
+    and patient-mismatch cases; the BFF over HTTP; log redaction of the
+    instruction text; the component. **Deliberate regression** (join by
+    position, not uuid): 3 red, commit refused
+    (`evidence/slice-06-04-medications-regression.txt`).
+  - [x] `test/web/Layout.test.tsx` checks card order, the single-column
+    default and the wide-screen spans, from the shipped stylesheet's CSSOM.
+    The layout was measured with the real BFF and SPA against shaped
+    fixtures (`evidence/parity/README.md`, "Layout"), not the live stack.
+- **Live evidence to collect**
+  - [ ] After merge and deploy: `/dashboard/health` reports the merge SHA.
+  - [ ] Public URL, DASH-SYN-01: the header stays at the top while scrolling
+    to Vitals; the card arrangement matches `evidence/parity/port-layout-*`.
+  - [ ] Public URL: Medications shows "couldn't be loaded" until the
+    production client has `user/MedicationRequest.rs`, then the title alone
+    for Lisinopril (no instructions recorded). Needs a sign-in by David.
+- **Acceptance check:** scroll the DASH-SYN-01 dashboard on the public URL
+  and the identity bar stays visible. The first three cards share a row.
 
 ### Slice 01-06-03 — Freeze deploy and evidence (inside PLAN S11)
 
