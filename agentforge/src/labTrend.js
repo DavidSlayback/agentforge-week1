@@ -104,7 +104,7 @@ export function buildLabTrends(history) {
     });
   }
   const tests = [...series.values()].map((item) => {
-    const points = [...item.points].sort((a, b) => a.collection_date.localeCompare(b.collection_date) || a.source_document_id.localeCompare(b.source_document_id));
+    const points = [...item.points].sort((a, b) => a.collection_date.localeCompare(b.collection_date) || a.source_document_id.localeCompare(b.source_document_id, 'en', { numeric: true }));
     const bands = points.map((point) => point.reference).filter(Boolean);
     // One band only when every point states the same parseable range.
     const band = bands.length === points.length && bands.every((b) => b.low === bands[0].low && b.high === bands[0].high) ? { low: bands[0].low, high: bands[0].high } : null;
@@ -115,6 +115,7 @@ export function buildLabTrends(history) {
     read_path: history?.read_path ?? null,
     persistence_boundary: history?.persistence_boundary ?? null,
     missing_observation_count: (history?.missing_observation_ids || []).length,
+    skipped_lab_row_count: Number.isInteger(history?.skipped_lab_rows) ? history.skipped_lab_rows : 0,
     tests,
     excluded,
   };
@@ -181,6 +182,7 @@ export function renderLabTrendSection(trends, links = {}) {
   const source = synthetic ? 'the in-memory synthetic lab store (fixture mode, not OpenEMR)' : "OpenEMR's FHIR Observation service (read back after the upload)";
   const notes = [];
   if (trends.missing_observation_count) notes.push(`<p class="lab-trend-note" data-reason="observations_missing">${trends.missing_observation_count} stored result(s) were not returned by the read-back and are not shown.</p>`);
+  if (trends.skipped_lab_row_count) notes.push(`<p class="lab-trend-note" data-reason="lab_rows_unlinked">${trends.skipped_lab_row_count} stored lab record(s) are not linked to a lab document stored for this patient and are not shown.</p>`);
   if (trends.excluded.length) notes.push(`<p class="lab-trend-note" data-reason="excluded">${trends.excluded.length} result(s) cannot be charted: ${escapeHtml([...new Set(trends.excluded.map((item) => item.reason.replaceAll('_', ' ')))].join(', '))}.</p>`);
   const figures = trends.tests.map((test) => {
     const unitNote = test.other_units.length ? `<p class="lab-trend-note" data-reason="mixed_units">Also reported in ${escapeHtml(test.other_units.map((unit) => unit || 'no unit').join(', '))}. Different units are charted separately, never on one line.</p>` : '';

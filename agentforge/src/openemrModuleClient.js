@@ -165,7 +165,7 @@ export class OpenEMRModuleClient {
    */
   async getLabObservationHistory({ patientUuid, contextToken }) {
     const result = await this.request({ method: 'GET', route: 'lab-observations', query: { patient_uuid: patientUuid }, contextToken });
-    if (result.resourceType !== 'Bundle' || result.read_path !== MODULE_OBSERVATION_READ_PATH || result.scope !== MODULE_LAB_HISTORY_SCOPE || !Array.isArray(result.entry) || !Array.isArray(result.missing_observation_ids)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
+    if (result.resourceType !== 'Bundle' || result.read_path !== MODULE_OBSERVATION_READ_PATH || result.scope !== MODULE_LAB_HISTORY_SCOPE || !Array.isArray(result.entry) || !Array.isArray(result.missing_observation_ids) || !Number.isInteger(result.skipped_lab_rows)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
     for (const entry of result.entry) {
       if (!entry || typeof entry.resource !== 'object' || entry.resource === null || !Number.isInteger(entry.source_document_id) || entry.source_document_id <= 0) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
     }

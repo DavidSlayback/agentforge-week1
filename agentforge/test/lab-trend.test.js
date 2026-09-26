@@ -105,13 +105,13 @@ test('synthetic lab store never returns another patient\'s results', () => {
 
 test('module client: lab history omits source_document_id and rejects a malformed bundle', async () => {
   const seen = [];
-  const bundle = { resourceType: 'Bundle', read_path: 'openemr-fhir-service-in-process', scope: 'patient_lab_history', missing_observation_ids: [], entry: [{ resource: { resourceType: 'Observation', id: 'o1' }, source_document_id: 57 }] };
+  const bundle = { resourceType: 'Bundle', read_path: 'openemr-fhir-service-in-process', scope: 'patient_lab_history', missing_observation_ids: [], skipped_lab_rows: 0, entry: [{ resource: { resourceType: 'Observation', id: 'o1' }, source_document_id: 57 }] };
   const client = (body) => new OpenEMRModuleClient({ baseUrl: 'http://module.test/api.php', secret: moduleHmacSecret, fetchImpl: async (url) => { seen.push(new URL(url)); return new Response(JSON.stringify(body), { status: 200 }); } });
   const result = await client(bundle).getLabObservationHistory({ patientUuid: openemrPatient, contextToken: 'token' });
   assert.equal(result.entry.length, 1);
   assert.equal(seen[0].searchParams.get('route'), 'lab-observations');
   assert.equal(seen[0].searchParams.has('source_document_id'), false);
-  for (const bad of [{ ...bundle, scope: undefined }, { ...bundle, entry: [{ resource: {}, source_document_id: 'x' }] }, { ...bundle, read_path: 'something-else' }]) {
+  for (const bad of [{ ...bundle, scope: undefined }, { ...bundle, skipped_lab_rows: undefined }, { ...bundle, entry: [{ resource: {}, source_document_id: 'x' }] }, { ...bundle, read_path: 'something-else' }]) {
     await assert.rejects(client(bad).getLabObservationHistory({ patientUuid: openemrPatient, contextToken: 'token' }), { code: 'OPENEMR_MODULE_RESPONSE_INVALID' });
   }
 });
@@ -201,6 +201,11 @@ test('HTTP lab trends (openemr-module mode, fake module): points are the module 
     const mismatch = await fetch(`http://127.0.0.1:${port}/v1/patients/fixture-patient-001/lab-trends?demo_token=${encodeURIComponent(ctx.read)}`);
     assert.equal(mismatch.status, 502);
     assert.equal((await mismatch.json()).error, 'openemr_lab_history_patient_mismatch');
+    // An Observation with no subject is refused too, never charted.
+    fake.settings.historySubjectOverride = 'omit';
+    const noSubject = await fetch(`http://127.0.0.1:${port}/v1/patients/fixture-patient-001/lab-trends?demo_token=${encodeURIComponent(ctx.read)}`);
+    assert.equal(noSubject.status, 502);
+    assert.equal((await noSubject.json()).error, 'openemr_lab_history_patient_mismatch');
   } finally {
     child.kill();
     await fake.close();
@@ -251,4 +256,57 @@ test('a BLOCKED workflow persists nothing: no OpenEMR write and no synthetic lab
   const synthetic = new AgentForgeService({ chartAdapter: { authorize: () => ({ status: 'blocked' }) }, writeback: { authorize: () => ({ status: 'authorized', patient_uuid: 'p' }), persistSyntheticLabObservations: () => { writes += 1; } }, provider: null });
   const recorded = await synthetic.recordSyntheticLabHistory({ id: 'src-1', document_type: 'lab_pdf' }, { lab_results: [] }, {}, { finalState: 'BLOCKED' });
   assert.deepEqual([recorded.status, recorded.reason, writes], ['not_persisted', 'workflow_blocked', 0]);
+  // Fail closed: no state (a dropped argument) or an unknown one throws; nothing is written.
+  for (const finalState of [undefined, null, '', 'START']) {
+    await assert.rejects(service.persistDerivedEvidence({ id: 'openemr-doc-57', document_type: 'lab_pdf' }, { facts: [{}] }, { patient_uuid: 'fixture-patient-002', clinician_uuid: 'c' }, { finalState }), { code: 'WORKFLOW_FINAL_STATE_REQUIRED' });
+    await assert.rejects(synthetic.recordSyntheticLabHistory({ id: 'src-1', document_type: 'lab_pdf' }, { lab_results: [] }, {}, { finalState }), { code: 'WORKFLOW_FINAL_STATE_REQUIRED' });
+  }
+  assert.equal(writes, 0);
+});
+
+test('HTTP (openemr-module mode, fake module): a patient-1 lab uploaded to patient 2 is BLOCKED and writes no lab rows or trend points', async () => {
+  const otherUuid = '11111111-2222-4333-8444-555555555555';
+  const fake = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [openemrPatient, otherUuid] });
+  const port = 18873;
+  const child = await startServer(port, { AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_MODULE_HMAC_SECRET: moduleHmacSecret, AGENTFORGE_OPENEMR_MODULE_URL: fake.url, AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: `${openemrPatient},${otherUuid}`, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: `fixture-patient-001=${openemrPatient},fixture-patient-002=${otherUuid}` });
+  const base = `http://127.0.0.1:${port}`;
+  // The lab report header names patient 1 (Test Patient One, 1980-04-12).
+  const labA = `${envelope({ hgb: '13.2', a1c: '6.1', date: '2026-09-20' })}
+Patient: Test Patient One - DOB: 1980-04-12`;
+  const scanFor = async (patient) => {
+    const ctx = await contexts(base, patient);
+    const uploaded = await post(base, '/v1/source-documents', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.write, document_type: 'lab_pdf', filename: 'lab-a.scan.txt', content_base64: Buffer.from(labA).toString('base64') }).then((response) => response.json());
+    const scan = await post(base, '/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ctx.clinician, demo_token: ctx.write, source_document_id: uploaded.source_document.id, message: '' });
+    const trends = await fetch(`${base}/v1/patients/${patient}/lab-trends?demo_token=${encodeURIComponent(ctx.read)}`).then((response) => response.json());
+    return { uploaded, status: scan.status, scanned: await scan.json(), trends };
+  };
+  try {
+    const blocked = await scanFor('fixture-patient-002');
+    assert.equal(blocked.status, 200);
+    assert.equal(blocked.scanned.workflow.final_state, 'BLOCKED');
+    assert.equal(blocked.scanned.workflow.stop_reason, 'patient_mismatch');
+    assert.deepEqual([blocked.scanned.openemr.status, blocked.scanned.openemr.reason], ['not_persisted', 'workflow_blocked']);
+    assert.deepEqual(fake.labRowsFor(blocked.uploaded.openemr.document_id), []);
+    assert.deepEqual([fake.counts().procedure_orders, fake.counts().procedure_results], [0, 0]);
+    assert.deepEqual(blocked.trends.tests, []);
+    // Control: the same document on the right chart is READY and is written.
+    const allowed = await scanFor('fixture-patient-001');
+    assert.equal(allowed.scanned.workflow.final_state, 'READY');
+    assert.equal(fake.labRowsFor(allowed.uploaded.openemr.document_id).length, 2);
+    assert.equal(allowed.trends.tests.length, 2);
+  } finally {
+    child.kill();
+    await fake.close();
+  }
+});
+
+test('lab trends: same-date ties sort by document number, not string order; skipped module rows are reported', () => {
+  const history = syntheticHistory([
+    ['openemr-doc-10', [row('lab.hgb', '13.0', '2026-09-20')]],
+    ['openemr-doc-9', [row('lab.hgb', '12.9', '2026-09-20')]],
+  ]);
+  const trends = buildLabTrends({ ...history, skipped_lab_rows: 2 });
+  assert.deepEqual(trends.tests[0].points.map((point) => point.source_document_id), ['openemr-doc-9', 'openemr-doc-10']);
+  assert.equal(trends.skipped_lab_row_count, 2);
+  assert.match(renderLabTrendSection(trends), /data-reason="lab_rows_unlinked">2 stored lab record/);
 });

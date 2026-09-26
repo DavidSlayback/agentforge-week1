@@ -222,23 +222,30 @@ final readonly class AgentForgeApi
      * this patient, each linked to a lab PDF this module stored for the same
      * patient. The pid and operation are re-checked on every returned row, so
      * a lookup that ignored the patient could never leak another chart's labs.
+     * Rows dropped by these checks are counted in `skipped_lab_rows`, not
+     * hidden.
      *
      * @return array{int, array<string, mixed>}
      */
     private function readLabObservationHistory(PatientUuid $patient, int $pid): array
     {
         $rows = [];
+        $skipped = 0;
         foreach ($this->ledger->findLabResultsForPatient($pid) as $row) {
             if ($row->pid !== $pid || $row->operation !== 'lab' || $row->documentId === null) {
+                $skipped++;
                 continue;
             }
             $source = $this->ledger->findDocument($pid, $row->documentId);
             if ($source === null || $source->pid !== $pid || $source->documentId !== $row->documentId || $source->operation !== DocumentType::LabPdf->ledgerOperation()) {
+                $skipped++;
                 continue;
             }
             $rows[] = $row;
         }
-        return [200, $this->chart->readLabObservationHistory($patient, $rows)];
+        $bundle = $this->chart->readLabObservationHistory($patient, $rows);
+        $bundle['skipped_lab_rows'] = $skipped;
+        return [200, $bundle];
     }
 
     /**

@@ -885,7 +885,8 @@ check("lab history: never includes another patient's rows, even if the ledger lo
     [$api, $ledger, $chart] = makeApi();
     storeLab($api, PATIENT_B, "%PDF-1.4\nother patient\n");
     $ledger->ignorePid = true;
-    same(200, call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'))[0]);
+    [$status, $body] = call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'));
+    same([200, 1], [$status, $body['skipped_lab_rows']]);
     same(['history:' . PATIENT_A . ':'], historyReads($chart), 'leaky lookup yields no rows');
 });
 
@@ -894,8 +895,9 @@ check('lab history: a lab row whose source is not a module-stored lab PDF is exc
     $stored = storeLab($api, PATIENT_A, "%PDF-1.4\nlab one\n");
     // A lab ledger row pointing at a document id the module never stored.
     $ledger->insert(new LedgerEntry('lab:v1:orphan', 'lab', 1, str_repeat('a', 64), 999, 5, ['observation_ids' => ['x']], str_repeat('b', 64), 1, 'synthetic-demo'));
-    call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'));
+    [, $body] = call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'));
     same(['history:' . PATIENT_A . ":1/$stored"], historyReads($chart));
+    same(1, $body['skipped_lab_rows'], 'the dropped row is reported, not hidden');
 });
 
 check('lab history: patient scope, allowlist and a malformed source_document_id still refuse', function (): void {

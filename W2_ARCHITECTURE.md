@@ -153,8 +153,10 @@ shown as verified. `documentSafety.js`'s checks run after every extraction:
 zero facts or a patient-identity mismatch (name/DOB read from the document
 vs. the chart) is `BLOCKED`; a doc-type mismatch, an unverifiable identity,
 or an incomplete extraction is `QUALIFIED` — the workflow never reports
-`READY` on any of these. A `BLOCKED` workflow persists nothing. Otherwise
-the service persists a derived-facts JSON document and, for a lab PDF, one
+`READY` on any of these. A `BLOCKED` workflow writes no derived facts or lab
+rows (the source PDF is already stored at upload), and a call without a
+workflow state throws. Only a `READY` or `QUALIFIED` workflow persists a
+derived-facts JSON document and, for a lab PDF, one
 `procedure_order`/`_report` plus one `procedure_result` per LOINC-mapped
 result, all marked `prelim`. Read-back is OpenEMR's own FHIR Observation
 service called in-process (`read_path: openemr-fhir-service-in-process`) —

@@ -130,3 +130,32 @@ ok   - lab history assembler: only ledger-recorded Observations, linked to their
 53 passed, 1 failed
 --- restored:
 54 passed, 0 failed
+
+=== Regression 4 (review fix 1): drop finalState at the server call sites (agentforge/src/server.js, persistDerivedEvidence and recordSyntheticLabHistory) ===
+--- change:
+-        ..., { verifiedContext: token, finalState: result.workflow.final_state });
++        ..., { verifiedContext: token });
+The guard now fails closed: a missing state throws WORKFLOW_FINAL_STATE_REQUIRED, so the scan request answers 500 instead of writing.
+--- node --test agentforge/test/lab-trend.test.js
+✔ lab trends: points come sorted by collection date, one series per test, each with its own 5-key citation (9.586ms)
+✔ lab trends: different units are never on one line; non-numeric values are excluded with a reason (0.7691ms)
+✔ lab trend chart: SVG per series with title, band, a linked marker per point and a table; one point and zero points are explicit states (0.996ms)
+✔ synthetic lab store never returns another patient's results (0.1752ms)
+✔ module client: lab history omits source_document_id and rejects a malformed bundle (5.0758ms)
+✖ HTTP lab trends (openemr-module mode, fake module): points are the module read-back, sorted, cited; another patient's token is refused (330.8795ms)
+✖ HTTP lab trends (fixture mode): read back from the labeled in-memory synthetic store (244.3655ms)
+✔ labResultsForModule rows round-trip through the synthetic store unchanged (0.6523ms)
+✔ UI offers the lab-c sample and loads the server-rendered trend after a lab scan (0.6804ms)
+✔ a BLOCKED workflow persists nothing: no OpenEMR write and no synthetic lab row (0.6554ms)
+✖ HTTP (openemr-module mode, fake module): a patient-1 lab uploaded to patient 2 is BLOCKED and writes no lab rows or trend points (290.9926ms)
+✔ lab trends: same-date ties sort by document number, not string order; skipped module rows are reported (0.6473ms)
+ℹ tests 12
+ℹ pass 9
+ℹ fail 3
+✖ failing tests:
+    actual: 500,
+    expected: 200,
+--- restored:
+ℹ tests 12
+ℹ pass 12
+ℹ fail 0
