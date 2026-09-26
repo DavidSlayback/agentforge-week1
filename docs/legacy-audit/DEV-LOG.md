@@ -58,6 +58,51 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-25 — Arc 01 / Story 01-05 / Slice 01-05-01 — Vitals card via REST per encounter
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `1d37a47` (+ `0f94550`, a test-order fix); no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-4 (Vitals, the additional section, DB-08): the latest **non-deleted** vitals set, kept in its legacy position after Care Team (7.24).
+Legacy behavior replaced: `walkthroughs/VITALS.md`, `interface/patient_file/summary/vitals_fragment.php` + `interface/forms/vitals/report.php`.
+Layers touched: core (`ids` `EncounterId`, `cardResult` `VITALS_SCAN_LIMIT`, `rules/vitals` `latestVitalsSet` + `isPediatric` + `phpNumberFormat` + `vitalsFields` + `MAX_ENCOUNTER_SCAN`, `dto` `VitalsDto`, `guards` `isVitalsDto`, `upstreamRoutes`) · bff (`upstream/mapResponse` opt-in `notFoundEmptyEnvelopeIsEmpty`, `upstream/schemas/{encounter,vital}`, `schemas/patient` `DOB`, `cards/patientRead` `birthDate`, `cards/vitals`, `http/routes`) · web (`cards/VitalsCard`, `App`, `styles.css`) · tests · README.
+Upstream routes added to the allow-list: `rest.encounter.list` (`/api/patient/{puuid}/encounter`, no query keys, scope `user/encounter.rs`, ACL `encounters/auth_a`) and `rest.vital.list` (`/api/patient/{pid}/encounter/{eid}/vital`; `pid` from `rest.patient.read`, `eid` a positive integer from the encounter list (new param kind `eid`); no query keys; scope `user/vital.rs`, ACL `encounters/notes`). Both scopes were already in `OAUTH_SCOPE`. A new allow-list test asserts there is **no** FHIR `Observation` route (5.02).
+Catalog IDs: 5.01 and 5.02 (Critical, designed out), 7.20 (explicit field list and order), 7.24 (legacy position kept), 5.09 (no session pid).
+Deliberate regression: take the latest set across a merged FHIR vital-signs list that includes the deleted set → expected red: the "never set 36" contract test.
+Acceptance check (a user can do this): DASH-SYN-01 shows the 2026-04-05 vitals, not the deleted 2026-05-01 set on the same encounter; pid 13 shows the 2026-04-05 set, not the deleted 2026-05-01 set the legacy card shows.
+
+### Worked on
+- R-4 resolved from the code before any mapping: the vitals route's `:eid` is matched against `form_encounter.encounter` (`VitalsService::search()` aliases it `eid`), and the encounter list serves the same column as `eid` (`EncounterService::search()`), newest first (`ORDER BY fe.eid DESC`). A patient with no encounters: the controller calls `handleProcessingResult(..., 404)`, but `ViewRendererListener` wraps the array in a 200 `JsonResponse`, so the wire carries HTTP 200 `data: []` (API-ROUTES Finding 3). An encounter with no live vitals: `responseHandler()` answers 404 with an empty body.
+- BFF `/dashboard/bff/patients/:puuid/vitals`: `rest.patient.read` (pid, DOB) → `rest.encounter.list` (every row's `puuid` and `pid` checked; `eid` must parse; sorted newest first locally) → `rest.vital.list` per encounter until one has a set (every row's `puuid`, `pid` and `eid` checked) → `latestVitalsSet` (latest `date`, ties to the higher `id`) → `vitalsFields`. A failure on any call is the card's failure (403 → forbidden, 401 → reauth, other → error). More than 50 encounters with none of the first 50 holding a set → `VITALS_SCAN_LIMIT`; all encounters checked and none has a set → empty.
+- `mapUpstream` gained `notFoundEmptyEnvelopeIsEmpty` (encounter list only): a 404 whose body is exactly `{validationErrors: [], internalErrors: [], data: []}` (plus `links`) is empty; any other 404 body is an error; a mapper test covers the opt-in and the default.
+- `vitalsFields`: the `form_vitals` column order `report.php` iterates (BP, Height, Weight, Temperature, Temp Method, Pulse, Respiration, Note, BMI, BMI Status, Waist Circ, Head Circ, Oxygen Saturation, Oxygen Flow Rate, the pediatric percentiles, Inhaled Oxygen Concentration), the legacy labels, the skip rule (null, '', zero date, or numeric zero: `$value == "0.0"`), the legacy number formats (`floatval` for height/weight/temperature/circumferences, `number_format(…, 0)` for pulse, respiration, BMI and O2 saturation, 2 decimals for flow rate), and the unit label mapped from the API's `<field>_unit` (`degF` → "F", `/min` → "per min", …; an unknown code is shown as returned). BP shows only with both parts. Pediatric (age ≤ 20 or in months, from `patient_data.DOB` and today in `DASHBOARD_OPENEMR_TZ`) gets "See Growth-Chart" and the percentiles, as in the legacy card.
+- SPA `VitalsCard` after Care Team: "Most recent vitals from: <date>" and a label/value list; a note says units are as the API returns them.
+- Fixtures (shaped, not recorded): `rest.encounter.list` and `rest.vital.list:<eid>` added to `patient-13` (36 encounters; 367 → set 27 only), `dash-syn-01` (pid 14: encounters 370, 369, 368 → sets 35, 34, 33; the deleted set 36 on 370 is absent because the route filters it), `patient-3` (12 → set 14), `dash-syn-02` (no encounters: HTTP 200 `data: []`). Values from read-only SELECT. Hand-built `fhir-observation-vitals-dash-syn-01.json`: the panel Observations FHIR would return for pid 14, **including** the deleted set, served by the contract test so that a port which read FHIR would visibly show it.
+- Integration script: the shown set's date is compared with the expected latest non-deleted set for pid 13, pid 3, DASH-SYN-01, and empty for DASH-SYN-02; only PASS/FAIL and the card kind are printed.
+
+### Decisions
+- **The correct latest set, from the REST per-encounter route** (owner decision, catalog 5.01): the route's `deleted=0 AND formdir='vitals'` is the only deleted filter any API path has. FHIR `Observation` is never called, and the allow-list test fails if an Observation route is ever added.
+- **The walk trusts encounter-number order** (the route's own `ORDER BY`): the port cannot compare vitals dates across encounters without fetching them all. On every seeded patient encounter-number order equals date order; a newer vitals set on an older encounter would be missed (documented in `walkthroughs/VITALS.md` (c)).
+- **Cap 50, fail loudly.** Hitting the cap with encounters left is `VITALS_SCAN_LIMIT` (a new `ErrorCode`), never "Nothing Recorded"; the cap is injectable so a test can use 2 and 3, and a separate test runs the production 50.
+- **Units as returned** (owner decision): one unit system per the site's `units_of_measurement`; the legacy card's simultaneous metric secondary is not computed (the first item on the arc's cut list). BP shows the API's `mm[Hg]` unit, which the legacy card did not print.
+- **Pediatric rule ported**: pid 3 is 19 years old, so the legacy card shows BMI Status "See Growth-Chart"; the port does too. `rest.patient.read` now also yields `DOB` (never logged), read only by this rule.
+- `external_id` and `last_updated` are not shown (the legacy loop would print them when set; neither is a vital sign). Empty reads "Nothing Recorded" (decision 4.02); the legacy text was "No vitals have been documented."
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commits `1d37a47` and `0f94550`): 287 tests, all passing (+29): unit 101 (`vitals` 7 new, `upstreamRoutes` +2) · contract 71 (`vitals` 12 new) · BFF 56 (`cardRoutes` +1, `mapResponse` +1; log redaction now also drives the vitals card and checks every encounter uuid, vitals uuid, set date and note is absent from the log) · lint-boundary 3 · component 56 (`VitalsCard` 6 new, all with axe, 0 violations). Typecheck 0, lint 0, bundle 71.8 kB gzip JS.
+- `0f94550` reorders the DASH-SYN-01 contract test so it asserts the shown set (never 2026-05-01, the 2026-04-05 set) before the outbound call list; the first regression run failed that test on the call list, which proved less than it should.
+- Deliberate regression: a new `fhir.observation.vitals` route and, in `loadVitals`, the latest `effectiveDateTime` across the FHIR vital-signs Bundle → the hook refused the commit (exit 1, HEAD unchanged) with 8 red; the key one, contract `DASH-SYN-01: the latest NON-deleted set (35) … never the deleted newer set 36 (5.01 / 5.02)`, failed with `expected '2026-05-01 09:00:00' not to be '2026-05-01 09:00:00'` (the card showed the soft-deleted set); also unit `has no FHIR Observation route …` and HTTP `Vitals: DASH-SYN-01 reaches the browser as the non-deleted set 35 …` → reverted. Output: `docs/legacy-audit/evidence/slice-05-01-regression.txt`.
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows the 2026-04-05 set (height 67 in), not the deleted 2026-05-01 set; the legacy `vitals_fragment.php` query (read-only SQL) still returns set 28; pid 3 shows set 14 with "See Growth-Chart"; DASH-SYN-02 "Nothing Recorded"; DASH-SYN-01 the 2026-04-05 set.
+- Production config (HD-5): the BFF user needs both `encounters/auth_a` (list) and `encounters/notes` (vitals); either one missing makes the card "Not authorized for this section".
+- The zero-encounter wire status (200 vs 404) is from code reading; the integration run with a token will show which one the local stack sends (the card handles both).
+
 ## 2026-09-25 — Arc 01 / Story 01-04 / Slice 01-04-01 — Care Team card from FHIR
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `3d3d719`; no merge SHA yet

@@ -1,5 +1,15 @@
 # Walkthrough: Vitals section shows the latest vitals set (DB-08)
 
+> **Build correction (slice 01-05-01, code reading, 2026-09-25):** a patient
+> with zero encounters does not get a 404 on the wire. `EncounterRestController::getAll()`
+> calls `handleProcessingResult(..., 404)`, which only sets `http_response_code(404)`
+> and returns an array; `ViewRendererListener` wraps it in a 200 `JsonResponse`
+> whose `sendHeaders()` overrides the status (API-ROUTES.md Finding 3). The wire
+> response is HTTP 200 with an empty envelope. The port treats that, and the
+> intended 404 with an exactly empty envelope, as "no encounters". An encounter
+> with no live vitals answers 404 with an empty body (`responseHandler()`), not
+> `[]`. `:eid` is `form_encounter.encounter` in both routes.
+
 **Decision (AGENT-BRIEF.md "Parity rules (decided)"):** Vitals shows the
 **correct** latest non-deleted set, which deliberately differs from the PHP
 join bug (U-1). This walkthrough traces both the legacy path and the port

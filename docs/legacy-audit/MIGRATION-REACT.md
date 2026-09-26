@@ -274,8 +274,8 @@ build an OpenEMR URL). REST prefix `/apis/default/api`, FHIR prefix
 | `rest.prescription.search` | `/api/prescription` | none | **`patient_id`** (= pid, BFF-supplied) and **`source_table`** (fixed value `prescriptions`). Nothing else, ever (M-1 / 2.01, 4.10) | `user/prescription.rs` | `patients/med` | 200 `data: []` → empty |
 | `fhir.careteam.search` | `/fhir/CareTeam` | none | **`patient`** (= puuid) | `user/CareTeam.rs` | `patients/med` | Bundle `total: 0` → empty, **only** because `fhir.patient.read` already succeeded in this chain (6.03) |
 | `fhir.practitioner.read` / `fhir.organization.read` | `/fhir/Practitioner/{id}`, `/fhir/Organization/{id}` | id (from the CareTeam response, uuid-validated) | none | `user/Practitioner.rs` / `user/Organization.rs` | — | failure → that cell shows "Name unavailable" (logged); the card stays up |
-| `rest.encounter.list` | `/api/patient/{puuid}/encounter` | puuid | none | `user/encounter.rs` | `encounters/auth_a` | 404 whose body shape is verified in slice 01-05-01 as "no encounters" → empty; anything else → error |
-| `rest.vital.list` | `/api/patient/{pid}/encounter/{eid}/vital` | pid, eid (from the encounter list; which field the route expects is verified in slice 01-05-01) | none | `user/vital.rs` | `encounters/notes` | 200 `[]` → try the next encounter |
+| `rest.encounter.list` | `/api/patient/{puuid}/encounter` | puuid | none | `user/encounter.rs` | `encounters/auth_a` | 200 `data: []` (what the wire carries) or 404 with an exactly empty envelope (what the controller intends) → empty; any other 404 → error (verified from the code in 01-05-01) |
+| `rest.vital.list` | `/api/patient/{pid}/encounter/{eid}/vital` | pid, eid (the list's `eid` = `form_encounter.encounter`, which the route matches; verified from the code in 01-05-01) | none | `user/vital.rs` | `encounters/notes` | 404 with an empty body (`responseHandler()`) or 200 `[]` → try the next encounter |
 
 **How the allow-list is enforced**
 - `buildUpstreamUrl(routeId, pathParams, query)` throws on:
@@ -317,7 +317,7 @@ reauth, and they are visually and textually distinct (W2D-3).
 | 200 + body that fails the route's Zod schema | `error` (`SCHEMA_MISMATCH`) | fail loudly |
 | 200 + `data: []` (REST) | `empty` | — |
 | 404 with an empty body, **`rest.medication.list` only** | `empty` | 6.04 |
-| 404 on `rest.encounter.list` with the verified "no results" shape | `empty` (Vitals) | `walkthroughs/VITALS.md` (d) |
+| `rest.encounter.list` with no encounters: 200 `data: []` on the wire, or the intended 404 with an exactly empty envelope | `empty` (Vitals) | `walkthroughs/VITALS.md` (d), build correction |
 | FHIR Bundle `total: 0` after a successful `fhir.patient.read` in this chain | `empty` | 6.03 |
 | FHIR Bundle empty without that precondition, or `OperationOutcome` in a 200 | `error` | 6.03 |
 | 401 | `reauth` (the session is destroyed) | — |

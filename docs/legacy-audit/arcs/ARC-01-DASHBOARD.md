@@ -539,6 +539,20 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-05-01 — Vitals card via REST per encounter
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `1d37a47` + `0f94550`):**
+  **wired, tested, not yet observed.** Built and gated (287 tests in the
+  hook); the deliberate regression (the latest set across FHIR vital-signs
+  Observations, which include the deleted set) was refused by the hook with 8
+  red tests, the key one failing on the shown set itself
+  (`docs/legacy-audit/evidence/slice-05-01-regression.txt`). Not merged or
+  deployed. R-4 resolved from the code: `:eid` is `form_encounter.encounter`,
+  which the encounter list serves as `eid`; a patient with no encounters gets
+  HTTP **200** `data: []` on the wire (the controller asks for 404, but
+  `ViewRendererListener` wraps its array in a 200, API-ROUTES Finding 3), and
+  the card treats both that and the intended 404 empty envelope as empty.
+  Deviations: units as the API returns them (the metric secondary, first on
+  the cut list, is not computed; noted on the card); `external_id` and
+  `last_updated` are not shown. Details: `DEV-LOG.md`, 01-05-01 entry.
 - **Time box:** 2.0 h, Sat 17:45–19:45. The first 20 minutes resolve R-4
   against the local stack before any mapping code is written: the encounter
   list's 404 body shape, and whether `:eid` takes `eid` or `encounter`.
@@ -556,15 +570,20 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   `test/web/VitalsCard.test.tsx`; fixtures;
   `test/integration/vitals.it.ts`.
 - **Test gate**
-  - Contract: pid 13 walks encounter 367 first and gets **set 27** from one
+  - [x] Contract: pid 13 walks encounter 367 first and gets **set 27** from one
     call; it never returns set 28 and never calls an older encounter. pid 3
-    gets **set 14** from encounter 12. A zero-encounter 404 (hand-built,
-    matching the verified shape) gives `empty`. A 5xx on one encounter gives
-    `error`, not `empty`. The cap is exceeded → `VITALS_SCAN_LIMIT` error.
-  - **Deliberate regression:** replace the per-encounter pick with "latest by
-    date across a merged list" that includes the FHIR-style deleted set 28
+    gets **set 14** from encounter 12 (pediatric: "See Growth-Chart").
+    DASH-SYN-01 (pid 14) gets set 35 from encounter 370, never the newer
+    deleted set 36 on the same encounter. A zero-encounter response (shaped
+    200 `data: []`, and the hand-built 404 empty envelope) gives `empty`. A 5xx
+    on one encounter gives `error`, not `empty`. The cap is exceeded →
+    `VITALS_SCAN_LIMIT` error (`test/contract/vitals.test.ts`).
+  - [x] **Deliberate regression:** replace the per-encounter pick with "latest by
+    date across a merged list" that includes the FHIR-style deleted set
     (hand-built fixture). Alternatively, stop the walk at the first 5xx and
     return `empty`. Expected red: the pid 13 "set 27" or "5xx is error" test.
+    Done (merged FHIR list; DASH-SYN-01's deleted set 36 shown): 8 red,
+    commit refused, reverted.
 - **Live evidence** (`walkthroughs/VITALS.md` (e))
   - [ ] `GET /api/patient/<13>/encounter` returns 367 first (36 total).
   - [ ] `GET …/encounter/367/vital` returns exactly one row, `id=27`.
