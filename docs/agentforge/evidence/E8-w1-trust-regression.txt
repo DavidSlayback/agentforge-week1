@@ -1,41 +1,52 @@
 E8 W1 trust debt: deliberate-regression proof
-Commit under test: e4e0cf42 (branch agentforge/e8-w1-trust); node v24.19.0; 2026-09-26T14:13:38Z
+Commit under test: 987769d8 (branch agentforge/e8-w1-trust); node v24.19.0; 2026-09-26T14:30:50Z
 Each row mutates one line, runs the guarding tests (node --test), and restores the file with git checkout.
 
 === M0 baseline (no mutation)
 --- mutation in agentforge/src/recordTrust.js
 -   export const FRESHNESS_WINDOWS_DAYS
 +   export const FRESHNESS_WINDOWS_DAYS
-✔ the chart source is decided by the adapter that read the record (1.5451ms)
-✔ fixture chart facts are cited as synthetic fixture records, never openemr_record (3.3802ms)
-✔ fixture chart facts stay patient-record facts, separate from guideline evidence (3.0459ms)
-✔ the grounded answer on the fixture chart never labels a chart fact openemr_record (11.7272ms)
-✔ a follow-up naming a synthetic patient ref is refused without disclosure (11.7656ms)
-✔ a follow-up naming another patient's name is refused without disclosure (2.1308ms)
-✔ a follow-up naming another patient's chart id is refused without disclosure (0.5681ms)
-✔ a follow-up naming an OpenEMR-style patient uuid is refused without disclosure (0.4725ms)
-✔ the refusal trace is blocked and carries no identifier from the question (2.3582ms)
-✔ ordinary questions about the current patient are answered, not refused (1.9883ms)
-✔ mentionsOtherPatient ignores the current patient's own identifiers (0.3154ms)
-✔ the deployed service never imports an eval harness module (0.8724ms)
-✔ no module the deployed service loads reads an eval answer key (10.2349ms)
-✔ the oracle-read scan catches the reads it exists to forbid (0.2557ms)
-✔ a fully covered, fresh, authored chart is complete with no qualification (4.447ms)
-✔ an allergy older than its documented freshness window is labeled stale but still shown (0.8315ms)
-✔ an allergy inside its freshness window is not stale (0.5001ms)
-✔ staleness is measured against the visit date when the case carries one (0.1366ms)
-✔ a record with no author is qualified as missing provenance and retained (0.5067ms)
-✔ a note that contains instructions is qualified as untrusted narrative (0.4079ms)
-✔ two identity records from different sources are flagged and withheld, not merged (0.4375ms)
-✔ zero documented records is never presented as complete (0.3128ms)
-✔ assessRecordTrust never reads an answer key (0.1922ms)
-✔ every fixture case briefs identically with its expected answer key stripped (10.8428ms)
-✔ the fixture corpus qualifies each trust case from its own data (1.2015ms)
-✔ a retrieval where no coverage group answered is blocked, not briefed as partial (0.2616ms)
-✔ the deployed W2 service sets the p95 alert to the 30 s KEY_METRICS target (1.6488ms)
-✔ the frozen W1 service keeps its original alert configuration (0.1462ms)
-ℹ tests 28
-ℹ pass 28
+✔ scan path: a question naming another patient refuses the answer but keeps the extraction (11.4489ms)
+✔ scan path: an ordinary question still gets a grounded answer (14.1958ms)
+✔ follow-up evidence: a question naming another patient is refused before any chart read (3.7728ms)
+✔ an instruction-bearing note is withheld from chart facts and follow-up evidence (1.7984ms)
+✔ an instruction-bearing note reaches neither the briefing model, the follow-up model, nor the displayed claims (2.9431ms)
+✔ the chart source is decided by the adapter that read the record (2.0412ms)
+✔ fixture chart facts are cited as synthetic fixture records, never openemr_record (3.0327ms)
+✔ fixture chart facts stay patient-record facts, separate from guideline evidence (3.0012ms)
+✔ the grounded answer on the fixture chart never labels a chart fact openemr_record (16.7221ms)
+✔ a chart record with no declared source type cannot back a patient fact (0.2242ms)
+✔ a follow-up naming a synthetic patient ref is refused without disclosure (11.039ms)
+✔ a follow-up naming another patient's name is refused without disclosure (2.2631ms)
+✔ a follow-up naming another patient's chart id is refused without disclosure (0.5674ms)
+✔ a follow-up naming an OpenEMR-style patient uuid is refused without disclosure (0.4075ms)
+✔ the refusal trace is blocked and carries no identifier from the question (2.2376ms)
+✔ ordinary questions about the current patient are answered, not refused (8.7677ms)
+✔ mentionsOtherPatient ignores the current patient's own identifiers (1.3079ms)
+✔ ordinary words that happen to be in other patients' names are not a patient mention (0.9394ms)
+✔ full names in either order and ids with any separator are patient mentions (0.2426ms)
+✔ the six review examples through the service: four answered, two refused (1.3492ms)
+✔ numeric chart ids match only after an id word, never as a bare number (1.3498ms)
+✔ without a patient list (live OpenEMR REST) only identifier shapes are checked (0.0904ms)
+✔ the deployed service never imports an eval harness module (0.8313ms)
+✔ no module the deployed service loads reads an eval answer key (9.8102ms)
+✔ the oracle-read scan catches the reads it exists to forbid (0.1982ms)
+✔ a fully covered, fresh, authored chart is complete with no qualification (4.3774ms)
+✔ an allergy older than its documented freshness window is labeled stale but still shown (0.7234ms)
+✔ an allergy inside its freshness window is not stale (0.4333ms)
+✔ staleness is measured against the visit date when the case carries one (0.1227ms)
+✔ a record with no author is qualified as missing provenance and retained (0.5873ms)
+✔ a note that contains instructions is qualified as untrusted narrative (0.4411ms)
+✔ two identity records from different sources are flagged and withheld, not merged (0.4175ms)
+✔ zero documented records is never presented as complete (0.3111ms)
+✔ assessRecordTrust never reads an answer key (0.1581ms)
+✔ every fixture case briefs identically with its expected answer key stripped (10.8218ms)
+✔ the fixture corpus qualifies each trust case from its own data (1.1799ms)
+✔ a retrieval where no coverage group answered is blocked, not briefed as partial (0.2499ms)
+✔ the deployed W2 service sets the p95 alert to the 30 s KEY_METRICS target (1.3247ms)
+✔ the frozen W1 service keeps its original alert configuration (0.1291ms)
+ℹ tests 39
+ℹ pass 39
 ℹ fail 0
 --- restored; git diff --stat: 
 
@@ -43,21 +54,21 @@ Each row mutates one line, runs the guarding tests (node --test), and restores t
 --- mutation in agentforge/src/preVisitPreparation.js
 -   const disposition = coverage.some((group) => isCoverageFailure(group.status)) ? 'partial' : qualification.required ? 'qualified' : 'complete';
 +   const disposition = item.expected?.brief_disposition || (coverage.some((group) => isCoverageFailure(group.status)) ? 'partial' : qualification.required ? 'qualified' : 'complete');
-✔ the deployed service never imports an eval harness module (0.8701ms)
-✖ no module the deployed service loads reads an eval answer key (12.9116ms)
-✔ the oracle-read scan catches the reads it exists to forbid (0.2503ms)
-✔ a fully covered, fresh, authored chart is complete with no qualification (5.0671ms)
-✔ an allergy older than its documented freshness window is labeled stale but still shown (0.8106ms)
-✔ an allergy inside its freshness window is not stale (0.4842ms)
-✔ staleness is measured against the visit date when the case carries one (0.12ms)
-✔ a record with no author is qualified as missing provenance and retained (0.513ms)
-✔ a note that contains instructions is qualified as untrusted narrative (0.4262ms)
-✔ two identity records from different sources are flagged and withheld, not merged (0.4589ms)
-✔ zero documented records is never presented as complete (0.3102ms)
-✔ assessRecordTrust never reads an answer key (0.1865ms)
-✖ every fixture case briefs identically with its expected answer key stripped (10.734ms)
-✔ the fixture corpus qualifies each trust case from its own data (1.3402ms)
-✔ a retrieval where no coverage group answered is blocked, not briefed as partial (0.2232ms)
+✔ the deployed service never imports an eval harness module (0.9014ms)
+✖ no module the deployed service loads reads an eval answer key (10.9788ms)
+✔ the oracle-read scan catches the reads it exists to forbid (0.1542ms)
+✔ a fully covered, fresh, authored chart is complete with no qualification (4.3211ms)
+✔ an allergy older than its documented freshness window is labeled stale but still shown (0.679ms)
+✔ an allergy inside its freshness window is not stale (0.4221ms)
+✔ staleness is measured against the visit date when the case carries one (0.1147ms)
+✔ a record with no author is qualified as missing provenance and retained (0.5716ms)
+✔ a note that contains instructions is qualified as untrusted narrative (0.4385ms)
+✔ two identity records from different sources are flagged and withheld, not merged (0.4077ms)
+✔ zero documented records is never presented as complete (0.2978ms)
+✔ assessRecordTrust never reads an answer key (0.1738ms)
+✖ every fixture case briefs identically with its expected answer key stripped (9.1107ms)
+✔ the fixture corpus qualifies each trust case from its own data (2.1255ms)
+✔ a retrieval where no coverage group answered is blocked, not briefed as partial (0.2111ms)
 ℹ tests 15
 ℹ pass 13
 ℹ fail 2
@@ -68,16 +79,21 @@ Each row mutates one line, runs the guarding tests (node --test), and restores t
 --- mutation in agentforge/src/preVisitPreparation.js
 -   if (mentionsOtherPatient({ message: request.message, currentPatient: cacheResult.entry.response.patient, knownPatients })) {
 +   if (false && mentionsOtherPatient({ message: request.message, currentPatient: cacheResult.entry.response.patient, knownPatients })) {
-✖ a follow-up naming a synthetic patient ref is refused without disclosure (12.4442ms)
-✖ a follow-up naming another patient's name is refused without disclosure (0.8698ms)
-✖ a follow-up naming another patient's chart id is refused without disclosure (0.5877ms)
-✖ a follow-up naming an OpenEMR-style patient uuid is refused without disclosure (0.5661ms)
-✖ the refusal trace is blocked and carries no identifier from the question (2.4719ms)
-✔ ordinary questions about the current patient are answered, not refused (0.7921ms)
-✔ mentionsOtherPatient ignores the current patient's own identifiers (1.0874ms)
-ℹ tests 7
-ℹ pass 2
-ℹ fail 5
+✖ a follow-up naming a synthetic patient ref is refused without disclosure (11.4745ms)
+✖ a follow-up naming another patient's name is refused without disclosure (0.7468ms)
+✖ a follow-up naming another patient's chart id is refused without disclosure (0.5312ms)
+✖ a follow-up naming an OpenEMR-style patient uuid is refused without disclosure (0.5746ms)
+✖ the refusal trace is blocked and carries no identifier from the question (2.28ms)
+✔ ordinary questions about the current patient are answered, not refused (0.7935ms)
+✔ mentionsOtherPatient ignores the current patient's own identifiers (8.6147ms)
+✔ ordinary words that happen to be in other patients' names are not a patient mention (1.887ms)
+✔ full names in either order and ids with any separator are patient mentions (0.2385ms)
+✖ the six review examples through the service: four answered, two refused (0.9784ms)
+✔ numeric chart ids match only after an id word, never as a bare number (1.3216ms)
+✔ without a patient list (live OpenEMR REST) only identifier shapes are checked (0.0936ms)
+ℹ tests 12
+ℹ pass 6
+ℹ fail 6
 ✖ failing tests:
 --- restored; git diff --stat: 
 
@@ -85,12 +101,13 @@ Each row mutates one line, runs the guarding tests (node --test), and restores t
 --- mutation in agentforge/src/service.js
 -   const citationSource = chartRecordCitationSource(this.chartAdapter);
 +   const citationSource = { source_type: 'openemr_record', page_or_section: 'OpenEMR chart record' };
-✔ the chart source is decided by the adapter that read the record (1.445ms)
-✖ fixture chart facts are cited as synthetic fixture records, never openemr_record (2.3224ms)
-✔ fixture chart facts stay patient-record facts, separate from guideline evidence (3.0846ms)
-✖ the grounded answer on the fixture chart never labels a chart fact openemr_record (13.1821ms)
-ℹ tests 4
-ℹ pass 2
+✔ the chart source is decided by the adapter that read the record (2.1383ms)
+✖ fixture chart facts are cited as synthetic fixture records, never openemr_record (1.9768ms)
+✔ fixture chart facts stay patient-record facts, separate from guideline evidence (3.1007ms)
+✖ the grounded answer on the fixture chart never labels a chart fact openemr_record (19.1022ms)
+✔ a chart record with no declared source type cannot back a patient fact (0.2556ms)
+ℹ tests 5
+ℹ pass 3
 ℹ fail 2
 ✖ failing tests:
 --- restored; git diff --stat: 
@@ -99,11 +116,60 @@ Each row mutates one line, runs the guarding tests (node --test), and restores t
 --- mutation in deploy/vultr/docker-compose.yml
 -   AGENTFORGE_ALERT_P95_MS: ${AGENTFORGE_W2_ALERT_P95_MS:-30000}
 +   AGENTFORGE_ALERT_P95_MS_UNUSED: ${AGENTFORGE_W2_ALERT_P95_MS:-30000}
-✖ the deployed W2 service sets the p95 alert to the 30 s KEY_METRICS target (1.6346ms)
-✔ the frozen W1 service keeps its original alert configuration (0.2283ms)
+✖ the deployed W2 service sets the p95 alert to the 30 s KEY_METRICS target (1.6356ms)
+✔ the frozen W1 service keeps its original alert configuration (0.2403ms)
 ℹ tests 2
 ℹ pass 1
 ℹ fail 1
+✖ failing tests:
+--- restored; git diff --stat: 
+
+=== M5 skip the other-patient check on the scan answer path (review fix 2)
+--- mutation in agentforge/src/service.js
+-   const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref);
++   const answerRefused = false;
+✖ scan path: a question naming another patient refuses the answer but keeps the extraction (18.0621ms)
+✔ scan path: an ordinary question still gets a grounded answer (3.3252ms)
+✔ follow-up evidence: a question naming another patient is refused before any chart read (9.6318ms)
+✔ an instruction-bearing note is withheld from chart facts and follow-up evidence (3.5113ms)
+✔ an instruction-bearing note reaches neither the briefing model, the follow-up model, nor the displayed claims (3.1674ms)
+ℹ tests 5
+ℹ pass 4
+ℹ fail 1
+✖ failing tests:
+--- W2 extension gate (node agentforge/scripts/run-w2-extension-gate.mjs) under this mutation
+  "passed": false,
+  "thresholds_passed": false,
+      "id": "x8-scope-other-patient-question",
+        "other_patient_question_not_refused",
+        "answer_composed_for_other_patient_question"
+failed_cases: [{"id":"x8-scope-other-patient-question","label":"safe_refusal","critical":false,"issues":["other_patient_question_not_refused","answer_composed_for_other_patient_question"]}]
+--- restored; git diff --stat: 
+
+=== M6 brief an instruction-bearing note instead of withholding it (review fix 3)
+--- mutation in agentforge/src/recordTrust.js
+-     withheldFields.push(...narrative);
++     // withheldFields.push(...narrative);
+✔ scan path: a question naming another patient refuses the answer but keeps the extraction (12.3846ms)
+✔ scan path: an ordinary question still gets a grounded answer (14.0634ms)
+✔ follow-up evidence: a question naming another patient is refused before any chart read (3.7568ms)
+✔ an instruction-bearing note is withheld from chart facts and follow-up evidence (1.8104ms)
+✖ an instruction-bearing note reaches neither the briefing model, the follow-up model, nor the displayed claims (2.6815ms)
+✔ a fully covered, fresh, authored chart is complete with no qualification (4.2761ms)
+✔ an allergy older than its documented freshness window is labeled stale but still shown (0.7963ms)
+✔ an allergy inside its freshness window is not stale (0.4125ms)
+✔ staleness is measured against the visit date when the case carries one (0.1128ms)
+✔ a record with no author is qualified as missing provenance and retained (0.4997ms)
+✖ a note that contains instructions is qualified as untrusted narrative (0.7447ms)
+✔ two identity records from different sources are flagged and withheld, not merged (0.423ms)
+✔ zero documented records is never presented as complete (0.3171ms)
+✔ assessRecordTrust never reads an answer key (0.1686ms)
+✔ every fixture case briefs identically with its expected answer key stripped (10.8383ms)
+✖ the fixture corpus qualifies each trust case from its own data (1.461ms)
+✔ a retrieval where no coverage group answered is blocked, not briefed as partial (0.2467ms)
+ℹ tests 17
+ℹ pass 14
+ℹ fail 3
 ✖ failing tests:
 --- restored; git diff --stat: 
 
