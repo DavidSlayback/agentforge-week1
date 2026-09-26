@@ -88,7 +88,8 @@ function validateCoverage(value, issues) {
     nonEmptyString(issues, group, 'group');
     if (!COVERAGE_STATUSES.has(group.status)) issues.push(`${path}.invalid_status`);
     if (!Number.isInteger(group.records) || group.records < 0) issues.push(`${path}.records_must_be_non_negative_integer`);
-    if (!Number.isInteger(group.attempts) || group.attempts < 1) issues.push(`${path}.attempts_must_be_positive_integer`);
+    // A group that was not requested made no attempt; every other status did.
+    if (group.status === 'not_requested') { if (group.attempts !== 0) issues.push(`${path}.not_requested_must_have_zero_attempts`); } else if (!Number.isInteger(group.attempts) || group.attempts < 1) issues.push(`${path}.attempts_must_be_positive_integer`);
     if (!(group.error_class === null || typeof group.error_class === 'string')) issues.push(`${path}.error_class_must_be_string_or_null`);
     if (['empty', 'unverified_empty', 'failed', 'timeout', 'unauthorized', 'not_requested'].includes(group.status) && group.records !== 0) issues.push(`${path}.unavailable_group_must_have_zero_records`);
   });

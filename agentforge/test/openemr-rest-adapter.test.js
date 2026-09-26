@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter } from '../src/openemrAdapter.js';
+import { INTERNAL_HTTP_TOKEN_ORIGIN, OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, tokenUrlIssue } from '../src/openemrAdapter.js';
+import { clinicalFact, clinicalLabel } from '../src/clinicalLanguage.js';
 import { validateRetrievalResult } from '../src/contracts.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 
@@ -31,9 +32,10 @@ test('OpenEMR REST adapter uses only GET allowlisted routes and normalizes recor
   assert.equal(item.patient.patient_ref, 'patient-uuid');
   assert.equal(item.patient.display_name, 'Synthetic Patient');
   // E9b: an empty allergy list from the patient-scoped route is not a confirmed absence.
-  assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'unverified_empty', 'empty']);
+  // F-LIVE: notes are not read (no usable OpenEMR 8.0 route) and say so.
+  assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'unverified_empty', 'not_requested']);
   assert.equal(retrieved.coverage.find((group) => group.group === 'allergies').error_class, 'openemr_scoped_list_empty');
-  assert.deepEqual(retrieved.records.map((record) => record.source_ref), ['openemr-patient-patient-uuid', 'enc-1', 'problem-1', 'med-1']);
+  assert.deepEqual(retrieved.records.map((record) => record.source_ref), ['openemr-patient-patient-uuid', 'enc-1', 'problem-1', 'med-1', 'med-1']);
   assert.ok(requests.every(({ options }) => options.method === 'GET'));
   assert.ok(requests.filter(({ url }) => url.includes('/apis/default/api/')).every(({ options }) => options.headers.authorization === 'Bearer synthetic-token'));
   assert.ok(requests.filter(({ url }) => url.includes('/apis/default/api/')).some(({ options }) => options.headers['x-correlation-id'] === 'af-correlation-test'));
@@ -118,4 +120,73 @@ test('OpenEMR refresh provider rotates and persists refresh tokens without expos
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test('F-LIVE notes: never requested from OpenEMR, reported not_requested with the reason, and the briefing is qualified by it', async () => {
+  const requests = [];
+  const adapter = new OpenEMRRestAdapter({ baseUrl: 'http://openemr', accessToken: 'synthetic-token', fetchImpl: fakeFetch(requests) });
+  const retrieved = await adapter.retrieve(await adapter.getCase('patient-uuid'));
+  assert.equal(validateRetrievalResult(retrieved).valid, true);
+  assert.deepEqual(retrieved.coverage.find((group) => group.group === 'notes'), { group: 'notes', status: 'not_requested', records: 0, attempts: 0, error_class: 'openemr_notes_route_unavailable' });
+  assert.equal(requests.some(({ url }) => url.includes('/document')), false, 'the document route (500 on OpenEMR 8.0.0 without a category path) is not called');
+  assert.equal(retrieved.records.some((record) => record.field.startsWith('note.')), false);
+  // The contract refuses a not_requested group that claims an attempt, and a zero-attempt group of any other status.
+  assert.equal(validateRetrievalResult({ ...retrieved, coverage: retrieved.coverage.map((group) => group.group === 'notes' ? { ...group, attempts: 1 } : group) }).valid, false);
+  assert.equal(validateRetrievalResult({ ...retrieved, coverage: retrieved.coverage.map((group) => group.group === 'notes' ? { ...group, status: 'empty' } : group) }).valid, false);
+});
+
+test('F-LIVE medication dose: a dose field when the row has one, else "dose not available from this OpenEMR route"; free-text comments are an instructions/comment fact, never a dose', async () => {
+  const rows = [
+    { uuid: 'med-comments', pid: 17, title: 'Lisinopril', begdate: '2026-09-10', enddate: null, comments: '  10 mg daily  ' },
+    { uuid: 'med-structured', pid: 17, title: 'Metformin', begdate: '2026-09-10', enddate: null, drug_dosage_instructions: '500 mg twice daily', comments: 'with meals' },
+    { uuid: 'med-none', pid: 17, title: 'Atorvastatin', begdate: '2026-09-10', enddate: null, comments: '' },
+    { uuid: 'med-null', pid: 17, title: 'Aspirin', begdate: '2026-09-10', enddate: null, comments: null },
+  ];
+  const adapter = new OpenEMRRestAdapter({
+    baseUrl: 'http://openemr',
+    accessToken: 'synthetic-token',
+    fetchImpl: async (url) => {
+      if (url.endsWith('/patient/patient-uuid')) return { ok: true, status: 200, async json() { return { data: [{ uuid: 'patient-uuid', pid: 17, fname: 'Synthetic', lname: 'Patient' }] }; } };
+      if (url.endsWith('/patient/17/medication')) return { ok: true, status: 200, async json() { return { data: rows }; } };
+      return { ok: false, status: 404, async json() { return {}; } };
+    },
+  });
+  const retrieved = await adapter.retrieve(await adapter.getCase('patient-uuid'));
+  assert.equal(validateRetrievalResult(retrieved).valid, true);
+  const value = (field) => retrieved.records.find((record) => record.field === field)?.value;
+  assert.equal(value('medication.lisinopril.dose'), 'dose not available from this OpenEMR route', 'comments are not a dose');
+  assert.equal(value('medication.lisinopril.comment'), '10 mg daily');
+  assert.equal(retrieved.records.find((record) => record.field === 'medication.lisinopril.comment').source_ref, 'med-comments', 'the comment cites the OpenEMR row it came from');
+  assert.equal(value('medication.metformin.dose'), '500 mg twice daily');
+  assert.equal(value('medication.metformin.comment'), 'with meals');
+  assert.equal(value('medication.atorvastatin.dose'), 'dose not available from this OpenEMR route');
+  assert.equal(value('medication.atorvastatin.comment'), undefined, 'no comment fact for an empty comment');
+  assert.equal(value('medication.aspirin.dose'), 'dose not available from this OpenEMR route');
+  assert.ok(retrieved.records.filter((record) => record.field.startsWith('medication.')).every((record) => typeof record.value === 'string' && record.value.trim()), 'no blank medication value');
+  assert.equal(value('medication.lisinopril.status'), 'active');
+  assert.equal(retrieved.coverage.find((group) => group.group === 'medications').records, 10);
+  // Wording: the comment is rendered as instructions/comment, the missing dose as unavailable from this route.
+  assert.equal(clinicalLabel('medication.lisinopril.comment'), 'lisinopril instructions/comment');
+  assert.equal(clinicalFact({ field: 'medication.lisinopril.comment', value: '10 mg daily' }), 'Lisinopril instructions/comment: 10 mg daily');
+  assert.equal(clinicalFact({ field: 'medication.lisinopril.dose', value: 'dose not available from this OpenEMR route' }), 'Lisinopril: dose not available from this OpenEMR route');
+  assert.equal(clinicalFact({ field: 'medication.lisinopril.dose', value: '10 mg daily' }), 'Lisinopril is recorded at 10 mg daily', 'a real dose keeps the fixture wording');
+});
+
+test('F-LIVE token URL: the refresh provider sends the client secret and refresh token over https or the Docker-internal http://openemr only', async () => {
+  assert.equal(INTERNAL_HTTP_TOKEN_ORIGIN, 'http://openemr');
+  for (const ok of ['http://openemr/oauth2/default/token', 'http://openemr:80/oauth2/default/token', 'https://openemr/oauth2/default/token', 'https://host.example/oauth2/default/token']) assert.equal(tokenUrlIssue(ok), null, ok);
+  for (const bad of ['http://evil/oauth2/default/token', 'http://openemr.evil/oauth2/default/token', 'http://openemr:8080/oauth2/default/token', 'http://openemr./oauth2/default/token', 'http://10.0.0.5/oauth2/default/token']) assert.equal(tokenUrlIssue(bad), 'OPENEMR_TOKEN_URL_NOT_HTTPS', bad);
+  assert.equal(tokenUrlIssue('http://user:pw@openemr/oauth2/default/token'), 'OPENEMR_TOKEN_URL_INVALID');
+  assert.equal(tokenUrlIssue('not a url'), 'OPENEMR_TOKEN_URL_INVALID');
+  let calls = 0;
+  const refused = new OpenEMRRefreshTokenProvider({ tokenUrl: 'http://openemr.evil/oauth2/default/token', clientId: 'c', clientSecret: 's', fetchImpl: async () => { calls += 1; throw new Error('must not be called'); } });
+  refused.state = { refresh_token: 'refresh-1', expires_at: 0 };
+  await assert.rejects(refused.getAccessToken(), /OPENEMR_TOKEN_URL_NOT_HTTPS/);
+  assert.equal(calls, 0, 'nothing was sent');
+  // Production's value: the refresh goes to the Docker-internal endpoint.
+  const urls = [];
+  const internal = new OpenEMRRefreshTokenProvider({ tokenUrl: 'http://openemr/oauth2/default/token', clientId: 'c', clientSecret: 's', fetchImpl: async (url) => { urls.push(url); return { ok: true, status: 200, async json() { return { access_token: 'access-2', expires_in: 3600 }; } }; } });
+  internal.state = { refresh_token: 'refresh-1', expires_at: 0 };
+  assert.equal(await internal.getAccessToken(), 'access-2');
+  assert.deepEqual(urls, ['http://openemr/oauth2/default/token']);
 });

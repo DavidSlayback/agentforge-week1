@@ -6,9 +6,11 @@ import http from 'node:http';
  * E9 seed (`deploy/vultr/seed/agentforge-live-chart-seed.sql`) on the local
  * dev stack: problems and allergies carry `puuid` and `pid`, medications only
  * `pid`, encounters `puuid`/`pid`/`euuid`, a coded allergy reaction is an
- * object with a readable `reaction_title`, and the document route answers 404
- * without a `path`. Every overbroad route also returns a row of another
- * patient (value `LEAKED ...`), which the adapter must drop.
+ * object with a readable `reaction_title`, and a medication's dose is only in
+ * the free-text `comments` (as the seed stores it; `lists` has no dose
+ * column). There is no document route: the adapter does not read notes
+ * (F-LIVE), so any call to one answers 404. Every overbroad route also returns
+ * a row of another patient (value `LEAKED ...`), which the adapter must drop.
  */
 export const LIVE_PATIENT = '7b3f0c52-1d4e-4c8a-9f21-5a6b7c8d9e01';
 export const LIVE_PID = 42;
@@ -28,8 +30,8 @@ function bodyFor(pathname) {
     { uuid: 'prob-leak', puuid: OTHER_PATIENT, pid: 99, title: 'LEAKED condition', begdate: '2026-01-01', enddate: null, date: '2026-01-01 09:00:00' },
   ] };
   if (pathname === `${PREFIX}${LIVE_PID}/medication`) return { data: [
-    { uuid: 'med-live-1', pid: LIVE_PID, title: 'Lisinopril', begdate: '2026-08-13', enddate: '2026-09-10', date: '2026-08-13 09:05:00' },
-    { uuid: 'med-live-2', pid: LIVE_PID, title: 'Lisinopril', begdate: '2026-09-10', enddate: null, date: '2026-09-10 09:05:00' },
+    { uuid: 'med-live-1', pid: LIVE_PID, title: 'Lisinopril', begdate: '2026-08-13', enddate: '2026-09-10', date: '2026-08-13 09:05:00', comments: '5 mg daily [seed:af-live]' },
+    { uuid: 'med-live-2', pid: LIVE_PID, title: 'Lisinopril', begdate: '2026-09-10', enddate: null, date: '2026-09-10 09:05:00', comments: '10 mg daily [seed:af-live]' },
     { uuid: 'med-leak', pid: 99, title: 'LEAKED medication', begdate: '2026-01-01', enddate: null, date: '2026-01-01 09:00:00' },
   ] };
   if (pathname === `${PREFIX}${LIVE_PATIENT}/allergy`) return { data: [

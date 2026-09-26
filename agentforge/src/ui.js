@@ -104,8 +104,9 @@ button:disabled{opacity:.6;cursor:wait}
 (() => {
   const basePath = location.pathname.startsWith('/agentforge-w2') ? '/agentforge-w2' : location.pathname.startsWith('/agentforge') ? '/agentforge' : '';
   const state = { conversationId: null, patient: null, demoToken: ${JSON.stringify(token).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026')}, writeToken: ${scriptJson(writeToken)} };
-  // E9: the launch tokens stay in memory only; strip them from the address
-  // bar and history so they are not bookmarked, shared or kept in history.
+  // E9 / F-LIVE: the server already exchanged the launch tokens (single use)
+  // for a launch session; this page holds only its handles. Strip the spent
+  // tokens from the address bar and history anyway.
   try { const launchUrl = new URL(location.href); if (launchUrl.searchParams.has('demo_token') || launchUrl.searchParams.has('write_token')) { launchUrl.searchParams.delete('demo_token'); launchUrl.searchParams.delete('write_token'); history.replaceState(null, '', launchUrl.pathname + (launchUrl.search || '') + launchUrl.hash); } } catch {}
   const chartSourceBadge = document.getElementById('chart-source');
   // Provenance comes from each response: the briefing's read operation, or the scan's chart_source.
@@ -130,7 +131,8 @@ button:disabled{opacity:.6;cursor:wait}
   const setStatus = (message, error = false) => { status.textContent = message; status.className = error ? 'status error' : 'status'; };
   const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); if (scanSampleButton) scanSampleButton.disabled = value; pdfSampleButtons.forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); }); crossPatientProbe.disabled = value; };
   // E9b: an OpenEMR list that answered empty without confirming absence.
-  const readableReason = (reason) => { const match = /^([a-z_]+):unverified_empty$/.exec(String(reason)); return match ? match[1].charAt(0).toUpperCase() + match[1].slice(1) + ' could not be confirmed from OpenEMR' : reason; };
+  // F-LIVE: a group the live adapter does not read (notes) is named, never hidden.
+  const readableReason = (reason) => { const match = /^([a-z_]+):(unverified_empty|not_requested)$/.exec(String(reason)); if (!match) return reason; const group = match[1].charAt(0).toUpperCase() + match[1].slice(1); return match[2] === 'unverified_empty' ? group + ' could not be confirmed from OpenEMR' : group + ' were not read from OpenEMR'; };
   const humanize = (value) => String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
@@ -294,7 +296,7 @@ button:disabled{opacity:.6;cursor:wait}
       // -- it is only an optional clinician question the server appends.
       const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: '' });
       const active = workflow.workflow;
-      if (workflow.chart_source) showChartSource(workflow.chart_source.chart_source, workflow.chart_source.label + (['read', 'empty'].includes(workflow.chart_source.status) ? '' : ' (' + (workflow.chart_source.reason || workflow.chart_source.status) + ')') + (workflow.chart_source.unconfirmed_groups?.length ? ' · not confirmed: ' + workflow.chart_source.unconfirmed_groups.join(', ') : ''));
+      if (workflow.chart_source) showChartSource(workflow.chart_source.chart_source, workflow.chart_source.label + (['read', 'empty'].includes(workflow.chart_source.status) ? '' : ' (' + (workflow.chart_source.reason || workflow.chart_source.status) + ')') + (workflow.chart_source.unconfirmed_groups?.length ? ' · not confirmed: ' + workflow.chart_source.unconfirmed_groups.join(', ') : '') + ((workflow.chart_source.failed_groups || []).filter((group) => !(workflow.chart_source.unconfirmed_groups || []).includes(group)).length ? ' · not read: ' + workflow.chart_source.failed_groups.filter((group) => !(workflow.chart_source.unconfirmed_groups || []).includes(group)).join(', ') : ''));
       const workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
       const guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
       setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');

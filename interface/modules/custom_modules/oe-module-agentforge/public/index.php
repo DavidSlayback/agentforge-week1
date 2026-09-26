@@ -4,7 +4,9 @@
  * "Prepare for visit" launcher: hands the logged-in OpenEMR session's patient
  * context to the AgentForge W2 service as short-lived signed tokens (issuer
  * openemr-module, authn openemr-session). The service reads the real chart
- * for these tokens only when AGENTFORGE_OPENEMR_LIVE_READS=on; see
+ * for these tokens only when AGENTFORGE_OPENEMR_LIVE_READS=on, and it
+ * exchanges them once, on the first page load, for a launch session, so a
+ * replayed link is refused (agentforge/src/launchSession.js); see
  * src/Launch/LaunchTokenMinter.php for the grant rules.
  *
  * @package   OpenEMR
@@ -90,6 +92,7 @@ $url = LaunchTokenMinter::launchUrl($serviceUrl, $readToken, $writeToken);
 <main>
 <h1><?php echo xlt('Prepare for visit'); ?></h1>
 <p><?php echo xlt('The authenticated OpenEMR patient context was handed to the AgentForge service for under five minutes. This is a designated synthetic patient.'); ?></p>
+<p><?php echo xlt('The link works once. To open AgentForge again, reload this page.'); ?></p>
 <p><?php echo $writeToken === null ? xlt('Chart reads only: uploads need document write access and an allowlisted synthetic patient.') : xlt('Chart reads and synthetic document uploads for this patient.'); ?></p>
 <a class="btn btn-primary" target="_blank" rel="noopener" href="<?php echo attr($url); ?>"><?php echo xlt('Open AgentForge briefing'); ?></a>
 </main>

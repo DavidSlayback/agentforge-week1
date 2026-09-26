@@ -279,10 +279,15 @@ SHA. Values are never printed.
    OpenEMR 8.0.0 finding below), and the badge reads "OpenEMR (live) · not
    confirmed: problems, allergies". "View source region" opens the stored
    PDF. A live briefing is qualified with "Problems could not be confirmed
-   from OpenEMR" and "Allergies could not be confirmed from OpenEMR" (and
-   `notes:failed`). `/agentforge-w2/v1/traces` shows the scan's retrieval
+   from OpenEMR" and "Allergies could not be confirmed from OpenEMR" (until
+   step 7 is done) and "Notes were not read from OpenEMR"; the scan badge
+   adds "not read: notes". Lisinopril shows "dose not available from this
+   OpenEMR route" and, separately, "Lisinopril instructions/comment: 10 mg
+   daily [seed:af-live]" (the seed's free-text `comments`). `/agentforge-w2/v1/traces` shows the scan's retrieval
    attempts with `adapter: openemr`. The public demo at `/agentforge-w2/`
-   must still say "Chart source: synthetic fixture". If the launcher says
+   must still say "Chart source: synthetic fixture". The launch link works
+   once: opening it again answers 401 "Launch link already used or
+   expired" (relaunch from the patient menu). If the launcher says
    "Chart reads only", `grader` lacks `patients/docs` write or the uuid is not
    on the write allowlist; "enabled only for designated synthetic patients"
    means the uuid is not on `AGENTFORGE_LIVE_PATIENT_UUIDS` (or `openemr`
@@ -290,9 +295,113 @@ SHA. Values are never printed.
    OpenEMR chart (synthetic patient)", and the address bar must not show the
    token after the page loads.
 
-Known gaps on the live path: medication rows carry no dose (the fact reads
-`active` or `ended <date>`), and the document route fails (500 on
-production), so the briefing is qualified with `notes:failed`.
+7. **Re-authorize the read client as a clinician** (fixes the empty
+   problem and allergy lists, which are specific to the current `admin`
+   grant; see the finding below). Needs the F-LIVE code deployed, because
+   the script ships in the `agentforge-w2` image. David signs in; the
+   operator runs the commands. Nothing prints a token or the client secret.
+   1. *Find the registered redirect URI* (read-only; no secret column):
+      ```sh
+      docker compose --env-file /opt/agentforge-week1/.env exec -T mysql \
+        sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mariadb -uroot openemr -e "SELECT client_name, redirect_uri, grant_types, is_confidential, is_enabled, scope FROM oauth_clients WHERE client_id = \"$AGENTFORGE_OPENEMR_CLIENT_ID\""'
+      ```
+      (`AGENTFORGE_OPENEMR_CLIENT_ID` from `.env`.) Use one `redirect_uri`
+      value exactly (several are separated by `|`). It does not need to
+      load: the code is read from the address bar. Do **not** use a URI
+      served by an app that redeems codes itself (for example the
+      dashboard's `/dashboard/callback`, which belongs to another client).
+      If no registered URI qualifies, stop: the client's `redirect_uri`
+      must first gain an https URI that no application redeems codes on
+      (a reviewed `UPDATE oauth_clients SET redirect_uri = …` for that
+      `client_id`; OpenEMR matches it exactly). That is an OpenEMR
+      configuration change and needs owner approval. `is_enabled` must be
+      1. The `grant_types` column (`password|refresh_token` on 2026-09-18)
+      is not checked for the code grant in this repo's OpenEMR code
+      (`ClientRepository::validateClient`); that was not verified on the
+      production 8.0.0 image, so an `unauthorized_client` error at the
+      exchange means the column must include `authorization_code`.
+   2. *Find `grader`'s `users.uuid`* (read-only), for `--expect-user-uuid`:
+      ```sh
+      docker compose --env-file /opt/agentforge-week1/.env exec -T mysql \
+        sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mariadb -uroot openemr -N -e "SELECT LOWER(INSERT(INSERT(INSERT(INSERT(HEX(uuid),9,0,\"-\"),14,0,\"-\"),19,0,\"-\"),24,0,\"-\")) FROM users WHERE username = \"grader\""'
+      ```
+   3. *Stop the service*. The running service caches the old refresh token
+      in memory and writes it back to the file on its next refresh, which
+      would overwrite the new grant:
+      `docker compose --env-file /opt/agentforge-week1/.env stop agentforge-w2`.
+      The helper refuses to run while `agentforge-w2` still answers on the
+      Docker network (`SERVICE_RUNNING`).
+   4. *Run the helper* in a one-off container with the service's env. It
+      writes atomically (temp file + rename), which cannot replace the
+      service's single-file bind mount, so mount the secrets **directory**
+      and point the cache path into it:
+      ```sh
+      docker compose --env-file /opt/agentforge-week1/.env run --rm --no-deps \
+        -v /opt/agentforge-week1/secrets:/run/agentforge-secrets \
+        -e AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH=/run/agentforge-secrets/openemr-token.json \
+        agentforge-w2 node scripts/openemr-authorize-read-client.mjs \
+        --authorize-url 'https://<canonical-host>/oauth2/default/authorize' \
+        --redirect-uri '<registered redirect URI>' \
+        --expect-user grader --expect-user-uuid '<uuid from 2>'
+      ```
+      (on production today, `<canonical-host>` is
+      `dtstest.64.177.10.182.nip.io`). `--authorize-url` is required and
+      must be the **public https** URL, because David's (phone) browser
+      opens it; it is never derived from the token URL. The code exchange
+      itself goes to the service's own `AGENTFORGE_OPENEMR_TOKEN_URL`, which
+      on production is the Docker-internal `http://openemr/...` (see
+      below). It refuses an authorize URL that is not https and any other
+      plain-http token URL, then prints the authorize URL.
+   5. *David:* open the URL, sign in on OpenEMR's OAuth login page as
+      `grader`, leave every scope ticked, click **Authorize**. The browser
+      lands on the redirect URI with `?code=…&state=…`; copy the whole
+      address and send it to the operator at once.
+   6. *Operator:* paste the whole URL at the prompt within 60 s (OpenEMR
+      codes expire after a minute; a bare code is refused because `state`
+      must be checked; on `invalid_grant`, re-run from 4). The helper
+      exchanges the code with PKCE and the client secret, then checks who
+      authorized: the id token's `sub` must equal the uuid from 2 (and its
+      `preferred_username`, if present, `grader`). It prints only
+      `Authorized user: grader match` or `MISMATCH`, and on a mismatch,
+      a missing refresh token or a missing read scope it writes nothing.
+      Otherwise it replaces `secrets/openemr-token.json` and prints the
+      file's actual mode (`0600`).
+   7. *Recreate the service* (a fresh container re-reads the new file; a
+      plain restart may keep the old bind-mounted inode):
+      `docker compose --env-file /opt/agentforge-week1/.env up -d --no-deps --force-recreate agentforge-w2`,
+      then repeat runbook steps 5 (`/ready` 200) and 6 above. With the new grant the
+      problems and allergies should appear as facts; if they still come
+      back empty the briefing stays qualified (`unverified_empty`) and the
+      finding is not about the grant.
+
+The helper requests `openid offline_access api:oemr user/patient.rs
+user/encounter.rs user/medical_problem.rs user/allergy.rs user/medication.rs`
+(`--scope` overrides it). `user/document.rs` is dropped: notes are no longer
+read. OpenEMR intersects the request with the client's registered scopes.
+
+**Token URL transport.** Production's `AGENTFORGE_OPENEMR_TOKEN_URL` is the
+Docker-internal `http://openemr/oauth2/default/token` (checked by the
+coordinator on 2026-09-26, scheme and host only). `openemr` is the Compose
+service name, so the refresh (client secret and refresh token) stays on the
+Docker bridge network and never leaves the VM. That exact origin
+(`INTERNAL_HTTP_TOKEN_ORIGIN` in `agentforge/src/openemrAdapter.js`: scheme
+http, host `openemr`, port absent or 80, no credentials) is the only
+plain-http token URL the service and the helper accept; any https URL is also
+accepted. Any other http URL (`http://evil`, `http://openemr.evil`,
+`http://openemr:8080`) is refused: live reads stay off (`/ready` 503,
+`openemr_live_reads_not_configured`) and the log names
+`AGENTFORGE_OPENEMR_TOKEN_URL (must be https)`. The `.env` examples above
+show the public https form, which also works.
+
+**Live mapping (F-LIVE).** A medication's dose reads "dose not available
+from this OpenEMR route": the route returns `lists` rows, which have no dose
+column, and does not join `lists_medication.drug_dosage_instructions`. The
+row's free-text `comments` is shown separately as "instructions/comment",
+not as a dose. Notes are not read: the document route needs a category `path`, lists one
+category, and returns rows without patient identity (500 on production
+without `path`), so `notes` is reported `not_requested`
+(`openemr_notes_route_unavailable`) and the briefing is qualified with
+`notes:not_requested`. Details in `W2_ARCHITECTURE.md` §3f.
 
 **OpenEMR 8.0.0 finding (E9b, 2026-09-26, unresolved upstream behavior).**
 Observed on production with the service's read token (user `admin`, scopes
@@ -306,7 +415,10 @@ ignored. `GET .../patient/9/allergy` (the numeric pid in the `:puuid` slot)
 returns pid 9's row, and `GET .../patient/9/medical_problem` returns 500.
 Encounters (`/patient/{uuid}/encounter`) and medications
 (`/patient/{pid}/medication`) return the patient's rows; the document route
-returns 500. AgentForge therefore treats an empty answer from the two
+returns 500. Later the same day the empty answers were narrowed to
+AgentForge's grant: the dashboard BFF gets rows from the same routes with
+`grader`'s tokens, while AgentForge's refresh token was issued to `admin` on
+2026-09-18 (step 7 re-authorizes it). AgentForge therefore treats an empty answer from the two
 patient-scoped list routes as `unverified_empty`
 (`error_class: openemr_scoped_list_empty`), not as a confirmed absence: the
 briefing is qualified ("Problems could not be confirmed from OpenEMR",

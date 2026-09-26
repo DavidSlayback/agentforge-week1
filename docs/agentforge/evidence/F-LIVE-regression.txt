@@ -1,0 +1,276 @@
+F-LIVE deliberate-regression proof (2026-09-26 17:10 CDT, code at 9959575a on branch agentforge/f-live). Each mutation is applied alone, the named tests run (node --test), and the file is reverted with git checkout. The unmutated runs pass (agentforge unit suite on 9959575a: 617 tests, 614 pass, 0 fail, 3 skipped; 50-case gate and extension suite pass. Corrected: an earlier version of this line said 624/621, a count read from a shared scratch file another lane had overwritten).
+
+=== R1: notes silent success. The notes group is reported as an empty read (a confirmed absence) instead of not_requested with its reason ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index f0262fc0..8d9b6d63 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -125,7 +125,7 @@ export class OpenEMRRestAdapter {
+       }
+     }));
+     for (const result of results) { records.push(...result.records); groups.push(result.coverage); }
+-    for (const [group, reason] of NOT_READ_GROUPS) groups.push({ group, status: 'not_requested', records: 0, attempts: 0, error_class: reason });
++    for (const [group, reason] of NOT_READ_GROUPS) groups.push({ group, status: 'empty', records: 0, attempts: 1, error_class: null });
+     return { records, coverage: groups };
+   }
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="drops other-patient rows|F-LIVE notes|normalizes records" test/openemr-rest-adapter.test.js test/live-chart-http.test.js)
+✖ live reads on: a module session reads the OpenEMR chart over REST, labels it, and drops other-patient rows (397.7282ms)
+✖ OpenEMR REST adapter uses only GET allowlisted routes and normalizes records (3.0356ms)
+✖ F-LIVE notes: never requested from OpenEMR, reported not_requested with the reason, and the briefing is qualified by it (0.6982ms)
+ℹ pass 0
+ℹ fail 3
+exit=1
+Reverted.
+
+=== R2a: medication dose ignores the lists row's comments (the only dose OpenEMR 8.0 returns on this route) ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index f0262fc0..6212f874 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -257,7 +257,7 @@ export const MEDICATION_DOSE_NOT_RECORDED = 'not recorded';
+  * preferred when a build returns one.
+  */
+ function medicationDose(record) {
+-  const text = [record.drug_dosage_instructions, record.dosage, record.dose, record.comments].map(textValue).find(Boolean);
++  const text = [record.drug_dosage_instructions, record.dosage, record.dose].map(textValue).find(Boolean);
+   return text ? text.trim() : MEDICATION_DOSE_NOT_RECORDED;
+ }
+ /**
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="drops other-patient rows|F-LIVE medication dose" test/openemr-rest-adapter.test.js test/live-chart-http.test.js)
+✖ live reads on: a module session reads the OpenEMR chart over REST, labels it, and drops other-patient rows (277.7575ms)
+✖ F-LIVE medication dose: from the row's dose field or free-text comments; "not recorded" when absent, never blank (2.5316ms)
+ℹ pass 0
+ℹ fail 2
+exit=1
+Reverted.
+
+=== R2b: a missing dose is left blank instead of "not recorded" ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index f0262fc0..3678a8ad 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -258,7 +258,7 @@ export const MEDICATION_DOSE_NOT_RECORDED = 'not recorded';
+  */
+ function medicationDose(record) {
+   const text = [record.drug_dosage_instructions, record.dosage, record.dose, record.comments].map(textValue).find(Boolean);
+-  return text ? text.trim() : MEDICATION_DOSE_NOT_RECORDED;
++  return text ? text.trim() : '';
+ }
+ /**
+  * OpenEMR `lists` rows (problems, medications) have no status column; the
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="F-LIVE medication dose" test/openemr-rest-adapter.test.js)
+✖ F-LIVE medication dose: from the row's dose field or free-text comments; "not recorded" when absent, never blank (2.3364ms)
+ℹ pass 0
+ℹ fail 1
+exit=1
+Reverted.
+
+=== R3a: launch token replay allowed. The exchange no longer refuses a launch token it has already exchanged ===
+diff --git a/agentforge/src/launchSession.js b/agentforge/src/launchSession.js
+index 3464b9c1..fe55d014 100644
+--- a/agentforge/src/launchSession.js
++++ b/agentforge/src/launchSession.js
+@@ -46,7 +46,6 @@ export class LaunchSessionStore {
+     if (!readToken || !readContext) return { status: 'invalid' };
+     const readKey = digest(readToken).toString('hex');
+     const writeKey = writeToken ? digest(writeToken).toString('hex') : null;
+-    if (this.consumed.has(readKey) || (writeKey && this.consumed.has(writeKey))) return { status: 'replayed' };
+     const expiresAtMs = Number(readContext.expires_at) * 1000;
+     const remainingMs = expiresAtMs - this.now();
+     if (!Number.isFinite(remainingMs) || remainingMs <= 0) return { status: 'expired' };
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="single-use|one exchange per launch token" test/launch-session.test.js test/live-chart-http.test.js)
+✖ launch session: one exchange per launch token; the handle needs its cookie; it ends with the token (1.9791ms)
+✖ launch token is single-use: the first load opens a launch session, a replayed launch link or token is refused (303.1053ms)
+ℹ pass 0
+ℹ fail 2
+exit=1
+Reverted.
+
+=== R3b: the API accepts an OpenEMR launch token directly, bypassing the one-time exchange ===
+diff --git a/agentforge/src/server.js b/agentforge/src/server.js
+index 003dcdef..28803e7a 100644
+--- a/agentforge/src/server.js
++++ b/agentforge/src/server.js
+@@ -300,7 +300,7 @@ const launchSessions = new LaunchSessionStore();
+ const requestContext = (token, req) => {
+   if (LaunchSessionStore.isHandle(token)) return launchSessions.resolve(token, req.headers.cookie);
+   const payload = verifyContextToken(token);
+-  return payload && payload.issuer === 'openemr-module' ? null : payload;
++  return payload;
+ };
+ const LAUNCH_REFUSED_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>AgentForge</title></head><body><main><h1>Launch link already used or expired</h1><p>An AgentForge launch link works once. Open AgentForge again from the OpenEMR patient chart ("Prepare for visit").</p></main></body></html>';
+ const syntheticWritebackEnabled = () => Boolean(writeback && typeof writeback.persistSourceDocument === 'function');
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="single-use" test/live-chart-http.test.js)
+✖ launch token is single-use: the first load opens a launch session, a replayed launch link or token is refused (386.3616ms)
+ℹ pass 0
+ℹ fail 1
+exit=1
+Reverted.
+
+=== R4: the re-authorization helper does not send the PKCE verifier ===
+diff --git a/agentforge/scripts/openemr-authorize-read-client.mjs b/agentforge/scripts/openemr-authorize-read-client.mjs
+index b46dbd75..7bdce8fb 100644
+--- a/agentforge/scripts/openemr-authorize-read-client.mjs
++++ b/agentforge/scripts/openemr-authorize-read-client.mjs
+@@ -87,7 +87,7 @@ export function parseRedirectInput(input, { expectedState, redirectUri }) {
+ 
+ /** Exchange the code at the token endpoint (client_secret_post, as the refresh provider authenticates). */
+ export async function exchangeCode({ tokenUrl, clientId, clientSecret, redirectUri, code, verifier, fetchImpl = globalThis.fetch, timeoutMs = 15000 }) {
+-  const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret, code_verifier: verifier });
++  const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret });
+   const response = await fetchImpl(tokenUrl, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' }, body: body.toString(), signal: AbortSignal.timeout(timeoutMs) });
+   let payload = {};
+   try { payload = await response.json(); } catch { payload = {}; }
+
+$ (cd agentforge && node --test --test-concurrency=1 test/openemr-authorize-read-client.test.js)
+✔ PKCE: an S256 challenge of a 43-character verifier (RFC 7636 appendix B vector) (1.2911ms)
+✔ authorize URL: code flow with S256, state, the exact redirect URI and the read scopes (1.1376ms)
+✔ pasted redirect: state must match, errors and foreign URLs are refused, a bare code is accepted unchecked (0.3606ms)
+✖ exchange: writes the provider cache format (mode 0600) and prints no token, code, verifier or secret (6.3643ms)
+✖ exchange refused or incomplete grant: nothing is written (4.6998ms)
+ℹ pass 3
+ℹ fail 2
+exit=1
+Reverted.
+
+After all reverts, git status --short prints: (nothing)
+
+=== ROUND 2 === F-LIVE security review follow-ups, deliberate-regression proof (2026-09-26 17:23 CDT, code at 187f0488 on branch agentforge/f-live). Each mutation is applied alone, the named tests run (node --test), and the file is reverted with git checkout. The unmutated runs pass (agentforge unit suite on 187f0488: 623 tests, 620 pass, 0 fail, 3 skipped; 50-case gate and extension suite pass).
+
+=== R5: fix 2 removed: the helper writes the cache without checking who authorized (an admin grant is accepted as grader) ===
+diff --git a/agentforge/scripts/openemr-authorize-read-client.mjs b/agentforge/scripts/openemr-authorize-read-client.mjs
+index 42ea2419..bf3a4c3d 100644
+--- a/agentforge/scripts/openemr-authorize-read-client.mjs
++++ b/agentforge/scripts/openemr-authorize-read-client.mjs
+@@ -220,7 +220,6 @@ export async function runAuthorization({ env = process.env, argv = [], prompt, l
+   const cache = tokenCacheFrom(response, { now });
+   const user = authorizedUserMatches(response, { expectUser, expectUserUuid });
+   log(`Authorized user: ${expectUser} ${user.match ? 'match' : `MISMATCH (${user.reason})`}`);
+-  if (!user.match) throw new Error(`AUTHORIZED_USER_MISMATCH: the grant is not ${expectUser}'s; nothing written`);
+   const mode = await writeTokenCache(cachePath, cache, { random });
+   log(`Wrote the token cache ${cachePath} (mode ${mode}).`);
+   log(`Granted scopes: ${cache.scope}`);
+
+$ (cd agentforge && node --test --test-concurrency=1 test/openemr-authorize-read-client.test.js)
+✔ PKCE: an S256 challenge of a 43-character verifier (RFC 7636 appendix B vector) (0.9947ms)
+✔ authorize URL: https only; code flow with S256, state, the exact redirect URI and the read scopes (1.0461ms)
+✔ pasted redirect: state must match; errors, foreign URLs and bare codes are refused (0.3429ms)
+✔ who authorized: sub must be the expected users.uuid, and preferred_username (when present) the expected username (0.2823ms)
+✔ exchange as the expected user: writes the provider cache atomically (0600) and prints no token, code, verifier, uuid or secret (8.5719ms)
+✖ another user authorized (admin instead of grader), or no id token: refused, nothing written (3.6663ms)
+✔ refusals before anything is sent: http token URL, running service, missing or malformed expected user (2.6761ms)
+✔ exchange refused or incomplete grant: nothing is written (3.6674ms)
+✔ atomic write: a rename that fails (a single-file bind mount) leaves the old cache and no temp file (7.8589ms)
+ℹ pass 8
+ℹ fail 1
+exit=1
+Reverted.
+
+=== R6: fix 4 removed: free-text comments are read as the dose again ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index 5107a6cd..ec929efe 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -276,7 +276,7 @@ function mapMedication(record, index) {
+ export const MEDICATION_DOSE_UNAVAILABLE = 'dose not available from this OpenEMR route';
+ /** A dose-specific field when a build returns one; otherwise say the route has none. */
+ function medicationDose(record) {
+-  const text = [record.drug_dosage_instructions, record.dosage, record.dose].map(textValue).find(Boolean);
++  const text = [record.drug_dosage_instructions, record.dosage, record.dose, record.comments].map(textValue).find(Boolean);
+   return text ? text.trim() : MEDICATION_DOSE_UNAVAILABLE;
+ }
+ /**
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="drops other-patient rows|F-LIVE medication dose" test/openemr-rest-adapter.test.js test/live-chart-http.test.js)
+✖ live reads on: a module session reads the OpenEMR chart over REST, labels it, and drops other-patient rows (295.4991ms)
+✖ F-LIVE medication dose: a dose field when the row has one, else "dose not available from this OpenEMR route"; free-text comments are an instructions/comment fact, never a dose (2.2248ms)
+ℹ pass 0
+ℹ fail 2
+exit=1
+Reverted.
+
+=== R7: fix 1 removed: the refresh provider sends the client secret over a plain-http token URL ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index 5107a6cd..cb02bcf9 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -171,7 +171,7 @@ export class OpenEMRRestAdapter {
+  */
+ export function tokenUrlIssue(tokenUrl) {
+   try {
+-    return new URL(tokenUrl).protocol === 'https:' ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
++    new URL(tokenUrl); return null;
+   } catch {
+     return 'OPENEMR_TOKEN_URL_INVALID';
+   }
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="F-LIVE token URL|plain-http" test/openemr-rest-adapter.test.js test/live-chart-http.test.js)
+✖ live reads on with a plain-http OpenEMR token URL: refused like a missing setting (/ready 503, live requests refused), never sent (249.072ms)
+✖ F-LIVE token URL: the refresh provider sends the client secret and refresh token over https only (1.1866ms)
+ℹ pass 0
+ℹ fail 2
+exit=1
+Reverted.
+
+After all reverts, git status --short prints: (nothing)
+Note: round 1's R2a tested the 9959575a behavior (comments read as the dose), which fix 4 reverses; R6 replaces it. R2b's "not recorded" wording is now "dose not available from this OpenEMR route".
+
+=== ROUND 3 === Docker-internal http://openemr token endpoint, deliberate-regression proof (2026-09-26 17:31 CDT, code at c7a55185 on branch agentforge/f-live). Each mutation is applied alone, the named tests run (node --test), and the file is reverted with git checkout. The unmutated runs pass (pre-commit hook on c7a55185: agentforge unit suite 624 tests, 621 pass, 0 fail, 3 skipped; 50-case gate and extension suite pass).
+
+=== R8: the Docker-internal exception removed: production’s http://openemr token URL is refused again (the break the coordinator found) ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index 7918058d..6926c844 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -183,7 +183,7 @@ export function tokenUrlIssue(tokenUrl) {
+   if (url.username || url.password) return 'OPENEMR_TOKEN_URL_INVALID';
+   if (url.protocol === 'https:') return null;
+   // WHATWG URL drops the default port, so `http://openemr:80` has origin `http://openemr` too.
+-  return url.origin === INTERNAL_HTTP_TOKEN_ORIGIN ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
++  return 'OPENEMR_TOKEN_URL_NOT_HTTPS';
+ }
+ 
+ /** Cache and refresh OAuth credentials used only for GET chart reads. */
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="token URL|URLs:|exchange as the expected user|Docker-internal" test/openemr-rest-adapter.test.js test/openemr-authorize-read-client.test.js test/live-chart-http.test.js)
+✔ live reads on with a plain-http OpenEMR token URL other than the Docker-internal http://openemr: refused like a missing setting (/ready 503, live requests refused), never sent (254.6554ms)
+✖ live reads on with production's Docker-internal token URL (http://openemr): accepted as configured, not refused as insecure (166.4632ms)
+✖ URLs: the authorize URL is https only (the browser opens it); the token URL is https or exactly the Docker-internal http://openemr (0.9844ms)
+✖ exchange as the expected user: writes the provider cache atomically (0600) and prints no token, code, verifier, uuid or secret (4.7976ms)
+✖ refusals before anything is sent: http token URL, running service, missing or malformed expected user (2.5745ms)
+✖ F-LIVE token URL: the refresh provider sends the client secret and refresh token over https or the Docker-internal http://openemr only (1.2442ms)
+ℹ pass 1
+ℹ fail 5
+exit=1
+Reverted.
+
+=== R9: the exception widened to any host named openemr on any port (http://openemr:8080 accepted) ===
+diff --git a/agentforge/src/openemrAdapter.js b/agentforge/src/openemrAdapter.js
+index 7918058d..f6451456 100644
+--- a/agentforge/src/openemrAdapter.js
++++ b/agentforge/src/openemrAdapter.js
+@@ -183,7 +183,7 @@ export function tokenUrlIssue(tokenUrl) {
+   if (url.username || url.password) return 'OPENEMR_TOKEN_URL_INVALID';
+   if (url.protocol === 'https:') return null;
+   // WHATWG URL drops the default port, so `http://openemr:80` has origin `http://openemr` too.
+-  return url.origin === INTERNAL_HTTP_TOKEN_ORIGIN ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
++  return url.hostname === 'openemr' ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
+ }
+ 
+ /** Cache and refresh OAuth credentials used only for GET chart reads. */
+
+$ (cd agentforge && node --test --test-concurrency=1 --test-name-pattern="token URL|URLs:|refusals before anything" test/openemr-rest-adapter.test.js test/openemr-authorize-read-client.test.js)
+✖ URLs: the authorize URL is https only (the browser opens it); the token URL is https or exactly the Docker-internal http://openemr (1.3835ms)
+✖ refusals before anything is sent: http token URL, running service, missing or malformed expected user (7.1179ms)
+✖ F-LIVE token URL: the refresh provider sends the client secret and refresh token over https or the Docker-internal http://openemr only (1.2538ms)
+ℹ pass 0
+ℹ fail 3
+exit=1
+Reverted.
+
+After all reverts, git status --short prints: (nothing)

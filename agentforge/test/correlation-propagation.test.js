@@ -44,7 +44,7 @@ async function buildStack() {
   const cachePath = path.join(cacheDir, 'token.json');
   fs.writeFileSync(cachePath, JSON.stringify({ access_token: 'expired', refresh_token: 'synthetic-refresh', expires_at: 0 }));
   const tokenProvider = new OpenEMRRefreshTokenProvider({
-    tokenUrl: 'http://openemr.test/oauth2/default/token', clientId: 'client', clientSecret: 'client-secret', cachePath,
+    tokenUrl: 'https://openemr.test/oauth2/default/token', clientId: 'client', clientSecret: 'client-secret', cachePath,
     fetchImpl: async (url, options) => { record('oauth_refresh', headerId(options)); return { ok: true, status: 200, async json() { return { access_token: 'synthetic-token', expires_in: 3600 }; } }; },
   });
   const restFetch = fakeOpenEMRRestFetch();
@@ -118,7 +118,7 @@ test('a failed token refresh carries the request id', async () => {
   try {
     const cachePath = path.join(dir, 'token.json');
     fs.writeFileSync(cachePath, JSON.stringify({ access_token: 'expired', refresh_token: 'synthetic-refresh', expires_at: 0 }));
-    const provider = new OpenEMRRefreshTokenProvider({ tokenUrl: 'http://openemr.test/token', clientId: 'c', clientSecret: 's', cachePath, fetchImpl: async () => ({ ok: false, status: 400, async json() { return {}; } }) });
+    const provider = new OpenEMRRefreshTokenProvider({ tokenUrl: 'https://openemr.test/token', clientId: 'c', clientSecret: 's', cachePath, fetchImpl: async () => ({ ok: false, status: 400, async json() { return {}; } }) });
     await assert.rejects(provider.getAccessToken({ correlationId: REQUEST_ID }), (error) => error.code === 'OPENEMR_TOKEN_HTTP_400' && error.correlationId === REQUEST_ID);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
