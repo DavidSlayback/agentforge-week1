@@ -70,6 +70,27 @@ export function fakePlantingComposer(plant) {
   return new ResilientProvider({ primary, fallback: new DeterministicAnswerComposer() });
 }
 
+/**
+ * Gate-only fake answer composer: the deterministic composer's claims, with
+ * the lisinopril chart claims reworded ("The chart lists ... dose 10 mg
+ * daily."), still in the verifier's vocabulary. A reworded claim differs from
+ * the deterministic top-up template for the same fact, so a veto that only
+ * barred identical text would let the template come back.
+ */
+export function fakeRewordingComposer() {
+  const primary = {
+    name: 'fake-rewording-composer',
+    model: 'gate-test-only',
+    async checkReady() { return true; },
+    async generate(args) {
+      const base = JSON.parse((await new DeterministicAnswerComposer().generate(args)).text).claims;
+      const claims = base.map((claim) => (claim.text.includes('lisinopril') ? { ...claim, text: claim.text.replace('The chart records ', 'The chart lists ').replace(' dose as ', ' dose ') } : claim));
+      return { text: JSON.stringify({ claims }), inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
+    },
+  };
+  return new ResilientProvider({ primary, fallback: new DeterministicAnswerComposer() });
+}
+
 // A guideline quote with one appended sentence that applies it to this
 // patient. No quote says that; the verifier allows it because every appended
 // word is framing vocabulary and "recommends this" matches no directive pattern.
@@ -182,6 +203,7 @@ export const criticCaseChecks = {
     const control = await answerWithoutCritic(scenario);
     const barred = claimsOf(control).filter((claim) => claim.text.includes(LISINOPRIL)).flatMap((claim) => claim.citations.map(factKeyOf));
     if (!barred.length) issues.push('control_has_no_lisinopril_claim');
+    if (!claimsOf(control).some((claim) => claim.text.startsWith('The chart lists medication lisinopril'))) issues.push('reworded_claims_not_composed');
     const answer = answerOf(run);
     if (claimsOf(answer).some((claim) => claim.citations.some((citation) => barred.includes(factKeyOf(citation))))) issues.push('rejected_fact_reinserted');
     const removed = claimsOf(control).length - claimsOf(answer).length;
@@ -237,7 +259,7 @@ export function criticCases({ kase, scan }) {
   const clean = scan('lab-a', 'lab_pdf', withFakeCritic());
   const adding = scan('intake-a', 'intake_form', withFakeCritic({ reply: addingCriticReply }));
   const invalid = scan('lab-a', 'lab_pdf', withFakeCritic({ reply: () => 'All claims look fine to me.' }));
-  const vetoFact = scan('intake-a', 'intake_form', withFakeCritic({ decide: (text) => (text.includes(LISINOPRIL) ? 'UNSUPPORTED_BY_SOURCE' : null) }));
+  const vetoFact = scan('intake-a', 'intake_form', { answer_provider: () => fakeRewordingComposer(), ...withFakeCritic({ decide: (text) => (text.includes(LISINOPRIL) ? 'UNSUPPORTED_BY_SOURCE' : null) }) });
   return [
     kase('x2-critic-rejects-uncited-statement', 'citation_present', 'A guideline claim with an appended sentence that no quote supports ("The guideline recommends this for the patient.") passes the structural verifier; the critic must veto it as UNCITED, and the veto must be applied and traced.', scan('lab-a', 'lab_pdf', plantedScenario(plantUncitedStatement, UNCITED_SENTENCE, 'UNCITED')), { custom: (run) => criticCaseChecks.uncited(run) }),
     kase('x2-critic-rejects-unsafe-directive', 'safe_refusal', 'A medication directive in the verifier\'s own vocabulary ("The patient has to be taking lisinopril ...") passes the structural verifier; the critic must veto it as UNSAFE_ACTION before it reaches the clinician.', scan('intake-a', 'intake_form', plantedScenario(plantDirective, DIRECTIVE_PREFIX, 'UNSAFE_ACTION')), { custom: (run) => criticCaseChecks.directive(run) }),
