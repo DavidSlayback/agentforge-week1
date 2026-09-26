@@ -135,7 +135,7 @@ function Landing({
       {session.demoPatients.length > 0 ? (
         <>
           <h3>Demo patients (configured)</h3>
-          <ul>
+          <ul className="demo-patients">
             {session.demoPatients.map((p) => (
               <li key={p.patientId}>
                 <a

@@ -45,6 +45,13 @@ npm test --silent --prefix agentforge
 npm test --silent --prefix evals
 node --test observability/test/*.test.js >/dev/null
 
+# deploy/vultr/deploy.sh: offline tests with fake ssh/docker/curl (keepalives,
+# build before replace, detached build that survives a dropped session, SHA
+# health loop). Mirrored by the deploy-script job in .gitlab-ci.yml.
+echo "AgentForge gate: deploy.sh offline tests..."
+deploy_tests=$(sh deploy/vultr/test/deploy.test.sh 2>&1) || { printf '%s\n' "$deploy_tests" >&2; exit 1; }
+printf '%s\n' "$deploy_tests" | tail -n 1
+
 # Patient dashboard port (dashboard/): typecheck, lint, unit/contract/BFF/
 # component tests and the SPA build with its bundle budget. Mirrored by the
 # dashboard-check job in .gitlab-ci.yml.

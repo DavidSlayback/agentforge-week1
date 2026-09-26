@@ -6,7 +6,8 @@ were observed on the public URL on `f8d7bdf`, `2246417` and `7b49460`
 ([`../VERIFICATION.md`](../VERIFICATION.md), "Observed live"). Slice 01-06-04
 (requirement hardening) is on branch `agentforge/w2-dashboard`: wired and
 tested, not merged, deployed or observed. Slice 01-06-03 (the freeze) is not
-done. The manual keyboard and screen-reader pass is still open. ·
+done. The real-browser axe and keyboard pass ran on 2026-09-26 (local, headless Chromium;
+[`../evidence/a11y/`](../evidence/a11y/README.md)); a human screen-reader pass is still open. ·
 **Planned as:** **Depends on:** HD-1…HD-8 in
 [`../MIGRATION-REACT.md`](../MIGRATION-REACT.md) §15 (per slice below) ·
 **Estimated:** about 18.5 h of work, Fri 2026-09-25 evening → Sun 2026-09-27
@@ -616,7 +617,7 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 
 ### Slice 01-06-01 — Parity evidence and hardening
 
-- [x] **Merged** (evidence on `main`) · [ ] **Complete**: the manual keyboard and screen-reader pass is still open. The error-state drills were done as tests in slice 01-06-04 (below)
+- [x] **Merged** (evidence on `main`) · [ ] **Complete**: a human screen-reader pass is still open. The keyboard pass was done as a scripted real-browser walk on 2026-09-26 (below). The error-state drills were done as tests in slice 01-06-04 (below)
 - **Time box:** 1.5 h, Sat 20:00–21:30. Window 2 runs at the start: David
   signs in and the card checklists for 01-02-02 … 01-05-01 are ticked.
 - **Goal**
@@ -625,7 +626,14 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   - Error-state drills through the BFF: 401 (expired or revoked token), 403
     (a card-level deny), 200 with errors (hand-built through the contract
     tests), and 404-empty.
-  - A manual keyboard and screen-reader pass.
+  - A manual keyboard and screen-reader pass. **Keyboard part done 2026-09-26, scripted, not by
+    hand:** headless Chromium on the local stack, with axe-core (color contrast included), a Tab and
+    Shift+Tab walk, and 390 px, 320 px, 200 % and 400 % zoom checks for DASH-SYN-01, DASH-SYN-02 and
+    pid 3 ([`../evidence/a11y/README.md`](../evidence/a11y/README.md)). It found five issues, each
+    fixed with a test: sign-out 403 in Chromium (K-1), unnamed scroll regions (K-2), the sticky bar
+    at 400 % zoom (Z-1), a guessed scroll padding (K-3) and demo-link target size (A-1). Deliberate
+    regressions for K-1 and K-2 were refused by the hook (`../evidence/a11y/regression.txt`). **The
+    screen-reader part is still open** (human).
   - Timing: time-to-header and time-to-all-cards, compared with the legacy
     3.3–5.2 s network-idle (7.08).
   - The production config check for `api_log_option` (6.06).

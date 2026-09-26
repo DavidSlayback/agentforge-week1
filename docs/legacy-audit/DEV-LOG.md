@@ -617,3 +617,176 @@ observed.**
 - The manual keyboard and screen-reader pass. The new card-body horizontal
   scroll regions hold no focusable content; Chrome makes such scrollers
   keyboard-focusable, but this has not been checked by hand.
+
+## 2026-09-26 ~06:55 CT — slice 01-06-04 deployed (a800e97) after a deploy-session reset
+
+The SSH connection dropped mid-build and the dashboard was down for about 10 minutes (other services unaffected). Recovered by restarting the previous container, then building detached on the VM. Production reports `a800e97`; the v2 OAuth client (adds `user/MedicationRequest.rs`) is live and the old client is disabled. Awaiting David's observation on this SHA.
+
+## 2026-09-26 ~07:40 CT — real-browser accessibility pass (local), five fixes (branch `agentforge/w2-dashboard`, not merged)
+
+Owner-authorized pre-freeze work. Everything ran on the **local** stack with
+synthetic patients. Status: **fixes wired and tested on the branch; not merged,
+deployed or observed on the public URL.**
+
+### Worked on
+- **Local OAuth client v2.** The local client lacked `user/MedicationRequest.rs`.
+  A new confidential client, "AgentForge Dashboard (local dev v2)", was
+  registered on the local OpenEMR with the full `OAUTH_SCOPE` and enabled
+  with `UPDATE oauth_clients SET is_enabled=1`, on the local DB only.
+  - Its id and secret went into the gitignored `dashboard/.env.local`; they
+    were never printed.
+  - The old local client is still enabled, because another checkout may use it.
+- **The pass.** `docs/legacy-audit/evidence/a11y/a11y-audit.mjs` drives
+  headless Chromium 141 through the UI only, for DASH-SYN-01, DASH-SYN-02
+  and pid 3. It signs in through OpenEMR's login with the documented local
+  dev login, read at runtime and never printed. It covers:
+  - axe-core 4.13, WCAG 2.2 AA plus best-practice, color-contrast included;
+  - a Tab and Shift+Tab walk, recording focus visibility and any overlap
+    with the sticky bar;
+  - 390 px, 320 x 568, 200 % zoom and 400 % zoom (zoom emulated as a
+    CSS-pixel viewport);
+  - sign-out by keyboard.
+
+  Before and after JSON, screenshots and the findings are in
+  `evidence/a11y/README.md`.
+- **Findings, each fixed with a test:**
+  - **K-1, blocker: sign-out answered 403.** Under
+    `Referrer-Policy: no-referrer`, Chromium sends `Origin: null` on the
+    same-origin form POST, and the logout Origin check refuses it.
+    - Fix: `strict-origin` in the header and the SPA meta tag (`f8c5ad7`).
+    - Test: `test/bff/security.test.ts`.
+    - Production (`a800e97`) likely has the same bug for Chromium users.
+      David's phone sign-out succeeded, so his browser probably sent a real
+      Origin. Not checked on the public URL.
+  - **K-2: card bodies that scroll sideways were unnamed tab stops.**
+    - Fix: while a body overflows it becomes `tabindex=0`,
+      `role=region` and `aria-label="<card>, scrolls sideways"`.
+  - **Z-1: at 400 % zoom (320 x 180) the sticky bar covered 70-86 % of the
+    viewport.**
+    - Fix: it is static on viewports 20 rem tall or less.
+  - **K-3: the scroll padding (9 rem) was smaller than the bar at 320 px
+    (155 px).**
+    - Fix: the bar measures itself and sets `--sticky-header-offset`.
+  - **A-1: demo links failed `target-size` (21 px).**
+    - Fix: at least 24 px tall, spaced.
+
+  K-2, Z-1, K-3 and A-1 are in `66260cd`, with tests in
+  `test/web/A11y.test.tsx`.
+- **After, on `66260cd`:** 0 axe violations on all five pages, all controls
+  reached, a focus indicator at every stop, nothing obscured, no horizontal
+  page scroll, and keyboard sign-out returns 303 and reaches the signed-out
+  landing page.
+- **Docs.** `MIGRATION-REACT.md` (the referrer policy), `dashboard/README.md`,
+  `PATIENT_DASHBOARD_MIGRATION.md` §1 and the arc (01-06-01).
+
+### Tests
+- The gate has 335 tests in 34 files (328 before).
+- Deliberate regressions went through the hook and were refused, then reverted
+  (`evidence/a11y/regression.txt`):
+  - K-1: the policy put back to `no-referrer` gave 2 red.
+  - K-2: dropping the region's tab stop and role gave 1 red.
+
+### Open
+- A human screen-reader pass (NVDA/JAWS, VoiceOver), and keyboard passes in
+  Firefox and Safari.
+- Real browser zoom and forced colors.
+- Merge, deploy and observe. First confirm K-1 on the public URL with a
+  Chromium browser.
+- Local dev note: a second, stale `npm run dev` tree from an earlier session
+  held port 8790 and won the BFF restart race. It served a stale SPA and the
+  old client. Both dev trees were stopped, and one clean server was run for
+  the recorded runs.
+
+## 2026-09-26 ~07:50 CT — `deploy.sh` hardened after the SSH-reset incident (branch `agentforge/w2-dashboard`, not merged)
+
+Follow-up to the `a800e97` deploy incident above: the SSH session reset during
+`up -d --build`, and the dashboard container was left removed, giving about
+10 minutes of 502. Status: **wired and tested offline; not yet used for a real
+deploy.**
+
+### Worked on
+- **Keepalives.** `deploy/vultr/deploy.sh` routes every SSH call through
+  `ssh_run`, including the `git archive | tar` pipe and the polls. It now
+  passes `ServerAliveInterval=15`, `ServerAliveCountMax=8` and
+  `ConnectTimeout=20`.
+- **Build first, then replace.** A runner script on the VM runs
+  `docker compose build <services>`, then `up -d --no-deps <services>` only if
+  every build succeeded. `up --build` is gone, so a failed build no longer
+  touches the running containers.
+- **Detached from SSH.**
+  - The runner starts under `setsid nohup` (plain `nohup` without `setsid`).
+    It writes to `/tmp/agentforge-deploy-<stamp>/build.log` and records its
+    status atomically in `exit`.
+  - The laptop polls every 10 s with short SSH calls. A failed launch call
+    and up to 29 failed polls in a row are tolerated.
+  - The deploy fails if the runner never starts (3 polls), after 30 failed
+    polls, after 40 min, or on a non-zero status. It then prints the last 40
+    log lines.
+  - A run directory is never reused (`mkdir`, not `mkdir -p`), so an old
+    exit marker cannot pass for a new run.
+- **Unchanged.** The success criterion is still the SHA health loop. The
+  clean-tree and `staging/main` checks, the backup, the Caddy recreate and
+  the module readability check are also unchanged.
+- **Test seams** (env, with the production defaults unchanged):
+  `AGENTFORGE_DEPLOY_ROOT`, `_REMOTE_TMP`, `_POLL_SECONDS`,
+  `_BUILD_TIMEOUT_SECONDS` and `_HEALTH_SLEEP_SECONDS`.
+- **Docs.** `deploy/vultr/README.md` has a new section, "What `deploy.sh`
+  does".
+
+### Tests
+- New `deploy/vultr/test/deploy.test.sh`, about 20 s on Windows Git Bash.
+  - Fake `ssh`, `sudo`, `docker` and `curl` run the remote side locally,
+    against a throwaway repo whose `staging` remote is a local bare repo.
+  - 8 checks: the happy path; keepalives on every SSH call; build before
+    `up --no-deps` and never `--build`; a detached runner with a log and an
+    exit marker; a dropped launch session plus 3 failed polls still
+    succeeding; a failed build replacing nothing and failing; a never-started
+    build failing; a wrong SHA failing.
+- It is added to `.githooks/pre-commit` and mirrored as the `deploy-script`
+  job in `.gitlab-ci.yml` (alpine, with `git` and `coreutils`). The CI job has
+  never run, because the project has no runner.
+- **Deliberate regressions**, none committed:
+  - dropping the keepalive options gave 1 red, run by hand. It was then
+    committed through the hook, which refused it (exit 1, HEAD unchanged at
+    `b3a3b91`), and reverted;
+  - putting back the old attached `up -d --build` step gave 5 red, run by
+    hand.
+- `sh -n deploy/vultr/deploy.sh` passes. shellcheck is not installed here, so
+  the script was reviewed by hand:
+  - the remote command strings and `$services` are deliberately expanded on
+    the client side (SC2029, SC2086);
+  - every path in them is space-free;
+  - the runner here-doc escapes the runtime `$` it needs;
+  - every polled SSH call sits in an `if`, so `set -e` cannot abort on a
+    dropped session.
+
+### Incident while doing this (fixed)
+- **What happened.** The first commit attempt ran the new test inside
+  `.githooks/pre-commit`. Git had exported `GIT_DIR` and `GIT_INDEX_FILE`
+  for the real repository, so the test's throwaway `git init` reinitialized
+  the real shared git dir.
+- **Damage.** It set `core.bare = true` in
+  `C:/Users/david/repos/agentforge-week1/.git/config`. That config is shared
+  by the main checkout and every worktree, so git commands in the checkouts
+  failed ("must be run in a work tree"). The test's next git command failed
+  on the same error and the test stopped, so nothing else ran.
+- **Repair.** `core.bare` was set back to `false`, a few minutes later. The
+  main checkout is back on `agentforge/w2-final`. The staged files in this
+  worktree were intact.
+- **Not known.** The prior `core.repositoryformatversion` was not recorded.
+  It is 0 now, which works with the `worktreeConfig` extension the Codex
+  worktrees use.
+- **Prevention.** The test now unsets every `git rev-parse --local-env-vars`
+  variable. It builds the throwaway repo with explicit `--git-dir` and
+  `--work-tree`, and refuses to run unless plain `git` in that directory
+  resolves to it. Checked with `GIT_DIR` and `GIT_INDEX_FILE` pointing at a
+  decoy repository: all 8 checks pass and the decoy's config is byte-identical
+  afterwards.
+
+### Open
+- The first real deploy with this script is the first observation that
+  `setsid`/`nohup` survive an SSH reset on the VM. The offline test cannot
+  show it.
+- Check that `docker compose build agentforge` on the frozen, image-only W1
+  service is a no-op there, as it is designed to be. It ships only when named
+  explicitly.

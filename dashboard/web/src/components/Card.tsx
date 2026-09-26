@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { GapNote } from '../../../core/cardResult.ts';
 import type { CardState } from '../useCard.ts';
 import { NonDataState } from './States.tsx';
@@ -25,6 +25,35 @@ function writeCollapsed(id: string, collapsed: boolean): void {
   } catch {
     // Not persisted; the toggle still works for this page view.
   }
+}
+
+/**
+ * Whether the element is wider inside than out (a wide table on a phone or at high zoom).
+ * Re-checked when the element resizes, and after every render of the card (new rows).
+ */
+function useHorizontalOverflow(ref: RefObject<HTMLElement | null>, deps: readonly unknown[]): boolean {
+  const [overflowing, setOverflowing] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const check = (): void => {
+      setOverflowing(el.scrollWidth > el.clientWidth + 1);
+    };
+    check();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', check);
+      return () => {
+        window.removeEventListener('resize', check);
+      };
+    }
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run when the card's content changes
+  }, deps);
+  return overflowing;
 }
 
 export interface CardProps<T> {
@@ -67,6 +96,11 @@ export function Card<T>({ id, title, state, renderRows, source, emptyText }: Car
   };
   const headingId = `card-${id}-title`;
   const bodyId = `card-${id}-body`;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // A card body that scrolls sideways (Prescriptions, Care Team or Vitals on a phone or at 400 % zoom)
+  // must be reachable and named for keyboard and screen-reader users (WCAG 2.1.1, 4.1.2). Chrome makes
+  // such scrollers focusable on its own, but unnamed; Safari does not make them focusable at all.
+  const scrolls = useHorizontalOverflow(bodyRef, [state, collapsed]);
   return (
     <section className="card" aria-labelledby={headingId} data-card={id} data-state={state.kind}>
       <div className="card-head">
@@ -77,7 +111,16 @@ export function Card<T>({ id, title, state, renderRows, source, emptyText }: Car
         </button>
       </div>
       {source ? <p className="card-source">{source}</p> : null}
-      <div id={bodyId} className="card-body" hidden={collapsed}>
+      <div
+        id={bodyId}
+        ref={bodyRef}
+        className="card-body"
+        hidden={collapsed}
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region must be focusable to be scrolled by keyboard (axe scrollable-region-focusable); only while it overflows
+        tabIndex={scrolls ? 0 : undefined}
+        role={scrolls ? 'region' : undefined}
+        aria-label={scrolls ? `${title}, scrolls sideways` : undefined}
+      >
         {state.kind === 'ok' ? (
           <>
             {renderRows(state.rows)}

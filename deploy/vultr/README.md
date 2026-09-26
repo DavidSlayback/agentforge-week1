@@ -16,6 +16,48 @@ tag `agentforge-w1:84f232b`, taken from the running W1 container, and has no
 from Week 2 sources. `deploy.sh` ships only `agentforge-w2` by default. To
 change W1 deliberately, build and tag a new image and update the `image:` line.
 
+## What `deploy.sh` does
+
+1. **Refuses** a dirty tree, or a commit not on `staging/main` unless
+   `AGENTFORGE_DEPLOY_ALLOW_UNMERGED=1`.
+2. **Backs up** the current sources on the VM to
+   `~/agentforge-week1-backups/<stamp>/`.
+3. **Ships** the committed tree with `git archive`.
+4. **Fixes** the module's permissions.
+5. **Recreates** the proxy if the Caddyfile changed.
+6. **Builds and replaces** the named services. This step is hardened against
+   the 2026-09-26 incident, in which the SSH session reset during
+   `up -d --build` and left the dashboard container removed, with about
+   10 minutes of 502:
+   - **Build first, then replace.** A runner on the VM runs
+     `docker compose build <services>`, then `up -d --no-deps <services>` only
+     if every build succeeded. A failed build leaves the running containers
+     untouched and fails the deploy.
+   - **Detached from SSH.** The runner starts under `setsid nohup` (plain
+     `nohup` if `setsid` is missing). Its log, exit marker and script live in
+     `/tmp/agentforge-deploy-<stamp>/` (`build.log`, `exit`, `build.sh`).
+     `deploy.sh` polls it every 10 s with short SSH calls. A dropped session,
+     a failed launch call, or up to 29 failed status checks in a row do not
+     stop the build. The deploy fails if:
+     - the runner never started;
+     - 30 checks in a row fail;
+     - the build is still running after 40 min;
+     - the runner reports a non-zero status. `deploy.sh` then prints the log's
+       last 40 lines.
+   - **Keepalives.** Every SSH call uses `ServerAliveInterval=15`,
+     `ServerAliveCountMax=8` and `ConnectTimeout=20`.
+7. **Succeeds only when** each deployed service's `/health` reports the
+   deployed SHA on the public URL. This check is unchanged.
+
+To follow a build by hand:
+`ssh <host> tail -f /tmp/agentforge-deploy-<stamp>/build.log`.
+
+Offline tests cover these behaviors with fake `ssh`, `docker` and `curl`:
+`sh deploy/vultr/test/deploy.test.sh`. They are run by `.githooks/pre-commit`
+and mirrored by the `deploy-script` job in `.gitlab-ci.yml`. They cannot show
+that `setsid`/`nohup` survive a real SSH reset on the VM. The next real deploy
+is the first observation of that.
+
 ## Required secrets
 
 Create a server-only `.env` at `/opt/agentforge-week1/.env`:

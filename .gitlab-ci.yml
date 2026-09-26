@@ -42,6 +42,15 @@ w2-regression-gate:
   script:
     - npm run eval:gate --prefix agentforge
 
+# Mirrors the deploy.sh step of .githooks/pre-commit.
+deploy-script:
+  image: alpine:3.20
+  stage: test
+  script:
+    - apk add --no-cache git coreutils
+    - sh -n deploy/vultr/deploy.sh
+    - sh deploy/vultr/test/deploy.test.sh
+
 # Mirrors the dashboard step of .githooks/pre-commit.
 dashboard-check:
   image: node:24-alpine
