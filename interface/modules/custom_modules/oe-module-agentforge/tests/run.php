@@ -52,6 +52,9 @@ use OpenEMR\Modules\AgentForge\Api\AclChecker;
 use OpenEMR\Modules\AgentForge\Api\AgentForgeApi;
 use OpenEMR\Modules\AgentForge\Api\ChartGateway;
 use OpenEMR\Modules\AgentForge\Domain\PatientUuid;
+use OpenEMR\Modules\AgentForge\Launch\LaunchGrant;
+use OpenEMR\Modules\AgentForge\Launch\LaunchScope;
+use OpenEMR\Modules\AgentForge\Launch\LaunchTokenMinter;
 
 final class InMemoryNonceStore implements NonceStore
 {
@@ -376,6 +379,66 @@ check('access policy: openemr-module issuer needs an openemr-session authn; unkn
 
 check('access policy: unknown route is 404', function (): void {
     throwsApiError(fn() => AccessPolicy::policyFor('DELETE', 'documents'), 404, 'route_not_found');
+});
+
+// E9 launcher (public/index.php -> LaunchTokenMinter): the tokens a logged-in
+// OpenEMR session hands to the W2 service. The same vector is verified by
+// Node in agentforge/test/chart-source-router.test.js.
+const LAUNCH_VECTOR_SECRET = 'launch-vector-secret';
+const LAUNCH_VECTOR_NOW = 1790000000;
+const LAUNCH_VECTOR_CLINICIAN = '6f1e2d3c-4b5a-4968-8776-655443322110';
+const LAUNCH_VECTOR_WRITE_TOKEN = 'eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6IjZmMWUyZDNjLTRiNWEtNDk2OC04Nzc2LTY1NTQ0MzMyMjExMCIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoib3BlbmVtci1tb2R1bGUiLCJhdXRobiI6Im9wZW5lbXItc2Vzc2lvbiIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAyODB9.yr7Os9mQ3I_ACdI8E3N6LV0l44pTFn4yZvKamK4d6bc';
+
+check('launcher grant: no read ACL mints nothing; write needs write ACL and the allowlist', function (): void {
+    same(LaunchGrant::None, LaunchTokenMinter::grant(false, true, true), 'no read acl');
+    same(LaunchGrant::ReadOnly, LaunchTokenMinter::grant(true, false, true), 'no write acl');
+    same(LaunchGrant::ReadOnly, LaunchTokenMinter::grant(true, true, false), 'not allowlisted');
+    same(LaunchGrant::ReadAndUpload, LaunchTokenMinter::grant(true, true, true), 'write acl and allowlisted');
+});
+
+check('launcher tokens: openemr-module / openemr-session claims, scope-matched acl, TTL under 300 s', function () use ($patient): void {
+    $minter = new LaunchTokenMinter(LAUNCH_VECTOR_SECRET);
+    $verifier = new ContextTokenVerifier(LAUNCH_VECTOR_SECRET);
+    $read = $verifier->verify($minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW);
+    same(['openemr-module', 'openemr-session', 'read-briefing', 'read', $patient, LAUNCH_VECTOR_CLINICIAN], [$read->issuer, $read->authn, $read->scope, $read->acl, $read->patientUuid, $read->clinicianUuid], 'read token');
+    $write = $verifier->verify($minter->mint(strtoupper($patient), LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW);
+    same(['openemr-module', 'openemr-session', 'write-source-document', 'write', $patient], [$write->issuer, $write->authn, $write->scope, $write->acl, $write->patientUuid], 'write token');
+    same(true, $write->expiresAt > LAUNCH_VECTOR_NOW && $write->expiresAt <= LAUNCH_VECTOR_NOW + ContextTokenVerifier::MAX_TTL_SECONDS, 'ttl');
+    same(LAUNCH_VECTOR_WRITE_TOKEN, $minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), 'shared vector');
+});
+
+check('launcher tokens: tampered or wrong-secret tokens are context_invalid', function () use ($patient): void {
+    $token = (new LaunchTokenMinter(LAUNCH_VECTOR_SECRET))->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW);
+    [$encoded, $signature] = explode('.', $token);
+    $forged = HmacVerifier::base64UrlEncode(str_replace('read-briefing', 'write-source-document', (string) base64_decode(strtr($encoded, '-_', '+/'))));
+    throwsApiError(fn() => (new ContextTokenVerifier(LAUNCH_VECTOR_SECRET))->verify($forged . '.' . $signature, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+    throwsApiError(fn() => (new ContextTokenVerifier('another-secret'))->verify($token, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+});
+
+check('launcher tokens: a numeric user id is refused (the module resolves the actor by users.uuid)', function () use ($patient): void {
+    $minter = new LaunchTokenMinter(LAUNCH_VECTOR_SECRET);
+    foreach ([[$patient, '1'], ['17', LAUNCH_VECTOR_CLINICIAN]] as [$patientRef, $clinicianRef]) {
+        try {
+            $minter->mint($patientRef, $clinicianRef, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW);
+        } catch (InvalidArgumentException) {
+            continue;
+        }
+        throw new RuntimeException("expected a non-uuid to be refused: $patientRef / $clinicianRef");
+    }
+});
+
+check('launcher write token passes the module allowlist only for an allowlisted patient', function () use ($policy, $signedFor, $patient): void {
+    $minter = new LaunchTokenMinter(LAUNCH_VECTOR_SECRET);
+    $verifier = new ContextTokenVerifier(LAUNCH_VECTOR_SECRET);
+    $policy->authorize(AccessPolicy::policyFor('POST', 'documents'), $signedFor($patient), $verifier->verify($minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW));
+    $other = '11111111-2222-4333-8444-555555555555';
+    throwsApiError(fn() => $policy->authorize(AccessPolicy::policyFor('POST', 'documents'), $signedFor($other), $verifier->verify($minter->mint($other, LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW)), 403, 'demo_patient_not_allowed');
+    throwsApiError(fn() => $policy->authorize(AccessPolicy::policyFor('POST', 'documents'), $signedFor($patient), $verifier->verify($minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW)), 403, 'acl_denied');
+});
+
+check('launcher URL: read token always, write token only when granted, both URL-encoded', function (): void {
+    same('https://example.test/agentforge-w2/?demo_token=a.b', LaunchTokenMinter::launchUrl('https://example.test/agentforge-w2/', 'a.b', null));
+    same('https://example.test/agentforge-w2/?demo_token=a.b&write_token=c%2Bd', LaunchTokenMinter::launchUrl('https://example.test/agentforge-w2', 'a.b', 'c+d'));
 });
 
 foreach ($vectors['idempotency_key_vectors'] as $vector) {
