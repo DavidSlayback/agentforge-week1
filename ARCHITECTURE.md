@@ -21,9 +21,10 @@ both `/agentforge` and `/agentforge-w2` read the chart from synthetic fixtures
 (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. The OpenEMR REST
 adapter exists and is tested, but it is not the deployed mode. For W2
 sessions launched from OpenEMR, still with synthetic data
-(`docs/agentforge/PLAN.md` D13, slice E9), it is wired, with live reads off
-by default (`AGENTFORGE_OPENEMR_LIVE_READS`) until the operator enables them
-on the VM (`W2_ARCHITECTURE.md` §3f).
+(`docs/agentforge/PLAN.md` D13, slice E9), it is enabled on production for
+the designated synthetic patient `AF-LIVE-01` only, and was observed live on
+`b942391f` (`W2_ARCHITECTURE.md` §3f,
+`docs/agentforge/evidence/E9-live-chart-live.md`).
 
 Week 2 is described in [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md): PDF
 ingestion with local OCR, OpenEMR storage through `oe-module-agentforge`,

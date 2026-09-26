@@ -904,7 +904,7 @@ got an independent adversarial review, with findings fixed before merge
 | E5 lab trend (X-4) | !102, `e0f9eb35` | Wired, tested (`x4-*`), observed live on `e0f9eb35` | `evidence/E5-lab-trend-regression.txt`, `evidence/E4-E5-E8-live.md` |
 | E8 W1 trust debt | !103, `fd6c959b` | Wired, tested (`no-eval-oracle.test.js`, `x8-*`, alert test), observed live on `fd6c959b` (chart facts labeled "Synthetic chart fixture"; p95 alert threshold 30000) | `evidence/E8-w1-trust-regression.txt`, `evidence/E4-E5-E8-live.md` |
 | E6 docs truth pass | branch `agentforge/e6-docs-truth` | This pass; not merged at the time of writing | — |
-| E9 real chart reads (D13) | branch `agentforge/e9-live-chart` | Wired, live reads off by default (`AGENTFORGE_OPENEMR_LIVE_READS`) until enabled on the VM; tested (`chart-source-router.test.js`, `live-chart-http.test.js`, `x9-live-chart-*`, module `tests/run.php`); not observed live | `evidence/E9-live-chart-regression.txt` |
+| E9 real chart reads (D13) | MR !105 (`8c51e44a`), E9b MR !106 (`b942391f`) | **Observed live** on `b942391f` as `grader`: briefing and scan read the chart via `adapter: openemr`, critic reviewed, OpenEMR ledger writes for pid 9 with issuer `openemr-module`. Live only for designated synthetic patient `AF-LIVE-01`; problems and allergies unconfirmed (OpenEMR 8.0.0 finding, E9b); module enabled in OpenEMR on 2026-09-26 | `evidence/E9-live-chart-live.md`, `evidence/E9-live-chart-regression.txt` |
 | E7 freeze and proof | — | Pending: one SHA for W2 and the dashboard, live acceptance re-run into `LEDGER.md`, screenshots | — |
 | Owner items | — | Pending: demo video, social post, Qwen and Vultr dev spend, submission link | — |
 
