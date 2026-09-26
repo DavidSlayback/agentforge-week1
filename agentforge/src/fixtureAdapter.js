@@ -15,6 +15,21 @@ export class FixtureAdapter {
     const found = this.cases.find((item) => item.patient.patient_ref === patientRef);
     return found ? { name: found.patient.display_name, dob: found.patient.dob } : null;
   }
+  /**
+   * Every synthetic patient's identifiers, for refusing a follow-up question
+   * that names a different patient: ref, display name, and the chart ids
+   * (`pid`) on its identity records.
+   */
+  listPatientIdentifiers() {
+    const byRef = new Map();
+    for (const item of this.cases) {
+      const entry = byRef.get(item.patient.patient_ref) || { patient_ref: item.patient.patient_ref, names: [], record_ids: [] };
+      entry.names.push(item.patient.display_name);
+      for (const record of item.records) if (record.field === 'identity' && record.value?.pid) entry.record_ids.push(String(record.value.pid));
+      byRef.set(item.patient.patient_ref, entry);
+    }
+    return [...byRef.values()];
+  }
   retrieve(item) {
     const successfulGroups = new Set(item.retrieval.filter((group) => group.status === 'success' && (group.records || 0) > 0).map((group) => group.group));
     const records = item.records.filter((record) => successfulGroups.has(coverageGroupForField(record.field)));

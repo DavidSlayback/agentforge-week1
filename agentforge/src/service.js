@@ -62,7 +62,7 @@ export class AgentForgeService {
     // boxes, not silently default back to the initial mode.
     this.resolvedOcrMode = new Map();
     this.traceSink = traceSink;
-    this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs });
+    this.preparation = new PreVisitPreparation({ adapter: chartAdapter, provider, conversationProvider, traceSink, cache, freshRetrievalDeadlineMs, allowExternalLiveProvider, maxPrewarmJobs, prewarmDeadlineMs, now });
     // Preserve the established facade access used by callers and tests while
     // keeping cache ownership inside the preparation module.
     this.cache = this.preparation.cache;

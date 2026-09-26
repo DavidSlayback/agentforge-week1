@@ -51,7 +51,7 @@ export class OpenEMRRestAdapter {
     const returnedRefs = [patientRecord.uuid, patientRecord.puuid, patientRecord.patient_uuid, patientRecord.pid, patientRecord.patient_id, patientRecord.id].filter((value) => value !== undefined && value !== null && String(value));
     if (!returnedRefs.length || !returnedRefs.some((value) => String(value) === String(patientRef))) throw new Error('PATIENT_SCOPE_MISMATCH');
     const patient = normalizePatient(patientRecord, patientRef);
-    return { id: `openemr-${patientRef}`, patient: publicPatient(patient), openemr_patient: patient, expected: {} };
+    return { id: `openemr-${patientRef}`, patient: publicPatient(patient), openemr_patient: patient };
   }
 
   /**
