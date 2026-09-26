@@ -387,6 +387,16 @@ the dashboard from it and confirm both `/health` SHAs. Extend
 `LEDGER.md`. Take screenshots of the overlay, the trend chart and the critic
 trace.
 
+**E7 prep (2026-09-26, `agentforge/e7-acceptance`):** `w2-live-acceptance.mjs`
+now also writes rows `W2-DASHBOARD-SHA`, `X-1`, `X-2`, `X-3`,
+`X-3-MISLABEL`, `X-4`, `E8-CHART-LABEL`, `E8-SCOPE`, `E8-BADGE` and
+`W2-ALERT-P95`; every id is in `PLANNED_CHECKS`, and a planned id with no row
+fails the run. Upload budget is 7 (adds medlist-a, intake-as-medication_list,
+lab-c). Tested offline only (`test/w2-live-acceptance.test.js`, including a
+full run against a local fake deployment); regression proof in
+`evidence/E7-acceptance-regression.txt`. Not yet run on the public URL: that
+is the freeze run.
+
 **E7 deploy notes (2026-09-26, dashboard session hand-off plus a read of `deploy.sh` on `main`):**
 - Command: `AGENTFORGE_DEPLOY_SERVICES="dashboard agentforge-w2" deploy/vultr/deploy.sh` from the freeze SHA. It builds both images detached on the VM (log under `/tmp/agentforge-deploy-<stamp>/`), replaces both containers (`up -d --no-deps`) only if every build succeeds, then requires both `/health` endpoints to report the SHA. Two services in one run has not been exercised live yet.
 - W1 is safe: `agentforge` is `image: agentforge-w1:84f232b` with no `build:`, and `compose build <services>` builds only the named services.

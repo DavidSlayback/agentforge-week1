@@ -1,0 +1,46 @@
+E7 live-acceptance extension: deliberate-regression proof
+Base: main b942391f + uncommitted E7 changes (branch agentforge/e7-acceptance); node v24.19.0; 2026-09-26T19:20:01Z
+Each row mutates one line (M5: two lines) of agentforge/scripts/w2-live-acceptance.mjs, runs node --test test/w2-live-acceptance.test.js, and restores the file.
+The public URL is never contacted: the full-run tests use a fake deployment on 127.0.0.1.
+
+=== M0 baseline (no mutation)
+ℹ tests 31
+ℹ pass 31
+ℹ fail 0
+
+=== M1 E8-CHART-LABEL checks some() chart-fact citation instead of every()
+ℹ fail 1
+ℹ pass 30
+✖ E8-CHART-LABEL fails on any openemr_record label, on no chart facts at all, or on a non-fixture chart_source (0.5753ms)
+✖ failing tests:
+
+=== M2 main() no longer scans lab-c before reading the lab trend
+ℹ fail 3
+ℹ pass 28
+✖ failing tests:
+✖ the full run against a fake deployment passes every planned row, one row each, and never prints a token (756.1232ms)
+✖ the full run fails X-2 (and only X-2) when the deployed critic is disabled (686.22ms)
+✖ the full run fails X-4 when the lab-trends route is gone, E8-CHART-LABEL on an openemr_record label, and the dashboard row on a stale SHA (1395.8087ms)
+
+=== M3 X-2 accepts a disabled critic
+ℹ fail 1
+ℹ pass 30
+✖ X-2 fails (never skips) on a disabled, failed or skipped critic, and on a missing CRITIQUE, handoff, duration or trace (0.6453ms)
+✖ failing tests:
+
+=== M4 X-4 needs only 1 point per test
+ℹ fail 1
+ℹ pass 30
+✖ X-4 fails on a 1-point trend, a synthetic boundary, a point citing another document, an out-of-order series, or a missing upload (0.7ms)
+✖ failing tests:
+
+=== M5 finish() no longer fails planned ids with no row
+ℹ fail 1
+ℹ pass 30
+✖ failing tests:
+✖ the full run against a fake deployment passes every planned row, one row each, and never prints a token (705.41ms)
+
+=== After restore
+ℹ tests 31
+ℹ pass 31
+ℹ fail 0
