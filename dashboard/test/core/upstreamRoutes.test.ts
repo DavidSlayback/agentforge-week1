@@ -50,6 +50,13 @@ describe('upstream allow-list', () => {
           expect(spec.query).toEqual([]);
           expect(spec.pathTemplate).toBe('/list/severity_ccda');
           break;
+        case 'reference':
+          // A single-resource read by an id taken from a patient-bound response: one uuid path
+          // parameter, no query keys, a `.read` route id (never a collection).
+          expect(spec.id, spec.id).toMatch(/\.read$/);
+          expect(spec.pathParams, spec.id).toEqual([{ name: 'id', kind: 'resourceUuid' }]);
+          expect(spec.query, spec.id).toEqual([]);
+          break;
       }
     }
   });
@@ -97,6 +104,20 @@ describe('upstream allow-list', () => {
     expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: PATIENT.dashSyn01 })).toThrow(AllowListViolation);
     expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: '14 OR 1=1' })).toThrow(AllowListViolation);
     expect(() => buildUpstreamPath('rest.prescription.search', { pid: 14 }, { patient_id: 14 })).toThrow(AllowListViolation);
+  });
+
+  it('builds the CareTeam search by patient uuid only, and the name reads by a validated uuid (01-04-01)', () => {
+    expect(buildUpstreamPath('fhir.careteam.search', {}, { patient: PATIENT.p13 })).toBe(`/apis/default/fhir/CareTeam?patient=${PATIENT.p13}`);
+    expect(() => buildUpstreamPath('fhir.careteam.search', {}, { patient: PATIENT.p13, status: 'active' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.careteam.search', {}, { patient: '13' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.careteam.search', {}, {})).toThrow(AllowListViolation);
+    const id = 'a2c331a5-4021-4f9b-893f-cd7dc6db1147';
+    expect(buildUpstreamPath('fhir.practitioner.read', { id })).toBe(`/apis/default/fhir/Practitioner/${id}`);
+    expect(buildUpstreamPath('fhir.organization.read', { id: id.toUpperCase() })).toBe(`/apis/default/fhir/Organization/${id}`);
+    expect(() => buildUpstreamPath('fhir.practitioner.read', { id: '../Patient/x' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.practitioner.read', { id: '5' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.organization.read', {})).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.organization.read', { id }, { _include: '*' })).toThrow(AllowListViolation);
   });
 
   it('declares a scope and ACL for every route', () => {

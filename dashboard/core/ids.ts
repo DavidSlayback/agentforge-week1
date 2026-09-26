@@ -15,6 +15,12 @@ export type PatientUuid = Brand<string, 'PatientUuid'>;
 export type Pid = Brand<number, 'Pid'>;
 /** Medical record number, OpenEMR `pubpid` (FHIR identifier type `PT`). */
 export type Mrn = Brand<string, 'Mrn'>;
+/**
+ * The uuid of a non-patient FHIR resource (Practitioner, Organization) that a
+ * patient-bound response referenced, e.g. a CareTeam participant. Never a
+ * patient id, so it cannot be passed where a `PatientUuid` is expected.
+ */
+export type ResourceUuid = Brand<string, 'ResourceUuid'>;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PID_RE = /^[1-9][0-9]{0,9}$/;
@@ -26,6 +32,12 @@ export function parsePatientUuid(value: unknown): PatientUuid | null {
   if (typeof value !== 'string') return null;
   const lower = value.toLowerCase();
   return UUID_RE.test(lower) ? (lower as PatientUuid) : null;
+}
+
+export function parseResourceUuid(value: unknown): ResourceUuid | null {
+  if (typeof value !== 'string') return null;
+  const lower = value.toLowerCase();
+  return UUID_RE.test(lower) ? (lower as ResourceUuid) : null;
 }
 
 export function parsePid(value: unknown): Pid | null {

@@ -109,3 +109,31 @@ export interface PrescriptionRow {
   /** Raw `date_added` (`YYYY-MM-DD HH:MM:SS`, OpenEMR local time), as the legacy card prints it. */
   readonly filled: string;
 }
+
+/**
+ * One member row of the Care Team card: the legacy columns Type, Member, Role,
+ * Facility and Since. Status and Note have no FHIR field (M-6) and are shown
+ * as "Not available via API" by the SPA, so they are not on the wire.
+ */
+export interface CareTeamMemberRow {
+  readonly type: 'Provider' | 'Related Person';
+  /** From `Practitioner.name`; null when the name could not be read (shown as "Name unavailable"). */
+  readonly name: string | null;
+  /** `participant.role[0].coding[0].display`, the `care_team_roles` title; "" when none. */
+  readonly role: string;
+  /** From the `onBehalfOf` Organization's name; "" when the member has none, null when it could not be read. */
+  readonly facility: string | null;
+  /** `participant.period.start` (providers only); "" when none. */
+  readonly since: string;
+}
+
+/**
+ * The Care Team card (W2D-3): the one team the legacy card would pick, with
+ * every member FHIR returns. Inactive members cannot be told apart (5.05 / M-6).
+ */
+export interface CareTeamDto {
+  readonly teamName: string;
+  /** The `Care_Team_Status` title of the team ("Active"). */
+  readonly statusTitle: string;
+  readonly members: readonly CareTeamMemberRow[];
+}

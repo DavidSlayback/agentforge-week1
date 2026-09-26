@@ -49,7 +49,24 @@ no card route is called before that read succeeds.
   Filled (raw `date_added`). Every row's `puuid` must be the patient's. Empty
   (HTTP 200, `data: []`) reads "None", the legacy card's text.
 
-Later slices add Care Team and Vitals.
+- **Care Team** (`/dashboard/bff/patients/:puuid/care-team`): FHIR
+  `/fhir/CareTeam?patient=<puuid>` after the patient read (an empty Bundle is
+  "Nothing Recorded" only because that read succeeded). Every team's
+  `subject` must be the patient. One team is chosen as the legacy card does:
+  `entered-in-error` teams skipped, then the first `active` team by name
+  (case-insensitive, missing name first), else the first by name; ties break
+  on the resource id, so the choice never depends on Bundle order. Every
+  Practitioner/RelatedPerson participant is a row, **inactive ones included**
+  (FHIR has no member status, M-6); Organization participants are the members'
+  facilities and fill the Facility column. Member and facility names come from
+  `/fhir/Practitioner/:id` and `/fhir/Organization/:id` (uuid-validated ids
+  from the CareTeam, at most 20 reads); a failed read shows "Name unavailable"
+  and the card stays up. Those reads need `admin/users`, and OpenEMR serves
+  only users with an NPI as Practitioners, so locally every member name is
+  unavailable. Status and Note read "Not available via API". The legacy card
+  had no empty text; the port says "Nothing Recorded".
+
+Later slices add Vitals.
 
 ## Layout
 

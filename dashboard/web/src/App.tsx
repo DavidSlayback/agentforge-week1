@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
 import type { SessionDto } from '../../core/dto.ts';
-import { isAllergyRow, isHeaderDto, isMedicationRow, isPrescriptionRow, isProblemRow } from '../../core/guards.ts';
+import { isAllergyRow, isCareTeamDto, isHeaderDto, isMedicationRow, isPrescriptionRow, isProblemRow } from '../../core/guards.ts';
 import { parsePatientUuid, type PatientUuid } from '../../core/ids.ts';
 import { BASE, fetchSession, lookupByMrn, type Fetcher } from './api.ts';
 import { AllergiesCard } from './cards/AllergiesCard.tsx';
+import { CareTeamCard } from './cards/CareTeamCard.tsx';
 import { MedicationsCard } from './cards/MedicationsCard.tsx';
 import { PrescriptionsCard } from './cards/PrescriptionsCard.tsx';
 import { ProblemsCard } from './cards/ProblemsCard.tsx';
@@ -41,6 +42,7 @@ function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readon
   const problems = useCard(fetcher, `${BASE}/bff/patients/${patientId}/problems`, patientId, isProblemRow);
   const medications = useCard(fetcher, `${BASE}/bff/patients/${patientId}/medications`, patientId, isMedicationRow);
   const prescriptions = useCard(fetcher, `${BASE}/bff/patients/${patientId}/prescriptions`, patientId, isPrescriptionRow);
+  const careTeam = useCard(fetcher, `${BASE}/bff/patients/${patientId}/care-team`, patientId, isCareTeamDto);
   return (
     <>
       <PatientHeader state={header} />
@@ -49,8 +51,9 @@ function PatientView({ fetcher, patientId }: { readonly fetcher: Fetcher; readon
         <ProblemsCard state={problems} />
         <MedicationsCard state={medications} />
         <PrescriptionsCard state={prescriptions} />
+        <CareTeamCard state={careTeam} />
       </div>
-      <p className="not-ported">Cards added in later slices: Care Team, Vitals.</p>
+      <p className="not-ported">Cards added in later slices: Vitals.</p>
     </>
   );
 }

@@ -15,6 +15,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { pino } from 'pino';
 import { loadAllergies } from '../../bff/src/cards/allergies.ts';
+import { loadCareTeam } from '../../bff/src/cards/careTeam.ts';
 import { loadHeader } from '../../bff/src/cards/header.ts';
 import { loadMedications } from '../../bff/src/cards/medications.ts';
 import { loadProblems } from '../../bff/src/cards/problems.ts';
@@ -102,6 +103,23 @@ for (const c of cardCases) {
   const ok = c.rows === 0 ? card.kind === 'empty' : card.kind === 'ok' && shown === c.rows;
   if (!ok) failures += 1;
   console.log(`integration ${c.card}: ${c.label}: ${ok ? 'PASS' : 'FAIL'} (kind=${card.kind}, rows=${String(shown)}, expected=${String(c.rows)})`);
+}
+
+// Care Team (walkthroughs/CARE-TEAM.md (e)): member rows (all members, inactive ones included), or empty.
+for (const c of [
+  { label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', members: 3 },
+  { label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', members: 0 },
+  { label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', members: 1 },
+] as const) {
+  const patientId = parsePatientUuid(c.puuid);
+  if (patientId === null) throw new Error('bad uuid');
+  const card = await loadCareTeam({ upstream }, { patientId, accessToken: token, correlationId: 'it-care-team' });
+  const members = card.kind === 'ok' ? (card.rows[0]?.members.length ?? 0) : 0;
+  const named = card.kind === 'ok' ? (card.rows[0]?.members.filter((m) => m.name !== null).length ?? 0) : 0;
+  const ok = c.members === 0 ? card.kind === 'empty' : card.kind === 'ok' && members === c.members;
+  if (!ok) failures += 1;
+  // Counts only: names and roles are never printed.
+  console.log(`integration care-team: ${c.label}: ${ok ? 'PASS' : 'FAIL'} (kind=${card.kind}, members=${String(members)}, named=${String(named)}, expected=${String(c.members)})`);
 }
 
 if (record) {

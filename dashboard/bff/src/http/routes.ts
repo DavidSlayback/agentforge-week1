@@ -13,6 +13,7 @@ import {
 import { LOGIN_TX_TTL_MS, randomId, type Session, type SessionStore } from '../auth/session.ts';
 import type { CardResult } from '../../../core/cardResult.ts';
 import { loadAllergies, type IssueCardDeps } from '../cards/allergies.ts';
+import { loadCareTeam } from '../cards/careTeam.ts';
 import { loadHeader, type CardContext } from '../cards/header.ts';
 import { loadMedications } from '../cards/medications.ts';
 import { lookupPatientByMrn } from '../cards/patientLookup.ts';
@@ -163,6 +164,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   // The BFF sends no browser input upstream: `/bff/*` rejects any query string (security.ts),
   // and the prescription query keys are constants plus the resolved pid (M-1).
   cardRoute('prescriptions', (ctx) => loadPrescriptions({ upstream: deps.upstream }, ctx));
+  cardRoute('care-team', (ctx) => loadCareTeam({ upstream: deps.upstream }, ctx));
 
   app.get<{ Params: { mrn: string } }>(`${base}/bff/patients/by-mrn/:mrn`, async (req, reply) => {
     const session = currentSession(req);

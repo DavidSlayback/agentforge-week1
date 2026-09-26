@@ -1,4 +1,4 @@
-import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
+import { parseMrn, parsePatientUuid, parsePid, parseResourceUuid } from './ids.ts';
 
 /**
  * The upstream allow-list (MIGRATION-REACT.md §2.4). `buildUpstreamPath` is the
@@ -9,7 +9,8 @@ import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
  * Routes are added by the slice that needs them. Slice 01-01-01 needs the
  * header reads and the MRN lookup; 01-02-01 the allergy list and the
  * `severity_ccda` label list; 01-02-02 the medical problem list; 01-02-03
- * the medication list; 01-03-01 the prescription search.
+ * the medication list; 01-03-01 the prescription search; 01-04-01 the
+ * CareTeam search and the Practitioner / Organization name reads.
  */
 
 export type UpstreamRouteId =
@@ -20,10 +21,13 @@ export type UpstreamRouteId =
   | 'rest.list.read'
   | 'rest.problem.list'
   | 'rest.medication.list'
-  | 'rest.prescription.search';
+  | 'rest.prescription.search'
+  | 'fhir.careteam.search'
+  | 'fhir.practitioner.read'
+  | 'fhir.organization.read';
 
 /** What a parameter value must parse as before it is placed in a URL. */
-export type ParamKind = 'puuid' | 'pid' | 'mrn';
+export type ParamKind = 'puuid' | 'pid' | 'mrn' | 'resourceUuid';
 
 export interface PathParamSpec {
   readonly name: string;
@@ -47,8 +51,10 @@ export interface UpstreamRouteSpec {
   /**
    * How the route is bound to one patient (3.13). `none` is allowed only for a
    * fixed-literal code list with no parameters at all (`rest.list.read`).
+   * `reference` is a single-resource read by an id the BFF took from a
+   * patient-bound response (a CareTeam participant); never a collection.
    */
-  readonly patientBinding: 'path' | 'query' | 'none';
+  readonly patientBinding: 'path' | 'query' | 'none' | 'reference';
 }
 
 export const API_PREFIX = { rest: '/apis/default/api', fhir: '/apis/default/fhir' } as const;
@@ -155,6 +161,42 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     acl: 'patients/med',
     patientBinding: 'query',
   },
+  // Care Team card (01-04-01). One search per card load, by the patient uuid
+  // only. With a user-context token the route checks patients/med
+  // (`_rest_routes_fhir_r4_us_core_3_1_0.inc.php:142-155`).
+  'fhir.careteam.search': {
+    id: 'fhir.careteam.search',
+    api: 'fhir',
+    pathTemplate: '/CareTeam',
+    pathParams: [],
+    query: [{ key: 'patient', kind: 'puuid' }],
+    scope: 'user/CareTeam.rs',
+    acl: 'patients/med',
+    patientBinding: 'query',
+  },
+  // Member and facility names for the Care Team card: a CareTeam participant
+  // carries only a reference, never a display name. Ids come from the CareTeam
+  // response and must parse as uuids. Both reads need admin/users (:650-674, :503-522).
+  'fhir.practitioner.read': {
+    id: 'fhir.practitioner.read',
+    api: 'fhir',
+    pathTemplate: '/Practitioner/{id}',
+    pathParams: [{ name: 'id', kind: 'resourceUuid' }],
+    query: [],
+    scope: 'user/Practitioner.rs',
+    acl: 'admin/users',
+    patientBinding: 'reference',
+  },
+  'fhir.organization.read': {
+    id: 'fhir.organization.read',
+    api: 'fhir',
+    pathTemplate: '/Organization/{id}',
+    pathParams: [{ name: 'id', kind: 'resourceUuid' }],
+    query: [],
+    scope: 'user/Organization.rs',
+    acl: 'admin/users',
+    patientBinding: 'reference',
+  },
 };
 
 export class AllowListViolation extends Error {
@@ -171,6 +213,8 @@ function parseParam(kind: ParamKind, value: unknown): string | null {
     }
     case 'mrn':
       return parseMrn(value);
+    case 'resourceUuid':
+      return parseResourceUuid(value);
   }
 }
 

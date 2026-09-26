@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTestApp, FakeOpenEmr, makeIdTokenSigner, PATIENT, routeFixture, signIn } from '../support/harness.ts';
+import { buildTestApp, FakeOpenEmr, makeIdTokenSigner, PATIENT, readFixtureFile, routeFixture, signIn } from '../support/harness.ts';
 
 const api = (path: string) => `http://openemr/apis/default/api${path}`;
 
@@ -91,6 +91,32 @@ describe('card routes over HTTP (fastify.inject)', () => {
       expect(res.statusCode, qs).toBe(400);
     }
     expect(fake.calls.length).toBe(before);
+  });
+
+  it('Care Team: pid 13 reaches the browser as one team with 3 members and the status/note gaps; pid 3 is empty', async () => {
+    const { app, fake, cookie } = await signedIn();
+    const file = 'shaped/patient-13.json';
+    fake
+      .on('GET', api(`/patient/${PATIENT.p13}`), routeFixture(file, 'rest.patient.read'))
+      .on('GET', `http://openemr/apis/default/fhir/CareTeam?patient=${PATIENT.p13}`, routeFixture(file, 'fhir.careteam.search'));
+    for (const key of Object.keys(readFixtureFile(file))) {
+      const [route, ref] = key.split(':');
+      if (route === 'fhir.practitioner.read') fake.on('GET', `http://openemr/apis/default/fhir/Practitioner/${ref ?? ''}`, routeFixture(file, key));
+      if (route === 'fhir.organization.read') fake.on('GET', `http://openemr/apis/default/fhir/Organization/${ref ?? ''}`, routeFixture(file, key));
+    }
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/care-team`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ kind: string; rows: { members: unknown[] }[]; notes: { field: string }[] }>();
+    expect(body.kind).toBe('ok');
+    expect(body.rows[0]?.members).toHaveLength(3);
+    expect(body.notes.map((n) => n.field)).toEqual(['member-status', 'note', 'names']);
+    expect(fake.unexpected).toEqual([]);
+
+    fake
+      .on('GET', api(`/patient/${PATIENT.p3}`), routeFixture('shaped/patient-3.json', 'rest.patient.read'))
+      .on('GET', `http://openemr/apis/default/fhir/CareTeam?patient=${PATIENT.p3}`, routeFixture('shaped/patient-3.json', 'fhir.careteam.search'));
+    const empty = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p3}/care-team`, cookies: { dashboard_sid: cookie } });
+    expect(empty.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
   });
 
   it('401 without a session, 400 for a malformed puuid, 400 for any query string', async () => {

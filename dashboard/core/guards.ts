@@ -1,5 +1,5 @@
 import type { CardResult, ErrorCode, GapNote } from './cardResult.ts';
-import type { AllergyRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, PrescriptionRow, ProblemRow, SessionDto } from './dto.ts';
+import type { AllergyRow, CareTeamDto, CareTeamMemberRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, PrescriptionRow, ProblemRow, SessionDto } from './dto.ts';
 import { parsePatientUuid } from './ids.ts';
 
 /**
@@ -127,5 +127,26 @@ export function isPrescriptionRow(v: unknown): v is PrescriptionRow {
     typeof v['quantity'] === 'string' &&
     v['refills'] === null &&
     typeof v['filled'] === 'string'
+  );
+}
+
+function isCareTeamMemberRow(v: unknown): v is CareTeamMemberRow {
+  return (
+    isRecord(v) &&
+    (v['type'] === 'Provider' || v['type'] === 'Related Person') &&
+    isStringOrNull(v['name']) &&
+    typeof v['role'] === 'string' &&
+    isStringOrNull(v['facility']) &&
+    typeof v['since'] === 'string'
+  );
+}
+
+export function isCareTeamDto(v: unknown): v is CareTeamDto {
+  return (
+    isRecord(v) &&
+    typeof v['teamName'] === 'string' &&
+    typeof v['statusTitle'] === 'string' &&
+    Array.isArray(v['members']) &&
+    v['members'].every(isCareTeamMemberRow)
   );
 }
