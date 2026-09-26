@@ -4,6 +4,7 @@
   "note": "Golden documents for the W2 extension suite only (w2ExtensionGate.js). They are loaded next to manifest.json but kept out of the 50-case gate's hashed manifest, so adding them does not change that gate. OCR is recorded with scripts/record-golden-ocr.mjs inside the deployed Docker image; truth files are hand-written from what each document says, never copied from OCR output.",
   "documents": [
     { "id": "medlist-a", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-a.pdf", "truth": "truth/medlist-a.json" },
-    { "id": "medlist-b", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-b.pdf", "truth": "truth/medlist-b.json" }
+    { "id": "medlist-b", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-medlist-b.pdf", "truth": "truth/medlist-b.json" },
+    { "id": "lab-c", "pdf": "docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-c.pdf", "truth": "truth/lab-c.json" }
   ]
 }

@@ -65,4 +65,35 @@ final readonly class LabObservationReader
             'entry' => $entries,
         ];
     }
+
+    /**
+     * Every Observation of the patient's module-written lab rows, in one FHIR
+     * service call, each linked to its source document (LabHistoryAssembler).
+     *
+     * @param list<LedgerEntry> $labRows
+     * @return array<string, mixed>
+     */
+    public function readHistory(PatientUuid $patient, array $labRows): array
+    {
+        $timeZone = new \DateTimeZone(date_default_timezone_get());
+        if ($labRows === []) {
+            return LabHistoryAssembler::assemble([], [], $timeZone, self::READ_PATH);
+        }
+        $result = (new FhirObservationService())->getAll(['category' => 'laboratory'], $patient->value);
+        if ($result->hasErrors()) {
+            throw new \RuntimeException('FhirObservationService::getAll reported errors');
+        }
+        $resources = [];
+        $data = $result->getData();
+        foreach (is_array($data) ? $data : [] as $resource) {
+            if (!$resource instanceof \JsonSerializable) {
+                continue;
+            }
+            $serialized = json_decode(json_encode($resource, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), true, 64, JSON_THROW_ON_ERROR);
+            if (is_array($serialized)) {
+                $resources[] = $serialized;
+            }
+        }
+        return LabHistoryAssembler::assemble($labRows, $resources, $timeZone, self::READ_PATH);
+    }
 }

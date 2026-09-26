@@ -225,6 +225,21 @@ still blocks commits.
   `readGolden()` loads them next to the golden set but only the extension
   suite's hash covers them, so the 50-case hash is unchanged. Regression
   proof: `docs/agentforge/evidence/E4-medlist-regression.txt`.
+- E5 lab trend (`labTrend.js`), five cases. Each uploads `lab-a` and runs
+  the service calls in the server's order, including the fixture-mode lab
+  persistence, then reads the trend back. `x4-lab-trend-two-points-in-date-order`
+  uploads `lab-c` (collected earlier, extension-only document in
+  `test/fixtures/golden/extension-manifest.json`) and needs two points per test
+  in date order with the truth values. `x4-lab-trend-point-citations` needs a
+  5-key citation per point to its own document, landing on a box in that
+  document's preview. `x4-lab-trend-mixed-units-split` needs g/dL and g/L
+  results charted as separate series. `x4-lab-trend-cross-patient` needs a
+  patient-2 context refused, and a lab report BLOCKED for a header mismatch
+  kept out of patient 2's trend. `x4-lab-trend-no-phi` checks the whole flow's
+  stdout, stderr and traces. The gate runs the in-memory synthetic lab store;
+  the OpenEMR module path is covered by `agentforge/test/lab-trend.test.js`
+  against the fake module. Regression proof:
+  `docs/agentforge/evidence/E5-lab-trend-regression.txt`.
 - To rebaseline: `npm run eval:extensions --prefix agentforge --
   --update-baseline`. As with the golden gate, it refuses unless every
   threshold is met.

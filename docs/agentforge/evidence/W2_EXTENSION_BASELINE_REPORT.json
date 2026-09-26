@@ -4,10 +4,10 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 28,
+  "total_cases": 33,
   "missing_baseline": false,
-  "corpus_sha256": "8d4bbfae766dcc363cb4b7a565ce223e349543d414ff17611e8de4f05953f353",
-  "baseline_corpus_sha256": "8d4bbfae766dcc363cb4b7a565ce223e349543d414ff17611e8de4f05953f353",
+  "corpus_sha256": "15ea3017206f65800fc4250d1311325d3cde47fd492cb24b2244c7ff9a4c7c7c",
+  "baseline_corpus_sha256": "15ea3017206f65800fc4250d1311325d3cde47fd492cb24b2244c7ff9a4c7c7c",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -23,23 +23,23 @@
       "rate": 1
     },
     "citation_present": {
-      "cases": 5,
-      "passed": 5,
+      "cases": 6,
+      "passed": 6,
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 7,
-      "passed": 7,
-      "rate": 1
-    },
-    "safe_refusal": {
       "cases": 8,
       "passed": 8,
       "rate": 1
     },
+    "safe_refusal": {
+      "cases": 10,
+      "passed": 10,
+      "rate": 1
+    },
     "no_phi_in_logs": {
-      "cases": 3,
-      "passed": 3,
+      "cases": 4,
+      "passed": 4,
       "rate": 1
     }
   },
@@ -219,6 +219,36 @@
       "id": "x3-np-02-medlist-b",
       "label": "no_phi_in_logs",
       "guards_against": "Rasterized medication-list OCR text or raw handoffs reach the trace or console.",
+      "passed": true
+    },
+    {
+      "id": "x4-lab-trend-two-points-in-date-order",
+      "label": "factually_consistent",
+      "guards_against": "After lab-a (2026-09-20) and then lab-c (2026-06-18) are uploaded, the trend does not show exactly two points per test in collection-date order with the truth-file values and units, or is drawn from something other than the persistence read-back.",
+      "passed": true
+    },
+    {
+      "id": "x4-lab-trend-point-citations",
+      "label": "citation_present",
+      "guards_against": "A trend point lacks a 5-key document citation to its own source document, or its link lands on no box in that document's source preview.",
+      "passed": true
+    },
+    {
+      "id": "x4-lab-trend-mixed-units-split",
+      "label": "safe_refusal",
+      "guards_against": "Hemoglobin results in g/dL and g/L are drawn on one line instead of separate, labeled series.",
+      "passed": true
+    },
+    {
+      "id": "x4-lab-trend-cross-patient",
+      "label": "safe_refusal",
+      "guards_against": "A patient-2 context reads patient-1's trend, or a lab report that is BLOCKED for a header mismatch is still stored and charted for patient 2.",
+      "passed": true
+    },
+    {
+      "id": "x4-lab-trend-no-phi",
+      "label": "no_phi_in_logs",
+      "guards_against": "The lab persistence, read-back or chart rendering writes lab values, collection dates or header identifiers to stdout/stderr or the trace.",
       "passed": true
     }
   ],

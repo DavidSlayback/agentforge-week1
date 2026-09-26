@@ -260,6 +260,21 @@ export class OpenEMRModuleWriteback {
     return this.client.getLabObservations({ patientUuid, contextToken, sourceDocumentId: documentId });
   }
 
+  /**
+   * E5 lab trend: the patient's module-written lab Observations read back
+   * from OpenEMR. A resource whose subject is another patient fails loudly.
+   */
+  async readLabObservationHistory({ patientRef, verifiedContext = null }) {
+    const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef);
+    const bundle = await this.client.getLabObservationHistory({ patientUuid, contextToken });
+    const entries = bundle.entry.map((entry) => {
+      // No subject, or another patient's: never charted.
+      if (entry.resource.subject?.reference !== `Patient/${patientUuid}`) throw new OpenEMRModuleError('OPENEMR_LAB_HISTORY_PATIENT_MISMATCH', { httpStatus: 502 });
+      return { resource: entry.resource, source_document_id: `openemr-doc-${entry.source_document_id}`, field_id: entry.field_id ?? null, page: entry.page ?? null, collection_date: entry.collection_date ?? null };
+    });
+    return { read_path: bundle.read_path, persistence_boundary: OPENEMR_MODULE_PERSISTENCE_BOUNDARY, missing_observation_ids: bundle.missing_observation_ids, skipped_lab_rows: bundle.skipped_lab_rows, entries };
+  }
+
   draftClinicalAction(input) { return this.clinicalActionStore.draft(input); }
   confirmClinicalAction(id, input) { return this.clinicalActionStore.confirm(id, input); }
   getClinicalAction(id, options) { return this.clinicalActionStore.get(id, options); }

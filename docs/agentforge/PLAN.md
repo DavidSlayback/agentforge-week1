@@ -197,6 +197,8 @@ final deploy for the single-SHA freeze in E7.
 
 **Progress (2026-09-26 ~09:15 CT):** E0 merged (!92). E1 observed live on `521af47`. E3 merged (!96). E2 merged (!97) after an independent review (4 findings fixed). W2 deployed on `e56eab86`; critic model chosen by the in-container benchmark and enabled; critic observed live. E4 is fixing its review findings; E5 (trend chart) and E8 (W1 trust debt: answer-key reads, cross-patient questions, the p95 alert, fixture chart facts labeled OpenEMR) are running. E6 root docs are in progress.
 
+**Progress (2026-09-26):** E5 implemented on branch `agentforge/e5-lab-trend` (module lab history, `/v1/patients/:patient/lab-trends`, SVG chart, `filled-lab-c.pdf`, five extension cases, regression proof `docs/agentforge/evidence/E5-lab-trend-regression.txt`); not merged, deployed or observed live. It also stops a `BLOCKED` workflow from persisting derived facts or lab rows. No `table.sql` change.
+
 ### Slices (lanes E2–E5 run in parallel worktrees; integration in order E3 → E2 → E4 → E5)
 
 **E1 — Click-to-source observed live (X-1). 30 min, first.** Run a sample lab

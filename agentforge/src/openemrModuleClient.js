@@ -13,6 +13,7 @@ export const HMAC_SCHEME = 'AGENTFORGE-HMAC-SHA256-V1';
 export const HMAC_KEY_ID = 'v1';
 export const HMAC_KEY_LABEL = 'agentforge/openemr-write/v1';
 export const MODULE_OBSERVATION_READ_PATH = 'openemr-fhir-service-in-process';
+export const MODULE_LAB_HISTORY_SCOPE = 'patient_lab_history';
 const QUERY_KEY = /^[a-z_]{1,40}$/;
 const QUERY_VALUE = /^[A-Za-z0-9._-]{1,128}$/;
 const EMPTY_SHA256 = crypto.createHash('sha256').update('').digest('hex');
@@ -155,6 +156,19 @@ export class OpenEMRModuleClient {
   async getLabObservations({ patientUuid, contextToken, sourceDocumentId }) {
     const result = await this.request({ method: 'GET', route: 'lab-observations', query: { patient_uuid: patientUuid, source_document_id: String(sourceDocumentId) }, contextToken });
     if (result.resourceType !== 'Bundle' || result.read_path !== MODULE_OBSERVATION_READ_PATH || !Array.isArray(result.entry)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
+    return result;
+  }
+
+  /**
+   * GET route=lab-observations with no source_document_id: the patient's
+   * module-written lab Observations, each linked to its source document id.
+   */
+  async getLabObservationHistory({ patientUuid, contextToken }) {
+    const result = await this.request({ method: 'GET', route: 'lab-observations', query: { patient_uuid: patientUuid }, contextToken });
+    if (result.resourceType !== 'Bundle' || result.read_path !== MODULE_OBSERVATION_READ_PATH || result.scope !== MODULE_LAB_HISTORY_SCOPE || !Array.isArray(result.entry) || !Array.isArray(result.missing_observation_ids) || !Number.isInteger(result.skipped_lab_rows)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
+    for (const entry of result.entry) {
+      if (!entry || typeof entry.resource !== 'object' || entry.resource === null || !Number.isInteger(entry.source_document_id) || entry.source_document_id <= 0) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
+    }
     return result;
   }
 

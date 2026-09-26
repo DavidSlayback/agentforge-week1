@@ -8,7 +8,9 @@
  *   POST documents            store a source PDF/scan or a derived-facts JSON
  *   GET  documents            read a module-stored document back (decrypted)
  *   POST lab-results          procedure_order/_code/_report/_result rows
- *   GET  lab-observations     FHIR Observations from the in-process service
+ *   GET  lab-observations     FHIR Observations from the in-process service: one
+ *                             source document's, or with no source_document_id
+ *                             the patient's module-written lab history
  *   POST clinical-list-items  clinician-confirmed intake meds/allergies
  *
  * Request signatures use AGENTFORGE_MODULE_HMAC_SECRET; context tokens use
@@ -201,6 +203,9 @@ final readonly class AgentForgeApi
      */
     private function readLabObservations(SignedRequest $request, PatientUuid $patient, int $pid): array
     {
+        if (!array_key_exists('source_document_id', $request->query)) {
+            return $this->readLabObservationHistory($patient, $pid);
+        }
         $sourceId = $request->queryInt('source_document_id');
         if ($sourceId === null) {
             throw ApiError::invalid(['source_document_id_invalid']);
@@ -210,6 +215,37 @@ final readonly class AgentForgeApi
             throw new ApiError(404, 'document_not_found', ['lab_results_not_found']);
         }
         return [200, $this->chart->readLabObservations($patient, $labRow)];
+    }
+
+    /**
+     * Lab history for the trend chart: only "lab" rows this module wrote for
+     * this patient, each linked to a lab PDF this module stored for the same
+     * patient. The pid and operation are re-checked on every returned row, so
+     * a lookup that ignored the patient could never leak another chart's labs.
+     * Rows dropped by these checks are counted in `skipped_lab_rows`, not
+     * hidden.
+     *
+     * @return array{int, array<string, mixed>}
+     */
+    private function readLabObservationHistory(PatientUuid $patient, int $pid): array
+    {
+        $rows = [];
+        $skipped = 0;
+        foreach ($this->ledger->findLabResultsForPatient($pid) as $row) {
+            if ($row->pid !== $pid || $row->operation !== 'lab' || $row->documentId === null) {
+                $skipped++;
+                continue;
+            }
+            $source = $this->ledger->findDocument($pid, $row->documentId);
+            if ($source === null || $source->pid !== $pid || $source->documentId !== $row->documentId || $source->operation !== DocumentType::LabPdf->ledgerOperation()) {
+                $skipped++;
+                continue;
+            }
+            $rows[] = $row;
+        }
+        $bundle = $this->chart->readLabObservationHistory($patient, $rows);
+        $bundle['skipped_lab_rows'] = $skipped;
+        return [200, $bundle];
     }
 
     /**

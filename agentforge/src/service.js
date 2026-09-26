@@ -11,6 +11,8 @@ import { recordBelongsToPatient } from './recordScope.js';
 import { composeGroundedAnswer, DeterministicAnswerComposer, partitionAnswerInputs } from './answerComposer.js';
 import { applyCriticVerdicts, criticAppliedSummary, criticNotRunSummary, DEFAULT_CRITIC_TIMEOUT_MS, runCriticWorker } from './critic.js';
 import { computeRuntimeEvaluation } from './runtimeEvaluation.js';
+import { labResultsForModule } from './openemrModuleWriteback.js';
+import { buildLabTrends } from './labTrend.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
@@ -96,8 +98,12 @@ export class AgentForgeService {
    * own context must be write-scoped; a read context gets an explicit
    * not_persisted result, never a silent success.
    */
-  async persistDerivedEvidence(sourceDocument, extraction, request, { verifiedContext = null } = {}) {
+  async persistDerivedEvidence(sourceDocument, extraction, request, { verifiedContext = null, finalState } = {}) {
     if (typeof this.writeback?.persistDerivedEvidence !== 'function') return null;
+    // E5, fail closed: derived facts and lab rows are written only for a
+    // READY or QUALIFIED workflow. A BLOCKED one (e.g. a lab report whose
+    // header names another patient) writes nothing, and a missing state throws.
+    if (!workflowMayPersist(finalState)) return { status: 'not_persisted', reason: finalState === 'BLOCKED' ? 'workflow_blocked' : 'workflow_not_ready', persistence_boundary: this.writeback.persistenceBoundary };
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'not_persisted', reason: 'persistence_not_authorized', authorization: authorization.reason, persistence_boundary: this.writeback.persistenceBoundary };
     return this.writeback.persistDerivedEvidence({ patientRef: authorization.patient_uuid, sourceDocument, extraction, verifiedContext });
@@ -108,6 +114,35 @@ export class AgentForgeService {
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.readLabObservations !== 'function') return { status: 'blocked', reason: 'openemr_persistence_not_configured' };
     return { status: 'read', bundle: await this.writeback.readLabObservations(id, { patientRef: authorization.patient_uuid, verifiedContext }) };
+  }
+
+  /**
+   * E5 lab trends for the authorized patient, built only from the
+   * persistence layer's read-back (OpenEMR through the module, or the
+   * in-memory synthetic store in fixture mode), never from an upload response.
+   */
+  async readLabTrends(request, { verifiedContext = null } = {}) {
+    const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
+    if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
+    if (typeof this.writeback?.readLabObservationHistory !== 'function') return { status: 'blocked', reason: 'lab_history_not_configured' };
+    const history = await this.writeback.readLabObservationHistory({ patientRef: authorization.patient_uuid, verifiedContext });
+    return { status: 'read', synthetic_only: true, patient_uuid: authorization.patient_uuid, ...buildLabTrends(history) };
+  }
+
+  /**
+   * Fixture mode only: after a validated lab extraction, keep its lab rows in
+   * the in-memory synthetic store so the trend chart has a read-back. The
+   * OpenEMR module path writes lab rows in `persistDerivedEvidence` instead,
+   * so this returns null there. A BLOCKED workflow stores nothing.
+   */
+  async recordSyntheticLabHistory(sourceDocument, extraction, request, { verifiedContext = null, finalState } = {}) {
+    if (typeof this.writeback?.persistSyntheticLabObservations !== 'function' || sourceDocument?.document_type !== 'lab_pdf') return null;
+    if (!workflowMayPersist(finalState)) return { status: 'not_persisted', reason: finalState === 'BLOCKED' ? 'workflow_blocked' : 'workflow_not_ready', persistence_boundary: 'in-memory-synthetic' };
+    const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
+    if (authorization.status !== 'authorized') return { status: 'not_persisted', reason: 'persistence_not_authorized', persistence_boundary: 'in-memory-synthetic' };
+    const mapped = labResultsForModule(extraction);
+    if (!mapped.results.length) return { status: 'not_persisted', reason: 'no_mappable_lab_results', persistence_boundary: 'in-memory-synthetic', unmapped_lab_results: mapped.unmapped };
+    return { ...this.writeback.persistSyntheticLabObservations({ patientRef: authorization.patient_uuid, sourceDocument, rows: mapped.results }), unmapped_lab_results: mapped.unmapped };
   }
 
   async readSourceDocument(id, request, { verifiedContext = null } = {}) {
@@ -370,6 +405,17 @@ export class AgentForgeService {
       ? this.writeback.authorize(request, verifiedContext, options)
       : { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
   }
+}
+
+// Workflow final states whose derived facts and lab rows may be written.
+// Anything else is refused; an absent or unknown state is a caller bug and
+// throws, so dropping the state at a call site can never re-enable writes.
+const PERSISTABLE_FINAL_STATES = new Set(['READY', 'QUALIFIED']);
+const NON_PERSISTABLE_FINAL_STATES = new Set(['BLOCKED', 'CLARIFY']);
+export function workflowMayPersist(finalState) {
+  if (PERSISTABLE_FINAL_STATES.has(finalState)) return true;
+  if (NON_PERSISTABLE_FINAL_STATES.has(finalState)) return false;
+  throw Object.assign(new Error('WORKFLOW_FINAL_STATE_REQUIRED'), { code: 'WORKFLOW_FINAL_STATE_REQUIRED' });
 }
 
 // Faults of the uploaded file itself. PDF_OCR_RUNTIME_UNAVAILABLE (missing

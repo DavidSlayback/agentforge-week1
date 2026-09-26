@@ -16,6 +16,7 @@ import { createCriticProviderFromEnv } from './critic.js';
 import { GroundedAnswerResult, parseOrIssues } from './schemas.js';
 import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } from './ui.js';
 import { renderObservabilityPage } from './observabilityPage.js';
+import { handleLabTrendRoute } from './labTrend.js';
 import { PreparationCache } from './preparationCache.js';
 import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
 import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, loadGuidelineCorpus } from './guidelineEvidence.js';
@@ -329,6 +330,7 @@ const server = http.createServer(async (req, res) => {
         'lab-a': 'filled-lab-a.pdf', 'lab-b': 'filled-lab-b.pdf',
         'intake-a': 'filled-intake-a.pdf', 'intake-b': 'filled-intake-b.pdf',
         'medlist-a': 'filled-medlist-a.pdf', 'medlist-b': 'filled-medlist-b.pdf',
+        'lab-c': 'filled-lab-c.pdf', // E5: earlier lab for the trend chart
       };
       const filename = pdfSamples[sample];
       if (!filename) return json(res, 400, { error: 'invalid_synthetic_pdf_sample' });
@@ -382,6 +384,8 @@ const server = http.createServer(async (req, res) => {
         return json(res, sourceDocumentErrorStatus(error), { error: error.code || error.message });
       }
     }
+    // E5 lab trends (labTrend.js): read-back only, same demo-context check.
+    if (await handleLabTrendRoute(req, res, { service, verifyToken: tokenPayload, json, html, basePath: publicBasePath, errorStatus: sourceDocumentErrorStatus })) return;
     const sourcePageMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/pages\/(\d+)\.png(?:\?(.*))?$/);
     if (req.method === 'GET' && sourcePageMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -496,8 +500,11 @@ const server = http.createServer(async (req, res) => {
       // Derived facts are persisted only from an extraction whose typed
       // contract validates; an invalid one is answered with 500 below.
       if (validateScanExtractionTypedOutput(extraction).valid) {
-        const openemr = await service.persistDerivedEvidence(result.source_document, extraction, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const openemr = await service.persistDerivedEvidence(result.source_document, extraction, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, finalState: result.workflow.final_state });
         if (openemr) responseBody.openemr = openemr;
+        // E5, fixture mode only: lab rows for the trend chart's synthetic read-back.
+        const syntheticLabHistory = await service.recordSyntheticLabHistory(result.source_document, extraction, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, finalState: result.workflow.final_state });
+        if (syntheticLabHistory) responseBody.synthetic_lab_history = syntheticLabHistory;
       }
       return sendValidatedScanExtraction(res, 200, responseBody, extraction);
     }

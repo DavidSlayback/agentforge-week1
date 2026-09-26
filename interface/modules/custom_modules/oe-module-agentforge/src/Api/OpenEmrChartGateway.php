@@ -76,6 +76,11 @@ final readonly class OpenEmrChartGateway implements ChartGateway
         return (new LabObservationReader())->read($patient, $labRow);
     }
 
+    public function readLabObservationHistory(PatientUuid $patient, array $labRows): array
+    {
+        return (new LabObservationReader())->readHistory($patient, $labRows);
+    }
+
     public function storeListItem(int $pid, ListItemKind $kind, string $title, int $sourceDocumentId, string $confirmationEventId, Actor $actor): WriteOutcome
     {
         return (new ClinicalListWriter())->write($pid, $kind, $title, $sourceDocumentId, $confirmationEventId, $actor);

@@ -1,0 +1,161 @@
+E5 lab trend chart: deliberate-regression proof
+Branch agentforge/e5-lab-trend, base 0a1f3e06 plus the uncommitted E5 change; run 2026-09-26T13:54:24Z.
+Each regression is applied to the working tree, the E5 node tests and the extension gate are run, and the file is restored.
+
+=== Regression 1: drop the collection-date sort in buildLabTrends (agentforge/src/labTrend.js) ===
+--- change:
+-    const points = [...item.points].sort((a, b) => a.collection_date.localeCompare(b.collection_date) || ...);
++    const points = [...item.points];
+--- node --test agentforge/test/lab-trend.test.js
+✖ lab trends: points come sorted by collection date, one series per test, each with its own 5-key citation (9.1199ms)
+✔ lab trends: different units are never on one line; non-numeric values are excluded with a reason (0.7042ms)
+✖ lab trend chart: SVG per series with title, band, a linked marker per point and a table; one point and zero points are explicit states (0.8744ms)
+✔ synthetic lab store never returns another patient's results (0.2393ms)
+✔ module client: lab history omits source_document_id and rejects a malformed bundle (4.054ms)
+✖ HTTP lab trends (openemr-module mode, fake module): points are the module read-back, sorted, cited; another patient's token is refused (439.9079ms)
+✖ HTTP lab trends (fixture mode): read back from the labeled in-memory synthetic store (325.123ms)
+✔ labResultsForModule rows round-trip through the synthetic store unchanged (0.6183ms)
+ℹ tests 8
+ℹ pass 4
+ℹ fail 4
+✖ lab trends: points come sorted by collection date, one series per test, each with its own 5-key citation (9.1199ms)
+✖ lab trend chart: SVG per series with title, band, a linked marker per point and a table; one point and zero points are explicit states (0.8744ms)
+✖ HTTP lab trends (openemr-module mode, fake module): points are the module read-back, sorted, cited; another patient's token is refused (439.9079ms)
+✖ HTTP lab trends (fixture mode): read back from the labeled in-memory synthetic store (325.123ms)
+--- npm run eval:extensions (exit code follows the report)
+exit=1
+{
+ "passed": false,
+ "total_cases": 9,
+ "baseline_mismatch": false,
+ "regressions": {
+  "citation_present": 0,
+  "factually_consistent": 0.3333,
+  "safe_refusal": 0,
+  "no_phi_in_logs": 0
+ },
+ "failed_cases": [
+  {
+   "id": "x4-lab-trend-two-points-in-date-order",
+   "label": "factually_consistent",
+   "critical": false,
+   "issues": [
+    "date_order_Hemoglobin_0",
+    "value_Hemoglobin_0",
+    "source_Hemoglobin_0",
+    "date_order_Hemoglobin_1",
+    "value_Hemoglobin_1",
+    "source_Hemoglobin_1",
+    "date_order_A1C_0",
+    "value_A1C_0",
+    "source_A1C_0",
+    "date_order_A1C_1",
+    "value_A1C_1",
+    "source_A1C_1"
+   ]
+  }
+ ]
+}
+
+=== Regression 2: the synthetic lab store returns every patient's results (drop the patient filter in agentforge/src/syntheticLabObservations.js) ===
+--- change:
+-      if (stored.patientRef !== patientRef) continue;
++      // (removed)
+--- node --test agentforge/test/lab-trend.test.js
+✔ lab trends: points come sorted by collection date, one series per test, each with its own 5-key citation (8.4637ms)
+✔ lab trends: different units are never on one line; non-numeric values are excluded with a reason (1.2567ms)
+✔ lab trend chart: SVG per series with title, band, a linked marker per point and a table; one point and zero points are explicit states (0.8917ms)
+✖ synthetic lab store never returns another patient's results (0.9616ms)
+✔ module client: lab history omits source_document_id and rejects a malformed bundle (4.1482ms)
+✔ HTTP lab trends (openemr-module mode, fake module): points are the module read-back, sorted, cited; another patient's token is refused (575.1257ms)
+✔ HTTP lab trends (fixture mode): read back from the labeled in-memory synthetic store (325.9224ms)
+✔ labResultsForModule rows round-trip through the synthetic store unchanged (0.4778ms)
+ℹ tests 8
+ℹ pass 7
+ℹ fail 1
+✖ synthetic lab store never returns another patient's results (0.9616ms)
+--- npm run eval:extensions (exit code follows the report)
+exit=1
+{
+ "passed": false,
+ "total_cases": 9,
+ "baseline_mismatch": false,
+ "regressions": {
+  "citation_present": 0,
+  "factually_consistent": 0,
+  "safe_refusal": 0.5,
+  "no_phi_in_logs": 0
+ },
+ "failed_cases": [
+  {
+   "id": "x4-lab-trend-cross-patient",
+   "label": "safe_refusal",
+   "critical": false,
+   "issues": [
+    "p1_points_in_p2_trend"
+   ]
+  }
+ ]
+}
+
+=== Restored: both files back to the E5 version being committed ===
+--- node --test agentforge/test/lab-trend.test.js
+ℹ tests 8
+ℹ pass 8
+ℹ fail 0
+--- npm run eval:extensions
+exit=0
+{
+ "passed": true,
+ "total_cases": 9,
+ "baseline_mismatch": false,
+ "regressions": {
+  "citation_present": 0,
+  "factually_consistent": 0,
+  "safe_refusal": 0,
+  "no_phi_in_logs": 0
+ },
+ "failed_cases": []
+}
+
+=== Regression 3 (module PHP): lab history no longer requires each lab row to link to a lab PDF this module stored for the patient (AgentForgeApi::readLabObservationHistory) ===
+--- change: remove the findDocument($pid, $row->documentId) / doc:lab_pdf check
+--- php interface/modules/custom_modules/oe-module-agentforge/tests/run.php (lab history lines and totals)
+exit=1
+ok   - lab history: no source_document_id reads every module lab row of this patient, read scope allowed
+ok   - lab history: never includes another patient's rows, even if the ledger lookup ignores the patient
+FAIL - lab history: a lab row whose source is not a module-stored lab PDF is excluded:  expected array (
+ok   - lab history: patient scope, allowlist and a malformed source_document_id still refuse
+ok   - lab history assembler: only ledger-recorded Observations, linked to their source document, local collection date
+53 passed, 1 failed
+--- restored:
+54 passed, 0 failed
+
+=== Regression 4 (review fix 1): drop finalState at the server call sites (agentforge/src/server.js, persistDerivedEvidence and recordSyntheticLabHistory) ===
+--- change:
+-        ..., { verifiedContext: token, finalState: result.workflow.final_state });
++        ..., { verifiedContext: token });
+The guard now fails closed: a missing state throws WORKFLOW_FINAL_STATE_REQUIRED, so the scan request answers 500 instead of writing.
+--- node --test agentforge/test/lab-trend.test.js
+✔ lab trends: points come sorted by collection date, one series per test, each with its own 5-key citation (9.586ms)
+✔ lab trends: different units are never on one line; non-numeric values are excluded with a reason (0.7691ms)
+✔ lab trend chart: SVG per series with title, band, a linked marker per point and a table; one point and zero points are explicit states (0.996ms)
+✔ synthetic lab store never returns another patient's results (0.1752ms)
+✔ module client: lab history omits source_document_id and rejects a malformed bundle (5.0758ms)
+✖ HTTP lab trends (openemr-module mode, fake module): points are the module read-back, sorted, cited; another patient's token is refused (330.8795ms)
+✖ HTTP lab trends (fixture mode): read back from the labeled in-memory synthetic store (244.3655ms)
+✔ labResultsForModule rows round-trip through the synthetic store unchanged (0.6523ms)
+✔ UI offers the lab-c sample and loads the server-rendered trend after a lab scan (0.6804ms)
+✔ a BLOCKED workflow persists nothing: no OpenEMR write and no synthetic lab row (0.6554ms)
+✖ HTTP (openemr-module mode, fake module): a patient-1 lab uploaded to patient 2 is BLOCKED and writes no lab rows or trend points (290.9926ms)
+✔ lab trends: same-date ties sort by document number, not string order; skipped module rows are reported (0.6473ms)
+ℹ tests 12
+ℹ pass 9
+ℹ fail 3
+✖ failing tests:
+    actual: 500,
+    expected: 200,
+--- restored:
+ℹ tests 12
+ℹ pass 12
+ℹ fail 0

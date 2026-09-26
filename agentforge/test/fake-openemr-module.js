@@ -11,7 +11,7 @@ import { verifySignedContext } from '../src/accessContext.js';
  * can assert that a re-upload adds zero rows.
  */
 export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowlist = [] }) {
-  const settings = { corruptObservationValues: false };
+  const settings = { corruptObservationValues: false, historyUnitOverride: null, historySubjectOverride: null };
   const nonces = new Set();
   const ledger = new Map();
   const documents = new Map();
@@ -90,6 +90,14 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
       });
       return reply(res, status, response);
     }
+    if (req.method === 'GET' && query.route === 'lab-observations' && query.source_document_id === undefined) {
+      // E5 lab history: every lab row stored for this patient, shaped like LabHistoryAssembler.
+      const entry = [...labBySource.entries()].filter(([sourceId]) => documents.get(sourceId)?.patientUuid === patientUuid).flatMap(([sourceId, results]) => results.map(({ observation_id, row }) => ({
+        resource: { resourceType: 'Observation', id: observation_id, status: 'unknown', ...(settings.historySubjectOverride === 'omit' ? {} : { subject: { reference: `Patient/${settings.historySubjectOverride || patientUuid}` } }), effectiveDateTime: `${row.collection_date}T05:00:00+00:00`, code: { coding: [{ system: 'http://loinc.org', code: row.loinc_code, display: row.test_name }] }, valueQuantity: { value: Number(row.value) + (settings.corruptObservationValues ? 1 : 0), unit: settings.historyUnitOverride?.[row.field_id] ?? row.unit }, ...(/^\d+(\.\d+)?-\d+(\.\d+)?$/.test(row.reference_range) ? { referenceRange: [{ low: { value: Number(row.reference_range.split('-')[0]) }, high: { value: Number(row.reference_range.split('-')[1]) } }] } : {}), ...(row.abnormal ? { interpretation: [{ text: row.abnormal }] } : {}), note: [{ text: `agentforge:v1 doc=${sourceId} page=${row.page} field=${row.field_id}` }] },
+        source_document_id: sourceId, field_id: row.field_id, page: row.page, collection_date: row.collection_date,
+      })));
+      return reply(res, 200, { resourceType: 'Bundle', type: 'searchset', scope: 'patient_lab_history', total: entry.length, read_path: 'openemr-fhir-service-in-process', source_document_ids: [...new Set(entry.map((item) => item.source_document_id))], missing_observation_ids: [], unlinked_observation_ids: [], skipped_lab_rows: 0, entry });
+    }
     if (req.method === 'GET' && query.route === 'lab-observations') {
       const results = labBySource.get(Number(query.source_document_id));
       if (!results) return reply(res, 404, { error: 'document_not_found' });
@@ -102,6 +110,8 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
   return {
     url: `http://127.0.0.1:${port}/interface/modules/custom_modules/oe-module-agentforge/public/api.php`,
     counts: () => ({ ...counts }),
+    /** Lab rows stored for one module document id (E5 tests). */
+    labRowsFor: (documentId) => (labBySource.get(documentId) || []).map(({ row }) => ({ ...row })),
     settings,
     close: () => new Promise((resolve) => server.close(resolve)),
   };
