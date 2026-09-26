@@ -78,7 +78,73 @@ export function parseTsv(tsv, page) {
 
 const safe = (value) => String(value || '').replace(/[|\r\n]/g, ' ').trim();
 
+// Medication-list layout: "<label>: <value>" header lines plus one numbered
+// row per drug ("Medication 1: Metformin 500 mg twice daily oral", or "Rx 1:").
+const MEDICATION_LIST_LABELS = new Map([
+  ['patient name', ['patient.name', 'Patient name']], ['name', ['patient.name', 'Patient name']], ['patient', ['patient.name', 'Patient name']],
+  ['date of birth', ['patient.date_of_birth', 'Date of birth']], ['dob', ['patient.date_of_birth', 'Date of birth']],
+  ['list date', ['medlist.list_date', 'List date']], ['date of list', ['medlist.list_date', 'List date']], ['reviewed on', ['medlist.list_date', 'List date']], ['date reviewed', ['medlist.list_date', 'List date']],
+  ['prescriber', ['medlist.prescriber_or_source', 'Prescriber']], ['prescribing clinician', ['medlist.prescriber_or_source', 'Prescriber']], ['source', ['medlist.prescriber_or_source', 'Source']], ['record source', ['medlist.prescriber_or_source', 'Source']],
+]);
+const MEDICATION_ROW_LABEL = /^(?:medication|med|rx)\s*#?\s*([1-9][0-9]?)$/;
+const MEDICATION_ROUTE_AT_END = /(?:^|\s)(by mouth|orally|oral|inhaled|inhalation|subcutaneous|topical|sublingual|intravenous|intramuscular|nasal|transdermal|ophthalmic|rectal)\s*$/i;
+const MEDICATION_DOSE_UNIT = /(?:^|\s)(\d+(?:[.,]\d+)?)\s*(mg|mcg|g|ml|units?|puffs?|tablets?|capsules?|iu)(?![a-z])/i;
+const MEDICATION_FREQUENCY = /\b(?:once daily|twice daily|three times daily|four times daily|daily|every (?:morning|evening|\d+ hours)|at bedtime|as needed|weekly)\b.*$/i;
+const trimSeparators = (text) => text.replace(/^[\s,;:-]+|[\s,;:-]+$/g, '');
+
+/**
+ * Split one medication-row value into its printed parts, e.g. "Metformin 500
+ * mg twice daily oral" -> {name, dose, unit, frequency, route}. A part the
+ * text does not show is absent from the result; nothing is defaulted.
+ */
+export function parseMedicationRow(text) {
+  let rest = String(text || '').trim();
+  const parts = {};
+  const route = MEDICATION_ROUTE_AT_END.exec(rest);
+  if (route) { parts.route = route[1]; rest = rest.slice(0, route.index).trim(); }
+  const dose = MEDICATION_DOSE_UNIT.exec(rest);
+  if (dose) {
+    parts.dose = dose[1];
+    parts.unit = dose[2];
+    const name = trimSeparators(rest.slice(0, dose.index));
+    const frequency = trimSeparators(rest.slice(dose.index + dose[0].length));
+    if (name) parts.name = name;
+    if (frequency) parts.frequency = frequency;
+  } else {
+    const frequency = MEDICATION_FREQUENCY.exec(rest);
+    if (frequency) { parts.frequency = trimSeparators(frequency[0]); rest = rest.slice(0, frequency.index); }
+    const name = trimSeparators(rest);
+    if (name) parts.name = name;
+  }
+  return parts;
+}
+
+function medicationListRows(lines) {
+  const fields = [];
+  for (const line of lines) {
+    const separator = line.text.indexOf(':');
+    if (separator < 1) continue;
+    const labelKey = line.text.slice(0, separator).trim().toLowerCase().replace(/\s+/g, ' ');
+    const value = line.text.slice(separator + 1).trim();
+    if (!value) continue;
+    const row = MEDICATION_ROW_LABEL.exec(labelKey);
+    if (row) {
+      // Every part of a row cites the same verbatim OCR line.
+      for (const [part, partValue] of Object.entries(parseMedicationRow(value))) {
+        fields.push({ field_id: `medication.${row[1]}.${part}`, label: `Medication ${row[1]} ${part}`, value: partValue, unit: '', quote: line.text, line });
+      }
+      continue;
+    }
+    const mapping = MEDICATION_LIST_LABELS.get(labelKey);
+    if (mapping) fields.push({ field_id: mapping[0], label: mapping[1], value, unit: '', quote: line.text, line });
+  }
+  return fields;
+}
+
 export function fieldRows(lines, documentType, layoutId = '') {
+  // Only the PDF-OCR layout is defined for medication lists; any other layout
+  // reads nothing rather than borrowing the intake patterns below.
+  if (documentType === 'medication_list') return layoutId === `pdf-ocr-${documentType}` ? medicationListRows(lines) : [];
   if (layoutId === `pdf-ocr-${documentType}`) {
     const labels = documentType === 'lab_pdf'
       ? new Map([

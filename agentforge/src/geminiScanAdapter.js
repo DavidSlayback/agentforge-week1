@@ -12,6 +12,8 @@ const FIELDS = {
     'lab.a1c.test_name', 'lab.a1c.value', 'lab.a1c.unit', 'lab.a1c.reference_range', 'lab.a1c.collection_date', 'lab.a1c.abnormal',
   ],
   intake_form: ['patient.name', 'patient.date_of_birth', 'patient.phone', 'chief_concern', 'medications', 'allergies', 'family_history'],
+  // Rows 1-10 of a medication list, one field per printed part.
+  medication_list: ['medlist.list_date', 'medlist.prescriber_or_source', 'patient.name', 'patient.date_of_birth', ...Array.from({ length: 10 }, (_, index) => ['name', 'dose', 'unit', 'frequency', 'route'].map((part) => `medication.${index + 1}.${part}`)).flat()],
 };
 
 const schema = (documentType) => ({
