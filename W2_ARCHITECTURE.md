@@ -644,6 +644,31 @@ body field; a copied claims object is refused):
   logs the missing setting names at startup, keeps `/ready` at 503
   (`openemrLiveReadsConfiguration`), and refuses each live request with
   `openemr_live_reads_not_configured`.
+- **OpenEMR 8.0.0 finding (E9b, 2026-09-26, unresolved upstream behavior).**
+  Observed on production with the service's read token (user `admin`, scopes
+  include `user/medical_problem.rs` and `user/allergy.rs`):
+  `GET /apis/default/api/patient/{uuid}/medical_problem` and
+  `GET /apis/default/api/patient/{uuid}/allergy` return 200 `[]` for AF-LIVE-01
+  (pid 9) and for pid 7, though both have rows. The unscoped
+  `GET .../medical_problem` returns 14 rows across pids 2 to 9 and
+  `GET .../allergy` 9 rows, both including pid 9, and a `?puuid=` parameter is
+  ignored. `GET .../patient/9/allergy` (the numeric pid in the `:puuid` slot)
+  returns pid 9's row, and `GET .../patient/9/medical_problem` returns 500.
+  Encounters (`/patient/{uuid}/encounter`) and medications
+  (`/patient/{pid}/medication`) return the patient's rows; the document route
+  returns 500. AgentForge therefore treats an empty answer from the two
+  patient-scoped list routes as `unverified_empty`
+  (`error_class: openemr_scoped_list_empty`), not as a confirmed absence: the
+  briefing is qualified ("Problems could not be confirmed from OpenEMR",
+  reason `problems:unverified_empty`), the group is withheld, and the scan
+  answer lists it under needs review (`openemr_unconfirmed_empty`). The same
+  status applies on any live route that returns only other patients' rows
+  (`openemr_rows_for_other_patients_only`). Medications and encounters keep
+  `empty`, because their routes returned the patient's own rows and an empty
+  encounter list is a 404. The adapter does not use the numeric-pid route (it
+  works only because this build compares `:puuid` with the pid) and does not
+  fetch every patient's list to filter one (not minimum necessary). The fixture
+  path is unchanged.
 - Known gaps in the live mapping: OpenEMR `lists` rows carry no dose, so a
   medication fact reads `active` or `ended <date>`, not "10 mg daily"; the
   document route needs a `path` and returns 404, so the `notes` group is

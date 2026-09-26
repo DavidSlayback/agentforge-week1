@@ -228,10 +228,15 @@ SHA. Values are never printed.
    `Test Patient One` (pubpid `AF-LIVE-01`), choose **Prepare for visit** in
    the patient menu and open the link within about 4 minutes. The page badge
    must say "Chart source: OpenEMR (live)". Run the "Lab result · Layout A"
-   sample: the scan answer's patient-record facts cite `openemr_record`
-   (Hypertension, Lisinopril, Penicillin, the blood-pressure follow-up
-   encounter), the badge stays "OpenEMR (live)", and "View source region"
-   opens the stored PDF. `/agentforge-w2/v1/traces` shows the scan's retrieval
+   sample: the scan answer's patient-record facts cite `openemr_record` for
+   the medications (Lisinopril) and encounters (the blood-pressure
+   follow-up); problems and allergies are **not** shown as facts but listed
+   under "Needs review" as "could not be confirmed from OpenEMR" (the
+   OpenEMR 8.0.0 finding below), and the badge reads "OpenEMR (live) · not
+   confirmed: problems, allergies". "View source region" opens the stored
+   PDF. A live briefing is qualified with "Problems could not be confirmed
+   from OpenEMR" and "Allergies could not be confirmed from OpenEMR" (and
+   `notes:failed`). `/agentforge-w2/v1/traces` shows the scan's retrieval
    attempts with `adapter: openemr`. The public demo at `/agentforge-w2/`
    must still say "Chart source: synthetic fixture". If the launcher says
    "Chart reads only", `grader` lacks `patients/docs` write or the uuid is not
@@ -242,8 +247,34 @@ SHA. Values are never printed.
    token after the page loads.
 
 Known gaps on the live path: medication rows carry no dose (the fact reads
-`active` or `ended <date>`), and the document route returns 404 without a
-`path`, so the briefing is qualified with `notes:failed`.
+`active` or `ended <date>`), and the document route fails (500 on
+production), so the briefing is qualified with `notes:failed`.
+
+**OpenEMR 8.0.0 finding (E9b, 2026-09-26, unresolved upstream behavior).**
+Observed on production with the service's read token (user `admin`, scopes
+include `user/medical_problem.rs` and `user/allergy.rs`):
+`GET /apis/default/api/patient/{uuid}/medical_problem` and
+`GET /apis/default/api/patient/{uuid}/allergy` return 200 `[]` for AF-LIVE-01
+(pid 9) and for pid 7, though both have rows. The unscoped
+`GET .../medical_problem` returns 14 rows across pids 2 to 9 and
+`GET .../allergy` 9 rows, both including pid 9, and a `?puuid=` parameter is
+ignored. `GET .../patient/9/allergy` (the numeric pid in the `:puuid` slot)
+returns pid 9's row, and `GET .../patient/9/medical_problem` returns 500.
+Encounters (`/patient/{uuid}/encounter`) and medications
+(`/patient/{pid}/medication`) return the patient's rows; the document route
+returns 500. AgentForge therefore treats an empty answer from the two
+patient-scoped list routes as `unverified_empty`
+(`error_class: openemr_scoped_list_empty`), not as a confirmed absence: the
+briefing is qualified ("Problems could not be confirmed from OpenEMR",
+reason `problems:unverified_empty`), the group is withheld, and the scan
+answer lists it under needs review (`openemr_unconfirmed_empty`). The same
+status applies on any live route that returns only other patients' rows
+(`openemr_rows_for_other_patients_only`). Medications and encounters keep
+`empty`, because their routes returned the patient's own rows and an empty
+encounter list is a 404. The adapter does not use the numeric-pid route (it
+works only because this build compares `:puuid` with the pid) and does not
+fetch every patient's list to filter one (not minimum necessary). The fixture
+path is unchanged.
 
 ## Patient dashboard port (`dashboard`)
 

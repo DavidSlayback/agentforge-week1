@@ -40,11 +40,26 @@ function bodyFor(pathname) {
   return null;
 }
 
+/**
+ * The OpenEMR 8.0.0 behaviour found on production (E9b): the patient-scoped
+ * medical_problem and allergy routes answer 200 `[]` although the patient has
+ * rows. `emptyScopedLists` reproduces it; `otherPatientsOnly` returns only
+ * another patient's rows on those routes.
+ */
+function variantBody(pathname, { emptyScopedLists = false, otherPatientsOnly = false } = {}) {
+  const body = bodyFor(pathname);
+  const scopedList = pathname.endsWith('/medical_problem') || pathname.endsWith('/allergy');
+  if (!body || !scopedList) return body;
+  if (emptyScopedLists) return { data: [] };
+  if (otherPatientsOnly) return { data: body.data.filter((row) => row.puuid === OTHER_PATIENT) };
+  return body;
+}
+
 /** A `fetch` for `OpenEMRRestAdapter({ fetchImpl })`; records every request. */
-export function fakeOpenEMRRestFetch(requests = []) {
+export function fakeOpenEMRRestFetch(requests = [], variant = {}) {
   return async (url, options) => {
     requests.push({ url, options });
-    const body = options?.headers?.authorization === 'Bearer synthetic-token' ? bodyFor(new URL(url).pathname) : undefined;
+    const body = options?.headers?.authorization === 'Bearer synthetic-token' ? variantBody(new URL(url).pathname, variant) : undefined;
     if (body === undefined) return { ok: false, status: 401, async json() { return {}; } };
     if (body === null) return { ok: false, status: 404, async json() { return {}; } };
     return { ok: true, status: 200, async json() { return body; } };

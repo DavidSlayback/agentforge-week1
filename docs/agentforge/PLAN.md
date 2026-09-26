@@ -372,6 +372,13 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   without OpenEMR settings keep `/ready` at 503; the unseed counts every
   pid-linked table. Accepted residuals (W2_ARCHITECTURE.md §3f): reads run
   as a service identity; 280 s bearer tokens, no single-use exchange.
+- **E9b (2026-09-26):** on production (OpenEMR 8.0.0) the patient-scoped
+  `medical_problem` and `allergy` routes return `[]` for patients with rows.
+  The live adapter now reports that as `unverified_empty`
+  (`openemr_scoped_list_empty`), which qualifies the briefing and puts the
+  groups under the answer's needs review; never a confirmed "none".
+  Unresolved upstream. Evidence: `chart-source-router.test.js` (E9b tests),
+  `x9-live-chart-empty-list-unconfirmed`, `E9-live-chart-regression.txt` R9.
 
 **E7 — Freeze and prove (Sun 06:00–08:00).** One SHA on `main`. Deploy W2 and
 the dashboard from it and confirm both `/health` SHAs. Extend

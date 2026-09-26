@@ -14,7 +14,7 @@ export function verify({ patientRef, claims = [], coverage = [], qualification =
   if (operations.some((operation) => operation.type !== 'read' || !isAllowedReadOperation(operation.operation))) issues.push('WRITE_CAPABLE_BEHAVIOR');
   if (coverage.some((item) => !COVERAGE_STATUSES.has(item.status))) issues.push('INVALID_COVERAGE_STATUS');
   if (coverage.some((item) => isCoverageUnavailable(item.status)) && !qualification.required) issues.push('UNQUALIFIED_PARTIAL_RESULT');
-  if (coverage.some((item) => ['empty', 'failed', 'timeout', 'unauthorized', 'not_requested'].includes(item.status) && item.records !== 0)) issues.push('UNAVAILABLE_COVERAGE_HAS_RECORDS');
+  if (coverage.some((item) => ['empty', 'unverified_empty', 'failed', 'timeout', 'unauthorized', 'not_requested'].includes(item.status) && item.records !== 0)) issues.push('UNAVAILABLE_COVERAGE_HAS_RECORDS');
   const groups = new Map(coverage.map((item) => [item.group, item]));
   if (claims.some((claim) => {
     const group = groups.get(coverageGroupForField(claim.field));
