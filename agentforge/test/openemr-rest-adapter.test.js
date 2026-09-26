@@ -30,7 +30,9 @@ test('OpenEMR REST adapter uses only GET allowlisted routes and normalizes recor
   assert.equal(validateRetrievalResult(retrieved).valid, true, 'undated OpenEMR identity rows remain valid retrieval evidence');
   assert.equal(item.patient.patient_ref, 'patient-uuid');
   assert.equal(item.patient.display_name, 'Synthetic Patient');
-  assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'empty', 'empty']);
+  // E9b: an empty allergy list from the patient-scoped route is not a confirmed absence.
+  assert.deepEqual(retrieved.coverage.map((group) => group.status), ['success', 'success', 'success', 'success', 'unverified_empty', 'empty']);
+  assert.equal(retrieved.coverage.find((group) => group.group === 'allergies').error_class, 'openemr_scoped_list_empty');
   assert.deepEqual(retrieved.records.map((record) => record.source_ref), ['openemr-patient-patient-uuid', 'enc-1', 'problem-1', 'med-1']);
   assert.ok(requests.every(({ options }) => options.method === 'GET'));
   assert.ok(requests.filter(({ url }) => url.includes('/apis/default/api/')).every(({ options }) => options.headers.authorization === 'Bearer synthetic-token'));

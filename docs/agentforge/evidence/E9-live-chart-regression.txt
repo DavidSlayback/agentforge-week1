@@ -322,3 +322,20 @@ ok 6 - live reads on without OpenEMR access settings: /ready is 503 and live req
 # pass 5
 # fail 1
 Reverted (reverse edit).
+
+--- E9b (2026-09-26 11:44 CDT, branch agentforge/e9b-empty-lists on main 8c51e44a) ---
+
+=== R9: an empty patient-scoped problem/allergy list from OpenEMR is treated as a confirmed absence (empty) again ===
+-         return { records: [], coverage: { group, status: unverifiedReason ? 'unverified_empty' : 'empty', records: 0, attempts: 1, error_class: unverifiedReason } };
++         return { records: [], coverage: { group, status: 'empty', records: 0, attempts: 1, error_class: null } };
+$ node --test test/chart-source-router.test.js test/openemr-rest-adapter.test.js
+not ok 14 - E9b: an empty patient-scoped problem or allergy list from OpenEMR is unconfirmed, never "no documented problems"
+not ok 15 - E9b: a list route that returns only other patients' rows is unconfirmed too, on the live path
+not ok 17 - OpenEMR REST adapter uses only GET allowlisted routes and normalizes records
+# pass 20
+# fail 3
+$ node agentforge/scripts/run-w2-extension-gate.mjs  (summary)
+exit=1
+passed=False
+FAILED x9-live-chart-empty-list-unconfirmed ['scan_group_not_unconfirmed:problems', 'answer_needs_review_missing:problems', 'scan_group_not_unconfirmed:allergies', 'answer_needs_review_missing:allergies', 'briefing_problems_status:empty', 'briefing_reason_missing:problems', 'briefing_allergies_status:empty', 'briefing_reason_missing:allergies']
+Reverted (reverse edit).

@@ -5,9 +5,12 @@ import { Citation, GuidelineEvidence, IntakeForm, LabResult, MedicationList, par
 /** Versioned request/response wire-shape authority; not an access grant. */
 export const CONTRACT_VERSION = '0.1';
 const correlationSecret = process.env.AGENTFORGE_DEMO_SECRET || crypto.randomBytes(32);
-export const COVERAGE_STATUSES = new Set(['success', 'empty', 'failed', 'timeout', 'unauthorized', 'not_requested']);
+// `unverified_empty` (E9b): a live OpenEMR list read that came back empty
+// where empty is not a confirmed absence (openemrAdapter.js). It qualifies the
+// result like an unavailable group, but it is not a transport failure.
+export const COVERAGE_STATUSES = new Set(['success', 'empty', 'unverified_empty', 'failed', 'timeout', 'unauthorized', 'not_requested']);
 export const COVERAGE_FAILURE_STATUSES = new Set(['failed', 'timeout', 'unauthorized']);
-export const COVERAGE_UNAVAILABLE_STATUSES = new Set([...COVERAGE_FAILURE_STATUSES, 'not_requested']);
+export const COVERAGE_UNAVAILABLE_STATUSES = new Set([...COVERAGE_FAILURE_STATUSES, 'not_requested', 'unverified_empty']);
 export const DISPOSITIONS = new Set(['complete', 'partial', 'qualified', 'blocked', 'deadline-exceeded']);
 /** Groups required before a return-visit response may claim completeness. */
 export const COMPLETE_COVERAGE_GROUPS = Object.freeze(['identity', 'encounters', 'problems', 'medications', 'notes']);
@@ -87,7 +90,7 @@ function validateCoverage(value, issues) {
     if (!Number.isInteger(group.records) || group.records < 0) issues.push(`${path}.records_must_be_non_negative_integer`);
     if (!Number.isInteger(group.attempts) || group.attempts < 1) issues.push(`${path}.attempts_must_be_positive_integer`);
     if (!(group.error_class === null || typeof group.error_class === 'string')) issues.push(`${path}.error_class_must_be_string_or_null`);
-    if (['empty', 'failed', 'timeout', 'unauthorized', 'not_requested'].includes(group.status) && group.records !== 0) issues.push(`${path}.unavailable_group_must_have_zero_records`);
+    if (['empty', 'unverified_empty', 'failed', 'timeout', 'unauthorized', 'not_requested'].includes(group.status) && group.records !== 0) issues.push(`${path}.unavailable_group_must_have_zero_records`);
   });
 }
 

@@ -15,9 +15,9 @@ const CLINICIAN_UUID = '6f1e2d3c-4b5a-4968-8776-655443322110';
 const moduleContext = (patient = LIVE_PATIENT, scope = 'read-briefing') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: CLINICIAN_UUID, scope, acl: scope === 'read-briefing' ? 'read' : 'write', issuer: 'openemr-module', authn: 'openemr-session', secret }), secret);
 const syntheticContext = (patient = 'fixture-patient-001') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', issuer: 'synthetic-demo', authn: 'synthetic', secret }), secret);
 
-function makeRouter({ liveReads = true, requests = [] } = {}) {
+function makeRouter({ liveReads = true, requests = [], variant = {} } = {}) {
   const fixtureAdapter = new FixtureAdapter(defaultFixturePath());
-  const liveAdapter = new OpenEMRRestAdapter({ baseUrl: 'http://openemr.test', accessToken: 'synthetic-token', fetchImpl: fakeOpenEMRRestFetch(requests) });
+  const liveAdapter = new OpenEMRRestAdapter({ baseUrl: 'http://openemr.test', accessToken: 'synthetic-token', fetchImpl: fakeOpenEMRRestFetch(requests, variant) });
   return { router: new ChartSourceRouter({ fixtureAdapter, liveAdapter, liveReads }), fixtureAdapter, liveAdapter, requests };
 }
 
@@ -177,3 +177,36 @@ test('launch vector: a token minted by the PHP launcher verifies in Node with op
   assert.equal(verifySignedContext(token, 'another-secret', () => 1790000000), null);
 });
 
+
+test('E9b: an empty patient-scoped problem or allergy list from OpenEMR is unconfirmed, never "no documented problems"', async () => {
+  const { router } = makeRouter({ variant: { emptyScopedLists: true } });
+  const service = makeService(router);
+  const briefing = await service.prepare({ patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID }, { verifiedContext: moduleContext() });
+  const status = Object.fromEntries(briefing.coverage.map((group) => [group.group, [group.status, group.error_class]]));
+  assert.deepEqual(status.problems, ['unverified_empty', 'openemr_scoped_list_empty']);
+  assert.deepEqual(status.allergies, ['unverified_empty', 'openemr_scoped_list_empty']);
+  // `partial`, not `qualified`, here only because the fake's notes route fails (as on production).
+  assert.ok(['qualified', 'partial'].includes(briefing.disposition), briefing.disposition);
+  assert.equal(briefing.qualification.required, true);
+  assert.ok(briefing.qualification.reasons.includes('problems:unverified_empty') && briefing.qualification.reasons.includes('allergies:unverified_empty'));
+  assert.ok(briefing.withheld_fields.includes('problems') && briefing.withheld_fields.includes('allergies'));
+  assert.equal(briefing.claims.some((claim) => claim.field.startsWith('problem.') || claim.field.startsWith('allergy.')), false);
+  assert.ok(briefing.claims.some((claim) => claim.field.startsWith('medication.')), 'medications still read');
+  assert.doesNotMatch(JSON.stringify(briefing), /no (documented |known )?(problems|allergies)/i);
+  const evidence = await service.retrieveFollowUpEvidence({ patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID, message: 'blood pressure' }, { verifiedContext: moduleContext() });
+  assert.equal(evidence.qualification.required, true);
+  assert.ok(evidence.qualification.reasons.includes('patient_problems_unavailable') && evidence.qualification.reasons.includes('patient_allergies_unavailable'));
+});
+
+test('E9b: a list route that returns only other patients\' rows is unconfirmed too, on the live path', async () => {
+  const { router } = makeRouter({ variant: { otherPatientsOnly: true } });
+  const chart = await makeService(router).retrievePatientChartFacts(LIVE_PATIENT, null, { verifiedContext: moduleContext() });
+  assert.deepEqual(chart.unconfirmed_patient_groups, ['problems', 'allergies']);
+  assert.equal(chart.coverage.find((group) => group.group === 'problems').error_class, 'openemr_rows_for_other_patients_only');
+});
+
+test('E9b: the fixture path is unchanged (an empty fixture group stays empty)', async () => {
+  const { router } = makeRouter();
+  const briefing = await makeService(router).prepare({ patient_uuid: 'fixture-patient-007', clinician_uuid: 'fixture-physician-001' }, { verifiedContext: syntheticContext('fixture-patient-007') });
+  assert.equal(briefing.coverage.some((group) => group.status === 'unverified_empty'), false);
+});

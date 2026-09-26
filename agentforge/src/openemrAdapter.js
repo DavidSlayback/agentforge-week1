@@ -2,11 +2,23 @@ import { authorizeRequest } from './accessContext.js';
 import fs from 'node:fs/promises';
 
 const REST_PREFIX = '/apis/default/api';
+/**
+ * E9b, OpenEMR 8.0.0 finding (unresolved upstream): the patient-scoped
+ * `/patient/{puuid}/medical_problem` and `/patient/{puuid}/allergy` routes
+ * answer 200 `[]` for patients who have rows, so an empty answer from them is
+ * not a confirmed absence. Those groups report `unverified_empty`
+ * (`openemr_scoped_list_empty`), which qualifies the briefing and answer. The
+ * medication route (by pid) returns the patient's rows and an empty
+ * encounter list is a 404 (failed), so their empty results stay `empty`.
+ * The numeric-pid variant of these routes is not used: it works only because
+ * this build compares `:puuid` against the pid.
+ */
+const UNTRUSTED_EMPTY = 'openemr_scoped_list_empty';
 const READ_GROUPS = Object.freeze([
   ['encounters', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/encounter`, mapEncounter],
-  ['problems', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/medical_problem`, mapProblem],
+  ['problems', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/medical_problem`, mapProblem, UNTRUSTED_EMPTY],
   ['medications', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.pid)}/medication`, mapMedication],
-  ['allergies', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/allergy`, mapAllergy],
+  ['allergies', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/allergy`, mapAllergy, UNTRUSTED_EMPTY],
   ['notes', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.pid)}/document`, mapNote],
 ]);
 
@@ -82,13 +94,18 @@ export class OpenEMRRestAdapter {
     const patient = item.openemr_patient;
     const groups = [{ group: 'identity', status: 'success', records: 1, attempts: 1, error_class: null }];
     const records = [mapIdentity(patient)];
-    const results = await Promise.all(READ_GROUPS.map(async ([group, pathFor, mapper]) => {
+    const results = await Promise.all(READ_GROUPS.map(async ([group, pathFor, mapper, untrustedEmpty = null]) => {
       try {
         const result = await this.request(pathFor(patient), { correlationId, signal });
         const rows = recordsFrom(result.body);
         const scopedRows = rows.filter((row) => rowBelongsToPatient(row, patient, group));
         const mapped = scopedRows.flatMap((row, index) => mapper(row, index));
-        return { records: mapped, coverage: { group, status: mapped.length ? 'success' : 'empty', records: mapped.length, attempts: 1, error_class: null } };
+        if (mapped.length) return { records: mapped, coverage: { group, status: 'success', records: mapped.length, attempts: 1, error_class: null } };
+        // Rows that all belong to other patients prove nothing about this one,
+        // on any route; an empty answer from a route known to return empty
+        // wrongly (above) proves nothing either. Neither is a confirmed absence.
+        const unverifiedReason = rows.length ? 'openemr_rows_for_other_patients_only' : untrustedEmpty;
+        return { records: [], coverage: { group, status: unverifiedReason ? 'unverified_empty' : 'empty', records: 0, attempts: 1, error_class: unverifiedReason } };
       } catch (error) {
         return { records: [], coverage: { group, status: error.code === 'OPENEMR_UNAUTHORIZED' ? 'unauthorized' : error.code === 'OPENEMR_TIMEOUT' ? 'timeout' : 'failed', records: 0, attempts: 1, error_class: error.code || 'openemr_read_failed' } };
       }

@@ -129,6 +129,8 @@ button:disabled{opacity:.6;cursor:wait}
   let busy = false;
   const setStatus = (message, error = false) => { status.textContent = message; status.className = error ? 'status error' : 'status'; };
   const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); if (scanSampleButton) scanSampleButton.disabled = value; pdfSampleButtons.forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); }); crossPatientProbe.disabled = value; };
+  // E9b: an OpenEMR list that answered empty without confirming absence.
+  const readableReason = (reason) => { const match = /^([a-z_]+):unverified_empty$/.exec(String(reason)); return match ? match[1].charAt(0).toUpperCase() + match[1].slice(1) + ' could not be confirmed from OpenEMR' : reason; };
   const humanize = (value) => String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
@@ -168,7 +170,7 @@ button:disabled{opacity:.6;cursor:wait}
     if (role === 'assistant' && response) { if (kind === 'briefing') renderBriefing(response, item); else renderFollowUp(response, item); } else { const paragraph = document.createElement('p'); paragraph.textContent = text || (['blocked', 'deadline-exceeded'].includes(response?.disposition) ? 'No verified patient content was returned.' : 'No response text was supplied.'); item.append(paragraph); }
     if (response) {
       const badge = document.createElement('span'); badge.className = 'badge'; badge.dataset.disposition = response.disposition || 'complete'; badge.textContent = response.disposition || 'response'; header.append(badge);
-      if (response.qualification?.required) { const note = document.createElement('p'); note.className = 'qualification' + (['blocked', 'deadline-exceeded'].includes(response.disposition) ? ' blocked' : ''); note.textContent = 'Qualified: ' + ((response.qualification.reasons || []).join(', ') || 'coverage is incomplete'); item.append(note); }
+      if (response.qualification?.required) { const note = document.createElement('p'); note.className = 'qualification' + (['blocked', 'deadline-exceeded'].includes(response.disposition) ? ' blocked' : ''); note.textContent = 'Qualified: ' + ((response.qualification.reasons || []).map(readableReason).join(', ') || 'coverage is incomplete'); item.append(note); }
       if (response.withheld_fields?.length) { const note = document.createElement('p'); note.className = 'qualification'; note.textContent = 'Withheld fields: ' + response.withheld_fields.join(', '); item.append(note); }
       if (response.disposition === 'blocked') { const note = document.createElement('p'); note.className = 'qualification blocked'; note.textContent = 'Blocked before patient data was returned.'; item.append(note); }
       if (response.disposition === 'deadline-exceeded') { const note = document.createElement('p'); note.className = 'qualification blocked'; note.textContent = 'Deadline exceeded before verified patient content was returned.'; item.append(note); }
@@ -292,7 +294,7 @@ button:disabled{opacity:.6;cursor:wait}
       // -- it is only an optional clinician question the server appends.
       const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: '' });
       const active = workflow.workflow;
-      if (workflow.chart_source) showChartSource(workflow.chart_source.chart_source, workflow.chart_source.label + (['read', 'empty'].includes(workflow.chart_source.status) ? '' : ' (' + (workflow.chart_source.reason || workflow.chart_source.status) + ')'));
+      if (workflow.chart_source) showChartSource(workflow.chart_source.chart_source, workflow.chart_source.label + (['read', 'empty'].includes(workflow.chart_source.status) ? '' : ' (' + (workflow.chart_source.reason || workflow.chart_source.status) + ')') + (workflow.chart_source.unconfirmed_groups?.length ? ' · not confirmed: ' + workflow.chart_source.unconfirmed_groups.join(', ') : ''));
       const workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
       const guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
       setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
@@ -395,7 +397,7 @@ button:disabled{opacity:.6;cursor:wait}
           const reviewList = document.createElement('ul');
           for (const item of answer.needs_review) {
             const row = document.createElement('li');
-            row.textContent = item.field + ' -- ' + item.reason;
+            row.textContent = item.reason === 'openemr_unconfirmed_empty' ? humanize(item.field) + ' could not be confirmed from OpenEMR (an empty list is not a confirmed absence)' : item.field + ' -- ' + item.reason;
             reviewList.append(row);
           }
           reviewSection.append(reviewList);

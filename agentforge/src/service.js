@@ -290,11 +290,15 @@ export class AgentForgeService {
           chartRead.status = chart.status === 'ready' ? (chart.patient_facts.length ? 'read' : 'empty') : chart.status;
           chartRead.reason = chart.status === 'ready' ? null : chart.reason || null;
           if (chart.failed_patient_groups?.length) chartRead.failed_groups = chart.failed_patient_groups;
+          if (chart.unconfirmed_patient_groups?.length) chartRead.unconfirmed_groups = chart.unconfirmed_patient_groups;
           for (const group of chart.coverage || []) trace?.recordRetrievalAttempt({ adapter: chartReadOrigin(chartReader), group: group.group, status: group.status, attempts: group.attempts, errorCode: group.error_class });
           if (!chart.coverage?.length) trace?.recordRetrievalAttempt({ adapter: chartReadOrigin(chartReader), group: 'chart', status: chartRead.status === 'failed' ? 'failed' : chartRead.status, attempts: 1, errorCode: chartRead.reason });
           const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, medicationList: extraction?.medication_list || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [] };
           answerParts = partitionAnswerInputs(inputs);
-          const withheldReview = (chart.withheld_patient_fields || []).map((item) => ({ kind: 'patient_record', field: item.field, reason: `${item.reason}_withheld` }));
+          const withheldReview = [
+            ...(chart.withheld_patient_fields || []).map((item) => ({ kind: 'patient_record', field: item.field, reason: `${item.reason}_withheld` })),
+            ...(chart.unconfirmed_patient_groups || []).map((group) => ({ kind: 'patient_record', field: group, reason: 'openemr_unconfirmed_empty' })),
+          ];
           const liveProviderBlocked = liveExternalBlocked && this.answerProvider && this.answerProvider.name !== 'deterministic' && this.answerProvider.name !== 'deterministic-answer-composer';
           answer = await composeGroundedAnswer(
             { ...inputs, question: answerQuery },
@@ -436,7 +440,10 @@ export class AgentForgeService {
       return { source_type: 'patient_record', patient_ref: item.patient.patient_ref, source_id: record.source_ref, field: record.field, value: record.value, recorded_at: record.recorded_at, author: record.author, citation };
     });
     const failedGroups = retrieved.coverage.filter((group) => isCoverageUnavailable(group.status)).map((group) => group.group);
-    return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups, withheld_patient_fields: withheldPatientFields, coverage: retrieved.coverage, chart_source: citationSource.chart_source };
+    // E9b: groups OpenEMR answered with an empty list that is not a confirmed
+    // absence; the answer lists them under needs_review, never as "none".
+    const unconfirmedGroups = retrieved.coverage.filter((group) => group.status === 'unverified_empty').map((group) => group.group);
+    return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups, unconfirmed_patient_groups: unconfirmedGroups, withheld_patient_fields: withheldPatientFields, coverage: retrieved.coverage, chart_source: citationSource.chart_source };
   }
 
   async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
