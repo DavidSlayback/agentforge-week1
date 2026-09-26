@@ -100,11 +100,15 @@ export class OpenEMRModuleClient {
     this.correlationId = correlationId;
   }
 
-  async request({ method, route, query = {}, body = null, contextToken = null }) {
+  /**
+   * `correlationId` is the calling request's id (server.js); only when the
+   * caller has none does the client mint an `af-<uuid>` for this one call.
+   */
+  async request({ method, route, query = {}, body = null, contextToken = null, correlationId: requestCorrelationId = null }) {
     const fullQuery = { route, site: this.site, ...query };
     const bodyText = body === null ? '' : JSON.stringify(body);
     const { headers } = signRequest({ secret: this.secret, method, query: fullQuery, body: bodyText, contextToken, timestamp: this.now(), nonce: this.nonce() });
-    const correlationId = this.correlationId();
+    const correlationId = requestCorrelationId || this.correlationId();
     const url = new URL(this.baseUrl);
     for (const [key, value] of Object.entries(fullQuery)) url.searchParams.set(key, value);
     const controller = new AbortController();
@@ -128,33 +132,34 @@ export class OpenEMRModuleClient {
     return payload;
   }
 
-  health() { return this.request({ method: 'GET', route: 'health' }); }
+  /** GET route=health: HMAC-authenticated, no context token, no patient data. */
+  health({ correlationId = null } = {}) { return this.request({ method: 'GET', route: 'health', correlationId }); }
 
   /** POST route=documents. `content` is a Buffer; `sourceDocumentId` only for derived_facts. */
-  async storeDocument({ patientUuid, contextToken, documentType, filename, mimeType, content, sourceDocumentId = null }) {
+  async storeDocument({ patientUuid, contextToken, documentType, filename, mimeType, content, sourceDocumentId = null, correlationId = null }) {
     const body = { patient_uuid: patientUuid, document_type: documentType, filename, mime_type: mimeType, content_sha256: sha256Hex(content), content_base64: content.toString('base64'), ...(sourceDocumentId === null ? {} : { source_document_id: sourceDocumentId }) };
-    const result = await this.request({ method: 'POST', route: 'documents', body, contextToken });
+    const result = await this.request({ method: 'POST', route: 'documents', body, contextToken, correlationId });
     requireIntegerId(result.document_id);
     return result;
   }
 
   /** GET route=documents: bytes decrypted by OpenEMR; the sha256 is re-checked here. */
-  async getDocument({ patientUuid, contextToken, documentId }) {
-    const result = await this.request({ method: 'GET', route: 'documents', query: { patient_uuid: patientUuid, document_id: String(documentId) }, contextToken });
+  async getDocument({ patientUuid, contextToken, documentId, correlationId = null }) {
+    const result = await this.request({ method: 'GET', route: 'documents', query: { patient_uuid: patientUuid, document_id: String(documentId) }, contextToken, correlationId });
     const content = Buffer.from(String(result.content_base64 || ''), 'base64');
     if (sha256Hex(content) !== result.content_sha256) throw new OpenEMRModuleError('OPENEMR_MODULE_CONTENT_HASH_MISMATCH');
     return { ...result, content };
   }
 
-  async storeLabResults({ patientUuid, contextToken, sourceDocumentId, sourceSha256, results }) {
-    const result = await this.request({ method: 'POST', route: 'lab-results', body: { patient_uuid: patientUuid, source_document_id: sourceDocumentId, source_sha256: sourceSha256, results }, contextToken });
+  async storeLabResults({ patientUuid, contextToken, sourceDocumentId, sourceSha256, results, correlationId = null }) {
+    const result = await this.request({ method: 'POST', route: 'lab-results', body: { patient_uuid: patientUuid, source_document_id: sourceDocumentId, source_sha256: sourceSha256, results }, contextToken, correlationId });
     requireIntegerId(result.procedure_order_id);
     if (!Array.isArray(result.observation_ids)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
     return result;
   }
 
-  async getLabObservations({ patientUuid, contextToken, sourceDocumentId }) {
-    const result = await this.request({ method: 'GET', route: 'lab-observations', query: { patient_uuid: patientUuid, source_document_id: String(sourceDocumentId) }, contextToken });
+  async getLabObservations({ patientUuid, contextToken, sourceDocumentId, correlationId = null }) {
+    const result = await this.request({ method: 'GET', route: 'lab-observations', query: { patient_uuid: patientUuid, source_document_id: String(sourceDocumentId) }, contextToken, correlationId });
     if (result.resourceType !== 'Bundle' || result.read_path !== MODULE_OBSERVATION_READ_PATH || !Array.isArray(result.entry)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
     return result;
   }
@@ -163,8 +168,8 @@ export class OpenEMRModuleClient {
    * GET route=lab-observations with no source_document_id: the patient's
    * module-written lab Observations, each linked to its source document id.
    */
-  async getLabObservationHistory({ patientUuid, contextToken }) {
-    const result = await this.request({ method: 'GET', route: 'lab-observations', query: { patient_uuid: patientUuid }, contextToken });
+  async getLabObservationHistory({ patientUuid, contextToken, correlationId = null }) {
+    const result = await this.request({ method: 'GET', route: 'lab-observations', query: { patient_uuid: patientUuid }, contextToken, correlationId });
     if (result.resourceType !== 'Bundle' || result.read_path !== MODULE_OBSERVATION_READ_PATH || result.scope !== MODULE_LAB_HISTORY_SCOPE || !Array.isArray(result.entry) || !Array.isArray(result.missing_observation_ids) || !Number.isInteger(result.skipped_lab_rows)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
     for (const entry of result.entry) {
       if (!entry || typeof entry.resource !== 'object' || entry.resource === null || !Number.isInteger(entry.source_document_id) || entry.source_document_id <= 0) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID');
@@ -173,8 +178,8 @@ export class OpenEMRModuleClient {
   }
 
   /** Only for items a clinician has confirmed (A3); drafts never reach OpenEMR. */
-  storeClinicalListItems({ patientUuid, contextToken, sourceDocumentId, confirmationEventId, items }) {
-    return this.request({ method: 'POST', route: 'clinical-list-items', body: { patient_uuid: patientUuid, source_document_id: sourceDocumentId, confirmation_event_id: confirmationEventId, items }, contextToken });
+  storeClinicalListItems({ patientUuid, contextToken, sourceDocumentId, confirmationEventId, items, correlationId = null }) {
+    return this.request({ method: 'POST', route: 'clinical-list-items', body: { patient_uuid: patientUuid, source_document_id: sourceDocumentId, confirmation_event_id: confirmationEventId, items }, contextToken, correlationId });
   }
 }
 

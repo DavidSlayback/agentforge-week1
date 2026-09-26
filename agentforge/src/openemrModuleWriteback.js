@@ -197,24 +197,37 @@ export class OpenEMRModuleWriteback {
     };
   }
 
-  async persistSourceDocument({ patientRef, documentType, filename, content, uploadedBy, verifiedContext = null }) {
+  /**
+   * Readiness probe (server.js `/ready`): the module's HMAC-authenticated
+   * health route answers `status: ok`. False on any failure.
+   */
+  async checkReady() {
+    try {
+      const result = await this.client.health();
+      return result?.status === 'ok';
+    } catch {
+      return false;
+    }
+  }
+
+  async persistSourceDocument({ patientRef, documentType, filename, content, uploadedBy, verifiedContext = null, correlationId = null }) {
     validateSourceDocumentInput({ patientRef, documentType, filename, content, uploadedBy });
     const pdf = content.subarray(0, 5).toString('latin1') === '%PDF-';
     const text = !pdf && filename.toLowerCase().endsWith('.txt') && !content.includes(0);
     if (!pdf && !text) throw codedError('SOURCE_DOCUMENT_TYPE_UNSUPPORTED_FOR_OPENEMR');
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'write-source-document');
-    const module = await this.client.storeDocument({ patientUuid, contextToken, documentType, filename, mimeType: pdf ? 'application/pdf' : 'text/plain', content });
+    const module = await this.client.storeDocument({ patientUuid, contextToken, documentType, filename, mimeType: pdf ? 'application/pdf' : 'text/plain', content, correlationId });
     if (module.content_sha256 !== sha256Hex(content)) throw new OpenEMRModuleError('OPENEMR_MODULE_CONTENT_HASH_MISMATCH');
     const document = this.publicDocument({ patientRef, patientUuid, module, documentType, filename, uploadedBy });
     document.openemr.payload_differs = module.payload_differs === true;
     return { duplicate: module.status === 'duplicate', document };
   }
 
-  async getSourceDocument(id, { patientRef, verifiedContext = null } = {}) {
+  async getSourceDocument(id, { patientRef, verifiedContext = null, correlationId = null } = {}) {
     const documentId = openemrDocumentNumber(id);
     if (!documentId) throw codedError('DOCUMENT_NOT_FOUND');
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef);
-    const module = await this.client.getDocument({ patientUuid, contextToken, documentId });
+    const module = await this.client.getDocument({ patientUuid, contextToken, documentId, correlationId });
     if (!SOURCE_TYPES.has(module.document_type)) throw codedError('DOCUMENT_NOT_FOUND');
     return { document: this.publicDocument({ patientRef, patientUuid, module, documentType: module.document_type, filename: module.filename }), content: module.content };
   }
@@ -226,14 +239,14 @@ export class OpenEMRModuleWriteback {
    * Intake and medication-list items are never written here: they reach the
    * chart only through `confirmClinicalListItems` (A3).
    */
-  async persistDerivedEvidence({ patientRef, sourceDocument, extraction, verifiedContext = null }) {
+  async persistDerivedEvidence({ patientRef, sourceDocument, extraction, verifiedContext = null, correlationId = null }) {
     const sourceId = openemrDocumentNumber(sourceDocument?.id);
     if (!sourceId) throw codedError('DOCUMENT_NOT_FOUND');
     const base = { persistence_boundary: OPENEMR_MODULE_PERSISTENCE_BOUNDARY, document_id: sourceId, derived_document_id: null, procedure_order_id: null, observation_ids: [], read_path: null };
     if (!extraction?.facts?.length) return { ...base, status: 'not_persisted', reason: 'no_extracted_facts', duplicate: false };
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'write-source-document');
     const derivedContent = Buffer.from(JSON.stringify(derivedFactsDocument({ sourceDocument, extraction })));
-    const derived = await this.client.storeDocument({ patientUuid, contextToken, documentType: 'derived_facts', filename: `agentforge-derived-facts-${sourceId}.json`, mimeType: 'application/json', content: derivedContent, sourceDocumentId: sourceId });
+    const derived = await this.client.storeDocument({ patientUuid, contextToken, documentType: 'derived_facts', filename: `agentforge-derived-facts-${sourceId}.json`, mimeType: 'application/json', content: derivedContent, sourceDocumentId: sourceId, correlationId });
     // payload_differs: the key already held a different payload (e.g. a re-extraction that
     // produced other values); the first write is kept and the difference is reported.
     const result = { ...base, status: 'persisted', derived_document_id: derived.document_id, derived_payload_differs: derived.payload_differs === true, lab_payload_differs: false, unmapped_lab_results: [] };
@@ -242,8 +255,8 @@ export class OpenEMRModuleWriteback {
       const mapped = labResultsForModule(extraction);
       result.unmapped_lab_results = mapped.unmapped;
       if (mapped.results.length) {
-        const lab = await this.client.storeLabResults({ patientUuid, contextToken, sourceDocumentId: sourceId, sourceSha256: sourceDocument.content_sha256, results: mapped.results });
-        const bundle = await this.client.getLabObservations({ patientUuid, contextToken, sourceDocumentId: sourceId });
+        const lab = await this.client.storeLabResults({ patientUuid, contextToken, sourceDocumentId: sourceId, sourceSha256: sourceDocument.content_sha256, results: mapped.results, correlationId });
+        const bundle = await this.client.getLabObservations({ patientUuid, contextToken, sourceDocumentId: sourceId, correlationId });
         const readBack = verifyObservationReadBack(bundle, lab, mapped.results);
         if (!readBack.verified) throw new OpenEMRModuleError('OPENEMR_OBSERVATION_READBACK_MISMATCH', { httpStatus: 502 });
         duplicate = duplicate && lab.status === 'duplicate';
@@ -253,20 +266,20 @@ export class OpenEMRModuleWriteback {
     return { ...result, duplicate };
   }
 
-  async readLabObservations(id, { patientRef, verifiedContext = null } = {}) {
+  async readLabObservations(id, { patientRef, verifiedContext = null, correlationId = null } = {}) {
     const documentId = openemrDocumentNumber(id);
     if (!documentId) throw codedError('DOCUMENT_NOT_FOUND');
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef);
-    return this.client.getLabObservations({ patientUuid, contextToken, sourceDocumentId: documentId });
+    return this.client.getLabObservations({ patientUuid, contextToken, sourceDocumentId: documentId, correlationId });
   }
 
   /**
    * E5 lab trend: the patient's module-written lab Observations read back
    * from OpenEMR. A resource whose subject is another patient fails loudly.
    */
-  async readLabObservationHistory({ patientRef, verifiedContext = null }) {
+  async readLabObservationHistory({ patientRef, verifiedContext = null, correlationId = null }) {
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef);
-    const bundle = await this.client.getLabObservationHistory({ patientUuid, contextToken });
+    const bundle = await this.client.getLabObservationHistory({ patientUuid, contextToken, correlationId });
     const entries = bundle.entry.map((entry) => {
       // No subject, or another patient's: never charted.
       if (entry.resource.subject?.reference !== `Patient/${patientUuid}`) throw new OpenEMRModuleError('OPENEMR_LAB_HISTORY_PATIENT_MISMATCH', { httpStatus: 502 });
@@ -280,11 +293,11 @@ export class OpenEMRModuleWriteback {
   getClinicalAction(id, options) { return this.clinicalActionStore.get(id, options); }
 
   /** A3: only clinician-confirmed intake or medication-list items (a medication list yields medications only; the module enforces it). Implemented; not yet called from the clinical-action lane. */
-  async confirmClinicalListItems({ patientRef, sourceDocumentId, confirmationEventId, items, verifiedContext = null }) {
+  async confirmClinicalListItems({ patientRef, sourceDocumentId, confirmationEventId, items, verifiedContext = null, correlationId = null }) {
     const documentId = openemrDocumentNumber(sourceDocumentId);
     if (!documentId) throw codedError('DOCUMENT_NOT_FOUND');
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'write-clinical-action');
-    return this.client.storeClinicalListItems({ patientUuid, contextToken, sourceDocumentId: documentId, confirmationEventId, items });
+    return this.client.storeClinicalListItems({ patientUuid, contextToken, sourceDocumentId: documentId, confirmationEventId, items, correlationId });
   }
 }
 

@@ -52,7 +52,7 @@ test('production dashboard route has no fake banner or fixture import', async (t
   t.after(() => child.kill());
   const page = await fetch('http://127.0.0.1:18796/observability').then((response) => response.text());
   assert.doesNotMatch(page, /FAKE DATA/);
-  assert.match(page, /all-time retained trace set/);
+  assert.match(page, /retained trace set: the newest AGENTFORGE_TRACE_LIMIT traces \(default 500\)/);
   assert.doesNotMatch(page, /minute window/);
   const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length, 1);

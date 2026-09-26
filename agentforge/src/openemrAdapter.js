@@ -60,8 +60,8 @@ export class OpenEMRRestAdapter {
     }
   }
 
-  async getCase(patientRef, _caseId, { signal } = {}) {
-    const patientResponse = await this.request(`${REST_PREFIX}/patient/${encodeURIComponent(patientRef)}`, { signal });
+  async getCase(patientRef, _caseId, { signal, correlationId = '' } = {}) {
+    const patientResponse = await this.request(`${REST_PREFIX}/patient/${encodeURIComponent(patientRef)}`, { signal, correlationId });
     const patientRecord = firstRecord(patientResponse.body);
     if (!patientRecord) throw new Error('PATIENT_NOT_FOUND');
     const returnedRefs = [patientRecord.uuid, patientRecord.puuid, patientRecord.patient_uuid, patientRecord.pid, patientRecord.patient_id, patientRecord.id].filter((value) => value !== undefined && value !== null && String(value));
@@ -75,9 +75,9 @@ export class OpenEMRRestAdapter {
    * `{name, dob}` for the scan identity check, or `null` when OpenEMR has no
    * such patient (the check then reports `unverified`, never a match).
    */
-  async getPatientDemographics(patientRef) {
+  async getPatientDemographics(patientRef, { correlationId = '' } = {}) {
     try {
-      const item = await this.getCase(patientRef);
+      const item = await this.getCase(patientRef, null, { correlationId });
       return { name: item.openemr_patient.display_name, dob: item.openemr_patient.dob };
     } catch (error) {
       if (error.message === 'PATIENT_NOT_FOUND') return null;
@@ -127,7 +127,7 @@ export class OpenEMRRestAdapter {
     const headers = { accept: 'application/json' };
     if (correlationId) headers['x-correlation-id'] = correlationId;
     if (includeAuth) {
-      const accessToken = this.tokenProvider ? await this.tokenProvider.getAccessToken() : this.accessToken;
+      const accessToken = this.tokenProvider ? await this.tokenProvider.getAccessToken({ correlationId }) : this.accessToken;
       if (accessToken) headers.authorization = `Bearer ${accessToken}`;
     }
     try {
@@ -163,11 +163,13 @@ export class OpenEMRRefreshTokenProvider {
     this.refreshPromise = null;
   }
 
-  async getAccessToken() {
+  /** `correlationId` is the calling request's; it rides on the refresh call and on any refresh error. */
+  async getAccessToken({ correlationId = '' } = {}) {
     await this.loadCache();
     if (this.state?.access_token && Number(this.state.expires_at || 0) > this.now() + this.skewMs) return this.state.access_token;
     if (!this.state?.refresh_token) throw Object.assign(new Error('OPENEMR_REFRESH_TOKEN_MISSING'), { code: 'OPENEMR_REFRESH_TOKEN_MISSING' });
-    if (!this.refreshPromise) this.refreshPromise = this.refresh().finally(() => { this.refreshPromise = null; });
+    // Concurrent callers share one refresh; it carries the first caller's id.
+    if (!this.refreshPromise) this.refreshPromise = this.refresh({ correlationId }).finally(() => { this.refreshPromise = null; });
     await this.refreshPromise;
     return this.state.access_token;
   }
@@ -182,13 +184,13 @@ export class OpenEMRRefreshTokenProvider {
     return this.loadPromise;
   }
 
-  async refresh() {
+  async refresh({ correlationId = '' } = {}) {
     if (!this.tokenUrl || !this.clientId || !this.clientSecret) throw Object.assign(new Error('OPENEMR_TOKEN_PROVIDER_NOT_CONFIGURED'), { code: 'OPENEMR_TOKEN_PROVIDER_NOT_CONFIGURED' });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const form = new URLSearchParams({ grant_type: 'refresh_token', client_id: this.clientId, client_secret: this.clientSecret, refresh_token: this.state.refresh_token });
     try {
-      const response = await this.fetchImpl(this.tokenUrl, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString(), signal: controller.signal });
+      const response = await this.fetchImpl(this.tokenUrl, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) }, body: form.toString(), signal: controller.signal });
       if (!response.ok) throw Object.assign(new Error(`OPENEMR_TOKEN_HTTP_${response.status}`), { code: `OPENEMR_TOKEN_HTTP_${response.status}` });
       const body = await response.json();
       if (!body.access_token) throw Object.assign(new Error('OPENEMR_TOKEN_RESPONSE_INVALID'), { code: 'OPENEMR_TOKEN_RESPONSE_INVALID' });
@@ -197,7 +199,8 @@ export class OpenEMRRefreshTokenProvider {
         await fs.writeFile(this.cachePath, `${JSON.stringify(this.state)}\n`, { mode: 0o600 });
       }
     } catch (error) {
-      if (error.name === 'AbortError') throw Object.assign(new Error('OPENEMR_TOKEN_TIMEOUT'), { code: 'OPENEMR_TOKEN_TIMEOUT' });
+      if (error.name === 'AbortError') throw Object.assign(new Error('OPENEMR_TOKEN_TIMEOUT'), { code: 'OPENEMR_TOKEN_TIMEOUT', ...(correlationId ? { correlationId } : {}) });
+      if (correlationId && error && typeof error === 'object') error.correlationId = correlationId;
       throw error;
     } finally {
       clearTimeout(timer);

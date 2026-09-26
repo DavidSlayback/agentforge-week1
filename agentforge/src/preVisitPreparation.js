@@ -67,7 +67,7 @@ export class PreVisitPreparation {
     let retrieval;
     try {
       retrieval = await runWithinDeadline(async (signal) => {
-        const item = await chart.getCase(authorization.patient_uuid, scopedRequest.case_id, { signal });
+        const item = await chart.getCase(authorization.patient_uuid, scopedRequest.case_id, { signal, correlationId: id });
         return { item, retrieved: await chart.retrieve(item, { correlationId: id, signal }) };
       }, remainingDeadline());
     } catch (error) {

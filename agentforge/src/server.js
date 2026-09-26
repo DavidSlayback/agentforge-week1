@@ -1,5 +1,6 @@
 import http from 'node:http';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DashScopeMultimodalProvider, DeterministicProvider, OpenAICompatibleProvider, OpenAIResponsesProvider, ResilientProvider, modelExtraBodyFromEnv } from './modelProvider.js';
@@ -19,7 +20,7 @@ import { renderAgentForgePage, renderEvaluatorPage, renderScanSourcePreview } fr
 import { renderObservabilityPage } from './observabilityPage.js';
 import { handleLabTrendRoute } from './labTrend.js';
 import { PreparationCache } from './preparationCache.js';
-import { LangfuseTraceSink, createReadinessChecker, evaluateAlerts } from '../../observability/index.js';
+import { AlertMonitor, DEFAULT_TRACE_LIMIT, LangfuseTraceSink, cachedCheck, createReadinessChecker, evaluateAlerts, positiveIntegerFromEnv } from '../../observability/index.js';
 import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, loadGuidelineCorpus } from './guidelineEvidence.js';
 import { validateActiveSupervisorRequest } from './scanFormContracts.js';
 import { createGeminiScanAdapter } from './geminiScanAdapter.js';
@@ -226,10 +227,19 @@ const liveExternalProviderAllowed = !liveOpenEMR || !hasExternalProvider || proc
 // is blocked (live_external_provider_not_approved). /ready keeps the W1 rule.
 const serviceExternalProviderAllowed = !(liveOpenEMR || liveReadsEnabled) || !hasExternalProvider || process.env.AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED === 'true';
 // FileTraceSink redacts before persistence and listing; these endpoints expose
-// operational metadata, not raw briefing or chart content.
-const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: 100, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
+// operational metadata, not raw briefing or chart content. The store keeps at
+// most AGENTFORGE_TRACE_LIMIT traces (default 500) for at most
+// AGENTFORGE_TRACE_RETENTION_MS; the W2 compose block puts the file on a named
+// volume so traces survive a container replacement. /v1/traces and the
+// dashboard show everything retained, so the limit is also their cap.
+const traceLimit = positiveIntegerFromEnv(process.env.AGENTFORGE_TRACE_LIMIT, DEFAULT_TRACE_LIMIT, 'AGENTFORGE_TRACE_LIMIT');
+const traceSink = new LangfuseTraceSink({ filePath: process.env.AGENTFORGE_TRACE_PATH || path.join('/tmp', 'agentforge', 'traces.json'), maxTraces: traceLimit, retentionMs: Number(process.env.AGENTFORGE_TRACE_RETENTION_MS || 24 * 60 * 60 * 1000), onExportError: () => {} });
 const alertThresholds = { p95LatencyMs: Number(process.env.AGENTFORGE_ALERT_P95_MS || 2000), errorRate: Number(process.env.AGENTFORGE_ALERT_ERROR_RATE || 0.05), toolFailureRate: Number(process.env.AGENTFORGE_ALERT_TOOL_FAILURE_RATE || 0.02) };
 const alertWindowMs = Number(process.env.AGENTFORGE_ALERT_WINDOW_MS || 5 * 60 * 1000);
+// Alerts are evaluated in the background every AGENTFORGE_ALERT_EVAL_INTERVAL_MS
+// (default 60 s), not only on GET /v1/alerts; each ok<->firing change of a rule
+// is logged once as one JSON line with codes only (AlertMonitor).
+const alertMonitor = new AlertMonitor({ evaluate: () => evaluateAlerts(traceSink.snapshot({ windowMs: alertWindowMs }), alertThresholds), intervalMs: positiveIntegerFromEnv(process.env.AGENTFORGE_ALERT_EVAL_INTERVAL_MS, 60 * 1000, 'AGENTFORGE_ALERT_EVAL_INTERVAL_MS') });
 const preparationCache = new PreparationCache({ ttlMs: Number(process.env.AGENTFORGE_PREPARATION_CACHE_TTL_MS || 5 * 60 * 1000) });
 const service = new AgentForgeService({ chartAdapter, writeback, guidelineRetriever, provider, conversationProvider, answerProvider, scanProvider, traceSink, cache: preparationCache, freshRetrievalDeadlineMs: Number(process.env.AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS || 8000), allowExternalLiveProvider: serviceExternalProviderAllowed, livePatientAllowlist, maxPrewarmJobs: Number(process.env.AGENTFORGE_MAX_PREWARM_JOBS || 8), prewarmDeadlineMs: Number(process.env.AGENTFORGE_PREWARM_DEADLINE_MS || 8000), scanDeadlineMs: Number(process.env.AGENTFORGE_SCAN_DEADLINE_MS || 25000), criticProvider: criticConfig.provider, criticTimeoutMs: criticConfig.timeoutMs, criticDisabledReason: criticConfig.disabledReason });
 // `/ready` checks configured dependencies and a cached, bounded non-clinical
@@ -249,12 +259,21 @@ const modelReadiness = { checkReady: async () => {
   }
   return true;
 } };
+// Network probes are cached for 30 s: the compose healthcheck calls /ready
+// every 30 s, and each module health call is a signed request.
+const READINESS_PROBE_TTL_MS = 30000;
+const openemrModuleReadiness = persistenceMode === 'openemr-module' ? { checkReady: cachedCheck(() => writeback.checkReady(), { ttlMs: READINESS_PROBE_TTL_MS }) } : null;
+const langfuseReadiness = traceSink.exporter?.isConfigured?.() ? { checkReady: cachedCheck(() => traceSink.exporter.checkReachable(), { ttlMs: READINESS_PROBE_TTL_MS }) } : null;
 const readiness = createReadinessChecker({
   configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
   retrieval: chartAdapter,
   ...(liveReadsEnabled ? { openemrLiveReadsConfiguration: { checkReady: async () => liveReadsMissingSettings.length === 0 } } : {}),
   model: modelReadiness,
-  trace: { checkReady: async () => traceSink.health().status === 'ok' },
+  // A real write next to the trace file, not only an access-bit check.
+  trace: { checkReady: async () => traceSink.health().status === 'ok' && await traceSink.probeWritable() },
+  // The OpenEMR module (persistence) and Langfuse (export) only when configured.
+  ...(openemrModuleReadiness ? { openemrModule: openemrModuleReadiness } : {}),
+  ...(langfuseReadiness ? { langfuse: langfuseReadiness } : {}),
   // A missing/unreadable corpus/guidelines/corpus.json no longer crashes the
   // process (guidelineEvidence.js resolves it lazily and degrades to
   // sparse-only per request); this surfaces the same condition loudly
@@ -285,7 +304,7 @@ const invalidResponse = (res, error, issues) => json(res, 500, { error, issues }
 const sendValidatedScanExtraction = (res, status, body, extraction) => {
   const validation = validateScanExtractionTypedOutput(extraction);
   if (!validation.valid) {
-    console.error('AgentForge scan extraction response failed contract validation', { issues: validation.issues });
+    console.error('AgentForge scan extraction response failed contract validation', { issues: validation.issues, correlation_id: res.getHeader('x-correlation-id') || null });
     return json(res, 500, { error: 'response_contract_invalid' });
   }
   return json(res, status, body);
@@ -323,7 +342,18 @@ async function readJsonBody(req) {
   }
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
 }
+// One correlation id per request: a caller's `x-correlation-id` when it is a
+// plain token (8-128 of [A-Za-z0-9._:-]), otherwise a new `af-<uuid>`. It is
+// echoed on the response, names the scan trace, rides on every outbound call
+// the request makes, and appears in this server's error logs.
+const CORRELATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+const requestCorrelationId = (req) => {
+  const header = req.headers['x-correlation-id'];
+  return typeof header === 'string' && CORRELATION_ID.test(header) ? header : `af-${randomUUID()}`;
+};
 const server = http.createServer(async (req, res) => {
+  const correlationId = requestCorrelationId(req);
+  res.setHeader('x-correlation-id', correlationId);
   try {
     if (req.method === 'GET' && req.url === '/health') return json(res, 200, { status: 'ok', git_sha: gitSha });
     if (req.method === 'GET' && req.url === '/ready') { const result = await readiness.ready(); return json(res, result.status === 'ready' ? 200 : 503, result); }
@@ -331,7 +361,7 @@ const server = http.createServer(async (req, res) => {
     // their current safety boundary, not a production access policy.
     if (req.method === 'GET' && req.url === '/v1/traces') { await traceSink.flush?.(); return json(res, 200, traceSink.list()); }
     if (req.method === 'GET' && req.url === '/v1/metrics') return json(res, 200, traceSink.snapshot());
-    if (req.method === 'GET' && req.url === '/v1/alerts') return json(res, 200, evaluateAlerts(traceSink.snapshot({ windowMs: alertWindowMs }), alertThresholds));
+    if (req.method === 'GET' && req.url === '/v1/alerts') return json(res, 200, { ...alertMonitor.evaluate(), evaluation: alertMonitor.status() });
     if (req.method === 'GET' && req.url.startsWith('/v1/demo-context')) {
       if (liveOpenEMR) return json(res, 404, { error: 'openemr_context_required' });
       if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });
@@ -389,7 +419,7 @@ const server = http.createServer(async (req, res) => {
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       try {
-        const result = await service.extractScanFormEvidence(decodeURIComponent(scanFormEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.extractScanFormEvidence(decodeURIComponent(scanFormEvidenceMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, correlationId });
         if (result.status === 'blocked') return json(res, 403, { error: result.reason });
         if (result.status === 'failed') return json(res, 500, { error: result.reason });
         const extraction = injectTestScanExtractionFault(result.extraction);
@@ -407,7 +437,7 @@ const server = http.createServer(async (req, res) => {
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       try {
-        const result = await service.readOpenEMRLabObservations(decodeURIComponent(openemrObservationsMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.readOpenEMRLabObservations(decodeURIComponent(openemrObservationsMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, correlationId });
         if (result.status !== 'read') return json(res, 403, { error: result.reason });
         return json(res, 200, result.bundle);
       } catch (error) {
@@ -415,7 +445,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
     // E5 lab trends (labTrend.js): read-back only, same demo-context check.
-    if (await handleLabTrendRoute(req, res, { service, verifyToken: tokenPayload, json, html, basePath: publicBasePath, errorStatus: sourceDocumentErrorStatus })) return;
+    if (await handleLabTrendRoute(req, res, { service, verifyToken: tokenPayload, json, html, basePath: publicBasePath, errorStatus: sourceDocumentErrorStatus, correlationId })) return;
     const sourcePageMatch = req.url.match(/^\/v1\/source-documents\/([^/]+)\/pages\/(\d+)\.png(?:\?(.*))?$/);
     if (req.method === 'GET' && sourcePageMatch) {
       if (!syntheticWritebackEnabled()) return json(res, 403, { error: 'synthetic_writeback_only' });
@@ -426,7 +456,7 @@ const server = http.createServer(async (req, res) => {
       const page = Number(sourcePageMatch[2]);
       try {
         const id = decodeURIComponent(sourcePageMatch[1]);
-        const result = await service.readSourceDocument(id, { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.readSourceDocument(id, { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, correlationId });
         if (result.status !== 'read') return json(res, 403, { error: result.reason });
         if (result.content.subarray(0, 5).toString() !== '%PDF-') return json(res, 404, { error: 'source_page_not_found' });
         const cacheKey = `${id}:${page}`;
@@ -449,7 +479,7 @@ const server = http.createServer(async (req, res) => {
       const patient_uuid = query.get('patient_uuid') || '';
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      const result = await service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+      const result = await service.extractScanFormEvidence(decodeURIComponent(scanSourcePreviewMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, correlationId });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       if (result.status === 'failed') return json(res, 500, { error: result.reason });
       return html(res, renderScanSourcePreview({ sourceDocument: result.source_document, extraction: result.extraction, basePath: publicBasePath, patient_uuid, demo_token: query.get('demo_token') || '' }));
@@ -462,7 +492,7 @@ const server = http.createServer(async (req, res) => {
       const token = tokenPayload(query.get('demo_token') || '');
       if (!token || token.patient_uuid !== patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       try {
-        const result = await service.readSourceDocument(decodeURIComponent(sourceDocumentMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token });
+        const result = await service.readSourceDocument(decodeURIComponent(sourceDocumentMatch[1]), { patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, correlationId });
         if (result.status !== 'read') return json(res, 403, { error: result.reason });
         return json(res, 200, { synthetic_only: true, source_document: result.source_document, content_base64: result.content.toString('base64') });
       } catch (error) {
@@ -509,7 +539,7 @@ const server = http.createServer(async (req, res) => {
       if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
       body.clinician_uuid = token.clinician_uuid;
       try {
-        const result = await service.ingestSourceDocument({ ...body, content: Buffer.from(body.content_base64, 'base64') }, { verifiedContext: token });
+        const result = await service.ingestSourceDocument({ ...body, content: Buffer.from(body.content_base64, 'base64') }, { verifiedContext: token, correlationId });
         if (result.status !== 'persisted') return json(res, 403, { error: result.reason });
         return json(res, 200, result);
       } catch (error) {
@@ -521,7 +551,7 @@ const server = http.createServer(async (req, res) => {
       if (!validation.valid) return invalidContract(res, 'invalid_scan_supervisor_request', validation.issues);
       const token = verifiedContextFor(body);
       if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' });
-      const result = await service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message });
+      const result = await service.runActiveSupervisorForDocument(body.source_document_id, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, query: body.message, correlationId });
       if (result.status === 'blocked') return json(res, 403, { error: result.reason });
       if (result.status === 'unreadable') return json(res, 422, { error: result.reason, final_state: result.final_state, synthetic_only: true });
       const extraction = injectTestScanExtractionFault(result.workflow.typed_outputs.extraction);
@@ -535,14 +565,14 @@ const server = http.createServer(async (req, res) => {
       if (responseBody.workflow?.answer) {
         const answerValidation = parseOrIssues(GroundedAnswerResult, responseBody.workflow.answer);
         if (!answerValidation.ok) {
-          console.error('AgentForge grounded answer failed contract validation', { issues: answerValidation.issues });
+          console.error('AgentForge grounded answer failed contract validation', { issues: answerValidation.issues, correlation_id: correlationId });
           return json(res, 500, { error: 'response_contract_invalid' });
         }
       }
       // Derived facts are persisted only from an extraction whose typed
       // contract validates; an invalid one is answered with 500 below.
       if (validateScanExtractionTypedOutput(extraction).valid) {
-        const openemr = await service.persistDerivedEvidence(result.source_document, extraction, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, finalState: result.workflow.final_state });
+        const openemr = await service.persistDerivedEvidence(result.source_document, extraction, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, finalState: result.workflow.final_state, correlationId });
         if (openemr) responseBody.openemr = openemr;
         // E5, fixture mode only: lab rows for the trend chart's synthetic read-back.
         const syntheticLabHistory = await service.recordSyntheticLabHistory(result.source_document, extraction, { patient_uuid: body.patient_uuid, clinician_uuid: token.clinician_uuid }, { verifiedContext: token, finalState: result.workflow.final_state });
@@ -585,11 +615,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && preparedMatch) { const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = service.openPrepared(preparedMatch[1], body, { verifiedContext: token, resetConversation: body.reset_conversation === true }); return result.status === 'ready' ? json(res, 200, result.response) : json(res, 409, { error: result.reason, status: result.status }); }
     const match = req.url.match(/^\/v1\/conversations\/([^/]+)\/messages$/);
     if (req.method === 'POST' && match) { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (body.demo_token && (!token || token.patient_uuid !== body.patient_uuid)) return json(res, 403, { error: 'invalid_demo_context' }); if (token) body.clinician_uuid = token.clinician_uuid; const result = await service.followUp(match[1], body, { verifiedContext: token }); const responseValidation = validateFollowUpResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_response', responseValidation.issues); }
-    if (req.method === 'POST' && req.url === '/v1/follow-up-evidence') { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = await service.retrieveFollowUpEvidence(body, { verifiedContext: token }); if (result.status === 'blocked') return json(res, 403, { error: result.reason }); const responseValidation = validateFollowUpEvidenceResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_evidence_response', responseValidation.issues); }
+    if (req.method === 'POST' && req.url === '/v1/follow-up-evidence') { const validation = validateFollowUpRequest(body); if (!validation.valid) return invalidContract(res, 'invalid_follow_up_request', validation.issues); const token = verifiedContextFor(body); if (!token || token.patient_uuid !== body.patient_uuid) return json(res, 403, { error: 'invalid_demo_context' }); body.clinician_uuid = token.clinician_uuid; const result = await service.retrieveFollowUpEvidence(body, { verifiedContext: token, correlationId }); if (result.status === 'blocked') return json(res, 403, { error: result.reason }); const responseValidation = validateFollowUpEvidenceResponse(result); return responseValidation.valid ? json(res, 200, result) : invalidResponse(res, 'invalid_follow_up_evidence_response', responseValidation.issues); }
     return json(res, 404, { error: 'not_found' });
   } catch (error) {
     // Module errors carry only a code and statuses (no bodies), so they are safe to surface.
-    if (error?.name === 'OpenEMRModuleError') { console.error('AgentForge OpenEMR module call failed', { code: error.code, status: error.status, correlation_id: error.correlationId }); return json(res, error.httpStatus, { error: error.code.toLowerCase() }); }
-    console.error('AgentForge request failed', error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
+    if (error?.name === 'OpenEMRModuleError') { console.error('AgentForge OpenEMR module call failed', { code: error.code, status: error.status, correlation_id: error.correlationId || correlationId }); return json(res, error.httpStatus, { error: error.code.toLowerCase() }); }
+    console.error('AgentForge request failed', { correlation_id: correlationId, code: error?.code || null }, error); return json(res, error.message === 'PATIENT_NOT_FOUND' ? 404 : 500, { error: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'internal_error' }); }
 });
-server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => console.log('AgentForge listening'));
+server.listen(process.env.PORT || 8787, process.env.HOST || '0.0.0.0', () => { alertMonitor.start(); console.log('AgentForge listening'); });

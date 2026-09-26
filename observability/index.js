@@ -232,6 +232,7 @@ class InMemoryTraceSink {
       deadlineOutcomes,
       cacheOutcomes,
       windowMs,
+      traceLimit: this.maxTraces,
       queueDepth: 0,
       retrievalAttempts,
       toolFailures,
@@ -359,6 +360,21 @@ class FileTraceSink extends InMemoryTraceSink {
     return { records: this.traces.length };
   }
 
+  /**
+   * Readiness probe: write and remove a small file next to the store. An
+   * access-bit check alone misses a read-only mount or a vanished volume.
+   */
+  async probeWritable() {
+    const probePath = `${this.filePath}.${process.pid}.ready-probe`;
+    try {
+      await fsp.writeFile(probePath, 'ok', { encoding: 'utf8', mode: 0o600 });
+      await fsp.rm(probePath, { force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   health() {
     let writable = true;
     try { fs.accessSync(path.dirname(this.filePath), fs.constants.W_OK); } catch { writable = false; }
@@ -398,6 +414,24 @@ class LangfuseOtelExporter {
 
   status() {
     return { configured: this.isConfigured(), lastExport: this.lastExport, lastErrorCode: this.lastErrorCode };
+  }
+
+  /**
+   * Readiness probe: Langfuse's unauthenticated `GET /api/public/health`.
+   * Only called when the exporter is configured; false on any failure.
+   */
+  async checkReachable() {
+    if (!this.isConfigured()) return false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(`${this.baseUrl}/api/public/health`, { method: 'GET', headers: { accept: 'application/json' }, signal: controller.signal });
+      return Boolean(response?.ok);
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   /** Send one safe OTLP span without throwing into the request lifecycle. */
@@ -448,7 +482,8 @@ class LangfuseOtelExporter {
 
 /**
  * Durable local traces plus optional asynchronous Langfuse export. Langfuse
- * is never part of readiness or response correctness.
+ * is never part of response correctness; when it is configured, the server's
+ * `/ready` probes it (`LangfuseOtelExporter#checkReachable`).
  */
 class LangfuseTraceSink extends FileTraceSink {
   constructor({ exporter = new LangfuseOtelExporter(), onExportError = () => {}, maxPendingExports = Number(process.env.LANGFUSE_MAX_PENDING_EXPORTS || 16), ...options } = {}) {
@@ -538,9 +573,99 @@ function createReadinessChecker(dependencies) {
           ok = false;
         }
       }
-      return { status: ok ? 'ready' : 'not_ready', dependencies: result };
+      const failing = Object.entries(result).filter(([, value]) => value.status !== 'ready').map(([name]) => name);
+      return { status: ok ? 'ready' : 'not_ready', failing, dependencies: result };
     },
   };
+}
+
+const DEFAULT_TRACE_LIMIT = 500;
+
+/**
+ * Parse a positive-integer setting (e.g. AGENTFORGE_TRACE_LIMIT). Unset or
+ * empty gives `fallback`; anything else that is not a positive integer
+ * throws, so a typo stops the process instead of silently using a default.
+ */
+function positiveIntegerFromEnv(raw, fallback, name) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  const text = String(raw).trim();
+  if (!/^\d+$/.test(text) || Number(text) <= 0) throw new Error(`${name} must be a positive integer`);
+  return Number(text);
+}
+
+/** Cache an async boolean check for `ttlMs` (readiness probes that cost a network call). */
+function cachedCheck(check, { ttlMs = 30000, now = () => Date.now() } = {}) {
+  let cached = null;
+  return async () => {
+    const at = now();
+    if (cached && at - cached.checkedAt < ttlMs) return cached.value;
+    const value = Boolean(await check());
+    cached = { checkedAt: at, value };
+    return value;
+  };
+}
+
+/**
+ * Evaluates the alert rules on an interval, independent of `GET /v1/alerts`,
+ * and logs one structured line per state change of a rule (ok -> firing,
+ * firing -> ok). Log entries carry codes only: event, rule id, states and
+ * window. Observed values and trace content are never logged.
+ */
+class AlertMonitor {
+  constructor({ evaluate, intervalMs, log = (entry) => (entry.level === 'info' ? console.log : console.warn)(JSON.stringify(entry)), now = () => new Date().toISOString() }) {
+    if (typeof evaluate !== 'function') throw new Error('ALERT_EVALUATE_REQUIRED');
+    if (!Number.isInteger(intervalMs) || intervalMs <= 0) throw new Error('ALERT_EVAL_INTERVAL_INVALID');
+    this.evaluateRules = evaluate;
+    this.intervalMs = intervalMs;
+    this.log = log;
+    this.now = now;
+    this.states = new Map();
+    this.timer = null;
+    this.evaluations = 0;
+    this.lastEvaluatedAt = null;
+  }
+
+  /** Evaluate now, log transitions, and return the alert result. Throws what `evaluate` throws. */
+  evaluate() {
+    const result = this.evaluateRules();
+    this.evaluations += 1;
+    this.lastEvaluatedAt = this.now();
+    for (const rule of result?.rules || []) {
+      const state = rule.triggered ? 'firing' : 'ok';
+      const previous = this.states.get(rule.id) || 'ok';
+      this.states.set(rule.id, state);
+      if (state === previous) continue;
+      this.log({ level: state === 'firing' ? 'warn' : 'info', event: 'agentforge_alert_transition', alert_id: rule.id, state, previous_state: previous, window_ms: result.windowMs ?? null });
+    }
+    return result;
+  }
+
+  /** One background evaluation; a failure is logged by code and never thrown into the timer. */
+  tick() {
+    try {
+      return this.evaluate();
+    } catch {
+      this.log({ level: 'error', event: 'agentforge_alert_evaluation_failed', error_code: 'ALERT_EVALUATION_FAILED' });
+      return null;
+    }
+  }
+
+  start() {
+    if (this.timer) return this;
+    this.tick();
+    this.timer = setInterval(() => this.tick(), this.intervalMs);
+    this.timer.unref?.();
+    return this;
+  }
+
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  status() {
+    return { intervalMs: this.intervalMs, evaluations: this.evaluations, lastEvaluatedAt: this.lastEvaluatedAt, firing: [...this.states].filter(([, state]) => state === 'firing').map(([id]) => id) };
+  }
 }
 
 function otelAttribute(key, value) {
@@ -595,4 +720,4 @@ function toUnixNanos(value, now) {
   return String(Number.isFinite(milliseconds) ? Math.max(0, milliseconds) * 1_000_000 : Math.max(0, now()) * 1_000_000);
 }
 
-module.exports = { redactPayload, TraceRecorder, InMemoryTraceSink, FileTraceSink, LangfuseOtelExporter, LangfuseTraceSink, MetricsRegistry, evaluateAlerts, createReadinessChecker };
+module.exports = { redactPayload, TraceRecorder, InMemoryTraceSink, FileTraceSink, LangfuseOtelExporter, LangfuseTraceSink, MetricsRegistry, evaluateAlerts, createReadinessChecker, AlertMonitor, cachedCheck, positiveIntegerFromEnv, DEFAULT_TRACE_LIMIT };

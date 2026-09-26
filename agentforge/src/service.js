@@ -84,7 +84,7 @@ export class AgentForgeService {
   }
 
   /** W2 source-document ingestion; the writeback decides where it persists (in-memory synthetic store or the OpenEMR module). */
-  async ingestSourceDocument(request, { verifiedContext = null } = {}) {
+  async ingestSourceDocument(request, { verifiedContext = null, correlationId = null } = {}) {
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.persistSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
@@ -95,6 +95,7 @@ export class AgentForgeService {
       content: request.content,
       uploadedBy: authorization.clinician_uuid,
       verifiedContext,
+      correlationId,
     });
     return { status: 'persisted', synthetic_only: true, duplicate: result.duplicate, source_document: result.document, ...(result.document.openemr ? { openemr: result.document.openemr } : {}) };
   }
@@ -105,7 +106,7 @@ export class AgentForgeService {
    * own context must be write-scoped; a read context gets an explicit
    * not_persisted result, never a silent success.
    */
-  async persistDerivedEvidence(sourceDocument, extraction, request, { verifiedContext = null, finalState } = {}) {
+  async persistDerivedEvidence(sourceDocument, extraction, request, { verifiedContext = null, finalState, correlationId = null } = {}) {
     if (typeof this.writeback?.persistDerivedEvidence !== 'function') return null;
     // E5, fail closed: derived facts and lab rows are written only for a
     // READY or QUALIFIED workflow. A BLOCKED one (e.g. a lab report whose
@@ -113,14 +114,14 @@ export class AgentForgeService {
     if (!workflowMayPersist(finalState)) return { status: 'not_persisted', reason: finalState === 'BLOCKED' ? 'workflow_blocked' : 'workflow_not_ready', persistence_boundary: this.writeback.persistenceBoundary };
     const authorization = this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' });
     if (authorization.status !== 'authorized') return { status: 'not_persisted', reason: 'persistence_not_authorized', authorization: authorization.reason, persistence_boundary: this.writeback.persistenceBoundary };
-    return this.writeback.persistDerivedEvidence({ patientRef: authorization.patient_uuid, sourceDocument, extraction, verifiedContext });
+    return this.writeback.persistDerivedEvidence({ patientRef: authorization.patient_uuid, sourceDocument, extraction, verifiedContext, correlationId });
   }
 
-  async readOpenEMRLabObservations(id, request, { verifiedContext = null } = {}) {
+  async readOpenEMRLabObservations(id, request, { verifiedContext = null, correlationId = null } = {}) {
     const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.readLabObservations !== 'function') return { status: 'blocked', reason: 'openemr_persistence_not_configured' };
-    return { status: 'read', bundle: await this.writeback.readLabObservations(id, { patientRef: authorization.patient_uuid, verifiedContext }) };
+    return { status: 'read', bundle: await this.writeback.readLabObservations(id, { patientRef: authorization.patient_uuid, verifiedContext, correlationId }) };
   }
 
   /**
@@ -128,11 +129,11 @@ export class AgentForgeService {
    * persistence layer's read-back (OpenEMR through the module, or the
    * in-memory synthetic store in fixture mode), never from an upload response.
    */
-  async readLabTrends(request, { verifiedContext = null } = {}) {
+  async readLabTrends(request, { verifiedContext = null, correlationId = null } = {}) {
     const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.readLabObservationHistory !== 'function') return { status: 'blocked', reason: 'lab_history_not_configured' };
-    const history = await this.writeback.readLabObservationHistory({ patientRef: authorization.patient_uuid, verifiedContext });
+    const history = await this.writeback.readLabObservationHistory({ patientRef: authorization.patient_uuid, verifiedContext, correlationId });
     return { status: 'read', synthetic_only: true, patient_uuid: authorization.patient_uuid, ...buildLabTrends(history) };
   }
 
@@ -152,13 +153,13 @@ export class AgentForgeService {
     return { ...this.writeback.persistSyntheticLabObservations({ patientRef: authorization.patient_uuid, sourceDocument, rows: mapped.results }), unmapped_lab_results: mapped.unmapped };
   }
 
-  async readSourceDocument(id, request, { verifiedContext = null } = {}) {
+  async readSourceDocument(id, request, { verifiedContext = null, correlationId = null } = {}) {
     const authorization = verifiedContext?.scope === 'write-source-document'
       ? this.authorizeWriteback(request, verifiedContext, { requiredScope: 'write-source-document', requiredAcl: 'write' })
       : this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     if (typeof this.writeback?.getSourceDocument !== 'function') return { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
-    const result = await this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid, verifiedContext });
+    const result = await this.writeback.getSourceDocument(id, { patientRef: authorization.patient_uuid, verifiedContext, correlationId });
     return { status: 'read', synthetic_only: true, source_document: result.document, content: result.content };
   }
 
@@ -186,8 +187,8 @@ export class AgentForgeService {
     return { status: 'read', synthetic_only: true, action: result.action };
   }
 
-  async extractScanFormEvidence(id, request, { verifiedContext = null } = {}) {
-    const source = await this.readSourceDocument(id, request, { verifiedContext });
+  async extractScanFormEvidence(id, request, { verifiedContext = null, correlationId = null } = {}) {
+    const source = await this.readSourceDocument(id, request, { verifiedContext, correlationId });
     if (source.status !== 'read') return source;
     const egress = this.externalEgressFor(verifiedContext);
     if (egress.status === 'blocked') return egress;
@@ -202,7 +203,12 @@ export class AgentForgeService {
     return { status: 'extracted', synthetic_only: true, source_document: source.source_document, extraction, observations: [], ...(pdf ? { pdf_ocr: { page_count: prepared.pageCount, candidate_fields: prepared.candidateFields } } : {}) };
   }
 
-  async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '' } = {}) {
+  /**
+   * `correlationId` is the HTTP request's id (server.js). It names the trace
+   * and rides on every outbound call this scan makes: module reads, the chart
+   * getCase/reads and token refresh, and the guideline embed/rerank calls.
+   */
+  async runActiveSupervisorForDocument(id, request, { verifiedContext = null, query = '', correlationId = null } = {}) {
     // E9: the chart this scan's answer reads, from the verified claims only.
     // An OpenEMR-session request with live reads off is refused here, loudly;
     // it never falls back to the fixture chart.
@@ -221,16 +227,16 @@ export class AgentForgeService {
     // model, no critic, no external OCR, and a local-only guideline
     // retriever (no embed or rerank call).
     const liveExternalBlocked = livePatient && !this.liveEgressAllowedFor(chartAuthorization.patient_uuid);
-    const guidelineRetriever = liveExternalBlocked ? localLexicalGuidelineRetriever : this.guidelineRetriever;
+    const guidelineRetriever = withCorrelationId(liveExternalBlocked ? localLexicalGuidelineRetriever : this.guidelineRetriever, correlationId);
     let source;
     try {
-      source = await this.readSourceDocument(id, request, { verifiedContext });
+      source = await this.readSourceDocument(id, request, { verifiedContext, correlationId });
     } catch (error) {
       if ((error.code || error.message) === 'DOCUMENT_SCOPE_MISMATCH') return { status: 'blocked', reason: 'document_scope_mismatch' };
       throw error;
     }
     if (source.status !== 'read') return source;
-    const trace = this.traceSink?.start?.({ correlationId: `w2-scan-${randomUUID()}`, operation: 'w2-scan-supervisor', interactionType: 'scan_form', scope: { patientRef: request.patient_uuid } });
+    const trace = this.traceSink?.start?.({ correlationId: correlationId || `w2-scan-${randomUUID()}`, operation: 'w2-scan-supervisor', interactionType: 'scan_form', scope: { patientRef: request.patient_uuid } });
     // F6 review fix: a per-request deadline whose AbortSignal is passed to the
     // low-confidence OCR retry and to the answer composer's provider call, so
     // a slow retry or a slow model cannot hang the request indefinitely --
@@ -269,7 +275,7 @@ export class AgentForgeService {
       const demographicsSource = this.patientDemographics === this.chartAdapter ? chartReader : this.patientDemographics;
       let targetPatient = null;
       try {
-        targetPatient = await demographicsSource?.getPatientDemographics?.(source.source_document.patient_ref) ?? null;
+        targetPatient = await demographicsSource?.getPatientDemographics?.(source.source_document.patient_ref, { correlationId: correlationId || '' }) ?? null;
       } catch (error) {
         // Identity then reads `unverified`, never a match; the reason is kept.
         chartRead.identity_error = error.code || 'demographics_read_failed';
@@ -277,7 +283,7 @@ export class AgentForgeService {
       // W1-SF4: a question naming another patient gets no answer. The
       // document's own extraction still runs and is stored; only the answer
       // is refused, and the question is not sent to retrieval either.
-      const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref, chartReader);
+      const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref, chartReader, { correlationId });
       const answerQuery = answerRefused ? '' : query;
       let answerParts = null;
       const composeAnswer = async ({ extraction, evidence }) => {
@@ -286,7 +292,7 @@ export class AgentForgeService {
         try {
           // A chart read failure leaves the answer without chart facts, and
           // says so in `chart_source` and the trace; it is never silent.
-          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref, null, { verifiedContext, adapter: chartReader }).catch((error) => ({ status: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'failed', reason: error.code || error.message || 'chart_read_failed', patient_facts: [], coverage: [] }));
+          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref, null, { verifiedContext, adapter: chartReader, correlationId }).catch((error) => ({ status: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'failed', reason: error.code || error.message || 'chart_read_failed', patient_facts: [], coverage: [] }));
           chartRead.status = chart.status === 'ready' ? (chart.patient_facts.length ? 'read' : 'empty') : chart.status;
           chartRead.reason = chart.status === 'ready' ? null : chart.reason || null;
           if (chart.failed_patient_groups?.length) chartRead.failed_groups = chart.failed_patient_groups;
@@ -417,11 +423,11 @@ export class AgentForgeService {
    * catch it themselves; `retrieveFollowUpEvidence` deliberately still lets
    * it propagate to the server's existing 404 handling.
    */
-  async retrievePatientChartFacts(patientRef, caseId = null, { verifiedContext = null, adapter = null } = {}) {
+  async retrievePatientChartFacts(patientRef, caseId = null, { verifiedContext = null, adapter = null, correlationId = null } = {}) {
     // E9: read through the request's own chart adapter (chartSourceRouter.js).
     const chart = adapter || resolveChartAdapter(this.chartAdapter, verifiedContext);
-    const item = await chart.getCase(patientRef, caseId);
-    const retrieved = await chart.retrieve(item);
+    const item = await chart.getCase(patientRef, caseId, { correlationId: correlationId || '' });
+    const retrieved = await chart.retrieve(item, { correlationId: correlationId || '' });
     const validation = validateRetrievalResult(retrieved);
     if (!validation.valid) return { status: 'blocked', reason: 'retrieval_contract_invalid', patient_facts: [], failed_patient_groups: [], withheld_patient_fields: [], chart_source: chartRecordCitationSource(chart).chart_source };
     // Label the citation by the adapter that actually read the record: a
@@ -446,13 +452,13 @@ export class AgentForgeService {
     return { status: 'ready', patient_facts: patientFacts, failed_patient_groups: failedGroups, unconfirmed_patient_groups: unconfirmedGroups, withheld_patient_fields: withheldPatientFields, coverage: retrieved.coverage, chart_source: citationSource.chart_source };
   }
 
-  async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3 } = {}) {
+  async retrieveFollowUpEvidence(request, { verifiedContext = null, topK = 3, correlationId = null } = {}) {
     const authorization = this.chartAdapter.authorize ? this.chartAdapter.authorize(request, verifiedContext) : { status: 'blocked', reason: 'server_context_missing_or_invalid' };
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     // W1-SF4: a question naming another patient is refused before any chart
     // read, so neither patient's data is disclosed.
-    if (await this.questionNamesOtherPatient(request.message, authorization.patient_uuid, resolveChartAdapter(this.chartAdapter, verifiedContext))) return { status: 'blocked', disposition: 'blocked', reason: 'out_of_scope_patient' };
-    const chart = await this.retrievePatientChartFacts(authorization.patient_uuid, request.case_id, { verifiedContext });
+    if (await this.questionNamesOtherPatient(request.message, authorization.patient_uuid, resolveChartAdapter(this.chartAdapter, verifiedContext), { correlationId })) return { status: 'blocked', disposition: 'blocked', reason: 'out_of_scope_patient' };
+    const chart = await this.retrievePatientChartFacts(authorization.patient_uuid, request.case_id, { verifiedContext, correlationId });
     if (chart.status !== 'ready') return { status: 'blocked', reason: chart.reason };
     const patientFacts = chart.patient_facts;
     const failedGroups = chart.failed_patient_groups;
@@ -462,7 +468,7 @@ export class AgentForgeService {
     const guidelineRetriever = isLiveChartRead(resolveChartAdapter(this.chartAdapter, verifiedContext)) && !this.liveEgressAllowedFor(authorization.patient_uuid) ? localLexicalGuidelineRetriever : this.guidelineRetriever;
     let guideline;
     try {
-      guideline = await guidelineRetriever.retrieve(request.message, { topK });
+      guideline = await guidelineRetriever.retrieve(request.message, { topK, correlationId: correlationId || '' });
     } catch {
       // An error code only — never `error.message`, which can carry
       // upstream HTTP/network detail (e.g. an internal host or a raw
@@ -477,12 +483,12 @@ export class AgentForgeService {
    * patientMentions.js). Uses the chart adapter's patient list when it has
    * one; live OpenEMR REST has none, so only identifier shapes are checked.
    */
-  async questionNamesOtherPatient(message, patientRef, chart = this.chartAdapter) {
+  async questionNamesOtherPatient(message, patientRef, chart = this.chartAdapter, { correlationId = null } = {}) {
     if (!String(message ?? '').trim()) return false;
     const knownPatients = typeof chart?.listPatientIdentifiers === 'function' ? chart.listPatientIdentifiers() : [];
     // The request's chart (E9 router) unless demographics were injected.
     const demographicsSource = this.patientDemographics === this.chartAdapter ? chart : this.patientDemographics;
-    const demographics = await demographicsSource?.getPatientDemographics?.(patientRef) ?? null;
+    const demographics = await demographicsSource?.getPatientDemographics?.(patientRef, { correlationId: correlationId || '' }) ?? null;
     return mentionsOtherPatient({ message, currentPatient: { patient_ref: patientRef, display_name: demographics?.name }, knownPatients });
   }
 
@@ -526,6 +532,16 @@ export class AgentForgeService {
       ? this.writeback.authorize(request, verifiedContext, options)
       : { status: 'blocked', reason: 'synthetic_writeback_unavailable' };
   }
+}
+
+/**
+ * The same `{name, retrieve}` guideline retriever, with the request's
+ * correlation id added to every retrieve call (the supervisor's evidence
+ * worker calls `retrieve(query, {topK})` and knows nothing of requests).
+ */
+function withCorrelationId(retriever, correlationId) {
+  if (!correlationId) return retriever;
+  return Object.freeze({ ...retriever, name: retriever.name, retrieve: (query, options = {}) => retriever.retrieve(query, { ...options, correlationId }) });
 }
 
 // Workflow final states whose derived facts and lab rows may be written.
