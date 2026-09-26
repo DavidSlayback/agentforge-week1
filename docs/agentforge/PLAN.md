@@ -140,7 +140,7 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | W1-S2 | W1 p9 | Postman/Bruno collection | S | Bruno collection with a deployed-URL env covering W1 and W2 endpoints; runs green with `bru run` | Out of scope (D8) | — |
 | W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | Out of scope (D8) | — |
 | W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | Out of scope (D8) | — |
-| X-1 | W2 p5 | Click-to-source UI with a simple document preview | C (D12) | Built (S4); observed on the public URL: a citation's link highlights its box on the page image | Built, not observed live | S4, E1 |
+| X-1 | W2 p5 | Click-to-source UI with a simple document preview | C (D12) | Built (S4); observed on the public URL: a citation's link highlights its box on the page image | Observed live on `521af47` (`evidence/E1-click-to-source-live.md`); gated by extension cases `x1-*` (E0). Re-observe on the freeze SHA (E7) | S4, E1 |
 | X-2 | W2 p5 | Critic agent that rejects uncited claims or unsafe action suggestions | C (D12) | An LLM critic node in the supervisor graph can only veto claims; its decision and reason are traced; the gate fails when it is removed or ignored | Not built | E2 |
 | X-3 | W2 p5 | Third document type (referral fax or medication list) | C (D12) | `medication_list` end to end: upload, OpenEMR storage, strict schema, cited extraction, fail-loud checks, gate cases | Not built | E4 |
 | X-4 | W2 p5 | Lab trend chart widget from extracted Observation data | C (D12) | Chart of one test over ≥ 2 collection dates, read back from OpenEMR (not from the upload response) | Not built | E5 |
@@ -190,6 +190,8 @@ plus an extension suite in the same hook; Q3 critic model by benchmark (agent's 
 Q4 standing authorization for merges, W2 deploys, the module route change and seeded-patient
 demo uploads, each reported after it happens; Q5 the dashboard session is told to hold its
 final deploy for the single-SHA freeze in E7.
+
+**Progress (2026-09-26):** E0 (extension suite) merged, MR !92, `bc53c976`. E1 observed live on `521af47`. E2, E3 and E4 running in worktrees `../agentforge-week1-e{2,3,4}-*`.
 
 ### Slices (lanes E2–E5 run in parallel worktrees; integration in order E3 → E2 → E4 → E5)
 
