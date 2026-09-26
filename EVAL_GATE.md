@@ -167,6 +167,35 @@ verified count. The W2 answer must exclude them or explicitly qualify them. The
 answer composer (S6) excludes them and lists them under `needs_review`;
 `cp-05` asserts it.
 
+## Extension suite (PRD p. 5–6 extension items)
+
+The PRD's deliverables list also names a critic agent, click-to-source, a
+third document type, a lab trend chart and contextual retrieval (`PLAN.md`,
+D12). Their cases live in a separate **extension suite**, so the golden set
+stays at exactly the 50 cases the PRD asks for, while the new behaviour
+still blocks commits.
+
+- Run it with `npm run eval:extensions --prefix agentforge`. The pre-commit
+  hook runs it right after the 50-case gate, and `.gitlab-ci.yml` mirrors it.
+- It uses the same judge (`JUDGE_CONFIG`), the same five labels, the same
+  95% per-label threshold, the same 5-point regression rule, and a committed
+  baseline (`docs/agentforge/evidence/W2_EXTENSION_BASELINE_REPORT.json`).
+- There are two differences. The case count is whatever the suite holds,
+  but an empty suite fails. A label with no extension cases is skipped rather
+  than failed. A missing baseline also fails.
+- Each slice owns one file in `agentforge/src/extensionCases/` and adds it
+  to `index.js`. A case can carry its own check (`expect.custom`) and inject
+  service collaborators (`scenario.service_overrides`), so a slice never
+  edits the golden dispatcher.
+- Current cases: `x1-click-to-source-lab-a` and `x1-click-to-source-intake-b`.
+  Each renders the deployed source preview from the real post-OCR extraction
+  and fails if a cited field has no box, or if a "View source region" link
+  doesn't land on its box. Regression proof:
+  `docs/agentforge/evidence/E0-extension-gate-regression.txt`.
+- To rebaseline: `npm run eval:extensions --prefix agentforge --
+  --update-baseline`. As with the golden gate, it refuses unless every
+  threshold is met.
+
 ## Regression matrix
 
 [`docs/agentforge/evidence/W2_REGRESSION_MATRIX.md`](docs/agentforge/evidence/W2_REGRESSION_MATRIX.md)

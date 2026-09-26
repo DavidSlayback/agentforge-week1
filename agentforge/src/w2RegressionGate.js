@@ -26,9 +26,9 @@ export const W2_GATE_CASE_COUNT = 50;
 const GOLDEN_DIR = new URL('../test/fixtures/golden/', import.meta.url);
 const REPO_ROOT = new URL('../../', import.meta.url);
 const FIXTURE_CASES = fileURLToPath(new URL('docs/agentforge/fixtures/clinical-cases.json', REPO_ROOT));
-const CLINICIAN = 'fixture-physician-001';
-const P1 = 'fixture-patient-001';
-const P2 = 'fixture-patient-002';
+export const CLINICIAN = 'fixture-physician-001';
+export const P1 = 'fixture-patient-001';
+export const P2 = 'fixture-patient-002';
 // A patient the chart has no demographics for.
 const P_UNKNOWN = 'fixture-patient-099';
 const GATE_CLOCK = '2000-01-01T00:00:00.000Z';
@@ -51,8 +51,8 @@ const Q = Object.freeze({
   offTopicClinical: 'orthopedic knee replacement rehabilitation protocol',
 });
 
-const scan = (doc, declaredType, extra = {}) => ({ kind: 'scan', doc, declared_type: declaredType, upload_patient: P1, query: declaredType === 'lab_pdf' ? Q.glycemic : Q.medrec, ...extra });
-const kase = (id, category, guardsAgainst, scenario, expect) => ({ id, category, guards_against: guardsAgainst, synthetic_only: true, scenario, expect });
+export const scan = (doc, declaredType, extra = {}) => ({ kind: 'scan', doc, declared_type: declaredType, upload_patient: P1, query: declaredType === 'lab_pdf' ? Q.glycemic : Q.medrec, ...extra });
+export const kase = (id, category, guardsAgainst, scenario, expect) => ({ id, category, guards_against: guardsAgainst, synthetic_only: true, scenario, expect });
 
 // S6: an honestly-named fake model, used only by the `fake_provider_drops_invented_claim`
 // gate assertion (never in production). It returns exactly one fabricated
@@ -276,11 +276,11 @@ function guidelineRetrieverForGate() {
   return gateGuidelineRetriever;
 }
 
-export function harness({ answerProvider = null } = {}) {
+export function harness({ answerProvider = null, serviceOverrides = {} } = {}) {
   const secret = randomBytes(16).toString('hex');
   const traceSink = new FixedClockTraceSink();
   const writeback = new SyntheticWriteback();
-  const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, guidelineRetriever: guidelineRetrieverForGate(), provider: new DeterministicProvider(), answerProvider, traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings) });
+  const service = new AgentForgeService({ chartAdapter: new FixtureAdapter(FIXTURE_CASES), writeback, guidelineRetriever: guidelineRetrieverForGate(), provider: new DeterministicProvider(), answerProvider, traceSink, ocrEngine: createRecordedOcrReplay(golden().recordings), ...serviceOverrides });
   const context = (patient, scope = 'read-briefing') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: CLINICIAN, scope, acl: scope === 'read-briefing' ? 'read' : 'write', secret }), secret);
   const upload = async (doc, patient, documentType) => {
     const result = await service.ingestSourceDocument({ patient_uuid: patient, clinician_uuid: CLINICIAN, document_type: documentType, filename: `${doc.id}.${doc.kind === 'pdf' ? 'pdf' : 'scan.txt'}`, content: doc.content }, { verifiedContext: context(patient, 'write-source-document') });
@@ -291,9 +291,9 @@ export function harness({ answerProvider = null } = {}) {
 }
 
 export async function runScenario(scenario) {
-  const h = harness({ answerProvider: scenario.answer_provider ? scenario.answer_provider() : null });
+  const h = harness({ answerProvider: scenario.answer_provider ? scenario.answer_provider() : null, serviceOverrides: scenario.service_overrides ? scenario.service_overrides() : {} });
   const docs = (scenario.docs || [scenario.doc]).map((id) => golden().docs.get(id));
-  const run = { h, docs, sourceIds: [], result: null, error: null };
+  const run = { h, docs, sourceIds: [], result: null, error: null, patient: scenario.request_patient || scenario.upload_patient, clinician: CLINICIAN };
   try {
     if (scenario.kind === 'scan') {
       const stored = await h.upload(docs[0], scenario.upload_patient, scenario.declared_type);
@@ -776,6 +776,9 @@ async function evaluateCase(testCase) {
     if (expect.refusal) issues.push(...checkRefusal(run, expect.refusal));
     if (expect.no_phi) issues.push(...checkNoPhi(run, output, expect.no_phi));
     if (expect.answer) issues.push(...await checkAnswer(run, expect.answer));
+    // Extension-suite cases (w2ExtensionGate.js) carry their own check, so a new
+    // slice adds cases without editing this dispatcher.
+    if (typeof expect.custom === 'function') issues.push(...await expect.custom(run, output));
   }
   return { id: testCase.id, label: testCase.category, guards_against: testCase.guards_against, critical: testCase.category === 'no_phi_in_logs', passed: issues.length === 0, issues: [...new Set(issues)] };
 }
@@ -816,9 +819,13 @@ export function goldenScenarioQueries(cases = buildW2GoldenSet()) {
 }
 
 /** Hash of the thresholds, case count, case specs, every golden input (truth files, OCR recordings, text docs) and the real guideline corpus, so none can change silently — including a corpus edit that would otherwise silently reshuffle the fc-08/09/10 retrieval-ranking expectations. */
-export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_GATE_CASE_COUNT } = {}) {
+export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_GATE_CASE_COUNT, hashFunctions = false } = {}) {
+  // The 50-case corpus hash predates function-valued case fields and must not
+  // change, so only the extension suite hashes function source (its checks
+  // live in `expect.custom`).
+  const replacer = hashFunctions ? (_key, value) => (typeof value === 'function' ? `fn:${value.toString()}` : value) : undefined;
   const { manifest, rawFiles } = golden();
-  return createHash('sha256').update(JSON.stringify({ judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() }, replacer)).digest('hex');
 }
 
 export const JUDGE_CONFIG = Object.freeze({ version: 'w2-assignment-rubrics-v3', per_label_min_rate: 0.95, max_regression: 0.05, critical_failure_tolerance: 0, no_phi_in_logs_required: true });
@@ -830,14 +837,19 @@ export const JUDGE_CONFIG = Object.freeze({ version: 'w2-assignment-rubrics-v3',
  *   cases: Case specs (defaults to `buildW2GoldenSet()`).
  *   baseline: Baseline report (defaults to the committed one).
  *   injectDefect: Negative control; fails the first case.
+ *   expectedCount: Required case count (the golden set: exactly 50).
+ *   requireEveryLabel: Every W2 label must have cases (golden set). The
+ *     extension suite sets this false: a label with no cases is skipped, but
+ *     every label that has cases must meet the same per-label threshold.
+ *   hashFunctions / schemaVersion: see `goldenCorpusHash`; report version.
  *
  * Returns:
  *   A report with per-category rates, regressions against the baseline,
  *   critical (no_phi) failures and `passed`. `thresholds_passed` ignores the
  *   baseline comparison and is what `--update-baseline` requires.
  */
-export async function runW2RegressionGate({ cases = buildW2GoldenSet(), baseline = null, injectDefect = false } = {}) {
-  const expectedCorpusHash = goldenCorpusHash(cases);
+export async function runW2RegressionGate({ cases = buildW2GoldenSet(), baseline = null, injectDefect = false, expectedCount = W2_GATE_CASE_COUNT, requireEveryLabel = true, hashFunctions = false, schemaVersion = 'w2-regression-gate-v3' } = {}) {
+  const expectedCorpusHash = goldenCorpusHash(cases, { caseCount: expectedCount, hashFunctions });
   const baselineArtifact = baseline || baselineReport;
   const results = [];
   for (const [index, testCase] of cases.entries()) {
@@ -847,16 +859,17 @@ export async function runW2RegressionGate({ cases = buildW2GoldenSet(), baseline
   const byLabel = summarizeByLabel(results);
   const baselineByLabel = baselineArtifact.by_label;
   const baselineMismatch = baselineArtifact.corpus_sha256 !== expectedCorpusHash;
-  const regressions = Object.fromEntries(W2_GATE_LABELS.map((label) => [label, Number(((baselineByLabel?.[label]?.rate ?? 0) - byLabel[label].rate).toFixed(4))]));
+  const gatedLabels = requireEveryLabel ? W2_GATE_LABELS : W2_GATE_LABELS.filter((label) => byLabel[label].cases > 0 || (baselineByLabel?.[label]?.cases ?? 0) > 0);
+  const regressions = Object.fromEntries(gatedLabels.map((label) => [label, Number(((baselineByLabel?.[label]?.rate ?? 0) - byLabel[label].rate).toFixed(4))]));
   const criticalFailures = results.filter((result) => result.critical && !result.passed).map((result) => result.id);
-  const thresholdsPassed = results.length === W2_GATE_CASE_COUNT
-    && W2_GATE_LABELS.every((label) => byLabel[label].cases > 0 && byLabel[label].rate >= JUDGE_CONFIG.per_label_min_rate)
+  const thresholdsPassed = results.length > 0 && results.length === expectedCount
+    && gatedLabels.every((label) => byLabel[label].cases > 0 && byLabel[label].rate >= JUDGE_CONFIG.per_label_min_rate)
     && criticalFailures.length === 0;
   const passed = thresholdsPassed
     && Object.values(regressions).every((regression) => regression <= JUDGE_CONFIG.max_regression)
     && !baselineMismatch;
   return {
-    schema_version: 'w2-regression-gate-v3',
+    schema_version: schemaVersion,
     synthetic_only: true,
     passed,
     thresholds_passed: thresholdsPassed,
