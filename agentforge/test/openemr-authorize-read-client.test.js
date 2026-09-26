@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { authorizeUrlFor, buildAuthorizeUrl, createPkcePair, parseRedirectInput, runAuthorization, tokenCacheFrom, REQUIRED_SCOPES } from '../scripts/openemr-authorize-read-client.mjs';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { authorizedUserMatches, authorizeUrlFor, buildAuthorizeUrl, createPkcePair, exchangeCode, parseRedirectInput, runAuthorization, serviceIsRunning, tokenCacheFrom, writeTokenCache, REQUIRED_SCOPES } from '../scripts/openemr-authorize-read-client.mjs';
 import { OpenEMRRefreshTokenProvider } from '../src/openemrAdapter.js';
 
 // TEST-ONLY fake OpenEMR token endpoint: it answers the authorization_code
@@ -13,9 +13,11 @@ import { OpenEMRRefreshTokenProvider } from '../src/openemrAdapter.js';
 const CLIENT = { id: 'read-client', secret: 'synthetic-client-secret' };
 const REDIRECT = 'https://openemr.example/oauth-callback';
 const GRANTED = 'openid offline_access api:oemr user/patient.rs user/encounter.rs user/medical_problem.rs user/allergy.rs user/medication.rs';
-const idToken = `x.${Buffer.from(JSON.stringify({ sub: '9f7c0000-0000-4000-8000-00000000grdr' })).toString('base64url')}.y`;
+const GRADER_UUID = '9f7c1e2d-0000-4000-8000-0000000000aa';
+const ADMIN_UUID = '1a2b3c4d-0000-4000-8000-0000000000ad';
+const idTokenFor = (claims) => `x.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.y`;
 
-function fakeTokenEndpoint({ scope = GRANTED, refresh = true } = {}) {
+function fakeTokenEndpoint({ scope = GRANTED, refresh = true, idClaims = { sub: GRADER_UUID } } = {}) {
   const state = { challenge: null, calls: [] };
   const fetchImpl = async (url, options) => {
     const form = new URLSearchParams(options.body);
@@ -23,26 +25,36 @@ function fakeTokenEndpoint({ scope = GRANTED, refresh = true } = {}) {
     const verifierOk = crypto.createHash('sha256').update(form.get('code_verifier') || '').digest('base64url') === state.challenge;
     const ok = form.get('grant_type') === 'authorization_code' && form.get('code') === 'code-123' && form.get('redirect_uri') === REDIRECT && form.get('client_id') === CLIENT.id && form.get('client_secret') === CLIENT.secret && verifierOk;
     if (!ok) return { ok: false, status: 400, async json() { return { error: 'invalid_grant' }; } };
-    return { ok: true, status: 200, async json() { return { access_token: 'access-NEW-secret', ...(refresh ? { refresh_token: 'refresh-NEW-secret' } : {}), expires_in: 3600, token_type: 'Bearer', scope, id_token: idToken }; } };
+    return { ok: true, status: 200, async json() { return { access_token: 'access-NEW-secret', ...(refresh ? { refresh_token: 'refresh-NEW-secret' } : {}), expires_in: 3600, token_type: 'Bearer', scope, ...(idClaims ? { id_token: idTokenFor(idClaims) } : {}) }; } };
   };
   return { state, fetchImpl };
 }
 
-const env = (cachePath) => ({ AGENTFORGE_OPENEMR_TOKEN_URL: 'https://openemr.example/oauth2/default/token', AGENTFORGE_OPENEMR_CLIENT_ID: CLIENT.id, AGENTFORGE_OPENEMR_CLIENT_SECRET: CLIENT.secret, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: cachePath });
+const env = (cachePath, tokenUrl = 'https://openemr.example/oauth2/default/token') => ({ AGENTFORGE_OPENEMR_TOKEN_URL: tokenUrl, AGENTFORGE_OPENEMR_CLIENT_ID: CLIENT.id, AGENTFORGE_OPENEMR_CLIENT_SECRET: CLIENT.secret, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: cachePath });
+const ARGV = ['--redirect-uri', REDIRECT, '--expect-user', 'grader', '--expect-user-uuid', GRADER_UUID];
 
 /** Drive the whole flow: the "browser" returns the redirect URL for the authorize URL the script printed. */
-async function run({ cachePath, endpoint, redirectFor = (authorize) => `${REDIRECT}?code=code-123&state=${authorize.searchParams.get('state')}` }) {
+async function run({ cachePath, endpoint, argv = ARGV, envOverride = {}, probeService = async () => false, redirectFor = (authorize) => `${REDIRECT}?code=code-123&state=${authorize.searchParams.get('state')}` }) {
   const lines = [];
   let authorize = null;
   const result = await runAuthorization({
-    env: env(cachePath),
-    argv: ['--redirect-uri', REDIRECT],
+    env: { ...env(cachePath), ...envOverride },
+    argv,
     log: (line) => { lines.push(String(line)); if (String(line).startsWith('https://openemr.example/oauth2/default/authorize')) { authorize = new URL(line); endpoint.state.challenge = authorize.searchParams.get('code_challenge'); } },
     prompt: async () => redirectFor(authorize),
     fetchImpl: endpoint.fetchImpl,
     now: () => 1_000_000,
+    probeService,
   });
   return { result, lines, authorize };
+}
+
+async function withCache(fn) {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'agentforge-authorize-'));
+  const cachePath = path.join(dir, 'token.json');
+  const original = JSON.stringify({ access_token: 'old', refresh_token: 'refresh-OLD-admin', expires_at: 0 });
+  await writeFile(cachePath, original);
+  try { await fn({ dir, cachePath, original }); } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
 test('PKCE: an S256 challenge of a 43-character verifier (RFC 7636 appendix B vector)', () => {
@@ -54,29 +66,39 @@ test('PKCE: an S256 challenge of a 43-character verifier (RFC 7636 appendix B ve
   assert.equal(createPkcePair().verifier.length, 43);
 });
 
-test('authorize URL: code flow with S256, state, the exact redirect URI and the read scopes', () => {
+test('authorize URL: https only; code flow with S256, state, the exact redirect URI and the read scopes', async () => {
   const authorizeUrl = authorizeUrlFor('https://host.example/oauth2/default/token');
   assert.equal(authorizeUrl, 'https://host.example/oauth2/default/authorize');
   assert.throws(() => authorizeUrlFor('https://host.example/oauth2/default/other'), /AUTHORIZE_URL_REQUIRED/);
+  assert.throws(() => authorizeUrlFor('http://openemr/oauth2/default/token'), /TOKEN_URL_NOT_HTTPS/);
+  assert.throws(() => buildAuthorizeUrl({ authorizeUrl: 'http://host.example/oauth2/default/authorize', clientId: 'c', redirectUri: REDIRECT, state: 's', nonce: 'n', challenge: 'ch' }), /AUTHORIZE_URL_NOT_HTTPS/);
+  await assert.rejects(exchangeCode({ tokenUrl: 'http://host.example/oauth2/default/token', clientId: 'c', clientSecret: 's', redirectUri: REDIRECT, code: 'x', verifier: 'v', fetchImpl: async () => { throw new Error('must not be called'); } }), /TOKEN_URL_NOT_HTTPS/);
   const url = new URL(buildAuthorizeUrl({ authorizeUrl, clientId: 'c', redirectUri: REDIRECT, state: 's', nonce: 'n', challenge: 'ch' }));
   assert.deepEqual(Object.fromEntries(url.searchParams), { response_type: 'code', client_id: 'c', redirect_uri: REDIRECT, scope: REQUIRED_SCOPES.join(' '), state: 's', nonce: 'n', code_challenge: 'ch', code_challenge_method: 'S256' });
   assert.equal(REQUIRED_SCOPES.includes('offline_access'), true);
 });
 
-test('pasted redirect: state must match, errors and foreign URLs are refused, a bare code is accepted unchecked', () => {
-  assert.deepEqual(parseRedirectInput(`${REDIRECT}?code=abc&state=s1`, { expectedState: 's1', redirectUri: REDIRECT }), { code: 'abc', stateChecked: true });
+test('pasted redirect: state must match; errors, foreign URLs and bare codes are refused', () => {
+  assert.deepEqual(parseRedirectInput(`${REDIRECT}?code=abc&state=s1`, { expectedState: 's1', redirectUri: REDIRECT }), { code: 'abc' });
   assert.throws(() => parseRedirectInput(`${REDIRECT}?code=abc&state=other`, { expectedState: 's1', redirectUri: REDIRECT }), /STATE_MISMATCH/);
+  assert.throws(() => parseRedirectInput(`${REDIRECT}?code=abc`, { expectedState: 's1', redirectUri: REDIRECT }), /STATE_MISMATCH/);
   assert.throws(() => parseRedirectInput(`${REDIRECT}?error=access_denied&state=s1`, { expectedState: 's1', redirectUri: REDIRECT }), /AUTHORIZATION_DENIED: access_denied/);
   assert.throws(() => parseRedirectInput('https://evil.example/cb?code=abc&state=s1', { expectedState: 's1', redirectUri: REDIRECT }), /REDIRECT_URI_MISMATCH/);
-  assert.deepEqual(parseRedirectInput('  abc  ', { expectedState: 's1', redirectUri: REDIRECT }), { code: 'abc', stateChecked: false });
+  assert.throws(() => parseRedirectInput('  abc  ', { expectedState: 's1', redirectUri: REDIRECT }), /BARE_CODE_REFUSED/);
   assert.throws(() => parseRedirectInput('', { expectedState: 's1', redirectUri: REDIRECT }), /NO_INPUT/);
 });
 
-test('exchange: writes the provider cache format (mode 0600) and prints no token, code, verifier or secret', async () => {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'agentforge-authorize-'));
-  const cachePath = path.join(dir, 'token.json');
-  await writeFile(cachePath, JSON.stringify({ access_token: 'old', refresh_token: 'refresh-OLD-admin', expires_at: 0 }));
-  try {
+test('who authorized: sub must be the expected users.uuid, and preferred_username (when present) the expected username', () => {
+  const expected = { expectUser: 'grader', expectUserUuid: GRADER_UUID };
+  assert.deepEqual(authorizedUserMatches({ id_token: idTokenFor({ sub: GRADER_UUID.toUpperCase() }) }, expected), { match: true, reason: null });
+  assert.deepEqual(authorizedUserMatches({ id_token: idTokenFor({ sub: GRADER_UUID, preferred_username: 'grader' }) }, expected), { match: true, reason: null });
+  assert.equal(authorizedUserMatches({ id_token: idTokenFor({ sub: ADMIN_UUID }) }, expected).reason, 'subject_is_another_user');
+  assert.equal(authorizedUserMatches({ id_token: idTokenFor({ sub: GRADER_UUID, preferred_username: 'admin' }) }, expected).reason, 'username_differs');
+  assert.equal(authorizedUserMatches({}, expected).reason, 'no_id_token_subject');
+});
+
+test('exchange as the expected user: writes the provider cache atomically (0600) and prints no token, code, verifier, uuid or secret', async () => {
+  await withCache(async ({ dir, cachePath }) => {
     const endpoint = fakeTokenEndpoint();
     const { result, lines } = await run({ cachePath, endpoint });
     const [call] = endpoint.state.calls;
@@ -85,30 +107,71 @@ test('exchange: writes the provider cache format (mode 0600) and prints no token
     assert.equal(call.url, 'https://openemr.example/oauth2/default/token');
     const cache = JSON.parse(await readFile(cachePath, 'utf8'));
     assert.deepEqual(cache, { access_token: 'access-NEW-secret', refresh_token: 'refresh-NEW-secret', expires_at: 1_000_000 + 3_600_000, scope: GRANTED });
-    if (process.platform !== 'win32') assert.equal((await stat(cachePath)).mode & 0o777, 0o600);
-    assert.equal(result.subject, '9f7c0000-0000-4000-8000-00000000grdr');
+    if (process.platform !== 'win32') assert.equal(result.mode, '0600');
+    assert.match(lines.join('\n'), new RegExp(`\\(mode ${result.mode}\\)`), 'the actual mode is reported');
+    assert.deepEqual(await readdir(dir), ['token.json'], 'no temp file is left behind');
+    assert.ok(lines.includes('Authorized user: grader match'));
     const output = lines.join('\n');
-    for (const secret of ['access-NEW-secret', 'refresh-NEW-secret', 'code-123', CLIENT.secret, call.form.code_verifier, idToken]) assert.equal(output.includes(secret), false, 'a secret value was printed');
+    for (const secret of ['access-NEW-secret', 'refresh-NEW-secret', 'code-123', CLIENT.secret, call.form.code_verifier, GRADER_UUID]) assert.equal(output.includes(secret), false, 'a secret value or uuid was printed');
     // The service's provider reads the new cache as is: no refresh call while the access token is fresh.
-    const provider = new OpenEMRRefreshTokenProvider({ tokenUrl: 'x', clientId: CLIENT.id, clientSecret: CLIENT.secret, cachePath, now: () => 1_000_000, fetchImpl: async () => { throw new Error('unexpected refresh'); } });
+    const provider = new OpenEMRRefreshTokenProvider({ tokenUrl: 'https://x/token', clientId: CLIENT.id, clientSecret: CLIENT.secret, cachePath, now: () => 1_000_000, fetchImpl: async () => { throw new Error('unexpected refresh'); } });
     assert.equal(await provider.getAccessToken(), 'access-NEW-secret');
-  } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+});
+
+test('another user authorized (admin instead of grader), or no id token: refused, nothing written', async () => {
+  await withCache(async ({ cachePath, original }) => {
+    const lines = [];
+    const endpoint = fakeTokenEndpoint({ idClaims: { sub: ADMIN_UUID, preferred_username: 'admin' } });
+    await assert.rejects(run({ cachePath, endpoint }).catch((error) => { throw error; }), /AUTHORIZED_USER_MISMATCH: the grant is not grader's; nothing written/);
+    await assert.rejects(run({ cachePath, endpoint: fakeTokenEndpoint({ idClaims: null }) }), /AUTHORIZED_USER_MISMATCH/);
+    assert.equal(await readFile(cachePath, 'utf8'), original);
+    // The mismatch line names only the expected username and the status.
+    await runAuthorization({ env: env(cachePath), argv: ARGV, log: (line) => { lines.push(String(line)); if (String(line).startsWith('https://')) endpoint.state.challenge = new URL(line).searchParams.get('code_challenge'); }, prompt: async () => `${REDIRECT}?code=code-123&state=${new URL(lines.find((line) => line.startsWith('https://'))).searchParams.get('state')}`, fetchImpl: endpoint.fetchImpl, probeService: async () => false }).catch(() => {});
+    assert.ok(lines.includes('Authorized user: grader MISMATCH (subject_is_another_user)'));
+    assert.equal(lines.join('\n').includes(ADMIN_UUID), false);
+  });
+});
+
+test('refusals before anything is sent: http token URL, running service, missing or malformed expected user', async () => {
+  await withCache(async ({ cachePath, original }) => {
+    const endpoint = fakeTokenEndpoint();
+    await assert.rejects(run({ cachePath, endpoint, envOverride: { AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr/oauth2/default/token' } }), /TOKEN_URL_NOT_HTTPS/);
+    await assert.rejects(run({ cachePath, endpoint, argv: [...ARGV, '--authorize-url', 'http://openemr.example/oauth2/default/authorize'] }), /AUTHORIZE_URL_NOT_HTTPS/);
+    await assert.rejects(run({ cachePath, endpoint, probeService: async () => true }), /SERVICE_RUNNING/);
+    await assert.rejects(run({ cachePath, endpoint, argv: ['--redirect-uri', REDIRECT] }), /CONFIG_MISSING: --expect-user, --expect-user-uuid/);
+    await assert.rejects(run({ cachePath, endpoint, argv: ['--redirect-uri', REDIRECT, '--expect-user', 'grader', '--expect-user-uuid', 'grader'] }), /EXPECT_USER_UUID_INVALID/);
+    assert.equal(endpoint.state.calls.length, 0, 'nothing reached the token endpoint');
+    assert.equal(await readFile(cachePath, 'utf8'), original);
+  });
+  // The probe: a service that answers is running; a name that does not resolve is not.
+  assert.equal(await serviceIsRunning('http://agentforge-w2:8788/health', { fetchImpl: async () => ({ ok: true, status: 200 }) }), true);
+  assert.equal(await serviceIsRunning('http://agentforge-w2:8788/health', { fetchImpl: async () => { throw Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }); } }), false);
 });
 
 test('exchange refused or incomplete grant: nothing is written', async () => {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'agentforge-authorize-'));
-  const cachePath = path.join(dir, 'token.json');
-  const original = JSON.stringify({ refresh_token: 'refresh-OLD-admin' });
-  await writeFile(cachePath, original);
-  try {
+  await withCache(async ({ cachePath, original }) => {
     await assert.rejects(run({ cachePath, endpoint: fakeTokenEndpoint(), redirectFor: (authorize) => `${REDIRECT}?code=wrong-code&state=${authorize.searchParams.get('state')}` }), /TOKEN_EXCHANGE_FAILED: HTTP 400 invalid_grant/);
     // A verifier that does not match the challenge is refused by the endpoint (PKCE is really checked).
     const badPkce = fakeTokenEndpoint();
-    await assert.rejects(runAuthorization({ env: env(cachePath), argv: ['--redirect-uri', REDIRECT], log: () => {}, prompt: async () => 'code-123', fetchImpl: badPkce.fetchImpl }), /TOKEN_EXCHANGE_FAILED/);
+    let state = '';
+    await assert.rejects(runAuthorization({ env: env(cachePath), argv: ARGV, log: (line) => { if (String(line).startsWith('https://')) state = new URL(line).searchParams.get('state'); }, prompt: async () => `${REDIRECT}?code=code-123&state=${state}`, fetchImpl: badPkce.fetchImpl, probeService: async () => false }), /TOKEN_EXCHANGE_FAILED/);
     await assert.rejects(run({ cachePath, endpoint: fakeTokenEndpoint({ refresh: false }) }), /REFRESH_TOKEN_MISSING/);
     await assert.rejects(run({ cachePath, endpoint: fakeTokenEndpoint({ scope: 'openid offline_access api:oemr user/patient.rs' }) }), /SCOPES_MISSING: user\/encounter\.rs user\/medical_problem\.rs user\/allergy\.rs user\/medication\.rs/);
     assert.equal(await readFile(cachePath, 'utf8'), original);
-    await assert.rejects(runAuthorization({ env: {}, argv: [], log: () => {}, prompt: async () => '' }), /CONFIG_MISSING: AGENTFORGE_OPENEMR_TOKEN_URL, AGENTFORGE_OPENEMR_CLIENT_ID, AGENTFORGE_OPENEMR_CLIENT_SECRET, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, --redirect-uri/);
+    await assert.rejects(runAuthorization({ env: {}, argv: [], log: () => {}, prompt: async () => '' }), /CONFIG_MISSING: AGENTFORGE_OPENEMR_TOKEN_URL, AGENTFORGE_OPENEMR_CLIENT_ID, AGENTFORGE_OPENEMR_CLIENT_SECRET, AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH, --redirect-uri, --expect-user, --expect-user-uuid/);
     assert.throws(() => tokenCacheFrom({ refresh_token: 'r', scope: GRANTED }), /TOKEN_RESPONSE_INVALID/);
-  } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+});
+
+test('atomic write: a rename that fails (a single-file bind mount) leaves the old cache and no temp file', async () => {
+  await withCache(async ({ dir, cachePath, original }) => {
+    // A directory at the target makes rename fail, as a bind-mounted file does (EBUSY) in the container.
+    const blocked = path.join(dir, 'blocked');
+    await writeFile(path.join(dir, 'placeholder'), '');
+    await import('node:fs/promises').then((fs) => fs.mkdir(path.join(blocked, 'inner'), { recursive: true }));
+    await assert.rejects(writeTokenCache(blocked, { access_token: 'a' }), /TOKEN_CACHE_RENAME_FAILED/);
+    assert.deepEqual((await readdir(dir)).sort(), ['blocked', 'placeholder', 'token.json']);
+    assert.equal(await readFile(cachePath, 'utf8'), original);
+  });
 });

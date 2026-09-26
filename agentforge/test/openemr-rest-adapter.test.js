@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter } from '../src/openemrAdapter.js';
+import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, tokenUrlIssue } from '../src/openemrAdapter.js';
+import { clinicalFact, clinicalLabel } from '../src/clinicalLanguage.js';
 import { validateRetrievalResult } from '../src/contracts.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 
@@ -134,10 +135,10 @@ test('F-LIVE notes: never requested from OpenEMR, reported not_requested with th
   assert.equal(validateRetrievalResult({ ...retrieved, coverage: retrieved.coverage.map((group) => group.group === 'notes' ? { ...group, status: 'empty' } : group) }).valid, false);
 });
 
-test('F-LIVE medication dose: from the row\'s dose field or free-text comments; "not recorded" when absent, never blank', async () => {
+test('F-LIVE medication dose: a dose field when the row has one, else "dose not available from this OpenEMR route"; free-text comments are an instructions/comment fact, never a dose', async () => {
   const rows = [
     { uuid: 'med-comments', pid: 17, title: 'Lisinopril', begdate: '2026-09-10', enddate: null, comments: '  10 mg daily  ' },
-    { uuid: 'med-structured', pid: 17, title: 'Metformin', begdate: '2026-09-10', enddate: null, drug_dosage_instructions: '500 mg twice daily', comments: 'ignored when a dose field exists' },
+    { uuid: 'med-structured', pid: 17, title: 'Metformin', begdate: '2026-09-10', enddate: null, drug_dosage_instructions: '500 mg twice daily', comments: 'with meals' },
     { uuid: 'med-none', pid: 17, title: 'Atorvastatin', begdate: '2026-09-10', enddate: null, comments: '' },
     { uuid: 'med-null', pid: 17, title: 'Aspirin', begdate: '2026-09-10', enddate: null, comments: null },
   ];
@@ -152,13 +153,33 @@ test('F-LIVE medication dose: from the row\'s dose field or free-text comments; 
   });
   const retrieved = await adapter.retrieve(await adapter.getCase('patient-uuid'));
   assert.equal(validateRetrievalResult(retrieved).valid, true);
-  const dose = (name) => retrieved.records.find((record) => record.field === `medication.${name}.dose`);
-  assert.equal(dose('lisinopril').value, '10 mg daily');
-  assert.equal(dose('lisinopril').source_ref, 'med-comments', 'the dose cites the OpenEMR row it came from');
-  assert.equal(dose('metformin').value, '500 mg twice daily');
-  assert.equal(dose('atorvastatin').value, 'not recorded');
-  assert.equal(dose('aspirin').value, 'not recorded');
+  const value = (field) => retrieved.records.find((record) => record.field === field)?.value;
+  assert.equal(value('medication.lisinopril.dose'), 'dose not available from this OpenEMR route', 'comments are not a dose');
+  assert.equal(value('medication.lisinopril.comment'), '10 mg daily');
+  assert.equal(retrieved.records.find((record) => record.field === 'medication.lisinopril.comment').source_ref, 'med-comments', 'the comment cites the OpenEMR row it came from');
+  assert.equal(value('medication.metformin.dose'), '500 mg twice daily');
+  assert.equal(value('medication.metformin.comment'), 'with meals');
+  assert.equal(value('medication.atorvastatin.dose'), 'dose not available from this OpenEMR route');
+  assert.equal(value('medication.atorvastatin.comment'), undefined, 'no comment fact for an empty comment');
+  assert.equal(value('medication.aspirin.dose'), 'dose not available from this OpenEMR route');
   assert.ok(retrieved.records.filter((record) => record.field.startsWith('medication.')).every((record) => typeof record.value === 'string' && record.value.trim()), 'no blank medication value');
-  assert.equal(retrieved.records.find((record) => record.field === 'medication.lisinopril.status').value, 'active');
-  assert.equal(retrieved.coverage.find((group) => group.group === 'medications').records, 8);
+  assert.equal(value('medication.lisinopril.status'), 'active');
+  assert.equal(retrieved.coverage.find((group) => group.group === 'medications').records, 10);
+  // Wording: the comment is rendered as instructions/comment, the missing dose as unavailable from this route.
+  assert.equal(clinicalLabel('medication.lisinopril.comment'), 'lisinopril instructions/comment');
+  assert.equal(clinicalFact({ field: 'medication.lisinopril.comment', value: '10 mg daily' }), 'Lisinopril instructions/comment: 10 mg daily');
+  assert.equal(clinicalFact({ field: 'medication.lisinopril.dose', value: 'dose not available from this OpenEMR route' }), 'Lisinopril: dose not available from this OpenEMR route');
+  assert.equal(clinicalFact({ field: 'medication.lisinopril.dose', value: '10 mg daily' }), 'Lisinopril is recorded at 10 mg daily', 'a real dose keeps the fixture wording');
+});
+
+test('F-LIVE token URL: the refresh provider sends the client secret and refresh token over https only', async () => {
+  assert.equal(tokenUrlIssue('https://openemr/oauth2/default/token'), null, 'the Compose default (Docker-internal https) is accepted');
+  assert.equal(tokenUrlIssue('https://host.example/oauth2/default/token'), null);
+  assert.equal(tokenUrlIssue('http://openemr/oauth2/default/token'), 'OPENEMR_TOKEN_URL_NOT_HTTPS');
+  assert.equal(tokenUrlIssue('not a url'), 'OPENEMR_TOKEN_URL_INVALID');
+  let calls = 0;
+  const provider = new OpenEMRRefreshTokenProvider({ tokenUrl: 'http://openemr/oauth2/default/token', clientId: 'c', clientSecret: 's', fetchImpl: async () => { calls += 1; throw new Error('must not be called'); } });
+  provider.state = { refresh_token: 'refresh-1', expires_at: 0 };
+  await assert.rejects(provider.getAccessToken(), /OPENEMR_TOKEN_URL_NOT_HTTPS/);
+  assert.equal(calls, 0, 'nothing was sent');
 });

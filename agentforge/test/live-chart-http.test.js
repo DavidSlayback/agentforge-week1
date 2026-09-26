@@ -106,7 +106,8 @@ test('live reads on: a module session reads the OpenEMR chart over REST, labels 
     assert.ok(briefing.claims.some((claim) => claim.field === 'encounter.reason' && claim.value === 'blood-pressure follow-up'));
     assert.equal(JSON.stringify(briefing).includes('LEAKED'), false);
     // F-LIVE: the dose comes from the OpenEMR row, and notes are named as not read, never a silent success.
-    assert.ok(briefing.claims.some((claim) => claim.field === 'medication.lisinopril.dose' && claim.value === '10 mg daily [seed:af-live]'), 'the current dose reaches the briefing');
+    assert.ok(briefing.claims.some((claim) => claim.field === 'medication.lisinopril.dose' && claim.value === 'dose not available from this OpenEMR route'), 'the route has no dose, and the briefing says so');
+    assert.ok(briefing.claims.some((claim) => claim.field === 'medication.lisinopril.comment' && claim.value === '10 mg daily [seed:af-live]'), 'the free-text comment reaches the briefing as a comment, not a dose');
     assert.deepEqual(briefing.coverage.find((group) => group.group === 'notes'), { group: 'notes', status: 'not_requested', records: 0, attempts: 0, error_class: 'openemr_notes_route_unavailable' });
     assert.ok(briefing.qualification.reasons.includes('notes:not_requested'));
     assert.notEqual(briefing.disposition, 'complete');
@@ -307,5 +308,17 @@ test('launch token is single-use: the first load opens a launch session, a repla
     const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
     const demoBriefing = await post(base, '/v1/briefings', { patient_uuid: 'fixture-patient-001', clinician_uuid: demo.clinician_uuid, demo_token: demo.demo_token });
     assert.equal(demoBriefing.status, 200);
+  } finally { await stack.stop(); }
+});
+
+test('live reads on with a plain-http OpenEMR token URL: refused like a missing setting (/ready 503, live requests refused), never sent', async () => {
+  const stack = await startStack(18980, 'on', { AGENTFORGE_OPENEMR_ACCESS_TOKEN: '', AGENTFORGE_OPENEMR_TOKEN_URL: 'http://openemr/oauth2/default/token', AGENTFORGE_OPENEMR_CLIENT_ID: 'read-client', AGENTFORGE_OPENEMR_CLIENT_SECRET: 'synthetic-secret', AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH: path.join(mkdtempSync(path.join(os.tmpdir(), 'agentforge-token-')), 'token.json') });
+  try {
+    const ready = await fetch(`${stack.base}/ready`);
+    assert.equal(ready.status, 503);
+    const session = await launch(stack.base);
+    const briefing = await (await post(stack.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
+    assert.deepEqual(briefing.qualification.reasons, ['openemr_live_reads_not_configured']);
+    assert.equal(stack.rest.requests.length, 0);
   } finally { await stack.stop(); }
 });

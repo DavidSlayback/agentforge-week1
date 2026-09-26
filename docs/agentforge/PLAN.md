@@ -396,14 +396,19 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   category `path`, lists one category and returns rows without patient
   identity (500 on 8.0.0 without `path`), so the adapter no longer calls it
   and reports `notes` `not_requested` (`openemr_notes_route_unavailable`,
-  zero attempts), which qualifies the briefing. (2) Medication dose from the
-  `lists` row (`comments`, the only dose on it), else `not recorded`. (3)
+  zero attempts), which qualifies the briefing. (2) Medication dose: "dose
+  not available from this OpenEMR route" (`lists` has no dose column;
+  `lists_medication` is not joined); free-text `comments` is a separate
+  "instructions/comment" fact. (3)
   Launch tokens are single-use: the first page load exchanges them for an
   in-memory session (HttpOnly/Secure/SameSite=Strict cookie + handles); a
   replayed link answers 401, a launch token on the API 403. (4)
   `scripts/openemr-authorize-read-client.mjs`: auth code + PKCE as `grader`,
   writes the provider's token cache; runbook step 7 in
-  `deploy/vultr/README.md`. Needs David's sign-in; the client's registered
+  `deploy/vultr/README.md`. Security review follow-ups: https-only token
+  and authorize URLs (the provider too), the cache is written only when the
+  id token's `sub` is the expected user's `users.uuid`, atomic 0600 write,
+  bare codes refused, refuses to run while `agentforge-w2` is up. Needs David's sign-in; the client's registered
   redirect URI is read on the VM (not in the repo). Evidence:
   `openemr-rest-adapter.test.js`, `launch-session.test.js`,
   `live-chart-http.test.js`, `openemr-authorize-read-client.test.js`,

@@ -696,12 +696,23 @@ body field; a copied claims object is refused):
   `SELECT * FROM lists` rows (`ListService::getAll`, this repo's 8.2.0-dev
   code; production 8.0.0 also showed no dose in the live mapping). `lists` has no dose
   column and the structured `lists_medication.drug_dosage_instructions` is
-  not joined, so the only dose on these rows is the free-text `comments`
-  (where the seed puts "10 mg daily"). Each medication row now also yields
-  `medication.<name>.dose`: a dose field if the row has one
-  (`drug_dosage_instructions`, `dosage`, `dose`), else `comments`, else the
-  literal `not recorded` (the fact reads "Lisinopril dose is not
-  recorded"), never blank. The value cites the same OpenEMR row.
+  not joined, so this route cannot tell the dose. Each medication row now
+  also yields `medication.<name>.dose`: a dose field if the row has one
+  (`drug_dosage_instructions`, `dosage`, `dose`), else the literal "dose not
+  available from this OpenEMR route", never blank. The row's free-text
+  `comments` (where the seed puts "10 mg daily") becomes a separate
+  `medication.<name>.comment` fact, rendered "Lisinopril
+  instructions/comment: …", never as a dose. Both cite the same OpenEMR row.
+- **OAuth transport (F-LIVE).** `OpenEMRRefreshTokenProvider` refuses a
+  token URL that is not https (`OPENEMR_TOKEN_URL_NOT_HTTPS`), and the
+  service treats such a URL like a missing setting (`/ready` 503, live
+  requests refused). No plain-http host is allowed: the documented value is
+  the public https URL and the Compose default for W1 is
+  `https://openemr/…`. The re-authorization helper refuses http authorize
+  and token URLs, refuses a bare code (state must match), writes the cache
+  only when the id token's `sub` is the expected user's `users.uuid`
+  (`--expect-user`, `--expect-user-uuid`), writes it atomically at mode
+  0600, and refuses to run while `agentforge-w2` answers.
 - **Notes are not read (F-LIVE).** The only standard REST route for a
   patient's documents, `GET /patient/{pid}/document`, requires a `path`
   query naming one document category, lists only that category, and returns

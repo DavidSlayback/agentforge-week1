@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DashScopeMultimodalProvider, DeterministicProvider, OpenAICompatibleProvider, OpenAIResponsesProvider, ResilientProvider, modelExtraBodyFromEnv } from './modelProvider.js';
-import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter } from './openemrAdapter.js';
+import { OpenEMRRefreshTokenProvider, OpenEMRRestAdapter, tokenUrlIssue } from './openemrAdapter.js';
 import { FixtureAdapter } from './fixtureAdapter.js';
 import { ChartSourceRouter, describeLaunchChartSource, parseLiveReads } from './chartSourceRouter.js';
 import { SyntheticClinicalActionStore } from './clinicalActions.js';
@@ -213,6 +213,8 @@ const buildRestAdapter = () => new OpenEMRRestAdapter({ baseUrl: process.env.AGE
 const liveReadsMissingSettings = liveReadsEnabled ? [
   ...(process.env.AGENTFORGE_OPENEMR_BASE_URL ? [] : ['AGENTFORGE_OPENEMR_BASE_URL']),
   ...(process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN || openEMRTokenProvider ? [] : ['AGENTFORGE_OPENEMR_TOKEN_URL', 'AGENTFORGE_OPENEMR_CLIENT_ID', 'AGENTFORGE_OPENEMR_CLIENT_SECRET', 'AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH'].filter((name) => !process.env[name])),
+  // F-LIVE: a token URL that is not https is refused like a missing one (no crash; /ready 503).
+  ...(!process.env.AGENTFORGE_OPENEMR_ACCESS_TOKEN && openEMRTokenProvider && tokenUrlIssue(process.env.AGENTFORGE_OPENEMR_TOKEN_URL) ? ['AGENTFORGE_OPENEMR_TOKEN_URL (must be https)'] : []),
 ] : [];
 if (liveReadsMissingSettings.length) console.error('AgentForge live reads are on but OpenEMR access is not configured; live requests are refused and /ready is 503', { missing: liveReadsMissingSettings });
 const chartAdapter = liveOpenEMR ? buildRestAdapter() : new ChartSourceRouter({ fixtureAdapter: new FixtureAdapter(process.env.AGENTFORGE_FIXTURES || defaultFixturePath()), liveAdapter: liveReadsEnabled ? buildRestAdapter() : null, liveReads: liveReadsEnabled, liveConfigured: liveReadsMissingSettings.length === 0 });

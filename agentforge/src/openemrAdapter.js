@@ -162,6 +162,21 @@ export class OpenEMRRestAdapter {
   }
 }
 
+/**
+ * Why a token URL may not carry the client secret and refresh token, or null
+ * when it may. Only https is accepted. There is no plain-http exception: the
+ * documented production value is the public `https://<host>/oauth2/default/token`
+ * (deploy/vultr/README.md) and the Compose default for the W1 service is the
+ * Docker-internal `https://openemr/oauth2/default/token`; neither is http.
+ */
+export function tokenUrlIssue(tokenUrl) {
+  try {
+    return new URL(tokenUrl).protocol === 'https:' ? null : 'OPENEMR_TOKEN_URL_NOT_HTTPS';
+  } catch {
+    return 'OPENEMR_TOKEN_URL_INVALID';
+  }
+}
+
 /** Cache and refresh OAuth credentials used only for GET chart reads. */
 export class OpenEMRRefreshTokenProvider {
   constructor({ tokenUrl, clientId, clientSecret, cachePath, fetchImpl = globalThis.fetch, timeoutMs = 5000, skewMs = 15000, now = () => Date.now() }) {
@@ -201,6 +216,9 @@ export class OpenEMRRefreshTokenProvider {
 
   async refresh({ correlationId = '' } = {}) {
     if (!this.tokenUrl || !this.clientId || !this.clientSecret) throw Object.assign(new Error('OPENEMR_TOKEN_PROVIDER_NOT_CONFIGURED'), { code: 'OPENEMR_TOKEN_PROVIDER_NOT_CONFIGURED' });
+    // The refresh sends the client secret and the refresh token: never over plain http.
+    const urlIssue = tokenUrlIssue(this.tokenUrl);
+    if (urlIssue) throw Object.assign(new Error(urlIssue), { code: urlIssue });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const form = new URLSearchParams({ grant_type: 'refresh_token', client_id: this.clientId, client_secret: this.clientSecret, refresh_token: this.state.refresh_token });
@@ -246,22 +264,23 @@ function mapMedication(record, index) {
   return [
     mappedRecord(`medication.${name}.status`, record.status || record.active || listStatus(record) || record.title || record.medication || 'documented', record, index, 'medication'),
     mappedRecord(`medication.${name}.dose`, medicationDose(record), record, index, 'medication'),
+    // Free text is shown as what it is, an instruction or comment, never as a dose.
+    ...(textValue(record.comments) ? [mappedRecord(`medication.${name}.comment`, record.comments.trim(), record, index, 'medication')] : []),
   ];
 }
-/** A dose that is not recorded is said so, never left blank or guessed. */
-export const MEDICATION_DOSE_NOT_RECORDED = 'not recorded';
 /**
- * The dose, frequency or instructions an OpenEMR medication row carries.
- * `GET /patient/{pid}/medication` returns `SELECT * FROM lists` rows
- * (`ListService::getAll`): `lists` has no dose column, and the structured
- * `lists_medication.drug_dosage_instructions` is not joined. So on OpenEMR
- * 8.0 the only place a dose appears is the row's free-text `comments` (where
- * the medication-issue form and the E9 seed put it). A dose-specific field is
- * preferred when a build returns one.
+ * The dose value when the row has no dose field. `GET /patient/{pid}/medication`
+ * returns `SELECT * FROM lists` rows (`ListService::getAll`): `lists` has no
+ * dose column and the structured `lists_medication.drug_dosage_instructions`
+ * is not joined, so this route cannot tell the dose. The row's free-text
+ * `comments` is mapped separately (`medication.<name>.comment`) and is not
+ * treated as a dose.
  */
+export const MEDICATION_DOSE_UNAVAILABLE = 'dose not available from this OpenEMR route';
+/** A dose-specific field when a build returns one; otherwise say the route has none. */
 function medicationDose(record) {
-  const text = [record.drug_dosage_instructions, record.dosage, record.dose, record.comments].map(textValue).find(Boolean);
-  return text ? text.trim() : MEDICATION_DOSE_NOT_RECORDED;
+  const text = [record.drug_dosage_instructions, record.dosage, record.dose].map(textValue).find(Boolean);
+  return text ? text.trim() : MEDICATION_DOSE_UNAVAILABLE;
 }
 /**
  * OpenEMR `lists` rows (problems, medications) have no status column; the
