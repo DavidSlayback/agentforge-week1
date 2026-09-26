@@ -58,9 +58,11 @@ next section says exactly where that line sits.
 >   layouts this project's fixtures use (`Label: value` lines). A different
 >   layout — a table, a handwritten form, a real-world scan — extracts
 >   nothing and the document is refused or qualified; it is not guessed at.
-> - **The OpenEMR FHIR HTTP API is disabled on the deployment**
->   (`rest_fhir_api=0`). Lab read-back after a write does not use it; it calls
+> - **Lab read-back does not use the OpenEMR FHIR HTTP API.** It calls
 >   OpenEMR's own FHIR Observation service in-process, inside the module.
+>   (The public FHIR API was enabled on 2026-09-25 for the patient dashboard
+>   port, `PATIENT_DASHBOARD_MIGRATION.md`; the Co-Pilot does not depend on
+>   it.)
 > - **The Gemini key is Free Tier.** It is used for dense embeddings only.
 >   Reranking, which would exhaust the free tier's daily quota, moved to
 >   Qwen behind a pluggable interface.
@@ -75,6 +77,30 @@ next section says exactly where that line sits.
 > - Whatever else this document, or the code it describes, calls out as a
 >   gap, a degraded mode, or "wired, not yet observed live" is a real limit,
 >   not a rounding error.
+
+### Scope: how we read the PRD's "Core Deliverables" list
+
+The PRD's "Core Deliverables" list (p. 5–6) puts ten items under one heading
+with the same bullet. Elsewhere the same PRD calls this "a controlled
+expansion of the Week 1 agent into two document types, two workers, and one
+regression gate" (p. 4). It also says "A critic agent is extension work, not
+core" (§4), and it closes by saying the best submissions "feel narrower than
+the original spec and stronger because of it". We read the first five items
+as core and the last five as extensions, and we built the core first. This
+is a deliberate reading (owner decision, 2026-09-26), not an oversight.
+
+| PRD item | Our reading | State |
+|---|---|---|
+| Two document types: lab PDF and intake form | Core | Built and live (§3a) |
+| One supervisor and two workers | Core | Built and live (§3b) |
+| Basic hybrid RAG plus rerank | Core | Built and live (§3c) |
+| 50-case golden dataset with boolean rubrics | Core | Built (§3e, `EVAL_GATE.md`) |
+| PR-blocking eval CI and an observable deployed demo | Core | Built: pre-commit gate (§3e), `/observability` |
+| Critic agent that rejects uncited claims or unsafe action suggestions | Extension (§4) | **No critic agent.** The same job is done by deterministic code in `claimBinding.js` `verifyClaims` (§3d). It drops any claim that doesn't bind to the facts or guideline text it cites, and flags directive wording as `UNSAFE_CLINICAL_ACTION_LANGUAGE`. It is a rule-based verifier, not an LLM agent, so we don't call it one. |
+| Click-to-source UI with a simple document preview | Extension | Built: the scan result shows the PDF pages with a box per cited field; a citation's "View source region" link highlights its box (`ui.js`, `renderScanSourcePreview`). The page-image route is checked live (`docs/agentforge/evidence/LEDGER.md`, W2-C8); the drawn overlay has not yet been observed on the public URL. |
+| A third document type (referral fax, medication list) | Extension | Not built. Two types that work reliably come first (PRD, "Common Pitfalls"). |
+| Lab trend chart from extracted Observation data | Extension | Not built. Extracted labs are persisted and readable as FHIR `Observation` (§3a), which is the data such a chart would use. |
+| Contextual retrieval improvements (better chunking, query rewriting, domain filters) | Extension | Not built as such. The retrieval query is assembled from the extracted abnormal labs and chief concern and cut down to corpus vocabulary (§3c), but that step exists for PHI safety, not retrieval quality. |
 
 ## 3. How it works
 

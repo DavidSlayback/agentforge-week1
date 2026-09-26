@@ -142,8 +142,18 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | Out of scope (D8) | — |
 | X-1 | W2 p5 | Click-to-source UI | X | Delivered by S4 | — | S4 |
 
-Out of scope: third document type, lab trend chart, critic agent, role model,
-LLM tool-calling, and handwriting or arbitrary-layout accuracy claims.
+Out of scope: third document type, lab trend chart, critic agent, contextual
+retrieval, role model, LLM tool-calling, and handwriting or arbitrary-layout
+accuracy claims.
+
+**Scope reading (user, 2026-09-26).** The PRD PDF (p. 5–6) lists these
+extensions under "Core Deliverables" with the same bullet as the core five.
+The text extraction lost that layout, so the first requirements audit missed
+it. The PRD itself treats them as extensions (p. 4 "two document types, two
+workers, and one regression gate"; §4 "A critic agent is extension work, not
+core"; the Final Note, "narrower… and stronger"). Decision: document this
+reading rather than build more before the deadline. It is recorded, item by
+item, in root `W2_ARCHITECTURE.md` §2 "Scope" and the README.
 
 ## W2 surprise challenge: port the patient dashboard (approach decided 2026-09-25: `docs/legacy-audit/MIGRATION-REACT.md`, arc `docs/legacy-audit/arcs/ARC-01-DASHBOARD.md`)
 
@@ -169,7 +179,8 @@ Due "by the end of the week", which we read as the W2 final, Sunday 12:00 CT.
   `Condition`, `MedicationRequest`, `Medication`, `CareTeam`, `Observation`,
   `Encounter`, `Immunization`, `Appointment`.
 - **The FHIR API is disabled** (`globals.rest_fhir_api = 0`); the standard
-  REST API is on.
+  REST API is on. (Enabled on production 2026-09-25 for the dashboard port,
+  owner approval; see `docs/legacy-audit/AUDIT-STATE.md`.)
 - The three OAuth clients are AgentForge service clients. None is a public
   browser client with PKCE and a dashboard redirect URI.
 - OAuth2 login is OpenEMR's own login and consent flow, so graders need
@@ -449,8 +460,9 @@ observed live** — the post-deploy smoke below has not run.
   (`table.sql`), so a re-upload returns the same ids and adds 0 rows. Lab rows
   are `prelim` (unreviewed AI extraction; FHIR shows `status: unknown`).
 - Read-back is OpenEMR's FHIR Observation service called in-process
-  (`read_path: openemr-fhir-service-in-process`). The `/fhir` HTTP API stays
-  disabled on the VM (`rest_fhir_api=0`); enabling it needs an owner decision.
+  (`read_path: openemr-fhir-service-in-process`), not the `/fhir` HTTP API.
+  The owner enabled that API on 2026-09-25 for the dashboard port; the
+  read-back does not depend on it.
 - `agentforge-w2` runs `AGENTFORGE_PERSISTENCE_MODE=openemr-module`; the upload
   response carries `openemr.document_id`, the scan-supervisor response carries
   `openemr: {document_id, derived_document_id, procedure_order_id,
