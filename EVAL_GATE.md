@@ -215,6 +215,16 @@ still blocks commits.
   veto wiring, labels and trace, not a real model's judgment; that is what
 `scripts/benchmark-critic-models.mjs` measures. Regression proof:
   `docs/agentforge/evidence/E2-critic-regression.txt`.
+- `x3-*` (E4, 14 cases, `extensionCases/medicationList.js`): the
+  `medication_list` type on two new golden PDFs (`medlist-a` vector,
+  `medlist-b` rasterized): typed `MedicationList`, verbatim row citations,
+  values against hand-written truth, a medication list and a lab or intake
+  form declared as each other never `READY`, a blank page `BLOCKED`, another
+  patient's list `BLOCKED`, and no drug names or identity in traces or logs.
+  Its documents are listed in `test/fixtures/golden/extension-manifest.json`;
+  `readGolden()` loads them next to the golden set but only the extension
+  suite's hash covers them, so the 50-case hash is unchanged. Regression
+  proof: `docs/agentforge/evidence/E4-medlist-regression.txt`.
 - To rebaseline: `npm run eval:extensions --prefix agentforge --
   --update-baseline`. As with the golden gate, it refuses unless every
   threshold is met.

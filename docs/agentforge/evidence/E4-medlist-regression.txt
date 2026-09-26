@@ -1,0 +1,66 @@
+# E4 medication_list: deliberate-regression proof
+# branch agentforge/e4-medlist, HEAD 19eb2779 (base staging/main bc53c976), 2026-09-26T13:40:32Z
+
+## 1. clean: npm run eval:extensions
+passed=true total_cases=16 baseline_mismatch=false
+[]
+exit=0
+
+## 2. real regression in src/pdfScanAdapter.js parseMedicationRow: the frequency part of a medication row is no longer mapped
+##    (line 113 'if (frequency) parts.frequency = frequency;' commented out)
+ agentforge/src/pdfScanAdapter.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+### 2a. unit tests: node --test test/medication-list.test.js
+ℹ fail 5
+ℹ pass 17
+ℹ tests 22
+✖ a medication list is checked against the chart on its printed identity: match, mismatch, unverified; zero fields is BLOCKED (1.2588ms)
+✖ a missing prescriber and a row with no route are not_found_on_form, never invented, and the extraction is not complete (1.0887ms)
+✖ failing tests:
+✖ medication list OCR rows map to typed rows with per-field confidence and a verbatim row citation (7.7775ms)
+✖ medication-list extension checks pass on the golden medication lists and catch tampered values, citations and identity (17.3263ms)
+✖ summarizeExtractionConfidence counts medication-list fields (1.6618ms)
+
+### 2b. extension suite: npm run eval:extensions
+passed=false total_cases=16 baseline_mismatch=false
+[["x3-sv-01-medlist-a-typed",["extraction_status_partial","typed_issues_present"]],["x3-sv-02-medlist-b-typed",["extraction_status_partial","typed_issues_present"]],["x3-fc-01-medlist-a-values",["medication[0].frequency_mismatch","medication[1].frequency_mismatch","medication[2].frequency_mismatch"]],["x3-fc-02-medlist-b-values",["medication[0].frequency_mismatch","medication[1].frequency_mismatch","medication[2].frequency_mismatch"]]]
+exit=1
+
+### 2c. 50-case golden gate (must be unaffected): npm run eval:gate
+passed=true total_cases=50 baseline_mismatch=false
+[]
+
+### 2d. enforced gate: git commit of the regression through .githooks/pre-commit
+exit=1 (non-zero: commit blocked)
+    actual: [ { id: 'x3-sv-01-medlist-a-typed', label: 'schema_valid', critical: false, issues: [Array] }, { id: 'x3-sv-02-medlist-b-typed', label: 'schema_valid', critical: false, issues: [Array] }, { id: 'x3-fc-01-medlist-a-values', label: 'factually_consistent', critical: false, issues: [Array] }, { id: 'x3-fc-02-medlist-b-values', label: 'factually_consistent', critical: false, issues: [Array] } ],
+  +     id: 'x3-fc-01-medlist-a-values',
+  +     id: 'x3-fc-02-medlist-b-values',
+  +     id: 'x3-sv-01-medlist-a-typed',
+  +     id: 'x3-sv-02-medlist-b-typed',
+53 passed, 0 failed
+AgentForge gate: module PHP lint and tests...
+AgentForge gate: unit suites...
+ℹ fail 6
+ℹ pass 454
+ℹ tests 463
+✖ medication list OCR rows map to typed rows with per-field confidence and a verbatim row citation (8.2892ms)
+✖ medication-list extension checks pass on the golden medication lists and catch tampered values, citations and identity (19.558ms)
+
+## 3. reverted (git checkout agentforge/src/pdfScanAdapter.js)
+ℹ tests 22
+ℹ pass 22
+ℹ fail 0
+passed=true total_cases=16 baseline_mismatch=false
+[]
+exit=0
+
+## 4. 50-case golden gate unchanged on this branch (corpus hash equals main's 63e8c8eb...)
+passed=true total_cases=50 baseline_mismatch=false corpus_sha256=63e8c8ebd61016dac2bad07ed357b0529a7c67eea97f189be132486379fc916a
+
+## 5. module (PHP) regression: AgentForgeApi::storeClinicalListItems no longer rejects an allergy item from a medication-list source
+##    ('throw ApiError::invalid($disallowed);' removed)
+FAIL - dispatcher: medication-list items reach the chart only as clinician-confirmed medications:  expected array (
+52 passed, 1 failed
+### reverted
+53 passed, 0 failed

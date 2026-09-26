@@ -99,7 +99,7 @@ D12). The State column is current and is updated as each item lands.
 | PR-blocking eval CI and an observable deployed demo | Core | Built: pre-commit gate (§3e), `/observability` |
 | Critic agent that rejects uncited claims or unsafe action suggestions | Extension (§4) | Built, not yet observed live: an LLM critic that can only veto claims (`critic.js`, §3b). It runs after `verifyClaims` (§3d), which stays the authority, and can remove a claim as `UNCITED`, `UNSUPPORTED_BY_SOURCE` or `UNSAFE_ACTION`, never add or rewrite one. It is off until `AGENTFORGE_CRITIC_MODEL` is set on the VM (every answer then says `critic_status: disabled`). The extension suite checks the veto wiring with a fake critic model (`EVAL_GATE.md`); a real model's judgment is measured by `scripts/benchmark-critic-models.mjs`, not by the gate. |
 | Click-to-source UI with a simple document preview | Extension | Built: the scan result shows the PDF pages with a box per cited field; a citation's "View source region" link highlights its box (`ui.js`, `renderScanSourcePreview`). The page-image route is checked live (`docs/agentforge/evidence/LEDGER.md`, W2-C8); the drawn overlay has not yet been observed on the public URL. |
-| A third document type (referral fax, medication list) | Extension | Not built. Two types that work reliably come first (PRD, "Common Pitfalls"). |
+| A third document type (referral fax, medication list) | Extension | `medication_list` built on branch `agentforge/e4-medlist` (§3a): typed `MedicationList`, three-way type detection, module storage, 14 `x3-*` extension cases (`npm run eval:extensions`). Not yet deployed or observed on the public URL. |
 | Lab trend chart from extracted Observation data | Extension | Not built. Extracted labs are persisted and readable as FHIR `Observation` (§3a), which is the data such a chart would use. |
 | Contextual retrieval improvements (better chunking, query rewriting, domain filters) | Extension | Query rewriting built and measured (§3c): lab test names are expanded into condition words for BM25. It changes results only where BM25 alone ranks (the `local-lexical` provider and the hybrid `sparse_only` fallback), not the normal hybrid path. Two extension cases guard it. Contextual chunk headers were measured and changed nothing, so they are off. No domain filter. Not yet observed on the public URL. |
 
@@ -117,7 +117,7 @@ flowchart TD
     D -- no --> F[Stored as an OpenEMR document<br/>allowlisted synthetic patient only]
     F --> G[pdftoppm renders pages<br/>Tesseract OCR extracts lines + boxes + confidence]
     G --> H[Label-map field extraction<br/>Label: value lines only]
-    H --> I[Typed LabResult / IntakeForm<br/>Zod, 5-key citation with bounding box]
+    H --> I[Typed LabResult / IntakeForm / MedicationList<br/>Zod, 5-key citation with bounding box]
     I --> J{Fail-loud checks<br/>documentSafety.js}
     J -- "zero fields, doc-type mismatch,<br/>patient mismatch" --> K[BLOCKED or QUALIFIED<br/>with a named reason]
     J -- passes --> L[Derived facts + prelim lab rows<br/>persisted via the module]
@@ -127,7 +127,7 @@ flowchart TD
 Uploads are rejected before storage unless the content is a PDF or the
 hand-authored `.scan.txt` test envelope that carries the same tagged-field
 shape the OCR step produces (`sourceDocuments.js` restricts `document_type`
-to `lab_pdf`/`intake_form`; `service.js`'s `prepareScanSource` is the only
+to `lab_pdf`/`intake_form`/`medication_list`; `service.js`'s `prepareScanSource` is the only
 path into extraction). Storage itself goes through
 `interface/modules/custom_modules/oe-module-agentforge/public/api.php`, an
 internal-only endpoint Caddy answers 404 for everywhere else in that module
@@ -159,6 +159,28 @@ persist a derived-facts JSON document and, for a lab PDF, one
 result, all marked `prelim`. Read-back is OpenEMR's own FHIR Observation
 service called in-process (`read_path: openemr-fhir-service-in-process`) —
 the deployment's `/fhir` HTTP API stays disabled, so this is not that API.
+
+**Medication lists (`medication_list`, the third type).** The label map reads
+the header lines (patient name, DOB, list date, prescriber or source) and
+numbered rows (`Medication 1:` or `Rx 1:`), and splits each row into name,
+dose, unit, frequency and route (`pdfScanAdapter.js` `parseMedicationRow`).
+Every part cites the verbatim row line with its box and carries that line's
+confidence; a part the row does not show is `not_found_on_form` and keeps the
+extraction from being `complete` (`typedExtraction.js`
+`buildTypedMedicationList`, Zod `MedicationList`). Type detection scores lab,
+intake and medication-list vocabulary and claims a type only with a two-hit
+margin over both others, so any declared-versus-detected mismatch is
+`QUALIFIED doc_type_mismatch`; the printed name and DOB are checked against
+the chart like an intake form. The source PDF and a derived-facts JSON are
+stored through the module (`DocumentType::MedicationList`), idempotently.
+No medication is written to the chart on upload: the module's
+`clinical-list-items` route accepts only clinician-confirmed `medication`
+items from a medication list (an allergy item is rejected), and, as for
+intake forms, the Node clinical-action lane does not call that route yet
+(A3 in `docs/agentforge/PLAN.md`). Tests: `agentforge/test/medication-list.test.js`,
+the medication-list cases in `oe-module-agentforge/tests/run.php`, and the
+`x3-*` extension cases; deliberate-regression proof in
+`docs/agentforge/evidence/E4-medlist-regression.txt`.
 
 ### (b) Worker graph
 

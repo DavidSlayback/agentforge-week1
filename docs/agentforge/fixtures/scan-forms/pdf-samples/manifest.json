@@ -43,6 +43,20 @@
         "patient.name": "Test Patient One", "patient.date_of_birth": "1980-04-12", "patient.phone": "555-0198",
         "chief_concern": "Dizziness after standing", "medications": "Lisinopril 10 mg daily", "allergies": "Sulfa antibiotics", "family_history": "Mother has diabetes"
       }
+    },
+    {
+      "layout": "medlist-a",
+      "document_type": "medication_list",
+      "filename": "filled-medlist-a.pdf",
+      "render_style": "vector",
+      "expected_fields": {"patient.name":"Test Patient One", "patient.date_of_birth":"1980-04-12", "medlist.list_date":"2026-09-22", "medlist.prescriber_or_source":"Dr. Robin Example", "medication.1.name":"Metformin", "medication.1.dose":"500", "medication.1.unit":"mg", "medication.1.frequency":"twice daily", "medication.1.route":"oral", "medication.2.name":"Lisinopril", "medication.2.dose":"10", "medication.2.unit":"mg", "medication.2.frequency":"once daily", "medication.2.route":"oral", "medication.3.name":"Atorvastatin", "medication.3.dose":"20", "medication.3.unit":"mg", "medication.3.frequency":"at bedtime", "medication.3.route":"oral"}
+    },
+    {
+      "layout": "medlist-b",
+      "document_type": "medication_list",
+      "filename": "filled-medlist-b.pdf",
+      "render_style": "rasterized",
+      "expected_fields": {"patient.name":"Test Patient One", "patient.date_of_birth":"1980-04-12", "medlist.list_date":"2026-09-23", "medlist.prescriber_or_source":"Northwind Pharmacy dispensing record", "medication.1.name":"Levothyroxine", "medication.1.dose":"75", "medication.1.unit":"mcg", "medication.1.frequency":"once daily", "medication.1.route":"by mouth", "medication.2.name":"Albuterol", "medication.2.dose":"90", "medication.2.unit":"mcg", "medication.2.frequency":"every 6 hours as needed", "medication.2.route":"inhaled", "medication.3.name":"Metformin", "medication.3.dose":"1000", "medication.3.unit":"mg", "medication.3.frequency":"twice daily", "medication.3.route":"by mouth"}
     }
   ],
   "limitation": "The vector/raster distinction tests PDF and OCR paths, but these clean computer-generated pages do not simulate a physical scan, noise, blur, handwriting, or diverse real-form layouts."
