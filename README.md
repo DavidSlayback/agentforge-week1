@@ -60,6 +60,11 @@ link for each of the six (the two medication lists once this branch is
 deployed), so a grader never has to find these files on
 disk to try the flow.
 
+**Lab trend chart.** Run the lab sample "Layout A", then "Layout C"
+([`filled-lab-c.pdf`](docs/agentforge/fixtures/scan-forms/pdf-samples/filled-lab-c.pdf),
+same patient, collected earlier). Below the second scan's result, "Lab
+trends" shows a two-point chart per test, read back from OpenEMR.
+
 **5-step demo**
 
 1. **Upload** one of the four sample PDFs (or your own PDF/`.scan.txt` test

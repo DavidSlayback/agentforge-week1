@@ -100,7 +100,7 @@ D12). The State column is current and is updated as each item lands.
 | Critic agent that rejects uncited claims or unsafe action suggestions | Extension (§4) | Built, not yet observed live: an LLM critic that can only veto claims (`critic.js`, §3b). It runs after `verifyClaims` (§3d), which stays the authority, and can remove a claim as `UNCITED`, `UNSUPPORTED_BY_SOURCE` or `UNSAFE_ACTION`, never add or rewrite one. It is off until `AGENTFORGE_CRITIC_MODEL` is set on the VM (every answer then says `critic_status: disabled`). The extension suite checks the veto wiring with a fake critic model (`EVAL_GATE.md`); a real model's judgment is measured by `scripts/benchmark-critic-models.mjs`, not by the gate. |
 | Click-to-source UI with a simple document preview | Extension | Built: the scan result shows the PDF pages with a box per cited field; a citation's "View source region" link highlights its box (`ui.js`, `renderScanSourcePreview`). The page-image route is checked live (`docs/agentforge/evidence/LEDGER.md`, W2-C8); the drawn overlay has not yet been observed on the public URL. |
 | A third document type (referral fax, medication list) | Extension | `medication_list` built on branch `agentforge/e4-medlist` (§3a): typed `MedicationList`, three-way type detection, module storage, 15 `x3-*` extension cases (`npm run eval:extensions`). Not yet deployed or observed on the public URL. |
-| Lab trend chart from extracted Observation data | Extension | Not built. Extracted labs are persisted and readable as FHIR `Observation` (§3a), which is the data such a chart would use. |
+| Lab trend chart from extracted Observation data | Extension | Built, not yet observed on the public URL: after a lab scan the UI shows a server-rendered SVG chart per test (`labTrend.js`), drawn only from the lab Observations read back from OpenEMR (§3a), never from the upload response. Each point links to its source document's preview. One result shows a "one result so far" state; different units are charted separately. Five extension cases guard it (`EVAL_GATE.md`). |
 | Contextual retrieval improvements (better chunking, query rewriting, domain filters) | Extension | Query rewriting built and measured (§3c): lab test names are expanded into condition words for BM25. It changes results only where BM25 alone ranks (the `local-lexical` provider and the hybrid `sparse_only` fallback), not the normal hybrid path. Two extension cases guard it. Contextual chunk headers were measured and changed nothing, so they are off. No domain filter. Not yet observed on the public URL. |
 
 ## 3. How it works
@@ -153,8 +153,8 @@ shown as verified. `documentSafety.js`'s checks run after every extraction:
 zero facts or a patient-identity mismatch (name/DOB read from the document
 vs. the chart) is `BLOCKED`; a doc-type mismatch, an unverifiable identity,
 or an incomplete extraction is `QUALIFIED` — the workflow never reports
-`READY` on any of these. Only after that gate passes does the service
-persist a derived-facts JSON document and, for a lab PDF, one
+`READY` on any of these. A `BLOCKED` workflow persists nothing. Otherwise
+the service persists a derived-facts JSON document and, for a lab PDF, one
 `procedure_order`/`_report` plus one `procedure_result` per LOINC-mapped
 result, all marked `prelim`. Read-back is OpenEMR's own FHIR Observation
 service called in-process (`read_path: openemr-fhir-service-in-process`) —
@@ -185,6 +185,17 @@ intake forms, the Node clinical-action lane does not call that route yet
 the medication-list cases in `oe-module-agentforge/tests/run.php`, and the
 `x3-*` extension cases; deliberate-regression proof in
 `docs/agentforge/evidence/E4-medlist-regression.txt`.
+
+**Lab trend (E5).** `GET lab-observations` without `source_document_id`
+returns the patient's lab history: the Observations of every `lab` ledger row
+the module wrote for that patient whose source is a lab PDF the module stored
+for the same patient. Other chart labs are never returned. Each entry carries
+its source document id and the collection date (`LabHistoryAssembler.php`).
+The service groups them by test and unit (`labTrend.js`), and
+`GET /v1/patients/:patient/lab-trends[/chart]` serves the JSON or the SVG
+fragment with the same read-scoped demo-context check as the source-document
+routes. In fixture mode the read-back comes from an in-memory synthetic store,
+labeled `in-memory-synthetic-lab-store`, not OpenEMR. No table change.
 
 ### (b) Worker graph
 
