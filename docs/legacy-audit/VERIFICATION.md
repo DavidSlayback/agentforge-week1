@@ -68,3 +68,4 @@ checklist that slice will tick.
 | Date | SHA | What | Observer |
 |---|---|---|---|
 | 2026-09-25 | `f8d7bdf` | Slice 01: sign-in via the BFF (confidential client) + persistent header; DASH-SYN-01 → Active, DASH-SYN-02 → Deceased | David (`grader`, phone) |
+| 2026-09-25 | `2246417` | Slices 02-01..02-03: Allergies (severe highlighted, resolved hidden), Medical Problems (ended hidden), Medications (ended hidden) for DASH-SYN-01; DASH-SYN-02 empty states | David (`grader`, phone) |

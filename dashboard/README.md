@@ -13,7 +13,7 @@ link, and the persistent patient header (name, DOB with age, sex, MRN, status).
 Status is **Deceased** iff FHIR `deceasedDateTime` (or `deceasedBoolean: true`)
 is present; `Patient.active` is never read (OpenEMR hard-codes it `true`).
 
-Clinical cards (slice 01-02-01 on), each loaded by its own BFF route with its
+Clinical cards (slice 01-02-01 on; all six are built), each loaded by its own BFF route with its
 own loading, empty ("Nothing Recorded"), forbidden, error and sign-in-again
 state. Every card first resolves the patient through `GET /api/patient/:puuid`;
 no card route is called before that read succeeds.
@@ -37,7 +37,50 @@ no card route is called before that read succeeds.
   not join `lists_medication`). The route answers a patient with no rows with
   HTTP 404 and an empty body; on this route only, that is "Nothing Recorded".
 
-Later slices add Prescriptions, Care Team and Vitals.
+- **Prescriptions** (`/dashboard/bff/patients/:puuid/prescriptions`): REST
+  `/api/prescription?patient_id=<pid>&source_table=prescriptions`, with the
+  integer `pid` taken from the patient read. Those two keys are the only ones
+  ever sent (M-1: the route builds SQL from query-parameter names; the
+  allow-list throws on any other key, and `/bff/*` refuses query strings).
+  **All** rows are shown (the legacy `active` filter never fires), sorted
+  `active` DESC, `date_modified` DESC (NULLs last), `date_added` DESC, then
+  `uuid`. Columns Drug, Details (size + unit, dosage, " in <interval>"),
+  Qty, Refills ("Not available via API": the API never selects `refills`) and
+  Filled (raw `date_added`). Every row's `puuid` must be the patient's. Empty
+  (HTTP 200, `data: []`) reads "None", the legacy card's text.
+
+- **Care Team** (`/dashboard/bff/patients/:puuid/care-team`): FHIR
+  `/fhir/CareTeam?patient=<puuid>` after the patient read (an empty Bundle is
+  "Nothing Recorded" only because that read succeeded). Every team's
+  `subject` must be the patient. One team is chosen as the legacy card does:
+  `entered-in-error` teams skipped, then the first `active` team by name
+  (case-insensitive, missing name first), else the first by name; ties break
+  on the resource id, so the choice never depends on Bundle order. Every
+  Practitioner/RelatedPerson participant is a row, **inactive ones included**
+  (FHIR has no member status, M-6); Organization participants are the members'
+  facilities and fill the Facility column. Member and facility names come from
+  `/fhir/Practitioner/:id` and `/fhir/Organization/:id` (uuid-validated ids
+  from the CareTeam, at most 20 reads); a failed read shows "Name unavailable"
+  and the card stays up. Those reads need `admin/users`, and OpenEMR serves
+  only users with an NPI as Practitioners, so locally every member name is
+  unavailable. Status and Note read "Not available via API". The legacy card
+  had no empty text; the port says "Nothing Recorded".
+
+- **Vitals** (`/dashboard/bff/patients/:puuid/vitals`, the additional
+  section, kept in its legacy position): REST `/api/patient/:puuid/encounter`,
+  then `/api/patient/:pid/encounter/:eid/vital` one encounter at a time,
+  newest encounter number first, until an encounter has a set. That route
+  excludes deleted forms, so the card shows the **latest non-deleted** set, a
+  deliberate deviation from the legacy card, whose join can show a deleted set
+  (5.01); FHIR `Observation` is never used (no deleted filter, 5.02). At most
+  50 encounters are walked; past that with encounters left unchecked the card
+  is an error (`VITALS_SCAN_LIMIT`), never "Nothing Recorded". Every encounter
+  and vitals row must be the patient's. Fields follow the legacy order, labels,
+  skip rule and number formats, with the unit each value carries from the API
+  (`<field>_unit`; one unit system, no metric secondary). Pediatric patients
+  (age 20 or under) get the legacy "See Growth-Chart" BMI status and the
+  percentile fields. No encounters (HTTP 200 `data: []`, or the 404 with an
+  empty envelope the controller asks for) is "Nothing Recorded".
 
 ## Layout
 

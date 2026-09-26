@@ -274,8 +274,8 @@ build an OpenEMR URL). REST prefix `/apis/default/api`, FHIR prefix
 | `rest.prescription.search` | `/api/prescription` | none | **`patient_id`** (= pid, BFF-supplied) and **`source_table`** (fixed value `prescriptions`). Nothing else, ever (M-1 / 2.01, 4.10) | `user/prescription.rs` | `patients/med` | 200 `data: []` → empty |
 | `fhir.careteam.search` | `/fhir/CareTeam` | none | **`patient`** (= puuid) | `user/CareTeam.rs` | `patients/med` | Bundle `total: 0` → empty, **only** because `fhir.patient.read` already succeeded in this chain (6.03) |
 | `fhir.practitioner.read` / `fhir.organization.read` | `/fhir/Practitioner/{id}`, `/fhir/Organization/{id}` | id (from the CareTeam response, uuid-validated) | none | `user/Practitioner.rs` / `user/Organization.rs` | — | failure → that cell shows "Name unavailable" (logged); the card stays up |
-| `rest.encounter.list` | `/api/patient/{puuid}/encounter` | puuid | none | `user/encounter.rs` | `encounters/auth_a` | 404 whose body shape is verified in slice 01-05-01 as "no encounters" → empty; anything else → error |
-| `rest.vital.list` | `/api/patient/{pid}/encounter/{eid}/vital` | pid, eid (from the encounter list; which field the route expects is verified in slice 01-05-01) | none | `user/vital.rs` | `encounters/notes` | 200 `[]` → try the next encounter |
+| `rest.encounter.list` | `/api/patient/{puuid}/encounter` | puuid | none | `user/encounter.rs` | `encounters/auth_a` | 200 `data: []` (what the wire carries) or 404 with an exactly empty envelope (what the controller intends) → empty; any other 404 → error (verified from the code in 01-05-01) |
+| `rest.vital.list` | `/api/patient/{pid}/encounter/{eid}/vital` | pid, eid (the list's `eid` = `form_encounter.encounter`, which the route matches; verified from the code in 01-05-01) | none | `user/vital.rs` | `encounters/notes` | 404 with an empty body (`responseHandler()`) or 200 `[]` → try the next encounter |
 
 **How the allow-list is enforced**
 - `buildUpstreamUrl(routeId, pathParams, query)` throws on:
@@ -317,7 +317,7 @@ reauth, and they are visually and textually distinct (W2D-3).
 | 200 + body that fails the route's Zod schema | `error` (`SCHEMA_MISMATCH`) | fail loudly |
 | 200 + `data: []` (REST) | `empty` | — |
 | 404 with an empty body, **`rest.medication.list` only** | `empty` | 6.04 |
-| 404 on `rest.encounter.list` with the verified "no results" shape | `empty` (Vitals) | `walkthroughs/VITALS.md` (d) |
+| `rest.encounter.list` with no encounters: 200 `data: []` on the wire, or the intended 404 with an exactly empty envelope | `empty` (Vitals) | `walkthroughs/VITALS.md` (d), build correction |
 | FHIR Bundle `total: 0` after a successful `fhir.patient.read` in this chain | `empty` | 6.03 |
 | FHIR Bundle empty without that precondition, or `OperationOutcome` in a 200 | `error` | 6.03 |
 | 401 | `reauth` (the session is destroyed) | — |
@@ -350,7 +350,7 @@ header.
 | 3.13 | Unscoped `user/` collection routes | The allow-list has no unscoped collection route; a test asserts it | 01-01-01 |
 | 3.16 | `set_pid` state change on GET | No session patient; `/bff/*` is read-only GET; logout is POST + Origin check | 01-01-01 |
 | 4.01 (High) | CORS preflight dead (M-3) | Same-origin serving through the BFF behind Caddy; no CORS needed | 01-01-01 |
-| 4.02 | Empty-state wording depends on `lists_touch` (no API) | Always "Nothing Recorded" for an empty list (documented deviation) | 01-02-01 (component), every card |
+| 4.02 | Empty-state wording depends on `lists_touch` (no API) | Always "Nothing Recorded" for an empty list (documented deviation); Prescriptions keeps its legacy "None" (not `lists_touch`-driven) | 01-02-01 (component), every card |
 | 4.04 | Identity bar has no sex/status | Header adds sex (`gender`) and status derived from `deceasedDateTime` (documented addition) | 01-01-01 |
 | 4.06 | No route by integer pid | Deep links keyed by puuid: `/dashboard/patients/:puuid` | 01-01-01 |
 | 5.01 (Critical) | Vitals card shows a deleted set (join bug, U-1) | Legacy fragment unused; REST per-encounter route (`deleted=0 AND formdir='vitals'`); pid 13 must show set 27, never 28 | 01-05-01 |
@@ -629,7 +629,7 @@ redirect URI `http://localhost:8790/dashboard/callback` (HD-2). Secrets live in
    - The log-redaction flow test (§5).
 4. **Component (`test/web`, jsdom).**
    - Every card in each state: loading, ok, empty, forbidden, error, reauth.
-   - "Nothing Recorded" is the exact empty text.
+   - "Nothing Recorded" is the exact empty text (Prescriptions: "None", its legacy text).
    - The Refills and Care Team Status/Note cells read "Not available via API".
    - The header renders before the cards resolve.
    - A late response for a previous puuid is discarded.
@@ -656,8 +656,8 @@ and integration expectations; the arc repeats them per slice.
 | Allergies | **2** rows, both labelled "(1)" (raw-code fallback), neither highlighted | "Nothing Recorded" | — |
 | Problems | **13** of 39 rows, `begdate` ascending | "Nothing Recorded" | — |
 | Medications | **1** of 5 rows, title only | "Nothing Recorded" (the upstream response is 404 with an empty body) | — |
-| Prescriptions | **5** rows in order 66, 65, 64, 63, 62; Refills "Not available via API"; no " in <form>" suffix | 200 `[]` → "Nothing Recorded" | — |
-| Care Team | **1** team, **3** participants (the legacy card shows 2: documented break 5.05); roles "Primary Care Provider" and "Nurse" on the active members | Bundle `total: 0` → "Nothing Recorded" | — |
+| Prescriptions | **5** rows in order 66, 65, 64, 63, 62; Refills "Not available via API"; no " in <form>" suffix | 200 `[]` → "None" (the legacy Rx text) | — |
+| Care Team | **1** team, **3** member rows from 4 participants (3 Practitioners + 1 Organization, the facility; the legacy card shows 2: documented break 5.05); roles "Primary Care Provider" and "Nurse" on the active members | Bundle `total: 0` → "Nothing Recorded" | — |
 | Vitals | set **27** (2026-04-05) from encounter 367; **never set 28** (deleted) | set **14** (2014-02-01), encounter 12 (not empty) | — |
 
 ### 6.3 What each slice must prove (the "done" bar, AGENTS.md)

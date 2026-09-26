@@ -101,6 +101,22 @@ describe('mapUpstream: every row of MIGRATION-REACT.md §2.5 that applies to thi
     expect(mapUpstream({ kind: 'response', status: 410, body: null, bodyEmpty: true }, meds)).toMatchObject({ failure: { code: 'UPSTREAM_STATUS' } });
   });
 
+  it('404 with an empty REST envelope is empty only where the caller opts in (the encounter list); any other 404 body is an error', () => {
+    const optIn = { ...restList, notFoundEmptyEnvelopeIsEmpty: true } as const;
+    const emptyEnvelope = { validationErrors: [], internalErrors: [], data: [], links: [] };
+    expect(mapUpstream(resp(404, emptyEnvelope), optIn)).toEqual({ kind: 'empty' });
+    expect(mapUpstream(resp(404, emptyEnvelope), restList)).toEqual({ kind: 'failure', failure: { kind: 'error', code: 'UPSTREAM_STATUS' } });
+    for (const body of [
+      { ...emptyEnvelope, data: [{ eid: '1' }] },
+      { ...emptyEnvelope, validationErrors: { uuid: ['invalid'] } },
+      { error: 'An error occurred', message: 'Route not found', code: 0 },
+      { validationErrors: [], internalErrors: [], data: [], extra: 1 },
+      null,
+    ]) {
+      expect(mapUpstream(resp(404, body), optIn), JSON.stringify(body)).toEqual({ kind: 'failure', failure: { kind: 'error', code: 'UPSTREAM_STATUS' } });
+    }
+  });
+
   it('never carries upstream text into the result', () => {
     const out = JSON.stringify(mapUpstream(fromFixture(responseFixture('hand-built/rest-500-sqlstate.json')), rest));
     expect(out).not.toContain('SQLSTATE');

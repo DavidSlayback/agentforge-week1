@@ -6,7 +6,16 @@ import { BASE } from '../api.ts';
  * visually and textually distinct; upstream error text is never shown, only a
  * reference id (6.01).
  */
-export function NonDataState({ state, title }: { readonly state: Exclude<CardState<unknown>, { kind: 'ok' }>; readonly title: string }) {
+export function NonDataState({
+  state,
+  title,
+  emptyText = 'Nothing Recorded',
+}: {
+  readonly state: Exclude<CardState<unknown>, { kind: 'ok' }>;
+  readonly title: string;
+  /** The legacy card's own empty text; "Nothing Recorded" unless the card had another (Prescriptions: "None"). */
+  readonly emptyText?: string;
+}) {
   switch (state.kind) {
     case 'loading':
       return (
@@ -15,7 +24,7 @@ export function NonDataState({ state, title }: { readonly state: Exclude<CardSta
         </p>
       );
     case 'empty':
-      return <p className="state state-empty">Nothing Recorded</p>;
+      return <p className="state state-empty">{emptyText}</p>;
     case 'forbidden':
       return <p className="state state-forbidden">You are not authorized to view {title}.</p>;
     case 'reauth':

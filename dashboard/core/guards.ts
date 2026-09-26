@@ -1,5 +1,5 @@
 import type { CardResult, ErrorCode, GapNote } from './cardResult.ts';
-import type { AllergyRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, ProblemRow, SessionDto } from './dto.ts';
+import type { AllergyRow, CareTeamDto, CareTeamMemberRow, DemoPatient, HeaderDto, MedicationRow, PatientLookupResult, PrescriptionRow, ProblemRow, SessionDto, VitalsDto } from './dto.ts';
 import { parsePatientUuid } from './ids.ts';
 
 /**
@@ -21,6 +21,7 @@ const ERROR_CODES: ReadonlySet<string> = new Set<ErrorCode>([
   'UPSTREAM_OPERATION_OUTCOME',
   'SCHEMA_MISMATCH',
   'PATIENT_MISMATCH',
+  'VITALS_SCAN_LIMIT',
   'BFF_UNAVAILABLE',
 ]);
 
@@ -117,4 +118,45 @@ export function isProblemRow(v: unknown): v is ProblemRow {
 
 export function isMedicationRow(v: unknown): v is MedicationRow {
   return isRecord(v) && typeof v['title'] === 'string';
+}
+
+export function isPrescriptionRow(v: unknown): v is PrescriptionRow {
+  return (
+    isRecord(v) &&
+    typeof v['drug'] === 'string' &&
+    typeof v['details'] === 'string' &&
+    typeof v['quantity'] === 'string' &&
+    v['refills'] === null &&
+    typeof v['filled'] === 'string'
+  );
+}
+
+function isCareTeamMemberRow(v: unknown): v is CareTeamMemberRow {
+  return (
+    isRecord(v) &&
+    (v['type'] === 'Provider' || v['type'] === 'Related Person') &&
+    isStringOrNull(v['name']) &&
+    typeof v['role'] === 'string' &&
+    isStringOrNull(v['facility']) &&
+    typeof v['since'] === 'string'
+  );
+}
+
+export function isCareTeamDto(v: unknown): v is CareTeamDto {
+  return (
+    isRecord(v) &&
+    typeof v['teamName'] === 'string' &&
+    typeof v['statusTitle'] === 'string' &&
+    Array.isArray(v['members']) &&
+    v['members'].every(isCareTeamMemberRow)
+  );
+}
+
+export function isVitalsDto(v: unknown): v is VitalsDto {
+  return (
+    isRecord(v) &&
+    typeof v['date'] === 'string' &&
+    Array.isArray(v['fields']) &&
+    v['fields'].every((f) => isRecord(f) && typeof f['label'] === 'string' && typeof f['value'] === 'string')
+  );
 }

@@ -5,6 +5,7 @@ import {
   FakeOpenEmr,
   makeIdTokenSigner,
   PATIENT,
+  readFixtureFile,
   responseFixture,
   routeFixture,
   signIn,
@@ -59,7 +60,37 @@ describe('log redaction across the full workflow', () => {
       const pid = (routeFixture(file, 'rest.patient.read').body as { data: { pid: string } }).data.pid;
       fake.on('GET', `http://openemr/apis/default/api/patient/${pid}/medication`, medications);
       for (const row of medications.body as { title: string; uuid: string }[]) clinical.push(row.title, row.uuid);
-      for (const card of ['allergies', 'problems', 'medications']) {
+      const prescriptions = routeFixture(file, 'rest.prescription.search');
+      fake.on('GET', `http://openemr/apis/default/api/prescription?patient_id=${pid}&source_table=prescriptions`, prescriptions);
+      for (const row of (prescriptions.body as { data: { drug: string; uuid: string }[] }).data) clinical.push(row.drug, row.uuid);
+      // Care Team: serve the search and every recorded name read; one Practitioner read succeeds with a
+      // (synthetic) name, so a resolved member name is also checked against the log.
+      fake.on('GET', `http://openemr/apis/default/fhir/CareTeam?patient=${id}`, routeFixture(file, 'fhir.careteam.search'));
+      const teams = (routeFixture(file, 'fhir.careteam.search').body as { entry: { resource: { id: string; name: string } }[] }).entry;
+      for (const t of teams) clinical.push(t.resource.id, t.resource.name);
+      for (const key of Object.keys(readFixtureFile(file))) {
+        const [route, ref] = key.split(':');
+        if (route === 'fhir.practitioner.read') {
+          const named = responseFixture('hand-built/fhir-practitioner-200.json');
+          fake.on('GET', `http://openemr/apis/default/fhir/Practitioner/${ref ?? ''}`, { status: 200, body: { ...(named.body as object), id: ref } });
+          clinical.push(ref ?? 'x', 'Synthetic');
+        }
+        if (route === 'fhir.organization.read') {
+          fake.on('GET', `http://openemr/apis/default/fhir/Organization/${ref ?? ''}`, routeFixture(file, key));
+          clinical.push(ref ?? 'x', 'Great Clinic');
+        }
+      }
+      // Vitals: the encounter list and every recorded per-encounter vitals response.
+      fake.on('GET', `http://openemr/apis/default/api/patient/${id}/encounter`, routeFixture(file, 'rest.encounter.list'));
+      for (const e of (routeFixture(file, 'rest.encounter.list').body as { data: { euuid: string }[] }).data) clinical.push(e.euuid);
+      for (const key of Object.keys(readFixtureFile(file))) {
+        const [route, eid] = key.split(':');
+        if (route !== 'rest.vital.list' || !eid) continue;
+        const vitals = routeFixture(file, key);
+        fake.on('GET', `http://openemr/apis/default/api/patient/${pid}/encounter/${eid}/vital`, vitals);
+        for (const v of vitals.body as { uuid: string; date: string; note: string | null }[]) clinical.push(v.uuid, v.date, ...(v.note ? [v.note] : []));
+      }
+      for (const card of ['allergies', 'problems', 'medications', 'prescriptions', 'care-team', 'vitals']) {
         const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${id}/${card}`, cookies: { dashboard_sid: sessionCookie } });
         expect(res.json()).toMatchObject({ kind: 'ok' });
       }
@@ -113,5 +144,14 @@ describe('log redaction across the full workflow', () => {
     expect(log).toContain('"routeId":"rest.problem.list"');
     expect(log).toContain('/dashboard/bff/patients/:puuid/medications');
     expect(log).toContain('"routeId":"rest.medication.list"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/prescriptions');
+    expect(log).toContain('"routeId":"rest.prescription.search"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/care-team');
+    expect(log).toContain('"routeId":"fhir.careteam.search"');
+    expect(log).toContain('"routeId":"fhir.practitioner.read"');
+    expect(log).toContain('"routeId":"fhir.organization.read"');
+    expect(log).toContain('/dashboard/bff/patients/:puuid/vitals');
+    expect(log).toContain('"routeId":"rest.encounter.list"');
+    expect(log).toContain('"routeId":"rest.vital.list"');
   });
 });

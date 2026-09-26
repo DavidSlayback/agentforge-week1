@@ -15,11 +15,14 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { pino } from 'pino';
 import { loadAllergies } from '../../bff/src/cards/allergies.ts';
+import { loadCareTeam } from '../../bff/src/cards/careTeam.ts';
 import { loadHeader } from '../../bff/src/cards/header.ts';
 import { loadMedications } from '../../bff/src/cards/medications.ts';
 import { loadProblems } from '../../bff/src/cards/problems.ts';
+import { loadVitals } from '../../bff/src/cards/vitals.ts';
 import { localDateTimeInZone } from '../../bff/src/clock.ts';
 import { lookupPatientByMrn } from '../../bff/src/cards/patientLookup.ts';
+import { loadPrescriptions } from '../../bff/src/cards/prescriptions.ts';
 import { createUpstreamClient, type FetchLike } from '../../bff/src/upstream/client.ts';
 import { parseMrn, parsePatientUuid } from '../../core/ids.ts';
 
@@ -88,6 +91,10 @@ const cardCases = [
   // pid 3: the upstream answers 404 with an empty body; the card must be empty, not an error.
   { card: 'medications', label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', rows: 0, load: loadMedications },
   { card: 'medications', label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', rows: 1, load: loadMedications },
+  // Prescriptions (walkthroughs/PRESCRIPTIONS.md (e)): all rows, including inactive ones; pid 3 is HTTP 200 [].
+  { card: 'prescriptions', label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', rows: 5, load: loadPrescriptions },
+  { card: 'prescriptions', label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', rows: 0, load: loadPrescriptions },
+  { card: 'prescriptions', label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', rows: 3, load: loadPrescriptions },
 ] as const;
 for (const c of cardCases) {
   const patientId = parsePatientUuid(c.puuid);
@@ -97,6 +104,40 @@ for (const c of cardCases) {
   const ok = c.rows === 0 ? card.kind === 'empty' : card.kind === 'ok' && shown === c.rows;
   if (!ok) failures += 1;
   console.log(`integration ${c.card}: ${c.label}: ${ok ? 'PASS' : 'FAIL'} (kind=${card.kind}, rows=${String(shown)}, expected=${String(c.rows)})`);
+}
+
+// Care Team (walkthroughs/CARE-TEAM.md (e)): member rows (all members, inactive ones included), or empty.
+for (const c of [
+  { label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', members: 3 },
+  { label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', members: 0 },
+  { label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', members: 1 },
+] as const) {
+  const patientId = parsePatientUuid(c.puuid);
+  if (patientId === null) throw new Error('bad uuid');
+  const card = await loadCareTeam({ upstream }, { patientId, accessToken: token, correlationId: 'it-care-team' });
+  const members = card.kind === 'ok' ? (card.rows[0]?.members.length ?? 0) : 0;
+  const named = card.kind === 'ok' ? (card.rows[0]?.members.filter((m) => m.name !== null).length ?? 0) : 0;
+  const ok = c.members === 0 ? card.kind === 'empty' : card.kind === 'ok' && members === c.members;
+  if (!ok) failures += 1;
+  // Counts only: names and roles are never printed.
+  console.log(`integration care-team: ${c.label}: ${ok ? 'PASS' : 'FAIL'} (kind=${card.kind}, members=${String(members)}, named=${String(named)}, expected=${String(c.members)})`);
+}
+
+// Vitals (walkthroughs/VITALS.md (e)): the latest NON-deleted set's date, or empty. DASH-SYN-01 and pid 13 each have a
+// newer soft-deleted set on the same encounter that must not be the one shown.
+for (const c of [
+  { label: 'pid 13', puuid: 'a2d4d063-d949-4f5a-9001-01c1d919afc6', date: '2026-04-05 20:06:27' },
+  { label: 'pid 3', puuid: 'a2c331a5-3b72-45c1-884e-94015f1f34fa', date: '2014-02-01 21:47:33' },
+  { label: 'DASH-SYN-01', puuid: '8e503ab1-b8c0-11f1-8c7a-0ed9af59d05d', date: '2026-04-05 09:10:00' },
+  { label: 'DASH-SYN-02', puuid: '8e5045ab-b8c0-11f1-8c7a-0ed9af59d05d', date: null },
+] as const) {
+  const patientId = parsePatientUuid(c.puuid);
+  if (patientId === null) throw new Error('bad uuid');
+  const card = await loadVitals({ upstream, today: () => new Date().toISOString().slice(0, 10) }, { patientId, accessToken: token, correlationId: 'it-vitals' });
+  const ok = c.date === null ? card.kind === 'empty' : card.kind === 'ok' && card.rows[0]?.date === c.date;
+  if (!ok) failures += 1;
+  // The expected set's date is compared, never printed (AGENTS.md §PHI).
+  console.log(`integration vitals: ${c.label}: ${ok ? 'PASS' : 'FAIL'} (kind=${card.kind}, expected set=${c.date === null ? 'none' : 'latest non-deleted'})`);
 }
 
 if (record) {

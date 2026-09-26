@@ -51,5 +51,7 @@ export const restPatientSchema = z.object({
   uuid: z.string().min(1),
   pid: z.union([z.number(), z.string()]),
   pubpid: z.string().nullable().optional(),
+  /** `patient_data.DOB`; read only by the Vitals card's pediatric rule (never logged). */
+  DOB: z.string().nullable().optional(),
 });
 export type RestPatient = z.infer<typeof restPatientSchema>;

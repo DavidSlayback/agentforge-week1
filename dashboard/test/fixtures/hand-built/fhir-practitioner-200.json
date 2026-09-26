@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "kind": "hand-built",
+    "note": "A successful FHIR Practitioner read (synthetic name) for the pid 13 primary care provider's uuid. Hand-built: locally this read is 404 because the user has no NPI (see the shaped fixtures); this shape follows FhirPractitionerService::parseOpenEMRRecord() for a user that has one.",
+    "synthetic": true
+  },
+  "status": 200,
+  "body": {
+    "meta": {
+      "versionId": "1",
+      "lastUpdated": "2026-09-25T00:00:00+00:00"
+    },
+    "resourceType": "Practitioner",
+    "id": "a2c331a5-4023-4923-823f-c86acfb2e16d",
+    "active": true,
+    "name": [
+      {
+        "use": "official",
+        "family": "Synthetic",
+        "given": [
+          "Prac"
+        ]
+      }
+    ],
+    "identifier": [
+      {
+        "system": "http://hl7.org/fhir/sid/us-npi",
+        "value": "1234567893"
+      }
+    ]
+  }
+}

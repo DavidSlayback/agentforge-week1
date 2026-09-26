@@ -50,6 +50,13 @@ describe('upstream allow-list', () => {
           expect(spec.query).toEqual([]);
           expect(spec.pathTemplate).toBe('/list/severity_ccda');
           break;
+        case 'reference':
+          // A single-resource read by an id taken from a patient-bound response: one uuid path
+          // parameter, no query keys, a `.read` route id (never a collection).
+          expect(spec.id, spec.id).toMatch(/\.read$/);
+          expect(spec.pathParams, spec.id).toEqual([{ name: 'id', kind: 'resourceUuid' }]);
+          expect(spec.query, spec.id).toEqual([]);
+          break;
       }
     }
   });
@@ -77,6 +84,57 @@ describe('upstream allow-list', () => {
     // The list name is fixed: it cannot be supplied as a parameter or a query key.
     expect(() => buildUpstreamPath('rest.list.read', { list_name: 'reaction' })).toThrow(AllowListViolation);
     expect(() => buildUpstreamPath('rest.list.read', {}, { list_id: 'reaction' })).toThrow(AllowListViolation);
+  });
+
+  it('builds the prescription search with exactly patient_id and the fixed source_table (01-03-01, M-1)', () => {
+    expect(buildUpstreamPath('rest.prescription.search', {}, { patient_id: 14 })).toBe('/apis/default/api/prescription?patient_id=14&source_table=prescriptions');
+    expect(UPSTREAM_ROUTES['rest.prescription.search'].query.map((q) => q.key)).toEqual(['patient_id', 'source_table']);
+    expect(UPSTREAM_ROUTES['rest.prescription.search'].acl).toBe('patients/med');
+  });
+
+  it('rejects any client-supplied extra key on the prescription search: the route builds SQL from key NAMES (M-1 / 2.01)', () => {
+    // Keys an attacker (or a careless SPA) might try: a legitimate-looking column, the other
+    // patient key, a sort, and a key that is itself SQL.
+    for (const extra of ['pid', 'drug', '_sort', 'active', "patient_id`=1 OR 1=1 -- "]) {
+      expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: 14, [extra]: '1' }), extra).toThrow(AllowListViolation);
+    }
+    // The fixed key cannot be overridden (e.g. to reach the `lists` branch), and the pid must be an integer.
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: 14, source_table: 'lists' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, {})).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: PATIENT.dashSyn01 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', {}, { patient_id: '14 OR 1=1' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.prescription.search', { pid: 14 }, { patient_id: 14 })).toThrow(AllowListViolation);
+  });
+
+  it('builds the CareTeam search by patient uuid only, and the name reads by a validated uuid (01-04-01)', () => {
+    expect(buildUpstreamPath('fhir.careteam.search', {}, { patient: PATIENT.p13 })).toBe(`/apis/default/fhir/CareTeam?patient=${PATIENT.p13}`);
+    expect(() => buildUpstreamPath('fhir.careteam.search', {}, { patient: PATIENT.p13, status: 'active' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.careteam.search', {}, { patient: '13' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.careteam.search', {}, {})).toThrow(AllowListViolation);
+    const id = 'a2c331a5-4021-4f9b-893f-cd7dc6db1147';
+    expect(buildUpstreamPath('fhir.practitioner.read', { id })).toBe(`/apis/default/fhir/Practitioner/${id}`);
+    expect(buildUpstreamPath('fhir.organization.read', { id: id.toUpperCase() })).toBe(`/apis/default/fhir/Organization/${id}`);
+    expect(() => buildUpstreamPath('fhir.practitioner.read', { id: '../Patient/x' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.practitioner.read', { id: '5' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.organization.read', {})).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('fhir.organization.read', { id }, { _include: '*' })).toThrow(AllowListViolation);
+  });
+
+  it('builds the encounter list by puuid and the per-encounter vitals by integer pid and eid (01-05-01)', () => {
+    expect(buildUpstreamPath('rest.encounter.list', { puuid: PATIENT.dashSyn01 })).toBe(`/apis/default/api/patient/${PATIENT.dashSyn01}/encounter`);
+    expect(buildUpstreamPath('rest.vital.list', { pid: 14, eid: 370 })).toBe('/apis/default/api/patient/14/encounter/370/vital');
+    expect(UPSTREAM_ROUTES['rest.encounter.list'].acl).toBe('encounters/auth_a');
+    expect(UPSTREAM_ROUTES['rest.vital.list'].acl).toBe('encounters/notes');
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14, eid: '370/vital/36' })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14, eid: 0 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: PATIENT.dashSyn01, eid: 370 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.vital.list', { pid: 14, eid: 370, vid: 36 })).toThrow(AllowListViolation);
+    expect(() => buildUpstreamPath('rest.encounter.list', { puuid: PATIENT.dashSyn01 }, { _sort: 'date' })).toThrow(AllowListViolation);
+  });
+
+  it('has no FHIR Observation route: FHIR vitals include soft-deleted sets (5.02 / M-5)', () => {
+    for (const spec of Object.values(UPSTREAM_ROUTES)) expect(spec.pathTemplate, spec.id).not.toMatch(/Observation/i);
   });
 
   it('declares a scope and ACL for every route', () => {

@@ -410,6 +410,16 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-03-01 — Prescriptions card, allow-listed
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `959482e`):**
+  **wired, tested, not yet observed.** Built and gated (229 tests in the
+  hook); the deliberate regression (the allow-list forwards an unknown key)
+  was refused by the hook with 6 red tests
+  (`docs/legacy-audit/evidence/slice-03-01-regression.txt`). Not merged or
+  deployed. Deviations: empty reads "None" (the legacy Rx card's own text,
+  owner decision), not "Nothing Recorded"; the patient check uses each row's
+  `puuid`, because the route's outer SELECT has no `patient_id` column;
+  Details appends " in <interval>" only (the API never selects `form`).
+  Details: `DEV-LOG.md`, 01-03-01 entry.
 - **Time box:** 1.5 h, Sat 14:15–15:45. Needs HD-4, which includes the
   `user/prescription.rs` approval.
 - **Goal:** the Prescriptions card shows **all** prescription rows, sorted by
@@ -426,25 +436,28 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   `test/web/PrescriptionsCard.test.tsx`; fixtures;
   `test/integration/prescriptions.it.ts`.
 - **Test gate**
-  - Core: the three-key sort, including hand-built cases where `active` and
-    `date_modified` differ (pid 13 exercises only `date_added`).
-  - Contract: the outbound URL is exactly
+  - [x] Core: the three-key sort, including hand-built cases where `active` and
+    `date_modified` differ (pid 13 exercises only `date_added`); DASH-SYN-01
+    (pid 14) also exercises both legs with shaped data
+    (`test/core/prescriptions.test.ts`, `test/contract/prescriptions.test.ts`).
+  - [x] Contract: the outbound URL is exactly
     `/apis/default/api/prescription?patient_id=<pid>&source_table=prescriptions`.
     pid 13 gives 5 rows in order 66, 65, 64, 63, 62. pid 3's 200 `[]` gives
-    `empty`. A row with another `patient_id` gives `PATIENT_MISMATCH`.
-  - Component: every Refills cell reads "Not available via API", never `0` or
-    blank.
-  - **Deliberate regression** (`walkthroughs/PRESCRIPTIONS.md` (e) item 7):
+    `empty`. A row with another patient's `puuid` (the rows carry no
+    `patient_id`) gives `PATIENT_MISMATCH`.
+  - [x] Component: every Refills cell reads "Not available via API", never `0` or
+    blank; empty reads "None" (`test/web/PrescriptionsCard.test.tsx`).
+  - [x] **Deliberate regression** (`walkthroughs/PRESCRIPTIONS.md` (e) item 7):
     let the BFF forward an arbitrary SPA query key into
     `rest.prescription.search`. Expected red: the allow-list test and the
-    outbound-URL contract test.
+    outbound-URL contract test. Done: 6 red, commit refused, reverted.
 - **Live evidence** (`walkthroughs/PRESCRIPTIONS.md` (e), with `patient_id`
   in place of `pid` per C-9)
   - [ ] Outbound request carries exactly `patient_id` and `source_table`,
     confirmed from the integration log's route id and key list.
   - [ ] pid 13: 5 rows, all `source_table: prescriptions`, in date order
     66 → 62.
-  - [ ] pid 3: HTTP 200 `[]` → "Nothing Recorded".
+  - [ ] pid 3: HTTP 200 `[]` → "None" (the legacy Rx card's empty text; owner decision 2026-09-25).
   - [ ] Refills placeholder on all 5 rows.
   - [ ] No " in <form>" suffix. The `form`-set gap is noted as untested, not
     claimed covered.
@@ -458,6 +471,20 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-04-01 — Care Team card from FHIR
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `3d3d719`):**
+  **wired, tested, not yet observed.** Built and gated (258 tests in the
+  hook); the deliberate regression (the first team in Bundle order, whatever
+  its status) was refused by the hook with 6 red tests
+  (`docs/legacy-audit/evidence/slice-04-01-regression.txt`). Not merged or
+  deployed. Corrections and deviations: by the code, pid 13's
+  `participant[]` has **4** entries (3 Practitioners + 1 Organization for the
+  members' shared facility), and the card shows **3** member rows (the
+  Organization fills the Facility column); member names are read from
+  `Practitioner`, which OpenEMR serves only for users with an NPI, so
+  locally every member name is "Name unavailable"; the member rows keep the
+  API order (FHIR has no member date to sort by); empty reads "Nothing
+  Recorded" (the legacy card had no text). Details: `DEV-LOG.md`, 01-04-01
+  entry.
 - **Time box:** 2.0 h, Sat 15:45–17:45. Needs HD-3 (FHIR enabled on
   production).
 - **Goal:** the Care Team card shows the chosen team (first active by name,
@@ -476,18 +503,28 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   (including a note containing `<img src=x onerror=…>` that renders as
   literal text); fixtures; `test/integration/careTeam.it.ts`.
 - **Test gate**
-  - Contract: pid 13 gives 1 team with **3** participants, and the roles
-    "Primary Care Provider" and "Nurse" on the active members. pid 3's Bundle
-    `total: 0` gives `empty`. An empty Bundle **without** a prior successful
-    Patient read gives `error`. An `OperationOutcome` inside a 200 gives
-    `error`.
-  - Core: team selection with several teams (hand-built).
-  - Component: the XSS payload renders as text, and axe is clean.
-  - **Deliberate regression:** treat every empty Bundle as `empty`, or pick
+  - [x] Contract: pid 13 gives 1 team with **3** member rows (from 4
+    participants: 3 Practitioners + 1 Organization), and the roles
+    "Primary Care Provider" and "Nurse" on the active members ("Specialist" on
+    the inactive one). pid 3's Bundle `total: 0` gives `empty`. Without a
+    successful patient read the CareTeam search is never called and the card
+    is `error`. An `OperationOutcome` inside a 200 gives `error`
+    (`test/contract/careTeam.test.ts`).
+  - [x] Core: team selection with several teams (hand-built), identical for
+    every Bundle order (`test/core/careTeam.test.ts`).
+  - [x] Component: the XSS payload renders as text, and axe is clean
+    (`test/web/CareTeamCard.test.tsx`; the payload is in the team name and
+    member cells, since Note is not on the wire).
+  - [x] **Deliberate regression:** treat every empty Bundle as `empty`, or pick
     the first team regardless of status. Expected red: the "empty bundle
-    without a patient read → error" case, or the team-selection case.
+    without a patient read → error" case, or the team-selection case. Done
+    (first team regardless of status): 6 red, commit refused, reverted.
 - **Live evidence** (`walkthroughs/CARE-TEAM.md` (e))
-  - [ ] Port, pid 13: 1 CareTeam, `participant[]` = 3.
+  - [ ] Port, pid 13: 1 CareTeam, `participant[]` = 4 by the code (3
+    Practitioners + 1 Organization); the card shows 3 member rows.
+  - [ ] Port, pid 13: the Practitioner reads return 404 (no NPI on the seeded
+    users), so the Member column reads "Name unavailable" and the names note
+    shows; Facility reads the facility name.
   - [ ] No status-like key on any participant (a grep of the recorded
     response, done in the integration run).
   - [ ] Roles read "Primary Care Provider" and "Nurse".
@@ -502,6 +539,20 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
 ### Slice 01-05-01 — Vitals card via REST per encounter
 
 - [ ] **Merged** · [ ] **Observed**
+- **Status (2026-09-25, branch `agentforge/w2-dashboard`, code at `1d37a47` + `0f94550`):**
+  **wired, tested, not yet observed.** Built and gated (287 tests in the
+  hook); the deliberate regression (the latest set across FHIR vital-signs
+  Observations, which include the deleted set) was refused by the hook with 8
+  red tests, the key one failing on the shown set itself
+  (`docs/legacy-audit/evidence/slice-05-01-regression.txt`). Not merged or
+  deployed. R-4 resolved from the code: `:eid` is `form_encounter.encounter`,
+  which the encounter list serves as `eid`; a patient with no encounters gets
+  HTTP **200** `data: []` on the wire (the controller asks for 404, but
+  `ViewRendererListener` wraps its array in a 200, API-ROUTES Finding 3), and
+  the card treats both that and the intended 404 empty envelope as empty.
+  Deviations: units as the API returns them (the metric secondary, first on
+  the cut list, is not computed; noted on the card); `external_id` and
+  `last_updated` are not shown. Details: `DEV-LOG.md`, 01-05-01 entry.
 - **Time box:** 2.0 h, Sat 17:45–19:45. The first 20 minutes resolve R-4
   against the local stack before any mapping code is written: the encounter
   list's 404 body shape, and whether `:eid` takes `eid` or `encounter`.
@@ -519,15 +570,20 @@ Record the checkpoint outcome in DEV-LOG and `AUDIT-STATE.md`.
   `test/web/VitalsCard.test.tsx`; fixtures;
   `test/integration/vitals.it.ts`.
 - **Test gate**
-  - Contract: pid 13 walks encounter 367 first and gets **set 27** from one
+  - [x] Contract: pid 13 walks encounter 367 first and gets **set 27** from one
     call; it never returns set 28 and never calls an older encounter. pid 3
-    gets **set 14** from encounter 12. A zero-encounter 404 (hand-built,
-    matching the verified shape) gives `empty`. A 5xx on one encounter gives
-    `error`, not `empty`. The cap is exceeded → `VITALS_SCAN_LIMIT` error.
-  - **Deliberate regression:** replace the per-encounter pick with "latest by
-    date across a merged list" that includes the FHIR-style deleted set 28
+    gets **set 14** from encounter 12 (pediatric: "See Growth-Chart").
+    DASH-SYN-01 (pid 14) gets set 35 from encounter 370, never the newer
+    deleted set 36 on the same encounter. A zero-encounter response (shaped
+    200 `data: []`, and the hand-built 404 empty envelope) gives `empty`. A 5xx
+    on one encounter gives `error`, not `empty`. The cap is exceeded →
+    `VITALS_SCAN_LIMIT` error (`test/contract/vitals.test.ts`).
+  - [x] **Deliberate regression:** replace the per-encounter pick with "latest by
+    date across a merged list" that includes the FHIR-style deleted set
     (hand-built fixture). Alternatively, stop the walk at the first 5xx and
     return `empty`. Expected red: the pid 13 "set 27" or "5xx is error" test.
+    Done (merged FHIR list; DASH-SYN-01's deleted set 36 shown): 8 red,
+    commit refused, reverted.
 - **Live evidence** (`walkthroughs/VITALS.md` (e))
   - [ ] `GET /api/patient/<13>/encounter` returns 367 first (36 total).
   - [ ] `GET …/encounter/367/vital` returns exactly one row, `id=27`.

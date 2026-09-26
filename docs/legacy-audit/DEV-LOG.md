@@ -58,6 +58,137 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-09-25 — Arc 01 / Story 01-05 / Slice 01-05-01 — Vitals card via REST per encounter
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `1d37a47` (+ `0f94550`, a test-order fix); no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-4 (Vitals, the additional section, DB-08): the latest **non-deleted** vitals set, kept in its legacy position after Care Team (7.24).
+Legacy behavior replaced: `walkthroughs/VITALS.md`, `interface/patient_file/summary/vitals_fragment.php` + `interface/forms/vitals/report.php`.
+Layers touched: core (`ids` `EncounterId`, `cardResult` `VITALS_SCAN_LIMIT`, `rules/vitals` `latestVitalsSet` + `isPediatric` + `phpNumberFormat` + `vitalsFields` + `MAX_ENCOUNTER_SCAN`, `dto` `VitalsDto`, `guards` `isVitalsDto`, `upstreamRoutes`) · bff (`upstream/mapResponse` opt-in `notFoundEmptyEnvelopeIsEmpty`, `upstream/schemas/{encounter,vital}`, `schemas/patient` `DOB`, `cards/patientRead` `birthDate`, `cards/vitals`, `http/routes`) · web (`cards/VitalsCard`, `App`, `styles.css`) · tests · README.
+Upstream routes added to the allow-list: `rest.encounter.list` (`/api/patient/{puuid}/encounter`, no query keys, scope `user/encounter.rs`, ACL `encounters/auth_a`) and `rest.vital.list` (`/api/patient/{pid}/encounter/{eid}/vital`; `pid` from `rest.patient.read`, `eid` a positive integer from the encounter list (new param kind `eid`); no query keys; scope `user/vital.rs`, ACL `encounters/notes`). Both scopes were already in `OAUTH_SCOPE`. A new allow-list test asserts there is **no** FHIR `Observation` route (5.02).
+Catalog IDs: 5.01 and 5.02 (Critical, designed out), 7.20 (explicit field list and order), 7.24 (legacy position kept), 5.09 (no session pid).
+Deliberate regression: take the latest set across a merged FHIR vital-signs list that includes the deleted set → expected red: the "never set 36" contract test.
+Acceptance check (a user can do this): DASH-SYN-01 shows the 2026-04-05 vitals, not the deleted 2026-05-01 set on the same encounter; pid 13 shows the 2026-04-05 set, not the deleted 2026-05-01 set the legacy card shows.
+
+### Worked on
+- R-4 resolved from the code before any mapping: the vitals route's `:eid` is matched against `form_encounter.encounter` (`VitalsService::search()` aliases it `eid`), and the encounter list serves the same column as `eid` (`EncounterService::search()`), newest first (`ORDER BY fe.eid DESC`). A patient with no encounters: the controller calls `handleProcessingResult(..., 404)`, but `ViewRendererListener` wraps the array in a 200 `JsonResponse`, so the wire carries HTTP 200 `data: []` (API-ROUTES Finding 3). An encounter with no live vitals: `responseHandler()` answers 404 with an empty body.
+- BFF `/dashboard/bff/patients/:puuid/vitals`: `rest.patient.read` (pid, DOB) → `rest.encounter.list` (every row's `puuid` and `pid` checked; `eid` must parse; sorted newest first locally) → `rest.vital.list` per encounter until one has a set (every row's `puuid`, `pid` and `eid` checked) → `latestVitalsSet` (latest `date`, ties to the higher `id`) → `vitalsFields`. A failure on any call is the card's failure (403 → forbidden, 401 → reauth, other → error). More than 50 encounters with none of the first 50 holding a set → `VITALS_SCAN_LIMIT`; all encounters checked and none has a set → empty.
+- `mapUpstream` gained `notFoundEmptyEnvelopeIsEmpty` (encounter list only): a 404 whose body is exactly `{validationErrors: [], internalErrors: [], data: []}` (plus `links`) is empty; any other 404 body is an error; a mapper test covers the opt-in and the default.
+- `vitalsFields`: the `form_vitals` column order `report.php` iterates (BP, Height, Weight, Temperature, Temp Method, Pulse, Respiration, Note, BMI, BMI Status, Waist Circ, Head Circ, Oxygen Saturation, Oxygen Flow Rate, the pediatric percentiles, Inhaled Oxygen Concentration), the legacy labels, the skip rule (null, '', zero date, or numeric zero: `$value == "0.0"`), the legacy number formats (`floatval` for height/weight/temperature/circumferences, `number_format(…, 0)` for pulse, respiration, BMI and O2 saturation, 2 decimals for flow rate), and the unit label mapped from the API's `<field>_unit` (`degF` → "F", `/min` → "per min", …; an unknown code is shown as returned). BP shows only with both parts. Pediatric (age ≤ 20 or in months, from `patient_data.DOB` and today in `DASHBOARD_OPENEMR_TZ`) gets "See Growth-Chart" and the percentiles, as in the legacy card.
+- SPA `VitalsCard` after Care Team: "Most recent vitals from: <date>" and a label/value list; a note says units are as the API returns them.
+- Fixtures (shaped, not recorded): `rest.encounter.list` and `rest.vital.list:<eid>` added to `patient-13` (36 encounters; 367 → set 27 only), `dash-syn-01` (pid 14: encounters 370, 369, 368 → sets 35, 34, 33; the deleted set 36 on 370 is absent because the route filters it), `patient-3` (12 → set 14), `dash-syn-02` (no encounters: HTTP 200 `data: []`). Values from read-only SELECT. Hand-built `fhir-observation-vitals-dash-syn-01.json`: the panel Observations FHIR would return for pid 14, **including** the deleted set, served by the contract test so that a port which read FHIR would visibly show it.
+- Integration script: the shown set's date is compared with the expected latest non-deleted set for pid 13, pid 3, DASH-SYN-01, and empty for DASH-SYN-02; only PASS/FAIL and the card kind are printed.
+
+### Decisions
+- **The correct latest set, from the REST per-encounter route** (owner decision, catalog 5.01): the route's `deleted=0 AND formdir='vitals'` is the only deleted filter any API path has. FHIR `Observation` is never called, and the allow-list test fails if an Observation route is ever added.
+- **The walk trusts encounter-number order** (the route's own `ORDER BY`): the port cannot compare vitals dates across encounters without fetching them all. On every seeded patient encounter-number order equals date order; a newer vitals set on an older encounter would be missed (documented in `walkthroughs/VITALS.md` (c)).
+- **Cap 50, fail loudly.** Hitting the cap with encounters left is `VITALS_SCAN_LIMIT` (a new `ErrorCode`), never "Nothing Recorded"; the cap is injectable so a test can use 2 and 3, and a separate test runs the production 50.
+- **Units as returned** (owner decision): one unit system per the site's `units_of_measurement`; the legacy card's simultaneous metric secondary is not computed (the first item on the arc's cut list). BP shows the API's `mm[Hg]` unit, which the legacy card did not print.
+- **Pediatric rule ported**: pid 3 is 19 years old, so the legacy card shows BMI Status "See Growth-Chart"; the port does too. `rest.patient.read` now also yields `DOB` (never logged), read only by this rule.
+- `external_id` and `last_updated` are not shown (the legacy loop would print them when set; neither is a vital sign). Empty reads "Nothing Recorded" (decision 4.02); the legacy text was "No vitals have been documented."
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commits `1d37a47` and `0f94550`): 287 tests, all passing (+29): unit 101 (`vitals` 7 new, `upstreamRoutes` +2) · contract 71 (`vitals` 12 new) · BFF 56 (`cardRoutes` +1, `mapResponse` +1; log redaction now also drives the vitals card and checks every encounter uuid, vitals uuid, set date and note is absent from the log) · lint-boundary 3 · component 56 (`VitalsCard` 6 new, all with axe, 0 violations). Typecheck 0, lint 0, bundle 71.8 kB gzip JS.
+- `0f94550` reorders the DASH-SYN-01 contract test so it asserts the shown set (never 2026-05-01, the 2026-04-05 set) before the outbound call list; the first regression run failed that test on the call list, which proved less than it should.
+- Deliberate regression: a new `fhir.observation.vitals` route and, in `loadVitals`, the latest `effectiveDateTime` across the FHIR vital-signs Bundle → the hook refused the commit (exit 1, HEAD unchanged) with 8 red; the key one, contract `DASH-SYN-01: the latest NON-deleted set (35) … never the deleted newer set 36 (5.01 / 5.02)`, failed with `expected '2026-05-01 09:00:00' not to be '2026-05-01 09:00:00'` (the card showed the soft-deleted set); also unit `has no FHIR Observation route …` and HTTP `Vitals: DASH-SYN-01 reaches the browser as the non-deleted set 35 …` → reverted. Output: `docs/legacy-audit/evidence/slice-05-01-regression.txt`.
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows the 2026-04-05 set (height 67 in), not the deleted 2026-05-01 set; the legacy `vitals_fragment.php` query (read-only SQL) still returns set 28; pid 3 shows set 14 with "See Growth-Chart"; DASH-SYN-02 "Nothing Recorded"; DASH-SYN-01 the 2026-04-05 set.
+- Production config (HD-5): the BFF user needs both `encounters/auth_a` (list) and `encounters/notes` (vitals); either one missing makes the card "Not authorized for this section".
+- The zero-encounter wire status (200 vs 404) is from code reading; the integration run with a token will show which one the local stack sends (the card handles both).
+
+## 2026-09-25 — Arc 01 / Story 01-04 / Slice 01-04-01 — Care Team card from FHIR
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `3d3d719`; no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-3 (Care Team card) from FHIR `CareTeam` with a user-context token (production FHIR is enabled, owner 2026-09-25).
+Legacy behavior replaced: `walkthroughs/CARE-TEAM.md`, `templates/patient/card/manage_care_team.html.twig` (view mode; the port is read-only).
+Layers touched: core (`ids` `ResourceUuid`, `rules/careTeam` `chooseCareTeam` + `careTeamStatusTitle` + `parseRelativeReference`, `dto` `CareTeamDto`/`CareTeamMemberRow`, `guards` `isCareTeamDto`, `upstreamRoutes` + a `reference` binding kind) · bff (`upstream/schemas/careTeam`, `cards/careTeam`, `http/routes`) · web (`cards/CareTeamCard`, `App`, `styles.css`) · tests · README.
+Upstream routes added to the allow-list: `fhir.careteam.search` (`/fhir/CareTeam`, query key exactly `patient` = the puuid; scope `user/CareTeam.rs`, ACL `patients/med`), `fhir.practitioner.read` and `fhir.organization.read` (`/fhir/Practitioner/{id}`, `/fhir/Organization/{id}`; one `resourceUuid` path parameter taken from the CareTeam response, no query keys; scopes `user/Practitioner.rs` / `user/Organization.rs`, ACL `admin/users`; `patientBinding: 'reference'`, which the allow-list test restricts to `*.read` routes with exactly one uuid parameter). All three scopes were already in `OAUTH_SCOPE`.
+Catalog IDs: 2.02 (no `innerHTML`: JSX escaping, tested with a payload), 8.04, 8.05, 8.07, 7.14 (empty text added), 7.15 (names from the API, not a `<select>`), 8.15 (rows keyed by position), 5.05 / M-6 (inactive members shown), 4.07, 6.03.
+Deliberate regression: pick the first team regardless of status → expected red: the team-selection cases.
+Acceptance check (a user can do this): pid 13 shows the care team with its members and roles, the inactive member included, as the documented API gap requires.
+
+### Worked on
+- BFF `/dashboard/bff/patients/:puuid/care-team`: `rest.patient.read` → `fhir.careteam.search?patient=<puuid>` (Bundle; `total: 0` is empty only after that read) → every team's `subject` must be `Patient/<puuid>` → `chooseCareTeam` → member rows from Practitioner/RelatedPerson participants (a member reference that is not `Type/<uuid>`, or a Patient member, is `SCHEMA_MISMATCH`) → at most 20 name reads in parallel (`fhir.practitioner.read` per member, `fhir.organization.read` per distinct `onBehalfOf`).
+- `chooseCareTeam`: skip `entered-in-error`, order by name case-insensitively with a missing name first (MySQL collation and NULL order), then the exact name, then the resource `id`; the first `active` team, else the first. The same team for every Bundle order (tested over all permutations).
+- DTO: one `CareTeamDto` row per card (`teamName`, `statusTitle` from the 5 `Care_Team_Status` titles, `members`); members `{type: 'Provider' | 'Related Person', name | null, role, facility | null, since}`. Status and Note are not on the wire.
+- SPA `CareTeamCard` under Prescriptions, the legacy order: team name with a status badge, then Type, Member, Role, Facility, Since, Status, Note; Status and Note cells read "Not available via API"; a null name or facility reads "Name unavailable".
+- Fixtures (shaped, not recorded): `fhir.careteam.search`, `fhir.practitioner.read:<id>` (404, body `[]`) and `fhir.organization.read:<id>` (200) added to `patient-13` (1 team, 4 participants), `dash-syn-01` (1 team, admin as member, 2 participants), `patient-3` and `dash-syn-02` (`total: 0`). Hand-built `fhir-practitioner-200.json` (synthetic name) for the success path.
+- Integration script: member counts (pid 13: 3, pid 3: empty, DASH-SYN-01: 1), printing counts only.
+
+### Decisions
+- **Deterministic team choice** (owner asked for it to be deterministic and documented): the legacy second key, `ctm.date_created`, is not in the FHIR resource, so the tiebreak after the name is the resource `id`. This can differ from the legacy card only when two non-error teams have the same name; no seeded patient has two teams.
+- **Organization participants are not member rows.** `getCareTeamFacilities()` turns each member's facility into a participant; the legacy card has no such rows, so the port uses them only for the Facility column.
+- **Names are best-effort, the card is not.** Both name routes need `admin/users`, and `PractitionerService::search()` serves only users with a non-empty NPI. None of the seeded care-team users has one (read-only SELECT on `users`), so locally every member name is "Name unavailable" and the card says why in a note. Production (pid 7/8) is not known. A failed name read never fails the card (MIGRATION-REACT §2.4). The REST alternative (`GET /api/user/:uuid`) serves any user but needs a `user/user.r` scope the client does not have; adding it is an owner decision (client re-registration), not made here.
+- **Member order is the API's** (providers, then related persons); FHIR has no member date to reproduce the legacy `ORDER BY ctm.date_created`.
+- **Empty is "Nothing Recorded"** (owner decision): the legacy card had no empty text at all (7.14). A chosen team with no member participants says "No members listed."
+- **Patient read first, `rest.patient.read`**, like every other card, rather than `fhir.patient.read` as the playbook table named: it is the same precondition (the patient exists and this user may read it) and keeps one patient-resolution path.
+- RelatedPerson names are not read (no allow-listed route); no seeded patient has a related-person member.
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commit `3d3d719`): 258 tests, all passing (+29): unit 92 (`careTeam` 8 new, `upstreamRoutes` +1) · contract 59 (`careTeam` 11 new) · BFF 54 (`cardRoutes` +1; log redaction now also drives the care-team card with a resolved Practitioner name and checks every team id, team name, member name and facility name is absent from the log) · lint-boundary 3 · component 50 (`CareTeamCard` 8 new, 6 with axe, 0 violations). Typecheck 0, lint 0, bundle 71.7 kB gzip JS.
+- Deliberate regression: `chooseCareTeam()` returns `teams[0]` (Bundle order, any status) → the hook refused the commit (exit 1, HEAD unchanged) with 6 red, including contract `several teams (hand-built): the card shows the first active team by name, whatever the Bundle order` and unit `breaks a name tie by resource id, so the result is the same for every Bundle order` → reverted. Output: `docs/legacy-audit/evidence/slice-04-01-regression.txt`.
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows 1 team, 3 member rows (the inactive specialist included) with roles "Primary Care Provider", "Nurse", "Specialist", Member "Name unavailable" and Facility named; pid 3 "Nothing Recorded"; grep the recorded Bundle for any participant status key (expect none).
+- **Member names (owner decision):** either give the seeded care-team users an NPI (data, local and production), or add `user/user.r` to the client and read `GET /api/user/:uuid` (config + one allow-listed route). Until then the Member column is honest but empty.
+- The Practitioner/Organization 403 path for a non-admin clinician is tested in contract only (a 403 read → "Name unavailable"); not testable live with the admin role.
+
+## 2026-09-25 — Arc 01 / Story 01-03 / Slice 01-03-01 — Prescriptions card, allow-listed
+
+**Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction; built without per-slice approval, owner-authorized) · **SHA:** code at `959482e`; no merge SHA yet
+
+### Slice plan
+Flow / requirement delivered: W2D-3 (Prescriptions card) with the M-1 allow-list and its regression proof.
+Legacy behavior replaced: `walkthroughs/PRESCRIPTIONS.md`, `templates/prescription/general_fragment.html` inside `templates/patient/card/rx.html.twig`.
+Layers touched: core (`rules/prescriptions` `sortPrescriptions` + `prescriptionDetails`, `dto` `PrescriptionRow`, `guards` `isPrescriptionRow`, `upstreamRoutes`) · bff (`upstream/schemas/prescription`, `cards/prescriptions`, `http/routes`) · web (`cards/PrescriptionsCard`, `components/Card` + `States` `emptyText`, `App`, `styles.css`) · tests · README.
+Upstream route added to the allow-list: `rest.prescription.search` (`/api/prescription`, no path parameters; query keys exactly `patient_id` (kind `pid`, the integer pid from `rest.patient.read` only) and `source_table` (fixed `prescriptions`, cannot be supplied); scope `user/prescription.rs`, ACL `patients/med`; `patientBinding: 'query'`).
+Catalog IDs: 2.01 / M-1 (for our calls), 4.10 (form gap), 5.03 (show all rows), 5.06 / M-7 (refills gap), 8.13, 7.25 (source label).
+Deliberate regression: the allow-list forwards an unknown query key → expected red: the allow-list test and the outbound-request contract test.
+Acceptance check (a user can do this): pid 13 shows the same 5 prescriptions as the legacy card, in the same order; Refills is labelled unavailable.
+
+### Worked on
+- BFF `/dashboard/bff/patients/:puuid/prescriptions`: `rest.patient.read` (pid) → `rest.prescription.search?patient_id=<pid>&source_table=prescriptions` (REST envelope) → every row's `puuid` must be the requested patient's → `sortPrescriptions` → rows `{drug, details, quantity, refills: null, filled}` with two gap notes (refills, dosage form).
+- `sortPrescriptions`: `active` DESC, `date_modified` DESC with NULLs last, `date_added` DESC (MySQL DESC semantics), then `uuid` ascending as the documented tiebreak; keeps every row.
+- `prescriptionDetails`: `size` + unit title (no space), a space, `dosage`, plus " in <interval title>" only when `interval` is set (PHP `empty()`, so `"0"` counts as unset).
+- SPA `PrescriptionsCard` under Medications, the legacy order: a table with Drug, Details, Qty, Refills, Filled; every Refills cell reads "Not available via API"; source label "Prescriptions written in OpenEMR, every status, …; the medication list is separate."; empty reads "None". `Card`/`NonDataState` gained an optional `emptyText` (default "Nothing Recorded").
+- Fixtures (shaped, not recorded): `rest.prescription.search` added to `patient-13` (5 rows, ids 62–66), `dash-syn-01` (pid 14: 3 rows, one `active=0`), `patient-3` and `dash-syn-02` (HTTP 200, `data: []`). Rows are listed id-ascending (the query has no `ORDER BY`), so the sort is exercised. Values from read-only SELECT on `prescriptions`/`list_options`.
+- Integration script: prescription counts (pid 13: 5, pid 3: empty, DASH-SYN-01: 3).
+
+### Decisions
+- **Empty text is "None"** (owner decision): it is the legacy Rx card's own string (`{xlt t='None'}`), not the "Nothing Recorded" of the issue cards. The arc's live-evidence line was updated to match.
+- **Patient check on `puuid`.** The route's outer SELECT (`PrescriptionService::getBaseSql()`) has no `patient_id` or `pid` column, only `puuid` from the `patient_data` join, so each row's `puuid` must equal the requested uuid; a NULL `puuid` also fails (`PATIENT_MISMATCH`).
+- **`source_table` is a schema literal.** A row from the `lists` branch is `SCHEMA_MISMATCH`: the BFF asked for prescriptions only.
+- **Two layers against M-1.** `/bff/*` already refuses any query string (400, no upstream call; now also asserted for this route), and `buildUpstreamPath` throws on any key not on the route's list before a request is built. The regression proof removes the second layer and shows the gate go red without relying on the first.
+- Quantity renders as stored, "" when NULL (the legacy template prints the empty default). Filled is the raw `date_added` string.
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`, commit `959482e`): 229 tests, all passing (+31): unit 83 (`prescriptions` 11 new, `upstreamRoutes` +2) · contract 48 (`prescriptions` 8 new) · BFF 53 (`cardRoutes` +2; log redaction now also drives the prescriptions card and checks every drug name and uuid is absent from the log) · lint-boundary 3 · component 42 (`PrescriptionsCard` 8 new, 6 with axe, 0 violations). Typecheck 0, lint 0, bundle 71.3 kB gzip JS.
+- Deliberate regression: `buildUpstreamPath()` forwards a key that is not on the route's list instead of throwing → the hook refused the commit (exit 1, HEAD unchanged) with 6 red, including unit `rejects any client-supplied extra key on the prescription search: the route builds SQL from key NAMES (M-1 / 2.01)` and contract `a caller that adds any other query key never reaches OpenEMR (M-1): the client refuses before fetching` → reverted. Output: `docs/legacy-audit/evidence/slice-03-01-regression.txt`.
+- Integration (local stack): `SKIPPED (no token)`.
+- Live: not merged or deployed. **Wired, tested, not yet observed.**
+
+### BUGS-MITIGATIONS.md updates
+- None struck through (not merged).
+
+### Open questions / follow-ups
+- Window 2: pid 13 shows 5 rows in order 66 → 62 with no " in <form>" suffix and the Refills placeholder; pid 3 shows "None"; DASH-SYN-01 shows 3 rows with the inactive one last.
+- The API ACL is `patients/med`, the legacy card's is `patients/rx`: a user can see one and not the other (walkthrough (c)); not testable with the admin role.
+- The `form`-set Details case is not exercised by any seeded row (all `form` NULL or 0); it is a documented gap, not covered.
+
 ## 2026-09-25 — Arc 01 / Story 01-02 / Slice 01-02-03 — Medications card
 
 **Status:** ready-for-commit (committed on the branch; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` (owner instruction) · **SHA:** code at `eecda54`; no merge SHA yet

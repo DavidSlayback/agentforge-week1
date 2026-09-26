@@ -5,7 +5,14 @@ import { failureToCard, mapUpstream } from '../upstream/mapResponse.ts';
 import { restPatientSchema } from '../upstream/schemas/patient.ts';
 import type { CardContext } from './header.ts';
 
-export type PatientRead = { readonly kind: 'resolved'; readonly pid: Pid } | { readonly kind: 'failed'; readonly card: CardResult<never> };
+export type PatientRead =
+  | {
+      readonly kind: 'resolved';
+      readonly pid: Pid;
+      /** `patient_data.DOB` (`YYYY-MM-DD`) or null; only the Vitals pediatric rule reads it. */
+      readonly birthDate: string | null;
+    }
+  | { readonly kind: 'failed'; readonly card: CardResult<never> };
 
 /**
  * Resolve the requested patient once through `rest.patient.read` before any
@@ -29,7 +36,8 @@ export async function resolvePatient(upstream: UpstreamClient, ctx: CardContext)
   if (mapped.value.uuid.toLowerCase() !== patientId) return failed('PATIENT_MISMATCH');
   const pid = parsePid(mapped.value.pid);
   if (pid === null) return failed('SCHEMA_MISMATCH');
-  return { kind: 'resolved', pid };
+  const dob = mapped.value.DOB;
+  return { kind: 'resolved', pid, birthDate: dob && /^\d{4}-\d{2}-\d{2}/.test(dob) ? dob.slice(0, 10) : null };
 }
 
 /** True when a row's `pid` column names the resolved patient (checked on every row). */

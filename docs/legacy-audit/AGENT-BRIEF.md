@@ -61,7 +61,8 @@ This work is **in place**: the legacy code and the port share one repo.
   - Vitals shows the **correct** latest non-deleted set, which deliberately differs
     from the PHP join bug.
   - Allergies: highlight severe only.
-  - Empty lists say "Nothing Recorded".
+  - Empty lists say "Nothing Recorded"; Prescriptions keeps its own legacy text, "None"
+    (owner decision, slice 01-03-01).
   - Refills, Care Team member status and Note, `lists_touch`, squad and
     `hide_dashboard_cards` are "not available via API".
 - **Ids.** Some REST routes take the integer `pid` or `eid`, others take uuids.

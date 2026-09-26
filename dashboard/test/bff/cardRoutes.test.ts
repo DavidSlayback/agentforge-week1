@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTestApp, FakeOpenEmr, makeIdTokenSigner, PATIENT, routeFixture, signIn } from '../support/harness.ts';
+import { buildTestApp, FakeOpenEmr, makeIdTokenSigner, PATIENT, readFixtureFile, routeFixture, signIn } from '../support/harness.ts';
 
 const api = (path: string) => `http://openemr/apis/default/api${path}`;
 
@@ -66,6 +66,70 @@ describe('card routes over HTTP (fastify.inject)', () => {
     const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p3}/medications`, cookies: { dashboard_sid: cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
+  });
+
+  it('Prescriptions: DASH-SYN-01 reaches the browser with all 3 rows and the refills gap, and no refills value', async () => {
+    const { app, fake, cookie } = await signedIn();
+    fake
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}`), routeFixture('shaped/dash-syn-01.json', 'rest.patient.read'))
+      .on('GET', api('/prescription?patient_id=14&source_table=prescriptions'), routeFixture('shaped/dash-syn-01.json', 'rest.prescription.search'));
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/prescriptions`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ kind: string; rows: { refills: unknown }[]; notes: { field: string }[] }>();
+    expect(body.kind).toBe('ok');
+    expect(body.rows).toHaveLength(3);
+    expect(body.rows.every((r) => r.refills === null)).toBe(true);
+    expect(body.notes.map((n) => n.field)).toEqual(['refills', 'form']);
+    expect(fake.unexpected).toEqual([]);
+  });
+
+  it('Prescriptions: a browser-supplied query key is refused at the BFF (400) and nothing is sent upstream (M-1)', async () => {
+    const { app, fake, cookie } = await signedIn();
+    const before = fake.calls.length;
+    for (const qs of ['patient_id=15', 'source_table=lists', 'drug=x', "1%3D1)%20OR%20(1=1"]) {
+      const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/prescriptions?${qs}`, cookies: { dashboard_sid: cookie } });
+      expect(res.statusCode, qs).toBe(400);
+    }
+    expect(fake.calls.length).toBe(before);
+  });
+
+  it('Care Team: pid 13 reaches the browser as one team with 3 members and the status/note gaps; pid 3 is empty', async () => {
+    const { app, fake, cookie } = await signedIn();
+    const file = 'shaped/patient-13.json';
+    fake
+      .on('GET', api(`/patient/${PATIENT.p13}`), routeFixture(file, 'rest.patient.read'))
+      .on('GET', `http://openemr/apis/default/fhir/CareTeam?patient=${PATIENT.p13}`, routeFixture(file, 'fhir.careteam.search'));
+    for (const key of Object.keys(readFixtureFile(file))) {
+      const [route, ref] = key.split(':');
+      if (route === 'fhir.practitioner.read') fake.on('GET', `http://openemr/apis/default/fhir/Practitioner/${ref ?? ''}`, routeFixture(file, key));
+      if (route === 'fhir.organization.read') fake.on('GET', `http://openemr/apis/default/fhir/Organization/${ref ?? ''}`, routeFixture(file, key));
+    }
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p13}/care-team`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ kind: string; rows: { members: unknown[] }[]; notes: { field: string }[] }>();
+    expect(body.kind).toBe('ok');
+    expect(body.rows[0]?.members).toHaveLength(3);
+    expect(body.notes.map((n) => n.field)).toEqual(['member-status', 'note', 'names']);
+    expect(fake.unexpected).toEqual([]);
+
+    fake
+      .on('GET', api(`/patient/${PATIENT.p3}`), routeFixture('shaped/patient-3.json', 'rest.patient.read'))
+      .on('GET', `http://openemr/apis/default/fhir/CareTeam?patient=${PATIENT.p3}`, routeFixture('shaped/patient-3.json', 'fhir.careteam.search'));
+    const empty = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.p3}/care-team`, cookies: { dashboard_sid: cookie } });
+    expect(empty.json()).toEqual({ kind: 'empty', patientId: PATIENT.p3 });
+  });
+
+  it('Vitals: DASH-SYN-01 reaches the browser as the non-deleted set 35 (2026-04-05), not the deleted 2026-05-01 set', async () => {
+    const { app, fake, cookie } = await signedIn();
+    const file = 'shaped/dash-syn-01.json';
+    fake
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}`), routeFixture(file, 'rest.patient.read'))
+      .on('GET', api(`/patient/${PATIENT.dashSyn01}/encounter`), routeFixture(file, 'rest.encounter.list'))
+      .on('GET', api('/patient/14/encounter/370/vital'), routeFixture(file, 'rest.vital.list:370'));
+    const res = await app.inject({ method: 'GET', url: `/dashboard/bff/patients/${PATIENT.dashSyn01}/vitals`, cookies: { dashboard_sid: cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ kind: 'ok', rows: [{ date: '2026-04-05 09:10:00' }] });
+    expect(fake.unexpected).toEqual([]);
   });
 
   it('401 without a session, 400 for a malformed puuid, 400 for any query string', async () => {

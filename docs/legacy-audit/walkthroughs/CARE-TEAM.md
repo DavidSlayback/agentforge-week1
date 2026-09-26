@@ -1,5 +1,15 @@
 # Walkthrough: Care Team card renders for a patient (DB-07)
 
+> **Build correction (slice 01-04-01, code reading, 2026-09-25):** pid 13's
+> `participant[]` has **4** entries, not 3: `populateFacilityTeamMembers()`
+> adds one `Organization` participant per distinct member facility
+> (`CareTeamService::getCareTeamFacilities()`), here facility 3. The port shows
+> the 3 Practitioner participants as member rows and uses the Organization for
+> the Facility column. Member names need `GET /fhir/Practitioner/:id`, which
+> serves only users with a non-empty NPI (`PractitionerService::search()`); no
+> seeded care-team user has one, so the port shows "Name unavailable" locally.
+> Where this walkthrough says "3 entries", read "3 member rows (4 participants)".
+
 Legacy commit: tag `legacy-baseline` = `3ccfe1d` (equals the working tree for
 the paths cited below). Seed: pid 13 has 1 care team, 3 members (2 `active`,
 1 `inactive`); pid 3 has 0 care teams. Both counts re-confirmed this pass by

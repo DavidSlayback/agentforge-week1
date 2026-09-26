@@ -1,7 +1,7 @@
 {
   "_meta": {
     "kind": "shaped",
-    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows).",
+    "note": "Shaped fixture, NOT an HTTP recording and NOT live: values come from read-only SELECT on the local synthetic DB (agentforge-week1-mysql-1, 2026-09-25); structure follows FhirPatientService::parseOpenEMRRecord() and RestControllerHelper::handleProcessingResult() at legacy-baseline 3ccfe1d. Other patient_data columns are omitted. Replace with recorded responses via `npm run test:integration -- --record` once a local token exists. Issue-card routes (rest.allergy.list, rest.problem.list, rest.medication.list) added 2026-09-25 for slices 01-02-01..03 (each slice adds its own route key): values from read-only SELECT on lists/patient_data/list_options (local DB); structure follows AllergyIntoleranceService::search(), ConditionService::search() (rows listed newest-id-first because that query has no ORDER BY, so the port's begdate sort is exercised rather than assumed; diagnosis/provider columns omitted) and ListService::getAll() via RestControllerHelper::responseHandler() (a bare array, or HTTP 404 with an empty body when there are no rows). Prescriptions (rest.prescription.search, slice 01-03-01): values from read-only SELECT on prescriptions/list_options (local DB, 2026-09-25); structure follows PrescriptionService::getBaseSql() (prescriptions branch only: the BFF sends source_table=prescriptions) inside createProcessingResultResponse() (HTTP 200, `data: []` when there are no rows). The outer SELECT has no patient_id/pid column; rows are listed id-ascending because the query has no ORDER BY, so the port's sort is exercised rather than assumed; med-adherence/reporting-source columns omitted. Care Team (fhir.careteam.search, fhir.practitioner.read:<id>, fhir.organization.read:<id>; slice 01-04-01): values from read-only SELECT on care_teams/care_team_member/users/facility/list_options (local DB, 2026-09-25); structure follows FhirCareTeamService::parseOpenEMRRecord() and populateProviderTeamMembers()/populateFacilityTeamMembers() (one Practitioner participant per member row, whatever its status, then one Organization participant per distinct member facility; role display = care_team_roles title for codes outside getRoleMappings(); no participant status or note) in a FhirCareTeamRestController::getAll() Bundle (no paging). The Practitioner reads are 404 with body [] because PractitionerService::search() serves only users with a non-empty NPI and no seeded care-team user has one (handleFhirProcessingResult()); the facility Organization read is 200. Vitals (rest.encounter.list, rest.vital.list:<eid>; slice 01-05-01): values from read-only SELECT on form_encounter/form_vitals/forms/users (local DB, 2026-09-25). rest.encounter.list follows EncounterService::search() (ORDER BY fe.eid DESC; eid = form_encounter.encounter; most columns omitted) in the REST envelope; a patient with no encounters gets HTTP 200 with data [] on the wire, because ViewRendererListener wraps the controller's array in a 200 JsonResponse (API-ROUTES.md Finding 3). rest.vital.list:<eid> follows VitalsService::getVitalsForPatientEncounter() (deleted=0 AND formdir='vitals', so a soft-deleted set is never in it) and createResultRecordFromDatabaseResult() with units_of_measurement=1 (US identity, one <field>_unit key per measurement), written as a bare array by responseHandler(); only the encounters a test needs are included.",
     "pid": 13,
     "role": "data-rich",
     "synthetic": true
@@ -1134,6 +1134,764 @@
         "severity_al": null,
         "verification": "",
         "uuid": "a2d4d066-8335-4acd-93d6-ed714932bf4b"
+      }
+    ]
+  },
+  "rest.prescription.search": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [
+        {
+          "uuid": "a2d4d066-a314-48c4-a5c1-86f2a79a64e0",
+          "source_table": "prescriptions",
+          "drug": "Astemizole 10 MG Oral Tablet",
+          "active": "1",
+          "intent": "order",
+          "category": "community",
+          "intent_title": "Order",
+          "category_title": "Home/Community",
+          "category_text": "Community",
+          "rxnorm_drugcode": "197378",
+          "date_added": "1979-08-09 20:06:27",
+          "unit": null,
+          "interval": null,
+          "route": null,
+          "note": null,
+          "status": "active",
+          "dosage": "1.00",
+          "drug_dosage_instructions": null,
+          "date_modified": null,
+          "medication_adherence_date_asserted": null,
+          "prescription_drug_size": "",
+          "quantity": null,
+          "diagnosis": null,
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "euuid": null,
+          "pruuid": null,
+          "drug_uuid": null,
+          "route_id": null,
+          "route_title": null,
+          "route_codes": null,
+          "unit_id": null,
+          "unit_title": null,
+          "unit_codes": null,
+          "interval_id": null,
+          "interval_title": null,
+          "interval_codes": null,
+          "interval_notes": null,
+          "request_intent_title": "Order"
+        },
+        {
+          "uuid": "a2d4d066-a317-4ae3-a2ce-2b0587e40554",
+          "source_table": "prescriptions",
+          "drug": "Naproxen sodium 220 MG Oral Tablet",
+          "active": "1",
+          "intent": "order",
+          "category": "community",
+          "intent_title": "Order",
+          "category_title": "Home/Community",
+          "category_text": "Community",
+          "rxnorm_drugcode": "849574",
+          "date_added": "2011-05-08 20:06:27",
+          "unit": null,
+          "interval": null,
+          "route": null,
+          "note": null,
+          "status": "completed",
+          "dosage": "1.00",
+          "drug_dosage_instructions": null,
+          "date_modified": null,
+          "medication_adherence_date_asserted": null,
+          "prescription_drug_size": "",
+          "quantity": null,
+          "diagnosis": null,
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "euuid": null,
+          "pruuid": null,
+          "drug_uuid": null,
+          "route_id": null,
+          "route_title": null,
+          "route_codes": null,
+          "unit_id": null,
+          "unit_title": null,
+          "unit_codes": null,
+          "interval_id": null,
+          "interval_title": null,
+          "interval_codes": null,
+          "interval_notes": null,
+          "request_intent_title": "Order"
+        },
+        {
+          "uuid": "a2d4d066-a321-47fe-98d7-bd3bbff0af76",
+          "source_table": "prescriptions",
+          "drug": "sodium fluoride 0.0272 MG/MG Oral Gel",
+          "active": "1",
+          "intent": "order",
+          "category": "community",
+          "intent_title": "Order",
+          "category_title": "Home/Community",
+          "category_text": "Community",
+          "rxnorm_drugcode": "1535362",
+          "date_added": "2018-03-11 23:02:53",
+          "unit": null,
+          "interval": null,
+          "route": null,
+          "note": null,
+          "status": "completed",
+          "dosage": "1.00",
+          "drug_dosage_instructions": null,
+          "date_modified": null,
+          "medication_adherence_date_asserted": null,
+          "prescription_drug_size": "",
+          "quantity": null,
+          "diagnosis": null,
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "euuid": null,
+          "pruuid": null,
+          "drug_uuid": null,
+          "route_id": null,
+          "route_title": null,
+          "route_codes": null,
+          "unit_id": null,
+          "unit_title": null,
+          "unit_codes": null,
+          "interval_id": null,
+          "interval_title": null,
+          "interval_codes": null,
+          "interval_notes": null,
+          "request_intent_title": "Order"
+        },
+        {
+          "uuid": "a2d4d066-a325-4f78-8ee6-240fec27eb1d",
+          "source_table": "prescriptions",
+          "drug": "amLODIPine 2.5 MG Oral Tablet",
+          "active": "1",
+          "intent": "order",
+          "category": "community",
+          "intent_title": "Order",
+          "category_title": "Home/Community",
+          "category_text": "Community",
+          "rxnorm_drugcode": "308136",
+          "date_added": "2020-03-01 20:06:27",
+          "unit": null,
+          "interval": null,
+          "route": null,
+          "note": null,
+          "status": "completed",
+          "dosage": "1.00",
+          "drug_dosage_instructions": null,
+          "date_modified": null,
+          "medication_adherence_date_asserted": null,
+          "prescription_drug_size": "",
+          "quantity": null,
+          "diagnosis": null,
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "euuid": null,
+          "pruuid": null,
+          "drug_uuid": null,
+          "route_id": null,
+          "route_title": null,
+          "route_codes": null,
+          "unit_id": null,
+          "unit_title": null,
+          "unit_codes": null,
+          "interval_id": null,
+          "interval_title": null,
+          "interval_codes": null,
+          "interval_notes": null,
+          "request_intent_title": "Order"
+        },
+        {
+          "uuid": "a2d4d066-a328-41a5-872c-b1b948cb06e8",
+          "source_table": "prescriptions",
+          "drug": "Acetaminophen 325 MG Oral Tablet",
+          "active": "1",
+          "intent": "order",
+          "category": "community",
+          "intent_title": "Order",
+          "category_title": "Home/Community",
+          "category_text": "Community",
+          "rxnorm_drugcode": "313782",
+          "date_added": "2023-02-12 20:25:42",
+          "unit": null,
+          "interval": null,
+          "route": null,
+          "note": null,
+          "status": "completed",
+          "dosage": "1.00",
+          "drug_dosage_instructions": null,
+          "date_modified": null,
+          "medication_adherence_date_asserted": null,
+          "prescription_drug_size": "",
+          "quantity": null,
+          "diagnosis": null,
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "euuid": null,
+          "pruuid": null,
+          "drug_uuid": null,
+          "route_id": null,
+          "route_title": null,
+          "route_codes": null,
+          "unit_id": null,
+          "unit_title": null,
+          "unit_codes": null,
+          "interval_id": null,
+          "interval_title": null,
+          "interval_codes": null,
+          "interval_notes": null,
+          "request_intent_title": "Order"
+        }
+      ],
+      "links": []
+    }
+  },
+  "fhir.careteam.search": {
+    "status": 200,
+    "body": {
+      "resourceType": "Bundle",
+      "type": "collection",
+      "total": 1,
+      "link": [
+        {
+          "relation": "self",
+          "url": "http://localhost:8300/apis/default/fhir/CareTeam?patient=a2d4d063-d949-4f5a-9001-01c1d919afc6"
+        }
+      ],
+      "entry": [
+        {
+          "fullUrl": "http://localhost:8300/apis/default/fhir/CareTeam/f31d59af-b88b-11f1-8c7a-0ed9af59d05d",
+          "resource": {
+            "meta": {
+              "versionId": "1",
+              "lastUpdated": "2026-09-25T16:50:45+00:00",
+              "profile": [
+                "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careteam"
+              ]
+            },
+            "resourceType": "CareTeam",
+            "id": "f31d59af-b88b-11f1-8c7a-0ed9af59d05d",
+            "status": "active",
+            "subject": {
+              "reference": "Patient/a2d4d063-d949-4f5a-9001-01c1d919afc6",
+              "type": "Patient"
+            },
+            "name": "Primary care team [seed:phase1]",
+            "participant": [
+              {
+                "period": {
+                  "start": "2019-04-01"
+                },
+                "role": [
+                  {
+                    "coding": [
+                      {
+                        "system": "http://snomed.info/sct",
+                        "code": "223366009",
+                        "display": "Primary Care Provider"
+                      }
+                    ]
+                  }
+                ],
+                "member": {
+                  "reference": "Practitioner/a2c331a5-4023-4923-823f-c86acfb2e16d",
+                  "type": "Practitioner"
+                },
+                "onBehalfOf": {
+                  "reference": "Organization/a2c33197-4fba-465e-a39c-58e4fdfde53a",
+                  "type": "Organization"
+                }
+              },
+              {
+                "period": {
+                  "start": "2021-09-15"
+                },
+                "role": [
+                  {
+                    "coding": [
+                      {
+                        "system": "http://snomed.info/sct",
+                        "code": "224535009",
+                        "display": "Nurse"
+                      }
+                    ]
+                  }
+                ],
+                "member": {
+                  "reference": "Practitioner/a2c331a5-4021-4f9b-893f-cd7dc6db1147",
+                  "type": "Practitioner"
+                },
+                "onBehalfOf": {
+                  "reference": "Organization/a2c33197-4fba-465e-a39c-58e4fdfde53a",
+                  "type": "Organization"
+                }
+              },
+              {
+                "period": {
+                  "start": "2016-02-01"
+                },
+                "role": [
+                  {
+                    "coding": [
+                      {
+                        "system": "http://snomed.info/sct",
+                        "code": "69280009",
+                        "display": "Specialist"
+                      }
+                    ]
+                  }
+                ],
+                "member": {
+                  "reference": "Practitioner/a2d4d067-74a4-4844-8fb8-28c264c74b80",
+                  "type": "Practitioner"
+                }
+              },
+              {
+                "role": [
+                  {
+                    "coding": [
+                      {
+                        "system": "http://snomed.info/sct",
+                        "code": "43741000",
+                        "display": "Healthcare facility"
+                      }
+                    ]
+                  }
+                ],
+                "member": {
+                  "reference": "Organization/a2c33197-4fba-465e-a39c-58e4fdfde53a",
+                  "type": "Organization"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "fhir.practitioner.read:a2c331a5-4023-4923-823f-c86acfb2e16d": {
+    "status": 404,
+    "body": []
+  },
+  "fhir.practitioner.read:a2c331a5-4021-4f9b-893f-cd7dc6db1147": {
+    "status": 404,
+    "body": []
+  },
+  "fhir.practitioner.read:a2d4d067-74a4-4844-8fb8-28c264c74b80": {
+    "status": 404,
+    "body": []
+  },
+  "fhir.organization.read:a2c33197-4fba-465e-a39c-58e4fdfde53a": {
+    "status": 200,
+    "body": {
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-09-25T00:00:00+00:00"
+      },
+      "resourceType": "Organization",
+      "id": "a2c33197-4fba-465e-a39c-58e4fdfde53a",
+      "active": true,
+      "type": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+              "code": "prov",
+              "display": "Healthcare Provider"
+            }
+          ]
+        }
+      ],
+      "name": "Great Clinic"
+    }
+  },
+  "rest.encounter.list": {
+    "status": 200,
+    "body": {
+      "validationErrors": [],
+      "internalErrors": [],
+      "data": [
+        {
+          "eid": "367",
+          "euuid": "a2d4d066-3c59-47d3-aaf5-4fc10eb54a99",
+          "date": "2026-04-05 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "366",
+          "euuid": "a2d4d066-3c56-4033-8a13-d234d15beb52",
+          "date": "2025-03-30 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "365",
+          "euuid": "a2d4d066-3c53-4f25-a187-f90437f307b1",
+          "date": "2024-03-24 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "364",
+          "euuid": "a2d4d066-3c51-41f8-8d49-d9b122ecc49a",
+          "date": "2024-02-11 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "363",
+          "euuid": "a2d4d066-3c4e-4dc5-8a0d-eef321eb8369",
+          "date": "2023-04-02 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "362",
+          "euuid": "a2d4d066-3c4c-44fb-84e8-df4071398fb3",
+          "date": "2023-03-19 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "361",
+          "euuid": "a2d4d066-3c49-4d02-8b0b-b0a4f4598c27",
+          "date": "2023-02-19 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "360",
+          "euuid": "a2d4d066-3c46-4c06-9ef4-f656893daeac",
+          "date": "2023-02-12 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "359",
+          "euuid": "a2d4d066-3c44-46db-a867-8cce63dcc3f6",
+          "date": "2023-02-05 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "358",
+          "euuid": "a2d4d066-3c41-4961-b1f3-56c5bda5f4b2",
+          "date": "2022-03-13 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "357",
+          "euuid": "a2d4d066-3c3f-4a0c-bd3f-1f34657b791f",
+          "date": "2021-03-07 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "356",
+          "euuid": "a2d4d066-3c3c-4376-be20-aa2829f464d0",
+          "date": "2021-01-31 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "355",
+          "euuid": "a2d4d066-3c39-4a0a-88b3-87d99a17134d",
+          "date": "2021-01-03 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "354",
+          "euuid": "a2d4d066-3c37-491d-8101-230d2865bc2a",
+          "date": "2020-07-29 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "353",
+          "euuid": "a2d4d066-3c34-4f53-89f4-3fd6d4a22475",
+          "date": "2020-06-07 02:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "352",
+          "euuid": "a2d4d066-3c32-4c18-b272-ee35b2c28460",
+          "date": "2020-05-30 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "351",
+          "euuid": "a2d4d066-3c2f-4e86-ac4c-0862bfa12847",
+          "date": "2020-03-31 20:31:14",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "350",
+          "euuid": "a2d4d066-3c2c-4435-900e-b6610110d4ac",
+          "date": "2020-03-31 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "349",
+          "euuid": "a2d4d066-3c2a-4307-8b31-a7dae5c5f17e",
+          "date": "2020-03-15 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "348",
+          "euuid": "a2d4d066-3c27-498e-856c-04b6cbcf219a",
+          "date": "2020-03-01 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "347",
+          "euuid": "a2d4d066-3c24-4b3f-b053-23757b54e112",
+          "date": "2018-03-11 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "346",
+          "euuid": "a2d4d066-3c22-427d-a4d4-d20fd37a136b",
+          "date": "2018-02-25 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "345",
+          "euuid": "a2d4d066-3c1f-4a11-8e66-42aaf5cbaa8e",
+          "date": "2017-07-28 10:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "344",
+          "euuid": "a2d4d066-3c1c-45c8-89c7-14066b8313f8",
+          "date": "2016-02-21 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "343",
+          "euuid": "a2d4d066-3c19-4ec8-9d64-4fc52a297ac3",
+          "date": "2014-02-16 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "342",
+          "euuid": "a2d4d066-3c13-46fe-a6f4-a9b099acaa86",
+          "date": "2011-05-08 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "341",
+          "euuid": "a2d4d066-3c0f-44fe-8558-287fe69d5588",
+          "date": "2011-03-13 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "340",
+          "euuid": "a2d4d066-3c0c-4e67-91f3-d98f46462388",
+          "date": "2011-03-06 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "339",
+          "euuid": "a2d4d066-3c09-4ab3-a401-55be72ff5ba1",
+          "date": "2008-04-27 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "338",
+          "euuid": "a2d4d066-3c05-4cb4-823a-2209230246ba",
+          "date": "2005-04-24 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "337",
+          "euuid": "a2d4d066-3c03-4b6d-8f3b-35c3bbf52acc",
+          "date": "1999-04-18 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "336",
+          "euuid": "a2d4d066-3c00-41a9-8792-1354b987044f",
+          "date": "1992-04-05 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "335",
+          "euuid": "a2d4d066-3bfe-4bc0-b965-714b1dc09e2e",
+          "date": "1990-03-25 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "334",
+          "euuid": "a2d4d066-3bfb-4132-808f-690a09f68f42",
+          "date": "1983-07-22 06:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "333",
+          "euuid": "a2d4d066-3bf8-4677-b42e-84aa0837ce1d",
+          "date": "1979-08-14 15:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        },
+        {
+          "eid": "332",
+          "euuid": "a2d4d066-3bf6-40e4-a30d-1fc29d760882",
+          "date": "1979-08-09 20:06:27",
+          "reason": "[shaped: other columns omitted]",
+          "pid": "13",
+          "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+          "facility_name": "Great Clinic"
+        }
+      ],
+      "links": []
+    }
+  },
+  "rest.vital.list:367": {
+    "status": 200,
+    "body": [
+      {
+        "pid": "13",
+        "puuid": "a2d4d063-d949-4f5a-9001-01c1d919afc6",
+        "eid": "367",
+        "euuid": "a2d4d066-3c59-47d3-aaf5-4fc10eb54a99",
+        "user_uuid": "a2c331a5-4021-4f9b-893f-cd7dc6db1147",
+        "user_npi": "",
+        "id": "27",
+        "form_id": "27",
+        "uuid": "6c5ca7c1-b891-11f1-8c7a-0ed9af59d05d",
+        "date": "2026-04-05 20:06:27",
+        "external_id": null,
+        "note": "[seed:phase1]",
+        "bps": "128",
+        "bpd": "82",
+        "weight": "199.000000",
+        "height": "67.000000",
+        "temperature": "98.200000",
+        "temp_method": "Oral",
+        "pulse": "72.000000",
+        "respiration": "14.000000",
+        "BMI": "31.200000",
+        "BMI_status": "Obesity",
+        "waist_circ": null,
+        "head_circ": null,
+        "oxygen_saturation": "98.00",
+        "oxygen_flow_rate": null,
+        "ped_weight_height": null,
+        "ped_bmi": null,
+        "ped_head_circ": null,
+        "inhaled_oxygen_concentration": null,
+        "last_updated": "2026-09-25 17:29:56",
+        "date_created": "2026-04-05 20:06:27",
+        "weight_unit": "lb",
+        "height_unit": "in",
+        "head_circ_unit": "in",
+        "waist_circ_unit": "in",
+        "temperature_unit": "degF",
+        "pulse_unit": "/min",
+        "respiration_unit": "/min",
+        "BMI_unit": "kg/m2",
+        "bps_unit": "mm[Hg]",
+        "bpd_unit": "mm[Hg]",
+        "inhaled_oxygen_concentration_unit": "%",
+        "oxygen_saturation_unit": "%",
+        "oxygen_flow_rate_unit": "L/min",
+        "ped_weight_height_unit": "%",
+        "ped_bmi_unit": "%",
+        "ped_head_circ_unit": "%"
       }
     ]
   }

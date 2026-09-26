@@ -1,4 +1,4 @@
-import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
+import { parseEncounterId, parseMrn, parsePatientUuid, parsePid, parseResourceUuid } from './ids.ts';
 
 /**
  * The upstream allow-list (MIGRATION-REACT.md §2.4). `buildUpstreamPath` is the
@@ -9,7 +9,9 @@ import { parseMrn, parsePatientUuid, parsePid } from './ids.ts';
  * Routes are added by the slice that needs them. Slice 01-01-01 needs the
  * header reads and the MRN lookup; 01-02-01 the allergy list and the
  * `severity_ccda` label list; 01-02-02 the medical problem list; 01-02-03
- * the medication list.
+ * the medication list; 01-03-01 the prescription search; 01-04-01 the
+ * CareTeam search and the Practitioner / Organization name reads; 01-05-01
+ * the encounter list and the per-encounter vitals.
  */
 
 export type UpstreamRouteId =
@@ -19,10 +21,16 @@ export type UpstreamRouteId =
   | 'rest.allergy.list'
   | 'rest.list.read'
   | 'rest.problem.list'
-  | 'rest.medication.list';
+  | 'rest.medication.list'
+  | 'rest.prescription.search'
+  | 'fhir.careteam.search'
+  | 'fhir.practitioner.read'
+  | 'fhir.organization.read'
+  | 'rest.encounter.list'
+  | 'rest.vital.list';
 
 /** What a parameter value must parse as before it is placed in a URL. */
-export type ParamKind = 'puuid' | 'pid' | 'mrn';
+export type ParamKind = 'puuid' | 'pid' | 'mrn' | 'resourceUuid' | 'eid';
 
 export interface PathParamSpec {
   readonly name: string;
@@ -46,8 +54,10 @@ export interface UpstreamRouteSpec {
   /**
    * How the route is bound to one patient (3.13). `none` is allowed only for a
    * fixed-literal code list with no parameters at all (`rest.list.read`).
+   * `reference` is a single-resource read by an id the BFF took from a
+   * patient-bound response (a CareTeam participant); never a collection.
    */
-  readonly patientBinding: 'path' | 'query' | 'none';
+  readonly patientBinding: 'path' | 'query' | 'none' | 'reference';
 }
 
 export const API_PREFIX = { rest: '/apis/default/api', fhir: '/apis/default/fhir' } as const;
@@ -135,6 +145,89 @@ export const UPSTREAM_ROUTES: Readonly<Record<UpstreamRouteId, UpstreamRouteSpec
     acl: 'patients/med',
     patientBinding: 'path',
   },
+  // Prescriptions card (01-03-01). M-1 / 2.01: `PrescriptionService::getAll()`
+  // builds its WHERE clause from the query-parameter NAMES, so this route is an
+  // authenticated SQL-injection sink for any key we forward. Exactly two keys
+  // are ever sent: `patient_id` (the integer pid from `rest.patient.read`; it
+  // filters the UNION column directly, VERIFICATION.md "Resolved in Phase 6")
+  // and `source_table`, fixed to `prescriptions` (drops the `lists` branch).
+  'rest.prescription.search': {
+    id: 'rest.prescription.search',
+    api: 'rest',
+    pathTemplate: '/prescription',
+    pathParams: [],
+    query: [
+      { key: 'patient_id', kind: 'pid' },
+      { key: 'source_table', kind: 'fixed', fixed: 'prescriptions' },
+    ],
+    scope: 'user/prescription.rs',
+    acl: 'patients/med',
+    patientBinding: 'query',
+  },
+  // Care Team card (01-04-01). One search per card load, by the patient uuid
+  // only. With a user-context token the route checks patients/med
+  // (`_rest_routes_fhir_r4_us_core_3_1_0.inc.php:142-155`).
+  'fhir.careteam.search': {
+    id: 'fhir.careteam.search',
+    api: 'fhir',
+    pathTemplate: '/CareTeam',
+    pathParams: [],
+    query: [{ key: 'patient', kind: 'puuid' }],
+    scope: 'user/CareTeam.rs',
+    acl: 'patients/med',
+    patientBinding: 'query',
+  },
+  // Member and facility names for the Care Team card: a CareTeam participant
+  // carries only a reference, never a display name. Ids come from the CareTeam
+  // response and must parse as uuids. Both reads need admin/users (:650-674, :503-522).
+  'fhir.practitioner.read': {
+    id: 'fhir.practitioner.read',
+    api: 'fhir',
+    pathTemplate: '/Practitioner/{id}',
+    pathParams: [{ name: 'id', kind: 'resourceUuid' }],
+    query: [],
+    scope: 'user/Practitioner.rs',
+    acl: 'admin/users',
+    patientBinding: 'reference',
+  },
+  'fhir.organization.read': {
+    id: 'fhir.organization.read',
+    api: 'fhir',
+    pathTemplate: '/Organization/{id}',
+    pathParams: [{ name: 'id', kind: 'resourceUuid' }],
+    query: [],
+    scope: 'user/Organization.rs',
+    acl: 'admin/users',
+    patientBinding: 'reference',
+  },
+  // Vitals card (01-05-01). The encounter list is newest first (`ORDER BY fe.eid
+  // DESC`, EncounterService.php:322) and needs encounters/auth_a.
+  'rest.encounter.list': {
+    id: 'rest.encounter.list',
+    api: 'rest',
+    pathTemplate: '/patient/{puuid}/encounter',
+    pathParams: [{ name: 'puuid', kind: 'puuid' }],
+    query: [],
+    scope: 'user/encounter.rs',
+    acl: 'encounters/auth_a',
+    patientBinding: 'path',
+  },
+  // One encounter's vitals, deleted forms excluded (`VitalsService::getVitalsForPatientEncounter()`
+  // adds deleted=0 AND formdir='vitals', :504-518). Never FHIR Observation, which
+  // has no deleted filter (5.02 / M-5). Needs encounters/notes.
+  'rest.vital.list': {
+    id: 'rest.vital.list',
+    api: 'rest',
+    pathTemplate: '/patient/{pid}/encounter/{eid}/vital',
+    pathParams: [
+      { name: 'pid', kind: 'pid' },
+      { name: 'eid', kind: 'eid' },
+    ],
+    query: [],
+    scope: 'user/vital.rs',
+    acl: 'encounters/notes',
+    patientBinding: 'path',
+  },
 };
 
 export class AllowListViolation extends Error {
@@ -151,6 +244,12 @@ function parseParam(kind: ParamKind, value: unknown): string | null {
     }
     case 'mrn':
       return parseMrn(value);
+    case 'resourceUuid':
+      return parseResourceUuid(value);
+    case 'eid': {
+      const eid = parseEncounterId(value);
+      return eid === null ? null : String(eid);
+    }
   }
 }
 
