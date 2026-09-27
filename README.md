@@ -31,7 +31,7 @@ for anyone working on the underlying EHR.
 | What | URL |
 |---|---|
 | Week 2 (current submission) | <https://dtstest.64.177.10.182.nip.io/agentforge-w2/> |
-| Week 1 (frozen at `84f232b`, separate route/image, not part of this submission) | <https://dtstest.64.177.10.182.nip.io/agentforge/> |
+| Week 1 (submitted as tag `week1-final` = `e4c0721`; this route runs the pinned image `agentforge-w1:84f232b`; not part of this submission) | <https://dtstest.64.177.10.182.nip.io/agentforge/> |
 | Observability dashboard | `<W2 URL>/observability` |
 | Eval report | `<W2 URL>/evals` |
 | Health / deployed SHA | `<W2 URL>/health` returns `{status, git_sha}` |
@@ -138,7 +138,7 @@ the full gate rubric.
 
 | | Route / service | What it does | Status |
 |---|---|---|---|
-| **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing and follow-up. Reads the chart from synthetic fixtures (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. | Frozen snapshot of the W1 submission at `84f232b` (pinned image `agentforge-w1:84f232b`, never rebuilt). It keeps its known debt, including the `.some` verifier and $0 cost; see [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §4, "Week 1 debt". Superseded by Week 2. |
+| **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing and follow-up. Reads the chart from synthetic fixtures (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. | Week 1 as submitted is tag `week1-final` (`e4c0721`). This route runs the pinned image `agentforge-w1:84f232b`, never rebuilt. It keeps its known debt, including the `.some` verifier and $0 cost; see [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §4, "Week 1 debt". Superseded by Week 2. |
 | **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public no-login demo, chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture". An OpenEMR-launched session (E9) reads the real chart for the designated synthetic patient `AF-LIVE-01` (observed on `b942391f`); problems and allergies are read there through fallback routes that work with the current service grant (`W2_ARCHITECTURE.md` §3f, E9c). | This submission, frozen at tag `w2-final` (`bfbb1eb2`). `/health` reports the deployed SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
 
 Both services run on the same VM as OpenEMR, from the same repository (W1 as

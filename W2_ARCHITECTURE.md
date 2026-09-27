@@ -85,8 +85,9 @@ next section says exactly where that line sits.
 >   (`docs/agentforge/evidence/E9-live-chart-live.md`). Problems and
 >   allergies are read through fallback routes that work with the current
 >   service grant (the OpenEMR 8.0.0 finding and E9c in §3f).
-> - **Week 1 is frozen** at `84f232b`, on its own route (`/agentforge`) and
->   its own pinned image. Nothing in this document changes it.
+> - **Week 1 is frozen.** The submitted code is tag `week1-final` (`e4c0721`);
+>   its route (`/agentforge`) runs the pinned image `agentforge-w1:84f232b`.
+>   Nothing in this document changes either.
 > - **There is no GitLab CI runner.** The enforced gate is the tracked
 >   `.githooks/pre-commit` hook; `.gitlab-ci.yml` mirrors it for when a
 >   runner exists but does not itself execute.

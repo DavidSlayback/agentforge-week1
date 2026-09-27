@@ -16,7 +16,8 @@ result can be displayed.
 ## Week 1 and Week 2 boundary
 
 This document describes the Week 1 chart-preparation briefing as submitted.
-The Week 1 route (`/agentforge`) is frozen at `84f232b`. In the deployment,
+Week 1 as submitted is tag `week1-final` (`e4c0721`). The Week 1 route
+(`/agentforge`) runs the pinned image `agentforge-w1:84f232b`. In the deployment,
 both `/agentforge` and `/agentforge-w2` read the chart from synthetic fixtures
 (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. The OpenEMR REST
 adapter exists and is tested, but it is not the deployed mode. For W2
