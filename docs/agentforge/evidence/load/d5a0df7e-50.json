@@ -1,0 +1,1902 @@
+{
+  "schema_version": "1",
+  "kind": "agentforge-load-test",
+  "mode": "live",
+  "target": {
+    "base_url": "https://dtstest.64.177.10.182.nip.io/agentforge-w2",
+    "reported_git_sha": "d5a0df7e58b4550f1612b2c268a4b7f06767a0cc"
+  },
+  "level": {
+    "concurrent_users": 50
+  },
+  "started_at": "2026-09-27T02:13:02.837Z",
+  "completed_at": "2026-09-27T02:13:18.379Z",
+  "config": {
+    "requests": 200,
+    "timeout_ms": 60000,
+    "seed": 51,
+    "weights": {
+      "health": 0.2,
+      "ready": 0.15,
+      "demo-context": 0.25,
+      "briefing": 0.4
+    },
+    "briefing_patients": 8,
+    "briefing_request": "UI shape: patient_uuid + clinician_uuid + demo_token, no case_id (prepared briefing reused for 5 min)",
+    "scan": {
+      "planned": 4,
+      "share": 0.02,
+      "max": 4,
+      "hard_max": 10,
+      "sample": "lab-a",
+      "patient": "fixture-patient-001"
+    }
+  },
+  "expected_scan_model_cost": {
+    "scans": 4,
+    "typical_usd": 0.00256,
+    "worst_case_usd": 0.00544,
+    "basis": "W2_COST_LATENCY.md per-scan list price (Singapore rate) + E2 critic call; worst case = 3 answer attempts"
+  },
+  "summary": {
+    "requests": 200,
+    "successful": 200,
+    "errors": 0,
+    "error_rate": 0,
+    "wall_ms": 15427.85,
+    "throughput_rps": 12.964,
+    "latency_ms": {
+      "count": 200,
+      "min": 32.94,
+      "mean": 719.15,
+      "p50": 81.84,
+      "p95": 3516.51,
+      "p99": 11754.8,
+      "max": 14850.8
+    },
+    "per_route": {
+      "briefing": {
+        "requests": 79,
+        "errors": 0,
+        "error_rate": 0,
+        "statuses": {
+          "200": 79
+        },
+        "error_codes": {},
+        "latency_ms": {
+          "count": 79,
+          "min": 34.14,
+          "mean": 274.62,
+          "p50": 72.87,
+          "p95": 994.4,
+          "p99": 1113.07,
+          "max": 1113.07
+        }
+      },
+      "demo-context": {
+        "requests": 49,
+        "errors": 0,
+        "error_rate": 0,
+        "statuses": {
+          "200": 49
+        },
+        "error_codes": {},
+        "latency_ms": {
+          "count": 49,
+          "min": 32.94,
+          "mean": 121.73,
+          "p50": 61.09,
+          "p95": 301.58,
+          "p99": 943.12,
+          "max": 943.12
+        }
+      },
+      "health": {
+        "requests": 39,
+        "errors": 0,
+        "error_rate": 0,
+        "statuses": {
+          "200": 39
+        },
+        "error_codes": {},
+        "latency_ms": {
+          "count": 39,
+          "min": 37.02,
+          "mean": 173.06,
+          "p50": 79.07,
+          "p95": 619.27,
+          "p99": 937.56,
+          "max": 937.56
+        }
+      },
+      "ready": {
+        "requests": 29,
+        "errors": 0,
+        "error_rate": 0,
+        "statuses": {
+          "200": 29
+        },
+        "error_codes": {},
+        "latency_ms": {
+          "count": 29,
+          "min": 334.16,
+          "mean": 2001.57,
+          "p50": 1648.34,
+          "p95": 3671.07,
+          "p99": 3758.23,
+          "max": 3758.23
+        }
+      },
+      "scan-supervisor": {
+        "requests": 4,
+        "errors": 0,
+        "error_rate": 0,
+        "statuses": {
+          "200": 4
+        },
+        "error_codes": {},
+        "latency_ms": {
+          "count": 4,
+          "min": 11123.85,
+          "mean": 12843.72,
+          "p50": 11754.8,
+          "p95": 14850.8,
+          "p99": 14850.8,
+          "max": 14850.8
+        }
+      }
+    }
+  },
+  "resources": {
+    "status": "attached",
+    "source": "d5a0df7e-docker-stats.jsonl",
+    "method": "docker stats --no-stream sampled during the run",
+    "first_sample_at": "2026-09-27T02:12:46Z",
+    "last_sample_at": "2026-09-27T02:13:28Z",
+    "unparsed_lines": 0,
+    "containers": {
+      "vultr-agentforge-w2-1": {
+        "samples": 7,
+        "cpu_percent": {
+          "max": 32.39,
+          "mean": 8.82
+        },
+        "memory_mib": {
+          "max": 58.17,
+          "mean": 46.81
+        },
+        "memory_limit_mib": 512
+      },
+      "vultr-dashboard-1": {
+        "samples": 7,
+        "cpu_percent": {
+          "max": 0.02,
+          "mean": 0.01
+        },
+        "memory_mib": {
+          "max": 42.67,
+          "mean": 42.51
+        },
+        "memory_limit_mib": 256
+      },
+      "vultr-openemr-1": {
+        "samples": 7,
+        "cpu_percent": {
+          "max": 46.61,
+          "mean": 10.97
+        },
+        "memory_mib": {
+          "max": 257,
+          "mean": 219.06
+        },
+        "memory_limit_mib": 3909.63
+      },
+      "vultr-proxy-1": {
+        "samples": 7,
+        "cpu_percent": {
+          "max": 4.49,
+          "mean": 0.96
+        },
+        "memory_mib": {
+          "max": 18.96,
+          "mean": 17.51
+        },
+        "memory_limit_mib": 3909.63
+      },
+      "vultr-agentforge-1": {
+        "samples": 7,
+        "cpu_percent": {
+          "max": 0.59,
+          "mean": 0.08
+        },
+        "memory_mib": {
+          "max": 42.01,
+          "mean": 41.96
+        },
+        "memory_limit_mib": 3909.63
+      },
+      "vultr-mysql-1": {
+        "samples": 7,
+        "cpu_percent": {
+          "max": 47.82,
+          "mean": 10.55
+        },
+        "memory_mib": {
+          "max": 265.7,
+          "mean": 264.04
+        },
+        "memory_limit_mib": 3909.63
+      }
+    }
+  },
+  "service_metrics_after_level": {
+    "requests": 175,
+    "errors": 1,
+    "errorRate": 0.005714285714285714,
+    "latencyMs": {
+      "p50": 0,
+      "p95": 10517,
+      "p99": 19722
+    },
+    "latencyByInteraction": {
+      "background_preparation": {
+        "p50": 2088,
+        "p95": 3789,
+        "p99": 3789
+      },
+      "scan_form": {
+        "p50": 10517,
+        "p95": 21260,
+        "p99": 21260
+      },
+      "prepared_open": {
+        "p50": 0,
+        "p95": 1,
+        "p99": 1
+      }
+    },
+    "deadlineOutcomes": {
+      "not_applicable": 175
+    },
+    "cacheOutcomes": {
+      "stored": 18,
+      "not_used": 16,
+      "hit": 141
+    },
+    "windowMs": null,
+    "traceLimit": 500,
+    "queueDepth": 0,
+    "retrievalAttempts": 148,
+    "toolFailures": 6,
+    "toolFailureRate": 0.04054054054054054,
+    "retries": 0,
+    "providerFallbacks": 0,
+    "estimatedCostUsd": 0.00874287,
+    "costComplete": true,
+    "tracesWithUnknownCost": 0,
+    "tokens": {
+      "input": 46103,
+      "output": 9490,
+      "total": 55593
+    },
+    "verificationOutcomes": {
+      "passed": 174,
+      "not_applicable": 1
+    },
+    "displayOutcomes": {
+      "displayed": 159,
+      "unknown": 16
+    },
+    "telemetry": {
+      "backend": "local_file",
+      "exporterConfigured": false,
+      "lastExport": null,
+      "lastErrorCode": null,
+      "pendingExports": 0,
+      "droppedExports": 0,
+      "maxPendingExports": 16
+    }
+  },
+  "raw_results": [
+    {
+      "index": 0,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 54.78,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 1,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 537.5,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 2,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 286.48,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 3,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 734.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 4,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 55.62,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 5,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 194.09,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 6,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 269.24,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 7,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 332.05,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 8,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 51.15,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 9,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 230.86,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 10,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 194.69,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 11,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 779.74,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 12,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 716.8,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 13,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 213.16,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 14,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 791.11,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 15,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 583.59,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 16,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 274,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 17,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 187.86,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 18,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 1446.16,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 19,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 863.6,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 20,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 619.99,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 21,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 202.5,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 22,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 364.98,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 23,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 298.91,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 24,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 842.11,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 25,
+      "route": "scan-supervisor",
+      "status": 200,
+      "latency_ms": 11123.85,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 26,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 796.55,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 27,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 520.52,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 28,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 197.68,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 29,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 668.48,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 30,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 1065.64,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 31,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 704.44,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 32,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 412.91,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 33,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 886.22,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 34,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 1124.22,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 35,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 476.12,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 36,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 964.72,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 37,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 278.33,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 38,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 1162.51,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 39,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 301.58,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 40,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 619.27,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 41,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 818.32,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 42,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 1073.69,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 43,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 932.57,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 44,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 210.76,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 45,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 1154.86,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 46,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 235.39,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 47,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 994.4,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 48,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 1033.24,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 49,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 1113.07,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 50,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 46.08,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 51,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 34.14,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 52,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 334.16,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 53,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 64.55,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 54,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 32.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 55,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 263.22,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 56,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 285.26,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 57,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 767.67,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 58,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 943.12,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 59,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 937.56,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 60,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 954.17,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 61,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 57.22,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 62,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 50.74,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 63,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 49.21,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 64,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 45.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 65,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 42.52,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 66,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 37.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 67,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 43.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 68,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 46.75,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 69,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 48.99,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 70,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 48.11,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 71,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 38.18,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 72,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 65.29,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 73,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 57.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 74,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 48.39,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 75,
+      "route": "scan-supervisor",
+      "status": 200,
+      "latency_ms": 11754.8,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 76,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 50.78,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 77,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 62.56,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 78,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 970.56,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 79,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 45.82,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 80,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 38.93,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 81,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 40.24,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 82,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 152.44,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 83,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 51.64,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 84,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 48.6,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 85,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 60.28,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 86,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 61.73,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 87,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 847.32,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 88,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 61.9,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 89,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 45.55,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 90,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 69.26,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 91,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 1672.71,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 92,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 56.52,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 93,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 79.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 94,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 2660.28,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 95,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 58.57,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 96,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 1648.34,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 97,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 2673.89,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 98,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 49.52,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 99,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 100.78,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 100,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 106.72,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 101,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 84.1,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 102,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 82.72,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 103,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 69.55,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 104,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 71.97,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 105,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 81.71,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 106,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 82.11,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 107,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 63.74,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 108,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 58.6,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 109,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 2614.1,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 110,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 65.07,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 111,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 57.64,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 112,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 50.23,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 113,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 65.46,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 114,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 98.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 115,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 90.98,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 116,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 67.4,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 117,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 70.36,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 118,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 2561.7,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 119,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 81.08,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 120,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 89.64,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 121,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 59.07,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 122,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3758.23,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 123,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 784.16,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 124,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3630.75,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 125,
+      "route": "scan-supervisor",
+      "status": 200,
+      "latency_ms": 14850.8,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 126,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 58.52,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 127,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 100.89,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 128,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 102.69,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 129,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 94.79,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 130,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 79.07,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 131,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 83.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 132,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 93.8,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 133,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 550.66,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 134,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 716.74,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 135,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 555.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 136,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 84.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 137,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 63.08,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 138,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 49.11,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 139,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 67.34,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 140,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 68.59,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 141,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 67.87,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 142,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 74.91,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 143,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 43.87,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 144,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 75.29,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 145,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 74.84,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 146,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 66.55,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 147,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 54.48,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 148,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3671.07,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 149,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 51.21,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 150,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 45.88,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 151,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 57.62,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 152,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 55.5,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 153,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 54.03,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 154,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 68.22,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 155,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3597.65,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 156,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3501.21,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 157,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 38.1,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 158,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 61.56,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 159,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 61.55,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 160,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 55.29,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 161,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 57.52,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 162,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 58.5,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 163,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 54.95,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 164,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 58.13,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 165,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 68.63,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 166,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 58.01,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 167,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 62.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 168,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 62.77,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 169,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3538.78,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 170,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 59.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 171,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 68.42,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 172,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 57.3,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 173,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 61.09,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 174,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 58.33,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 175,
+      "route": "scan-supervisor",
+      "status": 200,
+      "latency_ms": 13645.44,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 176,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 55.94,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 177,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3566.76,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 178,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 72.87,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 179,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 67.01,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 180,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 61.58,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 181,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 57.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 182,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 49.02,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 183,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 95.38,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 184,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 69.62,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 185,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 85.71,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 186,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 65.88,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 187,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 69.21,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 188,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 71.21,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 189,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 431.35,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 190,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 81.84,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 191,
+      "route": "briefing",
+      "status": 200,
+      "latency_ms": 84.88,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 192,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3515.93,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 193,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 71.36,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 194,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 492.23,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 195,
+      "route": "ready",
+      "status": 200,
+      "latency_ms": 3516.51,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 196,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 64.15,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 197,
+      "route": "demo-context",
+      "status": 200,
+      "latency_ms": 101.97,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 198,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 92.05,
+      "ok": true,
+      "error": null
+    },
+    {
+      "index": 199,
+      "route": "health",
+      "status": 200,
+      "latency_ms": 78.87,
+      "ok": true,
+      "error": null
+    }
+  ]
+}

@@ -889,6 +889,15 @@ observed live** — the post-deploy smoke below has not run.
 - Browser screenshot of the bbox overlay. Then the user records the video (H5)
   and posts socially (H6).
 
+## Freeze record (E7, 2026-09-27 ~02:10 UTC)
+
+- **Freeze SHA `d5a0df7e`** (tag `w2-final`). `/agentforge-w2/health` and `/dashboard/health` both report it; W1 `/agentforge` stays at `84f232b`.
+- **Live acceptance: 26/26 PASS** (`docs/agentforge/evidence/LEDGER.md`). The rows cover the core W2 requirements, X-1…X-4, the E8 labels, scope and badge, the p95 alert, and the dashboard SHA.
+- **Bruno, deployed:** 27/27 requests, 64/64 assertions (`evidence/bruno-deployed-d5a0df7e.md`).
+- **Load test:** 400/400 ok, 0 errors; p95 2.34 s (10 users) and 3.52 s (50 users) (`LOAD_TEST.md`, `evidence/load/`).
+- **Commits after the freeze** are evidence and docs only, and name the freeze SHA.
+- **Owner items still open:** the demo video, the social post, and the submission link to `main`.
+
 ## Acceptance evidence ledger
 
 Filled in during execution. One row per matrix ID: `ID | SHA | check
