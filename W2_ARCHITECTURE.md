@@ -729,7 +729,7 @@ body field; a copied claims object is refused):
   logs the missing setting names at startup, keeps `/ready` at 503
   (`openemrLiveReadsConfiguration`), and refuses each live request with
   `openemr_live_reads_not_configured`.
-- **OpenEMR 8.0.0 finding (E9b, 2026-09-26, unresolved upstream behavior).**
+- **OpenEMR 8.0.0 finding (E9b, 2026-09-26; narrowed to AgentForge's service grant).** The dashboard BFF calls the same routes with a signed-in `grader`'s tokens and gets rows (owner check, 2026-09-26), so the empty results are specific to AgentForge's refresh-token grant (user `admin`, 2026-09-18). A re-authorization helper for a clinician grant exists (`deploy/vultr/README.md` runbook step 7), and the client's `grant_types` were changed to `authorization_code|refresh_token` (from `password|refresh_token`, owner approval), but the helper has **not been run**: it needs a clinician at OpenEMR's consent screen. Until then problems and allergies stay `unverified_empty` on the live path.
   Observed on production with the service's read token (user `admin`, scopes
   include `user/medical_problem.rs` and `user/allergy.rs`):
   `GET /apis/default/api/patient/{uuid}/medical_problem` and
