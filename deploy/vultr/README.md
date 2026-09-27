@@ -271,8 +271,8 @@ SHA. Values are never printed.
 6. **Observe as `grader`.** Sign in to OpenEMR, open patient
    `Test Patient One` (pubpid `AF-LIVE-01`), choose **Prepare for visit** in
    the patient menu and open the link within about 4 minutes. The page badge
-   must say "Chart source: OpenEMR (live)". Run the "Lab result · Layout A"
-   sample: the scan answer's patient-record facts cite `openemr_record` for
+   must say "Chart source: OpenEMR (live)". Run the "Lab report — clean
+   digital PDF" sample: the scan answer's patient-record facts cite `openemr_record` for
    the medications (Lisinopril) and encounters (the blood-pressure
    follow-up); problems and allergies are **not** shown as facts but listed
    under "Needs review" as "could not be confirmed from OpenEMR" (the

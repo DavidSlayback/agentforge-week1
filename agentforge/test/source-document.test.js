@@ -101,12 +101,14 @@ test('AgentForge UI exposes the three synthetic source-document types and upload
   assert.match(page, /<option value="medication_list">Medication list<\/option>/);
   for (const sample of ['medlist-a', 'medlist-b']) assert.match(page, new RegExp(`data-run-pdf-sample="${sample}" data-document-type="medication_list"`));
   assert.match(page, /\/v1\/source-documents/);
-  assert.match(page, /Completed synthetic PDF samples/);
+  assert.match(page, /Sample documents \(synthetic\)/);
   assert.match(page, /data-run-pdf-sample="lab-a"/);
   for (const sample of ['lab-a', 'lab-b', 'intake-a', 'intake-b', 'medlist-a', 'medlist-b']) assert.match(page, new RegExp(`/v1/demo-scan-pdf\\?sample=${sample}`));
   assert.match(page, /https:\/\/www\.fda\.gov\/media\/76299\/download/);
-  assert.match(page, /Upload a synthetic filled lab PDF or a \.scan\.txt envelope/);
+  assert.match(page, /Upload a filled synthetic PDF\. Each value is cited to its page region/);
+  assert.match(page, /accepts a <code>\.scan\.txt<\/code> envelope/);
   assert.match(page, /Local OCR \(for a PDF\) returns cited page regions/);
+  assert.equal((page.match(/>Run this sample<\/button>/g) || []).length, 7, 'one compact run button per sample card');
 });
 
 test('AgentForge UI accepts only PDF and .scan.txt uploads, not plain .txt', () => {
