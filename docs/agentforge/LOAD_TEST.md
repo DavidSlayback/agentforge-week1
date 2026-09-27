@@ -147,3 +147,14 @@ history.
 
 `docs/agentforge/COST_MODEL.md` and `W2_COST_LATENCY.md` hold the scale
 projections. No provider cost in this file is an observed bill.
+
+## Freeze run (2026-09-27, SHA `d5a0df7e`)
+
+`node agentforge/scripts/load-test.mjs --base-url https://dtstest.64.177.10.182.nip.io/agentforge-w2 --live`, with `docker stats` sampled every 5 s on the VM.
+
+| Level | Requests | Errors | p50 | p95 | p99 | Throughput |
+|---|---|---|---|---|---|---|
+| 10 users | 200/200 ok | 0 | 46 ms | 2.34 s | 9.58 s | 13.0 req/s |
+| 50 users | 200/200 ok | 0 | 82 ms | 3.52 s | 11.75 s | 13.0 req/s |
+
+The p95 and p99 come from the capped share of full scan requests (OCR, model, critic); the cheap routes stay under 100 ms. `agentforge-w2` peaked at 32 % CPU and 58 MiB of its 512 MiB limit. Both levels share one sampling window of 7 samples, because they ran back to back. Raw data: `docs/agentforge/evidence/load/d5a0df7e-{10,50}.json` and `d5a0df7e-docker-stats.jsonl`.
