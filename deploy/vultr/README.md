@@ -370,9 +370,11 @@ SHA. Values are never printed.
       plain restart may keep the old bind-mounted inode):
       `docker compose --env-file /opt/agentforge-week1/.env up -d --no-deps --force-recreate agentforge-w2`,
       then repeat runbook steps 5 (`/ready` 200) and 6 above. With the new grant the
-      problems and allergies should appear as facts; if they still come
-      back empty the briefing stays qualified (`unverified_empty`) and the
-      finding is not about the grant.
+      problems and allergies should come back from the scoped routes. Since
+      E9c (2026-09-27) they are already read through fallback routes with
+      the current grant (`/patient/{pid}/allergy`, and the unscoped
+      `/medical_problem` filtered to the patient; `attempts: 2` in the
+      coverage), so a new grant mostly removes the problem-list over-fetch.
 
 The helper requests `openid offline_access api:oemr user/patient.rs
 user/encounter.rs user/medical_problem.rs user/allergy.rs user/medication.rs`

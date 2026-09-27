@@ -10,15 +10,30 @@ const REST_PREFIX = '/apis/default/api';
  * (`openemr_scoped_list_empty`), which qualifies the briefing and answer. The
  * medication route (by pid) returns the patient's rows and an empty
  * encounter list is a 404 (failed), so their empty results stay `empty`.
- * The numeric-pid variant of these routes is not used: it works only because
- * this build compares `:puuid` against the pid.
+ *
+ * Fallback reads (2026-09-27), tried only when the scoped route returns no
+ * rows for this patient, and filtered by the same `rowBelongsToPatient`
+ * check (pid and puuid) as every other row:
+ * - allergies: `/patient/{pid}/allergy`. On 8.0.0 this route filters on
+ *   `lists.pid` (`AllergyIntoleranceRestController::getAll(['lists.pid' =>
+ *   $puuid])`), so the numeric pid is its real key; the answer is still
+ *   scoped to one patient by the server.
+ * - problems: the unscoped `/medical_problem` list. No patient-scoped
+ *   problem route answers for this grant (`/patient/{pid}/medical_problem`
+ *   is a 500), so the adapter reads the list and keeps only this patient's
+ *   rows. That over-fetches other patients' problem rows into memory; it is
+ *   acceptable only because live reads are limited to designated synthetic
+ *   patients (`AGENTFORGE_LIVE_PATIENT_UUIDS`), and it goes away once the
+ *   read client is re-authorized as a clinician (runbook step 7).
+ * A group read through its fallback reports `attempts: 2`. If the fallback
+ * also finds nothing, the group stays `unverified_empty`.
  */
 const UNTRUSTED_EMPTY = 'openemr_scoped_list_empty';
 const READ_GROUPS = Object.freeze([
   ['encounters', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/encounter`, mapEncounter],
-  ['problems', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/medical_problem`, mapProblem, UNTRUSTED_EMPTY],
+  ['problems', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/medical_problem`, mapProblem, UNTRUSTED_EMPTY, () => `${REST_PREFIX}/medical_problem`],
   ['medications', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.pid)}/medication`, mapMedication],
-  ['allergies', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/allergy`, mapAllergy, UNTRUSTED_EMPTY],
+  ['allergies', (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.patient_ref)}/allergy`, mapAllergy, UNTRUSTED_EMPTY, (patient) => `${REST_PREFIX}/patient/${encodeURIComponent(patient.pid)}/allergy`],
 ]);
 /**
  * F-LIVE: groups this adapter does not read, reported as `not_requested` with
@@ -108,13 +123,19 @@ export class OpenEMRRestAdapter {
     const patient = item.openemr_patient;
     const groups = [{ group: 'identity', status: 'success', records: 1, attempts: 1, error_class: null }];
     const records = [mapIdentity(patient)];
-    const results = await Promise.all(READ_GROUPS.map(async ([group, pathFor, mapper, untrustedEmpty = null]) => {
+    const results = await Promise.all(READ_GROUPS.map(async ([group, pathFor, mapper, untrustedEmpty = null, fallbackPathFor = null]) => {
       try {
         const result = await this.request(pathFor(patient), { correlationId, signal });
         const rows = recordsFrom(result.body);
         const scopedRows = rows.filter((row) => rowBelongsToPatient(row, patient, group));
         const mapped = scopedRows.flatMap((row, index) => mapper(row, index));
         if (mapped.length) return { records: mapped, coverage: { group, status: 'success', records: mapped.length, attempts: 1, error_class: null } };
+        if (fallbackPathFor && patient.pid !== undefined && patient.pid !== null && String(patient.pid) !== '') {
+          // A failed fallback leaves the group as the scoped read left it.
+          const fallback = await this.request(fallbackPathFor(patient), { correlationId, signal }).catch(() => null);
+          const fallbackMapped = fallback ? recordsFrom(fallback.body).filter((row) => rowBelongsToPatient(row, patient, group)).flatMap((row, index) => mapper(row, index)) : [];
+          if (fallbackMapped.length) return { records: fallbackMapped, coverage: { group, status: 'success', records: fallbackMapped.length, attempts: 2, error_class: null } };
+        }
         // Rows that all belong to other patients prove nothing about this one,
         // on any route; an empty answer from a route known to return empty
         // wrongly (above) proves nothing either. Neither is a confirmed absence.

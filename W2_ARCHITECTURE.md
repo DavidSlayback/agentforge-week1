@@ -83,8 +83,8 @@ next section says exactly where that line sits.
 >   on production only for the designated synthetic patient `AF-LIVE-01`, and
 >   was observed on `b942391f` as `grader`
 >   (`docs/agentforge/evidence/E9-live-chart-live.md`). Problems and
->   allergies show as unconfirmed there, because of the OpenEMR 8.0.0 finding
->   in §3f.
+>   allergies are read through fallback routes that work with the current
+>   service grant (the OpenEMR 8.0.0 finding and E9c in §3f).
 > - **Week 1 is frozen** at `84f232b`, on its own route (`/agentforge`) and
 >   its own pinned image. Nothing in this document changes it.
 > - **There is no GitLab CI runner.** The enforced gate is the tracked
@@ -760,6 +760,11 @@ body field; a copied claims object is refused):
   logs the missing setting names at startup, keeps `/ready` at 503
   (`openemrLiveReadsConfiguration`), and refuses each live request with
   `openemr_live_reads_not_configured`.
+- **E9c fallback reads (2026-09-27).** When the patient-scoped problem or allergy route returns no rows for this patient, the adapter tries a second route and keeps only rows whose pid and puuid match the patient:
+  - allergies come from `/patient/{pid}/allergy`, which on 8.0.0 filters on `lists.pid`, so it is still scoped to one patient by the server;
+  - problems come from the unscoped `/medical_problem` list, filtered in the adapter, because no patient-scoped problem route answers for this grant. That over-fetches other patients' problem rows into memory. It is acceptable only because live reads are limited to designated synthetic patients, and it goes away with a clinician grant (runbook step 7).
+
+  A group read this way reports `attempts: 2`. It stays `unverified_empty` only if the fallback also finds nothing. Tests: `agentforge/test/openemr-list-fallback.test.js`; regression proof: `docs/agentforge/evidence/E9c-list-fallback-regression.txt`.
 - **OpenEMR 8.0.0 finding (E9b, 2026-09-26; narrowed to AgentForge's service grant).** The dashboard BFF calls the same routes with a signed-in `grader`'s tokens and gets rows (owner check, 2026-09-26), so the empty results are specific to AgentForge's refresh-token grant (user `admin`, 2026-09-18). A re-authorization helper for a clinician grant exists (`deploy/vultr/README.md` runbook step 7), and the client's `grant_types` were changed to `authorization_code|refresh_token` (from `password|refresh_token`, owner approval), but the helper has **not been run**: it needs a clinician at OpenEMR's consent screen. Until then problems and allergies stay `unverified_empty` on the live path.
   Observed on production with the service's read token (user `admin`, scopes
   include `user/medical_problem.rs` and `user/allergy.rs`):
