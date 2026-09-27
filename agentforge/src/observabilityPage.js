@@ -35,7 +35,37 @@ export function computeDashboardMetrics(traces = []) {
     costComplete: tracesWithUnknownCost === 0,
     tracesWithUnknownCost,
     verificationPassRate: verified.length ? passes / verified.length : null,
+    byOperation: latencyByOperation(traces),
   };
+}
+
+/**
+ * Latency percentiles per kind of work. `prepared_open` is a cache read of an
+ * already prepared briefing (about 0 ms, no model work), as is `cache_followup`;
+ * mixed into one
+ * headline percentile it drags the median to 0 ms, so it is reported as its
+ * own row, never dropped. Self-contained: the page serializes this function
+ * into its client script.
+ */
+export function latencyByOperation(traces = []) {
+  const GROUPS = { scan_form: 'Document scan', background_preparation: 'Briefing preparation', scheduled_preparation: 'Briefing preparation', briefing: 'Briefing preparation', fresh_followup: 'Follow-up question', prepared_open: 'Open prepared briefing (cache read)', cache_followup: 'Follow-up answered from cache' };
+  const ORDER = ['Document scan', 'Briefing preparation', 'Follow-up question'];
+  const groups = new Map();
+  for (const trace of Array.isArray(traces) ? traces : []) {
+    const operation = String(trace?.interactionType || trace?.operation || 'unknown');
+    const label = GROUPS[operation] || operation.replaceAll('_', ' ');
+    if (!groups.has(label)) groups.set(label, { label, operations: [], cache_read: operation === 'prepared_open' || operation === 'cache_followup', values: [] });
+    const group = groups.get(label);
+    if (!group.operations.includes(operation)) group.operations.push(operation);
+    const raw = trace?.durationMs;
+    if (raw !== null && raw !== undefined && raw !== '' && Number.isFinite(Number(raw))) group.values.push(Number(raw));
+  }
+  const rank = (group) => (group.cache_read ? 1000 : ORDER.includes(group.label) ? ORDER.indexOf(group.label) : 100);
+  return [...groups.values()].sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label)).map((group) => {
+    const values = [...group.values].sort((a, b) => a - b);
+    const percentile = (p) => (values.length ? values[Math.min(values.length - 1, Math.ceil(values.length * p) - 1)] : null);
+    return { label: group.label, operations: group.operations, cache_read: group.cache_read, count: values.length, p50: percentile(0.5), p95: percentile(0.95), p99: percentile(0.99) };
+  });
 }
 
 export function renderObservabilityPage({ previewData = null } = {}) {
@@ -57,6 +87,9 @@ export function renderObservabilityPage({ previewData = null } = {}) {
     @media(max-width:1000px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.panels{grid-template-columns:1fr}}
     @media(max-width:600px){.shell{padding:20px 12px 32px}.topbar{display:block}.toolbar{justify-content:flex-start;margin-top:14px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.card{padding:12px}.value{font-size:1.2rem}.panel{padding:14px}.hide-mobile{display:none}.table-wrap{margin-right:-3px}}
     @media(prefers-color-scheme:dark){:root{color:#e2eaf4;background:#101821}.card,.panel{background:#172330;border-color:#2a3949;box-shadow:none}.subtitle,.muted,.detail,.alert-meta,.footer{color:#9aabbd}.eyebrow{color:#8bb9e7}.safety{background:#182c3e;color:#c8dcf0;border-color:#385673}.alert{background:#183328;border-color:#28543a}.alert.firing{background:#3b211f;border-color:#69332e}.alert-meta{color:#b2bfcd}.table-wrap{border-color:#2b3a4a}th{background:#202e3c;color:#a9bacb}td,th{border-bottom-color:#2b3948}.item{background:#202e3c;color:#d6e1ed}.item strong{color:#ebf2fa}.waterfall text{fill:#adbed0}.button{border-color:#405367}.button:hover{border-color:#75b5f1;color:#a8d5ff}.pill{background:#19452e;color:#a9e3ba}.pill.firing{background:#552a27;color:#ffb9b0}}
+    .ops-table{min-width:0}.ops-table td,.ops-table th{padding:8px 10px}.num{text-align:right;font-variant-numeric:tabular-nums}.cache-row td{color:#77879a}
+    .facts{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0;font-size:.86rem}.facts dt{color:#617286;font-weight:700}.facts dd{margin:0}
+    .filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:.82rem;color:#617286}.filter select{font:inherit;padding:6px 8px;border:1px solid #bdcadd;border-radius:7px;background:transparent;color:inherit}
   </style>
 </head>
 <body><main class="shell">
@@ -65,7 +98,8 @@ export function renderObservabilityPage({ previewData = null } = {}) {
   <div class="safety"><strong>Privacy boundary:</strong> operational metadata only. Source text, prompts, model responses, and direct identifiers are not displayed.</div>
   <section id="kpis" class="kpis" aria-label="Key performance indicators"></section>
   <section class="panels"><article class="panel"><h2>Service alerts</h2><div id="alerts" class="alerts"><div class="empty">Loading alert state…</div></div></article><article class="panel"><h2>Traffic and safety</h2><div id="summary" class="muted">Loading encounter summary…</div></article></section>
-  <section class="panel"><h2>Recent encounters</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Operation</th><th>Status / final state</th><th>Duration</th><th>Tokens</th><th>Cost</th><th>Extraction confidence</th><th>Retrieval hits</th><th>Verification / eval</th><th>Details</th></tr></thead><tbody id="traces"><tr><td colspan="10" class="empty">Loading traces…</td></tr></tbody></table></div></section>
+  <section class="panel"><h2>Latency by operation</h2><div class="table-wrap"><table class="ops-table"><thead><tr><th>Operation</th><th class="num">Requests</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th></tr></thead><tbody id="ops"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table></div><p class="footer">Opening a prepared briefing and answering a follow-up from cache are cache reads (about 0 ms, no model work), so they have their own rows instead of pulling the work medians to 0 ms. The p95 alert uses all requests, cache reads included.</p></section>
+  <section class="panel"><h2>Recent encounters</h2><div class="filter"><label for="op-filter">Show</label><select id="op-filter"><option value="work">Real work (scans, briefings, follow-ups)</option><option value="all">All operations, including cache reads</option></select><span id="filter-note" aria-live="polite"></span></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Operation</th><th>Status / final state</th><th>Duration</th><th>Tokens</th><th>Cost</th><th>Extraction confidence</th><th>Retrieval hits</th><th>Verification / eval</th><th>Details</th></tr></thead><tbody id="traces"><tr><td colspan="10" class="empty">Loading traces…</td></tr></tbody></table></div></section>
   <p class="footer">Production data is fetched from /v1/metrics, /v1/alerts, and /v1/traces. Request totals use the retained trace set: the newest AGENTFORGE_TRACE_LIMIT traces (default 500) within the retention window.</p>
 </main>
 <script>
@@ -91,6 +125,8 @@ export function renderObservabilityPage({ previewData = null } = {}) {
   const cost=(t)=>present(t.modelTotals?.cost_usd)?t.modelTotals.cost_usd:present(t.model?.estimatedCostUsd)?t.model.estimatedCostUsd:present(t.model?.estimated_cost_usd)?t.model.estimated_cost_usd:null;
   const hits=(t)=>{const a=t.retrieval?.attempts;if(!Array.isArray(a))return null;const counts=a.map(x=>x.hit_count??x.hits).filter(present);return counts.length?counts.reduce((s,x)=>s+Number(x),0):null};
   const stageSvg=(stages)=>{const rows=(stages||[]).filter(s=>present(s.durationMs));if(!rows.length)return '<div class="empty">No stage timing recorded.</div>';const max=Math.max(...rows.map(s=>Number(s.durationMs)),1),w=500,h=rows.length*34+12;return '<svg class="waterfall" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="Stage duration waterfall">'+rows.map((s,i)=>{const y=i*34+7,bx=142,bw=Math.max(2,320*Number(s.durationMs)/max);return '<text x="0" y="'+(y+15)+'">'+esc(s.name)+'</text><rect x="'+bx+'" y="'+y+'" width="'+bw+'" height="21" rx="5" fill="'+(s.status==='failure'?'#cf554b':'#377fca')+'"/><text x="'+Math.min(bx+bw+7,470)+'" y="'+(y+15)+'">'+n(s.durationMs)+' ms</text>'}).join('')+'</svg>'};
+  const latencyByOperation=${latencyByOperation.toString()};
+  const isCacheRead=(t)=>['prepared_open','cache_followup'].includes(t.interactionType||t.operation);
   const rows=(traces)=>[...traces].reverse().slice(0,25).map(t=>{
     const when=t.completedAt||t.storedAt||t.startedAt||null, date=when?new Date(when).toLocaleString():'—';
     const op=t.interactionType||t.operation||'—', state=t.display?.status||t.status||t.evaluation?.outcome||'—';
@@ -102,13 +138,22 @@ export function renderObservabilityPage({ previewData = null } = {}) {
     return '<tr><td>'+esc(date)+'</td><td>'+esc(op)+'</td><td><span class="state '+esc(String(state).toLowerCase())+'">'+esc(state)+'</span></td><td>'+n(t.durationMs,' ms')+'</td><td>'+n(tokenCount(t))+'</td><td>'+money(cost(t))+'</td><td>'+esc(confidence(t))+'</td><td>'+n(hits(t))+'</td><td>'+esc(verify)+'</td><td><details><summary>Inspect</summary><div class="trace-detail"><h3>Stage waterfall</h3>'+stageSvg(t.stages)+'<div class="stage-list">'+(t.stages||[]).map(s=>'<div class="item"><strong>'+esc(s.name)+'</strong> · '+n(s.durationMs,' ms')+' · '+esc(s.status||'status unavailable')+'</div>').join('')+'</div><h3>Worker handoffs</h3><div class="handoffs">'+handoffs+'</div>'+ (decisions?'<h3>Supervisor decisions</h3><div class="decisions">'+decisions+'</div>':'')+'<h3>Retrieval attempts</h3><div>'+retrieval+'</div><h3>Model usage by stage</h3><div class="usage">'+usage+'</div></div></details></td></tr>';
   }).join('');
   function render(data){const traces=Array.isArray(data.traces)?data.traces:[],m=sum(traces),alerts=data.alerts||{};
-    $('kpis').innerHTML=[metric('Total requests',n(m.requests),'retained traces'),metric('Error rate',pct(m.errorRate),n(m.errors)+' operational errors'),metric('p50 latency',n(m.p50,' ms'),'measured encounters'),metric('p95 latency',n(m.p95,' ms'),'measured encounters'),metric('p99 latency',n(m.p99,' ms'),'measured encounters'),metric('Total tokens',n(m.tokens),'input + output'),metric('Total cost',money(m.cost),m.unpriced?'estimated USD · '+n(m.unpriced)+' trace(s) with an unpriced model excluded':'estimated USD'),metric('Verification pass rate',pct(m.verify),'encounters with verification status')].join('');
+    const ops=latencyByOperation(traces),op=(label)=>ops.find(o=>o.label===label),cacheReads=ops.filter(o=>o.cache_read).reduce((s,o)=>s+o.count,0);
+    const opCard=(label,name)=>{const o=op(label);return metric(name,o&&o.count?n(o.p50,' ms')+' · '+n(o.p95,' ms'):'—',o&&o.count?'p50 · p95 over '+n(o.count)+' request(s)':'none retained')};
+    $('kpis').innerHTML=[metric('Total requests',n(m.requests),'retained traces'),metric('Error rate',pct(m.errorRate),n(m.errors)+' operational errors'),opCard('Document scan','Document scan latency'),opCard('Briefing preparation','Briefing preparation latency'),metric('p95 latency (all requests)',n(m.p95,' ms'),'alert metric · includes '+n(cacheReads)+' cache read(s)'),metric('Total tokens',n(m.tokens),'input + output'),metric('Total cost',money(m.cost),m.unpriced?'estimated USD · '+n(m.unpriced)+' trace(s) with an unpriced model excluded':'estimated USD'),metric('Verification pass rate',pct(m.verify),'encounters with verification status')].join('');
+    $('ops').innerHTML=ops.length?ops.map(o=>'<tr'+(o.cache_read?' class="cache-row"':'')+'><td>'+esc(o.label)+'</td><td class="num">'+n(o.count)+'</td><td class="num">'+n(o.p50,' ms')+'</td><td class="num">'+n(o.p95,' ms')+'</td><td class="num">'+n(o.p99,' ms')+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">No redacted traces retained.</td></tr>';
     $('alerts').innerHTML=(alerts.rules||[]).map(a=>'<div class="alert '+(a.triggered?'firing':'')+'"><div><div class="alert-name">'+esc(a.id)+'</div><div class="alert-meta">Observed '+esc(a.observed??'—')+' '+(a.triggered?esc(a.operator):(a.operator==='>'?'≤':'not '+esc(a.operator)))+' threshold '+esc(a.threshold??'—')+'</div></div><span class="pill '+(a.triggered?'firing':'')+'">'+(a.triggered?'Firing':'OK')+'</span></div>').join('')||'<div class="empty">No alert rules returned.</div>';
     const fallbacks=traces.filter(t=>t.model?.provider_fallback===true).length;const hitsTotal=traces.reduce((s,t)=>s+(hits(t)||0),0);
-    $('summary').innerHTML='<strong>'+n(traces.length)+'</strong> retained traces'+(present(data.metrics?.traceLimit)?' (limit '+esc(n(data.metrics.traceLimit))+')':'')+' · <strong>'+n(hitsTotal)+'</strong> retrieval hits · <strong>'+n(fallbacks)+'</strong> provider fallbacks · alert window '+(present(alerts.windowMs)?esc(n(alerts.windowMs/60000))+' min':'not specified');
-    $('traces').innerHTML=traces.length?rows(traces):'<tr><td colspan="10" class="empty">No redacted traces retained.</td></tr>';
+    const tally=(values)=>{const c={};values.filter(v=>v!==undefined&&v!==null&&v!=='').forEach(v=>{c[v]=(c[v]||0)+1});const keys=Object.keys(c);return keys.length?keys.sort().map(k=>esc(String(k).replaceAll('_',' '))+' '+n(c[k])).join(' · '):'none recorded'};
+    const total=(pick)=>traces.reduce((s,t)=>s+(present(pick(t))?Number(pick(t)):0),0);
+    const deadlines=traces.filter(t=>t.status==='deadline-exceeded'||t.deadlineOutcome==='exceeded').length;
+    $('summary').innerHTML='<dl class="facts"><dt>Traffic</dt><dd><strong>'+n(traces.length)+'</strong> retained traces'+(present(data.metrics?.traceLimit)?' (limit '+esc(n(data.metrics.traceLimit))+')':'')+' · alert window '+(present(alerts.windowMs)?esc(n(alerts.windowMs/60000))+' min':'not specified')+'</dd><dt>Scan outcomes</dt><dd>'+tally(traces.map(t=>t.evaluation?.final_state))+'</dd><dt>Critic review</dt><dd>'+tally(traces.map(t=>t.critic?.status))+'</dd><dt>Claims removed</dt><dd>'+n(total(t=>t.verification?.claims_dropped))+' by verification · '+n(total(t=>t.critic?.claims_rejected))+' by the critic</dd><dt>Needs review</dt><dd>'+n(total(t=>t.verification?.needs_review_count))+' item(s) sent to human review</dd><dt>Fallbacks</dt><dd>'+n(fallbacks)+' provider fallback(s) · '+n(deadlines)+' deadline exceeded</dd><dt>Retrieval</dt><dd>'+n(hitsTotal)+' hits</dd></dl>';
+    lastData=data;const showAll=$('op-filter').value==='all',shown=showAll?traces:traces.filter(t=>!isCacheRead(t)),hidden=traces.length-shown.length;
+    $('filter-note').textContent=showAll?'':(hidden?n(hidden)+' cache read(s) hidden (prepared briefing opens, cached follow-ups)':'');
+    $('traces').innerHTML=shown.length?rows(shown):'<tr><td colspan="10" class="empty">'+(traces.length?'Only cache reads retained; choose All operations to see them.':'No redacted traces retained.')+'</td></tr>';
     $('updated').textContent='Last updated: '+new Date().toLocaleTimeString();
   }
+  let lastData=null;$('op-filter').addEventListener('change',()=>{if(lastData)render(lastData)});
   let paused=false,timer=null,busy=false;const button=$('pause');button.addEventListener('click',()=>{paused=!paused;button.textContent=paused?'Resume refresh':'Pause refresh';if(!paused)refresh()});
   async function refresh(){if(paused||busy)return;busy=true;try{if(isPreview)render(previewData);else{const [metrics,alerts,traces]=await Promise.all(['/v1/metrics','/v1/alerts','/v1/traces'].map(async p=>{const r=await fetch(basePath+p,{headers:{accept:'application/json'}});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}));render({metrics,alerts,traces})}}catch(e){$('traces').innerHTML='<tr><td colspan="10" class="empty">Dashboard data unavailable: '+esc(e.message)+'</td></tr>'}finally{busy=false}}
   refresh();timer=setInterval(refresh,10000);window.addEventListener('beforeunload',()=>clearInterval(timer));

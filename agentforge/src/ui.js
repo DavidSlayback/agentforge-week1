@@ -1,5 +1,6 @@
 import { clinicalLabel } from './clinicalLanguage.js';
 import { CHART_RECORD_SOURCES } from './chartSource.js';
+import { factLine, factRows, reviewItemLabel, scanSummary, scanSteps } from './uiFormat.js';
 
 const escapeHtml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -18,6 +19,17 @@ const SYNTHETIC_DEMO_PATIENTS = [
   ['fixture-patient-007', 'Test Empty · successful empty lookup'],
   ['fixture-patient-008', 'Test No Baseline · no prior comparison'],
   ['fixture-patient-dup', 'Test Duplicate · duplicate identity'],
+];
+
+// Synthetic sample PDFs served by /v1/demo-scan-pdf: [sample, document type, title, detail].
+const SAMPLE_CARDS = [
+  ['lab-a', 'lab_pdf', 'Lab report — clean digital PDF', 'Complete results'],
+  ['lab-b', 'lab_pdf', 'Lab report — scanned copy', 'Image-only PDF with alternate labels'],
+  ['lab-c', 'lab_pdf', 'Earlier lab report (for the trend)', 'An earlier visit'],
+  ['intake-a', 'intake_form', 'Intake form — digital', 'Demographics and history'],
+  ['intake-b', 'intake_form', 'Intake form — scanned', 'Image-only PDF with alternate labels'],
+  ['medlist-a', 'medication_list', 'Medication list — digital', 'Three medications with dose, frequency and route'],
+  ['medlist-b', 'medication_list', 'Medication list — pharmacy printout', 'Image-only PDF with pharmacy labels'],
 ];
 
 export function renderAgentForgePage({ token = '', payload = null, publicBasePath = '', liveOpenEMR = false, writeToken = '', chartSource = null, designatedPatient = false } = {}) {
@@ -83,22 +95,39 @@ button{background:#145e58;border-color:#145e58}button:hover{background:#104b47}b
 .fact-card{border-color:#d6e4e1;border-radius:.75rem}.fact-label{color:var(--muted)}.evidence summary{color:var(--teal)}
 .qualification{border-left-color:#c8962b;background:#fff6df}.blocked{border-left-color:#aa4141;background:#fff1ef}
 button:disabled{opacity:.6;cursor:wait}
+.briefing-status{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:-.4rem 0 .4rem}.briefing-status .status{margin:0}#reset{min-height:36px;padding:.35rem .75rem;font-size:.85rem}
+#synthetic-samples{padding:0;border:0;background:none}#synthetic-samples .source-links{gap:.5rem}
+#synthetic-samples .sample-card{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.7rem .85rem;border:1px solid var(--line);border-radius:.7rem;background:#fff}
+#synthetic-samples .sample-card[data-busy="true"]{border-color:var(--teal);background:#f3f9f7}
+#synthetic-samples .sample-text{display:grid;gap:.1rem;min-width:0}#synthetic-samples .sample-text strong{color:var(--ink);font-size:.95rem}#synthetic-samples .sample-text>span{color:var(--muted);font-size:.8rem}
+#synthetic-samples .sample-text a{display:inline;padding:0;border:0;background:none;color:var(--teal);font-weight:600;text-decoration:underline}
+#synthetic-samples .sample-progress{color:var(--teal)!important;font-weight:700}#synthetic-samples .sample-progress:empty{display:none}
+#synthetic-samples .sample-card button{min-height:38px;padding:.4rem .8rem;font-size:.85rem;white-space:nowrap}
+#technical-notes{margin-top:1.6rem;padding-top:.8rem;border-top:1px solid var(--line)}#technical-notes summary{cursor:pointer;color:var(--muted);font-weight:700}#technical-notes[open] summary{margin-bottom:.6rem}#technical-notes #official-sources{margin-top:.8rem}
+a{color:var(--teal)}
+.scan-result{margin:.6rem 0 1.4rem;padding:1rem 1.1rem;border:1px solid #c9e1dc;border-radius:.9rem;background:#f7fbfa}.scan-result:focus{outline:3px solid #84cfc0;outline-offset:2px}
+.scan-head{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .6rem;font-size:1.02rem}.scan-head .sep{color:#9aafb7}.state-pill{display:inline-block;border-radius:999px;padding:.12rem .6rem;font-size:.85rem;font-weight:800;background:var(--teal-soft);color:#14564f}.state-pill[data-state="QUALIFIED"]{background:#fff4cc;color:#6b4e00}.state-pill[data-state="BLOCKED"]{background:#fde8e7;color:#9b1c1c}
+.scan-steps{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin:.45rem 0 .2rem;padding:0;list-style:none;font-size:.8rem;color:var(--muted)}.scan-steps li{font-weight:600}.scan-steps li+li::before{content:"→";margin:0 .45rem 0 .15rem;color:#9aafb7;font-weight:400}
+.scan-meta{margin:.2rem 0 .6rem;color:var(--muted);font-size:.85rem}.scan-result details{margin:.55rem 0}.scan-result summary{cursor:pointer;color:var(--teal);font-weight:700}.scan-result h4{margin:.9rem 0 .35rem;font-size:.92rem}
+.fact-list{margin:.2rem 0;padding-left:1.1rem}.fact-list li{margin:.28rem 0}.citation-text,.fact-list a{font-size:.8rem;color:var(--muted)}.fact-list a{color:var(--teal)}.dup-count{color:var(--muted);font-size:.8rem}
+.tech-details dl{display:grid;grid-template-columns:max-content 1fr;gap:.2rem .8rem;font-size:.82rem;margin:.4rem 0}.tech-details dt{color:var(--muted);font-weight:700}.tech-details dd{margin:0;overflow-wrap:anywhere}
+.qualified-reasons{margin:.1rem 0 .5rem;color:#6b4e00;font-size:.88rem}
 @media(max-width:620px){#briefing-form,#source-document-form,#official-sources .source-links,#synthetic-samples .source-links{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button,#scan-sample{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
 </style>
 </head>
 <body><main id="agentforge-app">
 <header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge" id="data-origin">${escapeHtml(dataBadge)}</span></div>
-<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Choose an authorized fixture context.'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div></header>
+<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Demo patients (synthetic)'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div></header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
-<form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Scan form workflow</h2><span class="hint">Synthetic local storage · OCR runs on this server</span></div><label>Document schema<select name="document_type"><option value="lab_pdf">Lab scan PDF</option><option value="intake_form">Patient intake form</option><option value="medication_list">Medication list</option></select></label><label>Filled synthetic PDF or .scan.txt envelope<input type="file" name="source_file" accept=".pdf,application/pdf,.scan.txt" required></label><p class="hint">Upload a synthetic filled lab PDF or a .scan.txt envelope. Local OCR (for a PDF) returns cited page regions and worker handoffs; unclear values require review.</p><button type="submit">Read filled form</button><p id="source-status" class="status" role="status"></p></form>
-<section id="synthetic-samples" aria-labelledby="synthetic-samples-heading"${liveOpenEMR ? ' hidden' : ''}><h3 id="synthetic-samples-heading">Completed synthetic PDF samples</h3><p class="hint">Fictional patient details. Run a sample here or download it to upload later. Each type has a vector and rasterized layout.</p><div class="source-links"><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=lab-a" download>Lab result · Layout A<span>Vector PDF · complete results</span></a><button type="button" class="secondary" data-run-pdf-sample="lab-a" data-document-type="lab_pdf">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=lab-b" download>Lab result · Layout B<span>Rasterized PDF · alternate labels and values</span></a><button type="button" class="secondary" data-run-pdf-sample="lab-b" data-document-type="lab_pdf">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=lab-c" download>Lab result · Layout C<span>Vector PDF · earlier visit, for the lab trend</span></a><button type="button" class="secondary" data-run-pdf-sample="lab-c" data-document-type="lab_pdf">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=intake-a" download>Patient intake · Layout A<span>Vector PDF · demographics and history</span></a><button type="button" class="secondary" data-run-pdf-sample="intake-a" data-document-type="intake_form">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=intake-b" download>Patient intake · Layout B<span>Rasterized PDF · alternate labels and values</span></a><button type="button" class="secondary" data-run-pdf-sample="intake-b" data-document-type="intake_form">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=medlist-a" download>Medication list · Layout A<span>Vector PDF · three medications with dose, frequency and route</span></a><button type="button" class="secondary" data-run-pdf-sample="medlist-a" data-document-type="medication_list">Run this sample</button></div><div class="sample-card"><a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=medlist-b" download>Medication list · Layout B<span>Rasterized PDF · pharmacy record labels</span></a><button type="button" class="secondary" data-run-pdf-sample="medlist-b" data-document-type="medication_list">Run this sample</button></div></div></section>
-<button id="scan-sample" class="secondary" type="button"${liveOpenEMR ? ' hidden' : ''}>Run sample text-fixture workflow</button>
-<section id="official-sources" aria-labelledby="official-sources-heading"><h2 id="official-sources-heading">Public blank PDF references</h2><p class="hint">Agency forms are included as layout references only; these source PDFs are not modified or processed here.</p><div class="source-links"><a href="https://www.fda.gov/media/76299/download" target="_blank" rel="noopener noreferrer">FDA MedWatch Form 3500<span>Official health professional adverse event report · PDF</span></a><a href="https://www.cdc.gov/laboratory/specimen-submission/pdf/form-50-34.pdf" target="_blank" rel="noopener noreferrer">CDC Form 50.34<span>Official legacy specimen submission form · scheduled for retirement October 30, 2026</span></a></div><p class="hint">Source: FDA and CDC. Government agency attribution; AgentForge is not endorsed by either agency. For extraction, use the synthetic completed PDFs above.</p></section>
+<div class="briefing-status"><p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button></div>
+<form id="source-document-form"${liveOpenEMR ? ' class="hidden"' : ''}><div class="section-heading"><h2>Read a document</h2><span class="hint">Synthetic documents · OCR runs on this server</span></div><label>Document type<select name="document_type"><option value="lab_pdf">Lab report</option><option value="intake_form">Patient intake form</option><option value="medication_list">Medication list</option></select></label><label>PDF to read<input type="file" name="source_file" accept=".pdf,application/pdf,.scan.txt" required></label><p class="hint">Upload a filled synthetic PDF. Each value is cited to its page region; unclear values are flagged for review.</p><button type="submit">Read document</button><p id="source-status" class="status" role="status" aria-live="polite"></p></form>
+<section id="scan-result" class="scan-result hidden" tabindex="-1" aria-label="Document result"></section>
+<section id="synthetic-samples" aria-labelledby="synthetic-samples-heading"${liveOpenEMR ? ' hidden' : ''}><h3 id="synthetic-samples-heading">Sample documents (synthetic)</h3><p class="hint">Fictional patient details. Run a sample to see it read, or download the PDF to upload yourself.</p><div class="source-links">${SAMPLE_CARDS.map(([sample, documentType, title, detail]) => `<div class="sample-card" data-sample="${sample}"><div class="sample-text"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)} · <a href="${escapeHtml(publicBasePath)}/v1/demo-scan-pdf?sample=${sample}" download>Download PDF</a></span><span class="sample-progress" aria-live="polite"></span></div><button type="button" class="secondary" data-run-pdf-sample="${sample}" data-document-type="${documentType}">Run this sample</button></div>`).join('')}</div></section>
 <form id="followup-form" class="hidden"><label for="followup-input">Ask a follow-up</label><input id="followup-input" name="message" autocomplete="off" placeholder="What changed since the last visit?"><div class="samples" aria-label="Safe sample follow-ups"><button type="button" class="secondary" data-prompt="What changed since the last visit?">Documented changes</button><button type="button" class="secondary" data-prompt="What plan items need follow-through?">Plan follow-through</button><button type="button" class="secondary" data-prompt="Which records conflict?">Conflicting records</button></div><button type="submit">Send follow-up</button></form>
 <button id="cross-patient-probe" class="secondary hidden" type="button">Probe cross-patient block</button>
-<p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button>
-<details><summary>Evaluator notes</summary><p>Ask only about documented changes, plan follow-through, or conflicting records. Every displayed claim includes its supporting evidence. Partial retrieval is qualified; denied or cross-patient context is blocked.</p><p><a href="${publicBasePath}/observability">Open operations dashboard</a> · <a href="${publicBasePath}/evals">Open evaluator panel</a></p></details>
+<details id="technical-notes"><summary>Technical notes for reviewers</summary><p>Ask only about documented changes, plan follow-through, or conflicting records. Every displayed claim includes its supporting evidence. Partial retrieval is qualified; denied or cross-patient context is blocked.</p><p><a href="${publicBasePath}/observability">Open operations dashboard</a> · <a href="${publicBasePath}/evals">Open evaluator panel</a></p><p class="hint">The upload also accepts a <code>.scan.txt</code> envelope (a text fixture of an OCR result). Local OCR (for a PDF) returns cited page regions and worker handoffs.</p><button id="scan-sample" class="secondary" type="button"${liveOpenEMR ? ' hidden' : ''}>Run sample text-fixture workflow</button>
+<section id="official-sources" aria-labelledby="official-sources-heading"><h2 id="official-sources-heading">Public blank PDF references</h2><p class="hint">Agency forms are included as layout references only; these source PDFs are not modified or processed here.</p><div class="source-links"><a href="https://www.fda.gov/media/76299/download" target="_blank" rel="noopener noreferrer">FDA MedWatch Form 3500<span>Official health professional adverse event report · PDF</span></a><a href="https://www.cdc.gov/laboratory/specimen-submission/pdf/form-50-34.pdf" target="_blank" rel="noopener noreferrer">CDC Form 50.34<span>Official legacy specimen submission form · scheduled for retirement October 30, 2026</span></a></div><p class="hint">Source: FDA and CDC. Government agency attribution; AgentForge is not endorsed by either agency. For extraction, use the synthetic sample documents above.</p></section></details>
 </main>
 <script>
 (() => {
@@ -116,6 +145,7 @@ button:disabled{opacity:.6;cursor:wait}
   const briefingForm = document.getElementById('briefing-form');
   const sourceDocumentForm = document.getElementById('source-document-form');
   const sourceStatus = document.getElementById('source-status');
+  const scanResult = document.getElementById('scan-result');
   const scanSampleButton = document.getElementById('scan-sample');
   const pdfSampleButtons = [...document.querySelectorAll('[data-run-pdf-sample]')];
   const followupForm = document.getElementById('followup-form');
@@ -137,6 +167,11 @@ button:disabled{opacity:.6;cursor:wait}
   const claimGroup = (field) => field.startsWith('encounter.') ? 'Visit reason' : field.startsWith('problem.') ? 'Active concerns' : field.startsWith('medication.') ? 'Medications' : 'Documented facts';
   const clinicalLabel = ${clinicalLabel.toString()};
   const citationBoxId = ${citationBoxId.toString()};
+  const factLine = ${factLine.toString()};
+  const factRows = ${factRows.toString()};
+  const reviewItemLabel = ${reviewItemLabel.toString()};
+  const scanSummary = ${scanSummary.toString()};
+  const scanSteps = ${scanSteps.toString()};
   const displayLabel = (field) => { const label = clinicalLabel(field); return label.charAt(0).toUpperCase() + label.slice(1); };
   const renderBriefing = (response, container) => {
     const claims = response.claims || [];
@@ -266,7 +301,7 @@ button:disabled{opacity:.6;cursor:wait}
     const patient = patientSelector?.value || state.patient;
     if (!file || !patient) return setStatus('Choose a synthetic patient and source file first.', true);
     setBusy(true);
-    sourceStatus.textContent = 'Uploading synthetic source evidence…';
+    sourceStatus.className = 'status'; sourceStatus.textContent = 'Uploading the document…';
     try {
       let writeContext;
       if (${fixedContext}) {
@@ -294,21 +329,133 @@ button:disabled{opacity:.6;cursor:wait}
       // typed abnormal lab results and intake chief concern
       // (activeWorkers.js); message is never a canned per-type string here
       // -- it is only an optional clinician question the server appends.
+      sourceStatus.textContent = 'Reading the document… about 10–15 seconds.';
       const workflow = await request('/v1/scan-supervisor', { patient_uuid: patient, clinician_uuid: ${JSON.stringify(clinician)}, demo_token: writeContext.demo_token, source_document_id: result.source_document.id, message: '' });
       const active = workflow.workflow;
       if (workflow.chart_source) showChartSource(workflow.chart_source.chart_source, workflow.chart_source.label + (['read', 'empty'].includes(workflow.chart_source.status) ? '' : ' (' + (workflow.chart_source.reason || workflow.chart_source.status) + ')') + (workflow.chart_source.unconfirmed_groups?.length ? ' · not confirmed: ' + workflow.chart_source.unconfirmed_groups.join(', ') : '') + ((workflow.chart_source.failed_groups || []).filter((group) => !(workflow.chart_source.unconfirmed_groups || []).includes(group)).length ? ' · not read: ' + workflow.chart_source.failed_groups.filter((group) => !(workflow.chart_source.unconfirmed_groups || []).includes(group)).join(', ') : ''));
-      const workflowSummary = 'Scan workers: ' + active.handoffs.map((handoff) => handoff.worker).join(' → ') + '. Extractor: ' + active.typed_outputs.extraction.provider + '. Final state: ' + active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '') + '; ' + active.typed_outputs.extraction.facts.length + ' cited field(s).';
+      const extractionFacts = active.typed_outputs.extraction.facts || [];
       const guidelineEvidence = active.typed_outputs.evidence?.guideline_evidence || [];
-      setStatus('Synthetic scan workflow completed with ' + active.final_state + ' status.');
-      sourceStatus.textContent = (result.duplicate ? 'Existing synthetic source reused; ' : 'Synthetic source stored; ') + workflowSummary;
-      const preview = document.createElement('a');
-      preview.href = basePath + '/v1/source-documents/' + encodeURIComponent(result.source_document.id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken);
-      preview.textContent = 'Open source preview';
-      preview.target = '_blank';
-      sourceStatus.append(document.createTextNode(' '), preview);
+      const answer = active.answer;
+      const previewBase = basePath + '/v1/source-documents/' + encodeURIComponent(result.source_document.id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken);
+      // Result header: what was read, the final state, how many fields are
+      // cited, and the critic's status (E2: always stated, never implied).
+      const summaryParts = scanSummary({ documentType: result.source_document.document_type, finalState: active.final_state, factCount: extractionFacts.length, criticStatus: answer?.critic_status || null, criticRejected: answer?.critic_rejected || 0, criticUnreviewed: (answer?.critic_claims_not_sent || 0) + (answer?.critic_topup_unreviewed || 0) });
+      const storedIn = result.openemr ? 'OpenEMR' : 'synthetic local storage';
+      scanResult.replaceChildren();
+      const head = document.createElement('p'); head.className = 'scan-head';
+      const docLabel = document.createElement('strong'); docLabel.textContent = summaryParts.document;
+      const statePill = document.createElement('span'); statePill.className = 'state-pill'; statePill.dataset.state = String(active.final_state || ''); statePill.textContent = summaryParts.state;
+      const sep = () => { const dot = document.createElement('span'); dot.className = 'sep'; dot.setAttribute('aria-hidden', 'true'); dot.textContent = '·'; return dot; };
+      head.append(docLabel, sep(), statePill, sep(), document.createTextNode(summaryParts.fields), sep(), document.createTextNode(summaryParts.critic));
+      scanResult.append(head);
+      if (active.qualification?.reasons?.length) { const reasons = document.createElement('p'); reasons.className = 'qualified-reasons'; reasons.textContent = 'Why: ' + active.qualification.reasons.map((reason) => String(reason).replaceAll('_', ' ')).join(', ') + '.'; scanResult.append(reasons); }
+      const steps = scanSteps(active.handoffs);
+      if (steps.length) { const stepList = document.createElement('ol'); stepList.className = 'scan-steps'; stepList.setAttribute('aria-label', 'Steps run'); steps.forEach((step) => { const li = document.createElement('li'); li.textContent = step; stepList.append(li); }); scanResult.append(stepList); }
+      const meta = document.createElement('p'); meta.className = 'scan-meta';
+      meta.textContent = (result.duplicate ? 'Already stored in ' + storedIn + ' (same file)' : 'Stored in ' + storedIn) + ' · ';
+      const preview = document.createElement('a'); preview.href = previewBase; preview.textContent = 'Open the source document with highlighted regions'; preview.target = '_blank';
+      meta.append(preview); scanResult.append(meta);
+      // W1-SF4: a question naming another patient gets no answer; the
+      // document's own extraction above is unaffected.
+      if (workflow.answer_refusal) { const refusal = document.createElement('p'); refusal.className = 'qualification blocked'; refusal.textContent = 'Answer refused (' + workflow.answer_refusal.reason + '): the question names a different patient. No chart data was used.'; scanResult.append(refusal); }
+      const appendCitations = (row, citations) => {
+        for (const citation of citations) {
+          // F9 review fix: only a document-type citation has a source
+          // preview page behind it. A guideline citation's 5-key shape
+          // carries no URL (the S5 corpus URL lives on the evidence item,
+          // not the claim citation), and an openemr_record or
+          // synthetic_chart_fixture citation is a chart record with no document/preview at all --
+          // both render as plain, non-interactive text, never a link
+          // that goes nowhere real.
+          if (citation.source_type === 'document') {
+            const link = document.createElement('a');
+            link.href = basePath + '/v1/source-documents/' + encodeURIComponent(citation.source_id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken) + '#' + citationBoxId(citation.field_or_chunk_id);
+            link.target = '_blank';
+            link.textContent = '[' + citation.page_or_section + ']';
+            row.append(document.createTextNode(' '), link);
+          } else {
+            const span = document.createElement('span');
+            span.className = 'citation-text';
+            span.textContent = '[' + citation.page_or_section + ']';
+            row.append(document.createTextNode(' '), span);
+          }
+        }
+      };
+      // S6 grounded answer: "patient record" facts and "guideline evidence"
+      // claims are rendered as separate sections (W2 scenario: "separate
+      // patient-record facts from guideline evidence"), each claim already
+      // verified against its own citations before the server ever sent it.
+      if (answer) {
+        const listSection = (heading, rows) => {
+          const section = document.createElement('section');
+          const title = document.createElement('h4');
+          title.textContent = heading;
+          section.append(title);
+          if (!rows.length) { const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'None verified for this document.'; section.append(empty); return section; }
+          const list = document.createElement('ul'); list.className = 'fact-list';
+          rows.forEach((row) => list.append(row));
+          section.append(list);
+          return section;
+        };
+        // F-CLIN: deterministic clinical-rule flags (clinicalRules.js), each
+        // with the citations of the facts that triggered it and its threshold source.
+        if ((answer.safety_flags || []).length || answer.safety_flags_dropped || answer.critic_flags_rejected) {
+          const withheldFlags = (answer.safety_flags_dropped || 0) + (answer.critic_flags_rejected || 0);
+          const rows = answer.safety_flags.map((flag) => {
+            const row = document.createElement('li');
+            row.dataset.flagCode = flag.code;
+            const label = document.createElement('strong');
+            label.textContent = flag.severity + ' · ' + flag.code.replaceAll('_', ' ') + ': ';
+            const text = document.createElement('span');
+            text.textContent = flag.text + ' ';
+            row.append(label, text);
+            appendCitations(row, flag.citations);
+            const source = document.createElement('a');
+            source.href = flag.threshold_source.url;
+            source.target = '_blank';
+            source.rel = 'noopener';
+            source.textContent = 'Threshold source: ' + flag.threshold_source.title;
+            row.append(document.createTextNode(' '), source);
+            return row;
+          });
+          const flagSection = listSection('Safety flags (' + answer.safety_flags.length + ')' + (withheldFlags ? '; ' + withheldFlags + ' withheld (failed verification or vetoed by the critic)' : ''), rows);
+          flagSection.className = 'safety-flags';
+          scanResult.append(flagSection);
+        }
+        if (answer.needs_review.length) {
+          const rows = answer.needs_review.map((item) => {
+            const row = document.createElement('li');
+            row.dataset.field = String(item.field || '');
+            row.textContent = reviewItemLabel(item);
+            // Link to the highlighted region only when this document has a box for that field.
+            if (extractionFacts.some((fact) => fact.citation?.field_or_chunk_id === item.field && fact.citation?.bounding_box?.length === 4)) {
+              const link = document.createElement('a'); link.href = previewBase + '#' + citationBoxId(item.field); link.target = '_blank'; link.textContent = 'View source region';
+              row.append(document.createTextNode(' '), link);
+            }
+            return row;
+          });
+          scanResult.append(listSection('Needs review (' + answer.needs_review.length + ')', rows));
+        }
+        const patientRows = factRows(answer.patient_facts).map((fact) => {
+          const row = document.createElement('li');
+          row.textContent = fact.text;
+          if (fact.count > 1) { const count = document.createElement('span'); count.className = 'dup-count'; count.textContent = ' (' + fact.count + ' records)'; row.append(count); }
+          appendCitations(row, fact.citations);
+          return row;
+        });
+        scanResult.append(listSection('Patient record (' + answer.patient_facts.length + ')', patientRows));
+        const guidelineRows = answer.guideline_evidence.map((claim) => { const row = document.createElement('li'); row.textContent = claim.text; appendCitations(row, claim.citations); return row; });
+        scanResult.append(listSection('Guideline evidence (' + answer.guideline_evidence.length + ')', guidelineRows));
+        // F-CLIN: values the question asked for that no source records, stated
+        // as such instead of listing unrelated evidence.
+        if ((answer.not_documented || []).length) {
+          const rows = answer.not_documented.map((item) => { const row = document.createElement('li'); row.textContent = item.text + (item.sources_checked.length ? ' Sources checked: ' + item.sources_checked.join(', ') + '.' : ''); return row; });
+          scanResult.append(listSection('Not documented (' + answer.not_documented.length + ')', rows));
+        }
+      }
       const evidencePanel = document.createElement('details');
       const evidenceHeading = document.createElement('summary');
-      evidenceHeading.textContent = 'Guideline evidence (' + guidelineEvidence.length + ')';
+      evidenceHeading.textContent = 'Guideline sources retrieved (' + guidelineEvidence.length + ')';
       evidencePanel.append(evidenceHeading);
       if (guidelineEvidence.length) {
         for (const item of guidelineEvidence) {
@@ -329,142 +476,32 @@ button:disabled{opacity:.6;cursor:wait}
         empty.textContent = 'No guideline source met the retrieval threshold; the workflow stays qualified.';
         evidencePanel.append(empty);
       }
-      sourceStatus.append(document.createTextNode(' '), evidencePanel);
-      // S6 grounded answer: "patient record" facts and "guideline evidence"
-      // claims are rendered as separate sections (W2 scenario: "separate
-      // patient-record facts from guideline evidence"), each claim already
-      // verified against its own citations before the server ever sent it.
-      const answer = workflow.workflow.answer;
-      // W1-SF4: a question naming another patient gets no answer; the
-      // document's own extraction above is unaffected.
-      if (workflow.answer_refusal) { const refusal = document.createElement('p'); refusal.className = 'qualification blocked'; refusal.textContent = 'Answer refused (' + workflow.answer_refusal.reason + '): the question names a different patient. No chart data was used.'; sourceStatus.append(document.createTextNode(' '), refusal); }
-      if (answer) {
-        const answerPanel = document.createElement('details');
-        answerPanel.open = true;
-        const answerHeading = document.createElement('summary');
-        // E2: the critic's status is always shown, never implied reviewed.
-        const unreviewed = (answer.critic_claims_not_sent || 0) + (answer.critic_topup_unreviewed || 0);
-        const criticLabel = answer.critic_status ? '; critic: ' + answer.critic_status + (answer.critic_rejected ? ', ' + answer.critic_rejected + ' claim(s) removed' : '') + (unreviewed ? ', ' + unreviewed + ' claim(s) not reviewed' : '') : '';
-        answerHeading.textContent = 'Grounded answer (' + answer.composer + criticLabel + ')';
-        answerPanel.append(answerHeading);
-        const claimSection = (heading, claims) => {
-          const section = document.createElement('section');
-          const title = document.createElement('h4');
-          title.textContent = heading + ' (' + claims.length + ')';
-          section.append(title);
-          if (!claims.length) {
-            const empty = document.createElement('p');
-            empty.textContent = 'None verified for this question.';
-            section.append(empty);
-            return section;
-          }
-          const list = document.createElement('ul');
-          for (const claim of claims) {
-            const row = document.createElement('li');
-            const text = document.createElement('span');
-            text.textContent = claim.text + ' ';
-            row.append(text);
-            appendCitations(row, claim.citations);
-            list.append(row);
-          }
-          section.append(list);
-          return section;
-        };
-        const appendCitations = (row, citations) => {
-          for (const citation of citations) {
-            // F9 review fix: only a document-type citation has a source
-            // preview page behind it. A guideline citation's 5-key shape
-            // carries no URL (the S5 corpus URL lives on the evidence item,
-            // not the claim citation), and an openemr_record or
-            // synthetic_chart_fixture citation is a chart record with no document/preview at all --
-            // both render as plain, non-interactive text, never a link
-            // that goes nowhere real.
-            if (citation.source_type === 'document') {
-              const link = document.createElement('a');
-              link.href = basePath + '/v1/source-documents/' + encodeURIComponent(citation.source_id) + '/source-preview?patient_uuid=' + encodeURIComponent(patient) + '&demo_token=' + encodeURIComponent(state.demoToken) + '#' + citationBoxId(citation.field_or_chunk_id);
-              link.target = '_blank';
-              link.textContent = '[' + citation.page_or_section + ']';
-              row.append(document.createTextNode(' '), link);
-            } else {
-              const span = document.createElement('span');
-              span.className = 'citation-text';
-              span.textContent = '[' + citation.page_or_section + ']';
-              row.append(document.createTextNode(' '), span);
-            }
-          }
-        };
-        // F-CLIN: values the question asked for that no source records, stated
-        // as such instead of listing unrelated evidence.
-        if ((answer.not_documented || []).length) {
-          const missingSection = document.createElement('section');
-          const missingTitle = document.createElement('h4');
-          missingTitle.textContent = 'Not documented (' + answer.not_documented.length + ')';
-          missingSection.append(missingTitle);
-          const missingList = document.createElement('ul');
-          for (const item of answer.not_documented) {
-            const row = document.createElement('li');
-            row.textContent = item.text + (item.sources_checked.length ? ' Sources checked: ' + item.sources_checked.join(', ') + '.' : '');
-            missingList.append(row);
-          }
-          missingSection.append(missingList);
-          answerPanel.append(missingSection);
-        }
-        // F-CLIN: deterministic clinical-rule flags (clinicalRules.js), each
-        // with the citations of the facts that triggered it and its threshold source.
-        if ((answer.safety_flags || []).length || answer.safety_flags_dropped || answer.critic_flags_rejected) {
-          const flagSection = document.createElement('section');
-          flagSection.className = 'safety-flags';
-          const flagTitle = document.createElement('h4');
-          const withheldFlags = (answer.safety_flags_dropped || 0) + (answer.critic_flags_rejected || 0);
-          flagTitle.textContent = 'Safety flags (' + answer.safety_flags.length + ')' + (withheldFlags ? '; ' + withheldFlags + ' withheld (failed verification or vetoed by the critic)' : '');
-          flagSection.append(flagTitle);
-          const flagList = document.createElement('ul');
-          for (const flag of answer.safety_flags) {
-            const row = document.createElement('li');
-            row.dataset.flagCode = flag.code;
-            const label = document.createElement('strong');
-            label.textContent = flag.severity + ' · ' + flag.code.replaceAll('_', ' ') + ': ';
-            const text = document.createElement('span');
-            text.textContent = flag.text + ' ';
-            row.append(label, text);
-            appendCitations(row, flag.citations);
-            const source = document.createElement('a');
-            source.href = flag.threshold_source.url;
-            source.target = '_blank';
-            source.rel = 'noopener';
-            source.textContent = 'Threshold source: ' + flag.threshold_source.title;
-            row.append(document.createTextNode(' '), source);
-            flagList.append(row);
-          }
-          flagSection.append(flagList);
-          answerPanel.append(flagSection);
-        }
-        answerPanel.append(claimSection('Patient record', answer.patient_facts), claimSection('Guideline evidence', answer.guideline_evidence));
-        if (answer.needs_review.length) {
-          const reviewSection = document.createElement('section');
-          const reviewTitle = document.createElement('h4');
-          reviewTitle.textContent = 'Needs review (' + answer.needs_review.length + ')';
-          reviewSection.append(reviewTitle);
-          const reviewList = document.createElement('ul');
-          for (const item of answer.needs_review) {
-            const row = document.createElement('li');
-            row.textContent = item.reason === 'openemr_unconfirmed_empty' ? humanize(item.field) + ' could not be confirmed from OpenEMR (an empty list is not a confirmed absence)' : item.field + ' -- ' + item.reason;
-            reviewList.append(row);
-          }
-          reviewSection.append(reviewList);
-          answerPanel.append(reviewSection);
-        }
-        sourceStatus.append(document.createTextNode(' '), answerPanel);
-      }
+      scanResult.append(evidencePanel);
       // E5: server-rendered lab trend chart (labTrend.js), from the read-back only.
-      if (result.source_document.document_type === 'lab_pdf') { const trends = document.createElement('div'); sourceStatus.append(document.createTextNode(' '), trends); try { const trendResponse = await fetch(basePath + '/v1/patients/' + encodeURIComponent(patient) + '/lab-trends/chart?demo_token=' + encodeURIComponent(state.demoToken)); trends.innerHTML = trendResponse.ok ? await trendResponse.text() : '<p class="status error">Lab trends are unavailable.</p>'; } catch { trends.textContent = 'Lab trends are unavailable.'; } }
+      if (result.source_document.document_type === 'lab_pdf') { const trends = document.createElement('div'); scanResult.append(trends); try { const trendResponse = await fetch(basePath + '/v1/patients/' + encodeURIComponent(patient) + '/lab-trends/chart?demo_token=' + encodeURIComponent(state.demoToken)); trends.innerHTML = trendResponse.ok ? await trendResponse.text() : '<p class="status error">Lab trends are unavailable.</p>'; } catch { trends.textContent = 'Lab trends are unavailable.'; } }
+      // Raw workflow details for reviewers, collapsed.
+      const technical = document.createElement('details'); technical.className = 'tech-details';
+      const technicalHeading = document.createElement('summary'); technicalHeading.textContent = 'Technical details';
+      const facts = document.createElement('dl');
+      [['Workers', active.handoffs.map((handoff) => handoff.worker).join(' → ')], ['Extractor', active.typed_outputs.extraction.provider], ['Final state', active.final_state + (active.qualification?.reasons?.length ? ' (' + active.qualification.reasons.join(', ') + ')' : '')], ['Cited fields', String(extractionFacts.length)], ['Answer composer', answer ? answer.composer : 'none'], ['Critic status', answer?.critic_status || 'none'], ['Source document', result.source_document.id + (result.duplicate ? ' (reused)' : '')]].forEach(([term, detail]) => { const dt = document.createElement('dt'); dt.textContent = term; const dd = document.createElement('dd'); dd.textContent = detail; facts.append(dt, dd); });
+      technical.append(technicalHeading, facts);
+      scanResult.append(technical);
+      scanResult.classList.remove('hidden');
+      sourceStatus.textContent = summaryParts.document + ': ' + summaryParts.state + '.';
+      scanResult.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      scanResult.focus({ preventScroll: true });
       sourceDocumentForm.reset();
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
     finally { setBusy(false); }
   };
   sourceDocumentForm?.addEventListener('submit', (event) => { event.preventDefault(); uploadSourceDocument(sourceDocumentForm.elements.source_file.files[0]); });
   pdfSampleButtons.forEach((button) => button.addEventListener('click', async () => {
+    if (busy) return;
     const sample = button.dataset.runPdfSample;
+    const card = button.closest('.sample-card');
+    const progress = card?.querySelector('.sample-progress');
+    if (card) card.dataset.busy = 'true';
+    if (progress) progress.textContent = 'Reading… about 10–15 seconds';
     try {
       const response = await fetch(basePath + '/v1/demo-scan-pdf?sample=' + encodeURIComponent(sample));
       if (!response.ok) throw new Error('Synthetic PDF sample is unavailable.');
@@ -472,6 +509,7 @@ button:disabled{opacity:.6;cursor:wait}
       const file = new File([await response.blob()], 'agentforge-' + sample + '-synthetic.pdf', { type: 'application/pdf' });
       await uploadSourceDocument(file);
     } catch (error) { sourceStatus.textContent = error.message; sourceStatus.className = 'status error'; }
+    finally { if (card) delete card.dataset.busy; if (progress) progress.textContent = ''; }
   }));
   scanSampleButton?.addEventListener('click', async () => {
     if (busy) return;
@@ -495,18 +533,28 @@ button:disabled{opacity:.6;cursor:wait}
 </script></body></html>`;
 }
 
-export function renderEvaluatorPage({ golden, errorAnalysis, w2Gate = null, basePath = '', localReport = false }) {
+export function renderEvaluatorPage({ golden, errorAnalysis, w2Gate = null, w2Extensions = null, basePath = '', localReport = false }) {
   const goldenGate = golden?.gate_passed ? 'PASSED' : 'FAILED';
   const errorGate = errorAnalysis?.gate_passed ? 'PASSED' : 'FAILED';
   const rate = Math.round(Number(errorAnalysis?.detection_rate || 0) * 100);
-  const w2GateLabel = w2Gate?.passed ? 'PASSED' : 'FAILED';
-  const w2Passed = w2Gate?.by_label ? Object.values(w2Gate.by_label).reduce((sum, summary) => sum + summary.passed, 0) : '—';
-  const w2Failures = w2Gate?.by_label ? Object.values(w2Gate.by_label).reduce((sum, summary) => sum + summary.cases - summary.passed, 0) : '—';
+  // W2 gate and extension suite: the committed baseline reports, read the same way.
+  const suiteCounts = (report) => ({
+    label: report ? (report.passed ? 'PASSED' : 'FAILED') : '—',
+    passed: report?.by_label ? Object.values(report.by_label).reduce((sum, summary) => sum + summary.passed, 0) : '—',
+    failed: report?.by_label ? Object.values(report.by_label).reduce((sum, summary) => sum + summary.cases - summary.passed, 0) : '—',
+  });
+  const w2 = suiteCounts(w2Gate);
+  const extensions = suiteCounts(w2Extensions);
+  const gateClass = (label) => (label === 'PASSED' ? 'pass' : label === 'FAILED' ? 'fail' : '');
   const route = (path) => `${basePath}${path}`;
+  const labelRows = (report) => (report?.by_label ? `<ul class="labels">${Object.entries(report.by_label).map(([name, summary]) => `<li><span>${escapeHtml(name.replaceAll('_', ' '))}</span><strong>${escapeHtml(summary.passed)}/${escapeHtml(summary.cases)}</strong></li>`).join('')}</ul>` : '');
+  const suite = (id, title, report, counts, link, linkText, note) => `<section aria-labelledby="${id}"><h2 id="${id}">${title}</h2><p class="muted">${note}</p><div class="cards"><div class="card"><span class="value">${report?.total_cases ?? '—'}</span><span class="muted">cases</span></div><div class="card"><span class="value pass">${counts.passed}</span><span class="muted">passed</span></div><div class="card"><span class="value">${counts.failed}</span><span class="muted">failed</span></div><div class="card"><span class="value ${gateClass(counts.label)}">${counts.label}</span><span class="muted">blocking gate</span></div></div>${labelRows(report)}<p><a href="${route(link)}">${linkText}</a></p></section>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgentForge evaluator panel</title>
-<style>body{font-family:system-ui,sans-serif;max-width:68rem;margin:2rem auto;padding:0 1rem;color:#17202a;background:#f7f9fb}main{background:#fff;border:1px solid #d9e2ec;border-radius:.75rem;padding:1.25rem;box-shadow:0 2px 8px #17202a12}.badge{display:inline-block;border-radius:999px;padding:.2rem .55rem;font-size:.8rem;font-weight:650;background:#e8f1fb;color:#174a7e}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.65rem}.card{border:1px solid #d9e2ec;border-radius:.5rem;padding:.7rem}.value{display:block;font-size:1.35rem;font-weight:700}.muted{color:#52606d;font-size:.9rem}.pass{color:#087443}.warn{color:#6b4e00;background:#fff8df;border-left:4px solid #d49b00;padding:.75rem}.links,.prompts{display:grid;gap:.4rem}.links a{font-weight:650}.links span{color:#52606d;font-size:.9rem}</style></head>
-<body><main id="evaluator-panel"><header><h1>AgentForge evaluator panel</h1><p><span class="badge">Synthetic evidence</span> Same-origin operational links and saved evaluation reports.</p></header>
+<style>:root{--ink:#172b3a;--muted:#5c6f7d;--line:#d8e2e8;--teal:#126b63;--teal-soft:#e3f3ef}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;max-width:68rem;margin:2rem auto;padding:0 1rem;color:var(--ink);background:#f2f6f5;line-height:1.45}main{background:#fff;border:1px solid var(--line);border-radius:1.1rem;padding:clamp(1rem,3vw,2rem);box-shadow:0 14px 42px #173b3510}h1{margin:.2rem 0 .4rem}h2{font-size:1.15rem;margin:1.8rem 0 .3rem}.eyebrow{color:var(--teal);font-size:.75rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.badge{display:inline-block;border-radius:999px;padding:.2rem .6rem;font-size:.8rem;font-weight:750;background:var(--teal-soft);color:#14564f}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.65rem;margin-top:.6rem}.card{border:1px solid var(--line);border-radius:.7rem;padding:.7rem .8rem}.value{display:block;font-size:1.35rem;font-weight:800}.muted{color:var(--muted);font-size:.9rem;margin:0}.pass{color:#087443}.fail{color:#9b1c1c}.warn{color:#6b4e00;background:#fff6df;border-left:4px solid #c8962b;padding:.75rem;margin-top:1.8rem}a{color:var(--teal);font-weight:650;text-decoration:none}a:hover,a:focus-visible{text-decoration:underline}a:focus-visible{outline:3px solid #84cfc0;outline-offset:2px;border-radius:.2rem}.labels{display:flex;flex-wrap:wrap;gap:.4rem;margin:.6rem 0 0;padding:0;list-style:none;font-size:.82rem}.labels li{display:flex;gap:.4rem;padding:.2rem .6rem;border:1px solid var(--line);border-radius:999px;color:var(--muted)}.labels strong{color:var(--ink)}.links{display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1rem;align-items:baseline}.links span{color:var(--muted);font-size:.9rem}.prompts{display:grid;gap:.3rem}.week1{margin-top:2.2rem;padding-top:.4rem;border-top:1px solid var(--line)}@media(max-width:620px){.links{grid-template-columns:1fr}}</style></head>
+<body><main id="evaluator-panel"><header><div class="eyebrow">AgentForge / evaluation</div><h1>AgentForge evaluator panel</h1><p><span class="badge">Synthetic evidence</span> Committed gate reports and same-origin operational links.</p></header>
+${suite('w2-heading', 'W2 regression gate (50 cases)', w2Gate, w2, '/evals/w2-baseline.json', 'Current W2 baseline/gate metadata', 'The blocking 50-case golden set, run by the pre-commit gate. Figures come from the committed baseline report.')}
+${suite('w2-extensions-heading', 'W2 extension suite', w2Extensions, extensions, '/evals/w2-extension-baseline.json', 'Current W2 extension baseline', 'Extension cases (click-to-source, critic, lab trend, medication list and more) under the same judge and thresholds. Figures come from the committed baseline report.')}
 <section aria-labelledby="ops-heading"><h2 id="ops-heading">Operational surfaces</h2><div class="links">
 <a href="${route('/health')}">Health</a><span>Liveness only; expected HTTP 200.</span>
 <a href="${route('/ready')}">Readiness</a><span>Retrieval, model, and trace dependencies; expected HTTP 200 when ready.</span>
@@ -515,10 +563,11 @@ export function renderEvaluatorPage({ golden, errorAnalysis, w2Gate = null, base
 <a href="${route('/v1/alerts')}">Alerts</a><span>Deterministic p95 latency, error-rate, and tool-failure rules with thresholds.</span>
 <a href="${route('/observability')}">Observability view</a><span>Browser-readable metrics and trace dashboard.</span>
 </div></section>
+<div class="week1">
+<section aria-labelledby="golden-heading"><h2 id="golden-heading">${localReport ? 'Current local golden evidence' : 'Week 1 baseline evidence · saved results'}</h2><div class="cards"><div class="card"><span class="value">${golden?.total_cases ?? '—'}</span><span class="muted">total cases</span></div><div class="card"><span class="value pass">${golden?.passed_cases ?? '—'}</span><span class="muted">passed</span></div><div class="card"><span class="value">${golden?.failed_cases ?? '—'}</span><span class="muted">failed</span></div><div class="card"><span class="value">${golden?.critical_failures ?? '—'}</span><span class="muted">critical failures</span></div><div class="card"><span class="value ${gateClass(goldenGate)}">${goldenGate}</span><span class="muted">golden gate</span></div></div><p><a href="${route(localReport ? '/evals/active-service-results.json' : '/evals/deployed-service-results.json')}">${localReport ? 'Current local service report' : 'Saved Week 1 service report'}</a></p></section>
+<section aria-labelledby="mutation-heading"><h2 id="mutation-heading">Mutation/error analysis</h2><div class="cards"><div class="card"><span class="value">${errorAnalysis?.total_mutations ?? '—'}</span><span class="muted">mutations</span></div><div class="card"><span class="value pass">${errorAnalysis?.detected_mutations ?? '—'}</span><span class="muted">detected</span></div><div class="card"><span class="value">${errorAnalysis?.missed_mutations ?? '—'}</span><span class="muted">missed</span></div><div class="card"><span class="value pass">${rate}%</span><span class="muted">detection rate</span></div><div class="card"><span class="value ${gateClass(errorGate)}">${errorGate}</span><span class="muted">mutation gate</span></div></div><p><a href="${route('/evals/error-analysis.json')}">Saved error-analysis report</a></p></section>
 <section aria-labelledby="prompt-heading"><h2 id="prompt-heading">Safe sample prompts</h2><div class="prompts"><span>“What changed since the last visit?”</span><span>“What plan items need follow-through?”</span><span>“Which records conflict?”</span><span>Failure probes: partial retrieval, denied authorization, cross-patient scope, malformed request.</span></div></section>
-<section aria-labelledby="golden-heading"><h2 id="golden-heading">${localReport ? 'Current local golden evidence' : 'Week 1 baseline evidence · saved results'}</h2><div class="cards"><div class="card"><span class="value">${golden?.total_cases ?? '—'}</span><span class="muted">total cases</span></div><div class="card"><span class="value pass">${golden?.passed_cases ?? '—'}</span><span class="muted">passed</span></div><div class="card"><span class="value">${golden?.failed_cases ?? '—'}</span><span class="muted">failed</span></div><div class="card"><span class="value">${golden?.critical_failures ?? '—'}</span><span class="muted">critical failures</span></div><div class="card"><span class="value pass">${goldenGate}</span><span class="muted">golden gate</span></div></div><p><a href="${route(localReport ? '/evals/active-service-results.json' : '/evals/deployed-service-results.json')}">${localReport ? 'Current local service report' : 'Saved Week 1 service report'}</a></p></section>
-<section aria-labelledby="mutation-heading"><h2 id="mutation-heading">Mutation/error analysis</h2><div class="cards"><div class="card"><span class="value">${errorAnalysis?.total_mutations ?? '—'}</span><span class="muted">mutations</span></div><div class="card"><span class="value pass">${errorAnalysis?.detected_mutations ?? '—'}</span><span class="muted">detected</span></div><div class="card"><span class="value">${errorAnalysis?.missed_mutations ?? '—'}</span><span class="muted">missed</span></div><div class="card"><span class="value pass">${rate}%</span><span class="muted">detection rate</span></div><div class="card"><span class="value pass">${errorGate}</span><span class="muted">mutation gate</span></div></div><p><a href="${route('/evals/error-analysis.json')}">Saved error-analysis report</a></p></section>
-<section aria-labelledby="w2-heading"><h2 id="w2-heading">W2 regression gate</h2><div class="cards"><div class="card"><span class="value">${w2Gate?.total_cases ?? '—'}</span><span class="muted">cases</span></div><div class="card"><span class="value pass">${w2Passed}</span><span class="muted">passed</span></div><div class="card"><span class="value">${w2Failures}</span><span class="muted">failed</span></div><div class="card"><span class="value pass">${w2GateLabel}</span><span class="muted">blocking gate</span></div></div><p><a href="${route('/evals/w2-baseline.json')}">Current W2 baseline/gate metadata</a></p></section>
+</div>
 <p class="warn"><strong>Limitations:</strong> these are synthetic fixture and harness results. They demonstrate contract sensitivity and observable behavior; they do not prove clinical safety, OpenEMR authorization parity, provider suitability, or production PHI compliance.</p>
 </main></body></html>`;
 }

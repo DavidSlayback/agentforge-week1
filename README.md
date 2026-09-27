@@ -67,18 +67,21 @@ disk to try the flow.
 **Where to see each extension item** (all on the W2 URL; the SHA each was
 observed on is in [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2):
 
-- **Critic agent:** run any sample. The result reads "Scan workers: …
-  → critic-worker" and the answer heading says "critic: reviewed" (or
-  `disabled` / `skipped_budget` / `failed` when it did not review). The trace
-  in `/observability` shows the `CRITIQUE` decision.
-- **Third document type:** "Medication list · Layout A" or "Layout B" →
-  "Run this sample".
-- **Lab trend chart:** run "Lab result · Layout A", then "Layout C". Below
-  the lab result, "Lab trends" shows one chart per test with a point per
-  uploaded lab, read back from OpenEMR's FHIR Observation service. Each
+- **Critic agent:** run any sample. The result header reads "… · answer
+  reviewed by the critic" (or says the critic was off, skipped or failed and
+  the answer was not reviewed), the step row ends in "Critic review", and
+  "Technical details" lists the raw workers and critic status. The trace in
+  `/observability` shows the `CRITIQUE` decision.
+- **Third document type:** "Medication list — digital" or "Medication list —
+  pharmacy printout" → "Run this sample".
+- **Lab trend chart:** run "Lab report — clean digital PDF", then "Earlier
+  lab report (for the trend)". Below the lab result, "Lab trends" shows one
+  chart per test with a point per uploaded lab (evenly spaced in date order,
+  not to time scale), read back from OpenEMR's FHIR Observation service. Each
   point links to its source document.
-- **Click-to-source:** after a scan, "Open source preview", then any "View
-  source region" link; the cited box on the page image is highlighted.
+- **Click-to-source:** after a scan, "Open the source document with
+  highlighted regions", then any "View source region" link; the cited box on
+  the page image is highlighted.
 - **Contextual retrieval:** not visible on the public URL, because it only
   changes BM25-alone ranking (the `sparse_only` fallback). See it offline
   with `node agentforge/scripts/benchmark-retrieval.mjs`.

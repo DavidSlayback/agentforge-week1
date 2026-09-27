@@ -18,7 +18,7 @@ test.after(() => child?.kill());
 
 test('evaluator panel exposes operational routes and saved evidence', async () => {
   const page = await fetch(`http://127.0.0.1:${port}/evals`).then((response) => response.text());
-  for (const href of ['/health', '/ready', '/v1/metrics', '/v1/traces', '/v1/alerts', '/observability', '/evals/deployed-service-results.json', '/evals/error-analysis.json', '/evals/w2-baseline.json']) assert.match(page, new RegExp(`href="${href.replaceAll('/', '\\/')}"`));
+  for (const href of ['/health', '/ready', '/v1/metrics', '/v1/traces', '/v1/alerts', '/observability', '/evals/deployed-service-results.json', '/evals/error-analysis.json', '/evals/w2-baseline.json', '/evals/w2-extension-baseline.json']) assert.match(page, new RegExp(`href="${href.replaceAll('/', '\\/')}"`));
   assert.match(page, /Week 1 baseline evidence/);
   assert.match(page, /Mutation\/error analysis/);
   assert.match(page, /W2 regression gate/);
@@ -44,6 +44,9 @@ test('evaluator panel exposes operational routes and saved evidence', async () =
   assert.equal(errorAnalysis.total_mutations, 6);
   assert.equal(w2Baseline.total_cases, W2_GATE_CASE_COUNT);
   assert.equal(w2Baseline.passed, true);
+  const extensionBaseline = await fetch(`http://127.0.0.1:${port}/evals/w2-extension-baseline.json`).then((response) => response.json());
+  assert.equal(extensionBaseline.passed, true);
+  assert.match(page, new RegExp(`W2 extension suite[\\s\\S]*<span class="value">${extensionBaseline.total_cases}</span>`));
 
   const prefixed = renderEvaluatorPage({ golden: {}, errorAnalysis: {}, basePath: '/agentforge' });
   for (const href of ['/health', '/ready', '/v1/metrics', '/v1/traces', '/v1/alerts', '/observability', '/evals/deployed-service-results.json', '/evals/error-analysis.json', '/evals/w2-baseline.json']) assert.match(prefixed, new RegExp(`href="/agentforge${href.replaceAll('/', '\\/')}"`));

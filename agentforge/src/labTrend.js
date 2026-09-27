@@ -18,6 +18,10 @@ import { citationBoxId } from './ui.js';
  */
 
 const LOINC = 'http://loinc.org';
+// Display-only: a point's reference-range text as the read-back returned it
+// (FHIR referenceRange.text) when it is not a parseable "low-high" range.
+// Kept off the point object so the /lab-trends JSON shape is unchanged.
+const REFERENCE_TEXT = new WeakMap();
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const NUMBER = /^-?\d+(?:\.\d+)?$/;
 
@@ -92,7 +96,7 @@ export function buildLabTrends(history) {
     if (!NUMBER.test(raw)) { excluded.push({ ...base, reason: 'value_not_numeric' }); continue; }
     const key = `${code || name}|${unit}`;
     if (!series.has(key)) series.set(key, { series_id: key, loinc_code: code, test_name: name, unit, points: [] });
-    series.get(key).points.push({
+    const point = {
       collection_date: entry.collection_date,
       value: Number(raw),
       unit,
@@ -101,7 +105,10 @@ export function buildLabTrends(history) {
       source_document_id: entry.source_document_id,
       citation: pointCitation({ sourceDocumentId: entry.source_document_id, fieldId: entry.field_id, page: entry.page, value: raw }),
       reference: referenceRange(resource),
-    });
+    };
+    const rangeText = String((resource.referenceRange || [])[0]?.text ?? '').trim();
+    if (rangeText && !point.reference_range) REFERENCE_TEXT.set(point, rangeText);
+    series.get(key).points.push(point);
   }
   const tests = [...series.values()].map((item) => {
     const points = [...item.points].sort((a, b) => a.collection_date.localeCompare(b.collection_date) || a.source_document_id.localeCompare(b.source_document_id, 'en', { numeric: true }));
@@ -109,7 +116,7 @@ export function buildLabTrends(history) {
     // One band only when every point states the same parseable range.
     const band = bands.length === points.length && bands.every((b) => b.low === bands[0].low && b.high === bands[0].high) ? { low: bands[0].low, high: bands[0].high } : null;
     const otherUnits = [...series.values()].filter((other) => other !== item && (other.loinc_code || other.test_name) === (item.loinc_code || item.test_name)).map((other) => other.unit);
-    return { series_id: item.series_id, loinc_code: item.loinc_code, test_name: item.test_name, unit: item.unit, other_units: otherUnits, chart: points.length >= 2 ? 'line' : 'single_point', reference_band: band, points: points.map(({ reference: _reference, ...point }) => point) };
+    return { series_id: item.series_id, loinc_code: item.loinc_code, test_name: item.test_name, unit: item.unit, other_units: otherUnits, chart: points.length >= 2 ? 'line' : 'single_point', reference_band: band, points: points.map((original) => { const { reference: _reference, ...point } = original; if (REFERENCE_TEXT.has(original)) REFERENCE_TEXT.set(point, REFERENCE_TEXT.get(original)); return point; }) };
   }).sort((a, b) => a.test_name.localeCompare(b.test_name) || a.unit.localeCompare(b.unit));
   return {
     read_path: history?.read_path ?? null,
@@ -121,10 +128,44 @@ export function buildLabTrends(history) {
   };
 }
 
-const CHART = Object.freeze({ width: 480, height: 200, left: 52, right: 20, top: 16, bottom: 40 });
-const DAY_MS = 24 * 60 * 60 * 1000;
-const dayNumber = (date) => Date.parse(`${date}T00:00:00Z`) / DAY_MS;
+const CHART = Object.freeze({ width: 640, height: 250, left: 56, right: 28, top: 28, bottom: 46 });
 const formatNumber = (value) => (Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3))));
+
+/**
+ * Readable y-axis bounds: round the data range (and reference band) out to a
+ * "nice" step of 1, 2, 2.5 or 5 x 10^k, with about four intervals. Returns
+ * `{ low, high, step, ticks }`; every value lies inside [low, high].
+ */
+export function niceAxis(values) {
+  const finiteValues = values.filter(Number.isFinite);
+  let min = Math.min(...finiteValues);
+  let max = Math.max(...finiteValues);
+  if (!finiteValues.length) { min = 0; max = 1; }
+  if (min === max) { const pad = Math.abs(min) * 0.1 || 1; min -= pad; max += pad; }
+  const rough = (max - min) / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((factor) => factor * magnitude).find((candidate) => candidate >= rough);
+  const round = (value) => Number(value.toFixed(10));
+  const low = round(Math.floor(min / step) * step);
+  const high = round(Math.ceil(max / step) * step);
+  const ticks = [];
+  for (let tick = low; tick <= high + step / 1000; tick += step) ticks.push(round(tick));
+  return { low, high, step, ticks };
+}
+
+/**
+ * What the reference-range column shows for one point: the parsed "low-high"
+ * range, else the range text the read-back returned (e.g. "under 5.7"), else
+ * a pointer to the source document (OpenEMR's FHIR Observation only emits a
+ * referenceRange for a numeric "low-high" range, so other ranges are not in
+ * the read-back). The read-back is the only input; nothing
+ * is taken from the upload.
+ */
+export function referenceText(point) {
+  if (point?.reference_range) return point.reference_range;
+  const raw = REFERENCE_TEXT.get(point);
+  return raw || 'see source document';
+}
 
 /** Source-preview link for one point, landing on its field's box (same pattern as the answer panel). */
 export function pointHref(point, { basePath = '', patient_uuid = '', demo_token = '' } = {}) {
@@ -136,38 +177,38 @@ export function renderTrendSvg(test, links = {}) {
   const { width, height, left, right, top, bottom } = CHART;
   const plotW = width - left - right;
   const plotH = height - top - bottom;
-  const days = test.points.map((point) => dayNumber(point.collection_date));
-  const minDay = Math.min(...days);
-  const spanDay = Math.max(...days) - minDay;
-  const values = test.points.map((point) => point.value);
+  // Points are evenly spaced in date order (ordinal, not to time scale), with
+  // each point's date printed under it: results a day apart stay readable
+  // instead of collapsing into a vertical spike. The chart says so.
+  const count = test.points.length;
   const band = test.reference_band;
-  let low = Math.min(...values, ...(band ? [band.low] : []));
-  let high = Math.max(...values, ...(band ? [band.high] : []));
-  const pad = (high - low) * 0.1 || Math.abs(high) * 0.1 || 1;
-  low -= pad; high += pad;
-  const x = (day) => left + (spanDay ? ((day - minDay) / spanDay) * plotW : plotW / 2);
+  const axis = niceAxis([...test.points.map((point) => point.value), ...(band ? [band.low, band.high] : [])]);
+  const { low, high } = axis;
+  const x = (index) => left + (count > 1 ? (index / (count - 1)) * plotW : plotW / 2);
   const y = (value) => top + (1 - (value - low) / (high - low)) * plotH;
   const unit = test.unit ? ` ${test.unit}` : '';
   const id = `trend-${test.series_id.replace(/[^A-Za-z0-9_-]/g, '-')}`;
   const title = `${test.test_name}${unit ? ` (${test.unit})` : ''} over time`;
-  const desc = `${test.points.length} results from ${test.points[0].collection_date} to ${test.points.at(-1).collection_date}: ${test.points.map((point) => `${point.collection_date} ${formatNumber(point.value)}${unit}`).join('; ')}.${band ? ` Reference range ${band.low}-${band.high}${unit}.` : ' No parseable reference range.'}`;
-  const coords = test.points.map((point) => [x(dayNumber(point.collection_date)), y(point.value)].map((n) => n.toFixed(1)));
+  const desc = `${test.points.length} results from ${test.points[0].collection_date} to ${test.points.at(-1).collection_date}, evenly spaced in date order (not to time scale): ${test.points.map((point) => `${point.collection_date} ${formatNumber(point.value)}${unit}`).join('; ')}.${band ? ` Reference range ${band.low}-${band.high}${unit}.` : ' No parseable reference range.'}`;
+  const coords = test.points.map((point, index) => [x(index), y(point.value)].map((n) => n.toFixed(1)));
   const parts = [
     `<svg class="lab-trend-svg" role="img" viewBox="0 0 ${width} ${height}" width="100%" aria-labelledby="${id}-title ${id}-desc">`,
     `<title id="${id}-title">${escapeHtml(title)}</title><desc id="${id}-desc">${escapeHtml(desc)}</desc>`,
     band ? `<rect class="reference-band" x="${left}" y="${y(band.high).toFixed(1)}" width="${plotW}" height="${(y(band.low) - y(band.high)).toFixed(1)}" fill="#d9f2e6"><title>Reference range ${escapeHtml(`${band.low}-${band.high}${unit}`)}</title></rect>` : '',
+    ...axis.ticks.map((tick) => `<line x1="${left}" y1="${y(tick).toFixed(1)}" x2="${left + plotW}" y2="${y(tick).toFixed(1)}" stroke="#e3eaee"/><text x="${left - 8}" y="${(y(tick) + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#52606d">${escapeHtml(formatNumber(tick))}</text>`),
     `<line x1="${left}" y1="${top + plotH}" x2="${left + plotW}" y2="${top + plotH}" stroke="#9fb3c8"/><line x1="${left}" y1="${top}" x2="${left}" y2="${top + plotH}" stroke="#9fb3c8"/>`,
-    `<text x="${left - 6}" y="${top + 10}" text-anchor="end" font-size="11" fill="#52606d">${escapeHtml(formatNumber(high))}</text><text x="${left - 6}" y="${top + plotH}" text-anchor="end" font-size="11" fill="#52606d">${escapeHtml(formatNumber(low))}</text>`,
-    `<text x="${left}" y="${height - 12}" font-size="11" fill="#52606d">${escapeHtml(test.points[0].collection_date)}</text><text x="${left + plotW}" y="${height - 12}" text-anchor="end" font-size="11" fill="#52606d">${escapeHtml(test.points.at(-1).collection_date)}</text>`,
+    ...test.points.map((point, index) => `<text class="point-date" x="${coords[index][0]}" y="${top + plotH + 18}" text-anchor="${count > 1 && index === 0 ? 'start' : count > 1 && index === count - 1 ? 'end' : 'middle'}" font-size="12" fill="#52606d">${escapeHtml(point.collection_date)}</text>`),
+    `<text x="${left + plotW}" y="${height - 6}" text-anchor="end" font-size="11" fill="#7b8b97">Evenly spaced by result, not to time scale</text>`,
     `<polyline class="trend-line" fill="none" stroke="#174a7e" stroke-width="2" points="${coords.map(([cx, cy]) => `${cx},${cy}`).join(' ')}"/>`,
-    ...test.points.map((point, index) => `<a class="trend-point" href="${escapeHtml(pointHref(point, links))}" target="_blank" data-source-document-id="${escapeHtml(point.source_document_id)}"><circle cx="${coords[index][0]}" cy="${coords[index][1]}" r="5" fill="${point.abnormal_flag === 'normal' ? '#174a7e' : '#b45309'}"><title>${escapeHtml(`${point.collection_date}: ${formatNumber(point.value)}${unit} (${point.abnormal_flag}); open source document`)}</title></circle></a>`),
+    ...test.points.map((point, index) => `<text class="point-value" x="${coords[index][0]}" y="${(Number(coords[index][1]) - 10).toFixed(1)}" text-anchor="${count > 1 && index === 0 ? 'start' : count > 1 && index === count - 1 ? 'end' : 'middle'}" font-size="12" font-weight="700" fill="#17202a">${escapeHtml(formatNumber(point.value))}</text>`),
+    ...test.points.map((point, index) => `<a class="trend-point" href="${escapeHtml(pointHref(point, links))}" target="_blank" data-source-document-id="${escapeHtml(point.source_document_id)}"><circle cx="${coords[index][0]}" cy="${coords[index][1]}" r="6" fill="${point.abnormal_flag === 'normal' ? '#174a7e' : '#b45309'}"><title>${escapeHtml(`${point.collection_date}: ${formatNumber(point.value)}${unit} (${point.abnormal_flag}); open source document`)}</title></circle></a>`),
     '</svg>',
   ];
   return parts.join('');
 }
 
 function dataTable(test, links) {
-  const rows = test.points.map((point) => `<tr><td>${escapeHtml(point.collection_date)}</td><td>${escapeHtml(formatNumber(point.value))}</td><td>${escapeHtml(point.unit || 'not stated')}</td><td>${escapeHtml(point.reference_range ?? 'not parseable')}</td><td>${escapeHtml(point.abnormal_flag)}</td><td><a class="citation-source-link" href="${escapeHtml(pointHref(point, links))}" target="_blank">[${escapeHtml(point.citation.page_or_section)}]</a></td></tr>`).join('');
+  const rows = test.points.map((point) => `<tr><td>${escapeHtml(point.collection_date)}</td><td>${escapeHtml(formatNumber(point.value))}</td><td>${escapeHtml(point.unit || 'not stated')}</td><td>${escapeHtml(referenceText(point))}</td><td>${escapeHtml(point.abnormal_flag)}</td><td><a class="citation-source-link" href="${escapeHtml(pointHref(point, links))}" target="_blank">[${escapeHtml(point.citation.page_or_section)}]</a></td></tr>`).join('');
   return `<table class="lab-trend-table"><caption>${escapeHtml(test.test_name)} results${test.unit ? ` (${escapeHtml(test.unit)})` : ''}</caption><thead><tr><th scope="col">Collected</th><th scope="col">Value</th><th scope="col">Unit</th><th scope="col">Reference range</th><th scope="col">Flag</th><th scope="col">Source</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
@@ -192,7 +233,7 @@ export function renderLabTrendSection(trends, links = {}) {
     return `<figure class="lab-trend" data-series="${escapeHtml(test.series_id)}" data-chart="${test.chart}"><figcaption><strong>${escapeHtml(test.test_name)}</strong>${test.unit ? ` (${escapeHtml(test.unit)})` : ' (unit not stated)'}</figcaption>${unitNote}${body}${dataTable(test, links)}</figure>`;
   }).join('');
   const empty = trends.tests.length ? '' : '<p class="lab-trend-empty" data-chart="empty">No lab results have been read back for this patient yet.</p>';
-  const style = '<style>.lab-trends .lab-trend{margin:.8rem 0;padding:.6rem;border:1px solid #d6e0e3;border-radius:.6rem;background:#fff}.lab-trends .lab-trend-svg{max-width:480px;display:block}.lab-trends .lab-trend-table{border-collapse:collapse;font-size:.82rem;margin-top:.4rem}.lab-trends .lab-trend-table th,.lab-trends .lab-trend-table td{border:1px solid #d6e0e3;padding:.2rem .45rem;text-align:left}.lab-trends .lab-trend-note{color:#9b5b00}</style>';
+  const style = '<style>.lab-trends .lab-trend{margin:.8rem 0;padding:.6rem;border:1px solid #d6e0e3;border-radius:.6rem;background:#fff}.lab-trends .lab-trend-svg{max-width:640px;display:block}.lab-trends .lab-trend-table{border-collapse:collapse;font-size:.82rem;margin-top:.4rem}.lab-trends .lab-trend-table th,.lab-trends .lab-trend-table td{border:1px solid #d6e0e3;padding:.2rem .45rem;text-align:left}.lab-trends .lab-trend-note{color:#9b5b00}</style>';
   return `${style}<section class="lab-trends" aria-labelledby="lab-trends-heading"><h4 id="lab-trends-heading">Lab trends</h4><p class="hint">Read from ${escapeHtml(source)}. Values are unreviewed extractions; each point links to its source document.</p>${notes.join('')}${empty}${figures}</section>`;
 }
 
