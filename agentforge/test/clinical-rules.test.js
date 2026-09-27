@@ -184,19 +184,77 @@ test('review blocker 2: a flag whose grounding fails verifyClaims is dropped and
   assert.equal(evaluation.status, 'needs_review');
 });
 
-test('review blocker 2: the critic sees every safety flag and may veto one like any claim', async () => {
-  const answer = await composeGroundedAnswer({ labResults: [potassium('6.8')] });
+/** Reject exactly the safety-flag items of a critic request with `reason`; keep every claim. */
+const vetoFlags = (request, reason) => ({
+  output_status: 'reviewed',
+  verdicts: request.items.map((item) => ({ index: item.index, verdict: item.kind === 'safety_flag' ? 'reject' : 'keep', reason: item.kind === 'safety_flag' ? reason : null })),
+  redacted_metrics: { claims_not_sent: 0 },
+});
+
+test('F-CLIN: a critic veto of a verified flag keeps it visible and questioned, never hidden', async () => {
+  // Production d5a0df7e: the verified diabetes_range flag (A1C 7.2 %, CDC
+  // "A1C Ranges" chunk) was vetoed UNSUPPORTED_BY_SOURCE and disappeared.
+  const answer = await composeGroundedAnswer({ labResults: [a1c('7.2')] });
+  assert.equal(answer.safety_flags.length, 1);
+  assert.equal(answer.safety_flags_dropped, 0);
   const request = buildCriticRequest(answer);
-  const flagItem = request.items.find((item) => item.kind === 'safety_flag');
-  assert.ok(flagItem, 'the flag is sent to the critic');
   assert.match(buildCriticPrompt(request.items), /\[safety flag\]/);
-  const verdicts = request.items.map((item) => ({ index: item.index, verdict: item === flagItem ? 'reject' : 'keep', reason: item === flagItem ? 'UNSUPPORTED_BY_SOURCE' : null }));
-  const applied = applyCriticVerdicts(answer, { output_status: 'reviewed', verdicts, redacted_metrics: { claims_not_sent: 0 } });
-  assert.deepEqual(applied.safety_flags, []);
-  assert.equal(applied.critic_flags_rejected, 1);
+  const applied = applyCriticVerdicts(answer, vetoFlags(request, 'UNSUPPORTED_BY_SOURCE'));
+  assert.equal(applied.safety_flags.length, 1, 'the vetoed flag still ships');
+  const [flag] = applied.safety_flags;
+  assert.equal(flag.code, 'diabetes_range');
+  assert.equal(flag.text, answer.safety_flags[0].text);
+  assert.deepEqual(flag.citations, answer.safety_flags[0].citations);
+  assert.equal(flag.critic_status, 'questioned');
+  assert.equal(flag.critic_reason, 'UNSUPPORTED_BY_SOURCE');
+  assert.equal(applied.critic_flags_questioned, 1);
+  assert.equal(applied.safety_flags_dropped, 0, 'a veto is not a verification drop');
   assert.equal(applied.critic_rejected, 0, 'no claim was removed');
   assert.equal(applied.patient_facts.length, answer.patient_facts.length);
+  assert.equal('critic_flags_rejected' in applied, false);
   assert.ok(parseOrIssues(GroundedAnswerResult, applied).ok);
+  const { evaluation, verification } = computeRuntimeEvaluation({ workflow: { readiness: 'ready', final_state: 'READY', answer: applied } });
+  assert.ok(evaluation.issues.includes('critic_questioned_flags'));
+  assert.equal(evaluation.status, 'needs_review');
+  assert.equal(verification.critic_flags_questioned, 1);
+  assert.equal(verification.safety_flags_dropped, 0);
+  // A kept flag carries no critic mark.
+  const kept = applyCriticVerdicts(answer, { ...vetoFlags(request, null), verdicts: request.items.map((item) => ({ index: item.index, verdict: 'keep', reason: null })) });
+  assert.equal(kept.critic_flags_questioned, 0);
+  assert.equal('critic_status' in kept.safety_flags[0], false);
+});
+
+test('F-CLIN: a flag that fails verification is still dropped and counted, and is never sent to the critic', async () => {
+  const intakeForm = {
+    demographics: { name: { status: 'not_found_on_form', value: null, confidence: 0, citation: null }, dob: { status: 'not_found_on_form', value: null, confidence: 0, citation: null } },
+    chief_concern: { status: 'not_found_on_form', value: null, confidence: 0, citation: null },
+    current_medications: [{ status: 'observed', value: 'Amoxicillin 500 mg. Stop taking if rash, increase dose', confidence: 0.93, citation: docCitation('medications', 'Current medications: Amoxicillin 500 mg. Stop taking if rash, increase dose') }],
+    allergies: [{ status: 'observed', value: 'Penicillin', confidence: 0.93, citation: docCitation('allergies', 'Allergies: Penicillin') }],
+    family_history: [],
+  };
+  const answer = await composeGroundedAnswer({ intakeForm });
+  assert.deepEqual(answer.safety_flags, []);
+  assert.equal(answer.safety_flags_dropped, 1);
+  const request = buildCriticRequest(answer);
+  assert.equal(request.items.filter((item) => item.kind === 'safety_flag').length, 0);
+  const applied = applyCriticVerdicts(answer, vetoFlags(request, 'UNSUPPORTED_BY_SOURCE'));
+  assert.deepEqual(applied.safety_flags, []);
+  assert.equal(applied.safety_flags_dropped, 1);
+  assert.equal(applied.critic_flags_questioned, 0);
+});
+
+test('F-CLIN: the critic request for a diabetes_range flag carries the CDC threshold quote in full', async () => {
+  const answer = await composeGroundedAnswer({ labResults: [a1c('7.2')] });
+  const [flag] = answer.safety_flags;
+  const guideline = flag.citations.find((citation) => citation.source_type === 'guideline');
+  assert.equal(guideline.source_id, 'cdc-a1c-diagnostic-ranges');
+  const flagItem = buildCriticRequest(answer).items.find((item) => item.kind === 'safety_flag');
+  assert.ok(flagItem, 'the flag is sent to the critic');
+  assert.ok(flagItem.quotes.includes('A1C value: 7.2') || flagItem.quotes.some((quote) => quote.includes('7.2')), 'the lab quote is sent');
+  assert.ok(flagItem.quotes.includes(guideline.quote_or_value.trim()), 'the whole chunk quote is sent, not truncated');
+  assert.ok(flagItem.quotes.some((quote) => quote.includes('Diabetes: 6.5% or above')));
+  const prompt = buildCriticPrompt([flagItem]);
+  assert.ok(prompt.includes(JSON.stringify(guideline.quote_or_value.trim())), 'the prompt carries the chunk quote verbatim');
 });
 
 test('potassium: a document flag that contradicts the critical range goes to review, like A1C', () => {

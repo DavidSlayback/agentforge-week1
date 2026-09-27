@@ -347,6 +347,9 @@ export const NeedsReviewItem = z.object({
  */
 export const CRITIC_STATUS_VALUES = Object.freeze(['reviewed', 'failed', 'disabled', 'skipped_budget', 'skipped_no_claims', 'skipped_identity_only', 'skipped_not_approved']);
 
+/** Closed set of critic reject reasons (`critic.js`, E2). */
+export const CRITIC_REASON_CODES = Object.freeze(['UNCITED', 'UNSUPPORTED_BY_SOURCE', 'UNSAFE_ACTION']);
+
 /**
  * Where a clinical rule's threshold comes from (`clinicalRules.js`): a chunk
  * of the guideline corpus (with its 5-key citation) or a named public
@@ -365,6 +368,9 @@ export const ThresholdSource = z.object({
  * never carries a value of its own: `citations` are the unchanged 5-key
  * citations of the facts that triggered it (plus the guideline chunk when
  * the threshold is in the corpus), and `text` restates only their values.
+ * A flag that passed `verifyClaims` but that the critic vetoed still ships,
+ * marked `critic_status: 'questioned'` with the critic's `critic_reason`
+ * code: a veto of a verified safety warning must not hide it (critic.js).
  */
 export const SafetyFlag = z.object({
   code: z.enum(['critical_value', 'diabetes_range', 'drug_allergy_conflict']),
@@ -373,6 +379,8 @@ export const SafetyFlag = z.object({
   text: z.string().min(1),
   citations: z.array(Citation).min(1),
   threshold_source: ThresholdSource,
+  critic_status: z.enum(['questioned']).optional(),
+  critic_reason: z.enum(CRITIC_REASON_CODES).optional(),
 }).strict();
 
 /**
@@ -412,9 +420,10 @@ export const GroundedAnswerResult = z.object({
   // stored answers) stay valid; `composeGroundedAnswer` always sets both.
   safety_flags: z.array(SafetyFlag).optional(),
   // Flags a rule raised that failed `verifyClaims` (dropped, never shipped),
-  // and flags the critic vetoed (removed from `safety_flags`).
+  // and verified flags the critic vetoed (still in `safety_flags`, each
+  // marked `critic_status: 'questioned'`; never hidden).
   safety_flags_dropped: z.number().int().nonnegative().optional(),
-  critic_flags_rejected: z.number().int().nonnegative().optional(),
+  critic_flags_questioned: z.number().int().nonnegative().optional(),
   not_documented: z.array(NotDocumentedItem).optional(),
   unverified_dropped: z.number().int().nonnegative(),
   model_claims_proposed: z.number().int().nonnegative(),

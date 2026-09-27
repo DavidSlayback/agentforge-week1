@@ -2,6 +2,7 @@ import { createRecordedOcrReplay } from '../pdfScanAdapter.js';
 import { issueSignedContext, verifySignedContext } from '../accessContext.js';
 import { GroundedAnswerResult, parseOrIssues } from '../schemas.js';
 import { loadGoldenFixtures } from '../w2RegressionGate.js';
+import { scriptedFakeCritic } from './critic.js';
 
 /**
  * F-CLIN clinical rules and "not documented" answers, run end to end through
@@ -155,6 +156,35 @@ function diabetesRangeIssues(run) {
   return issues;
 }
 
+/**
+ * A critic veto of a verified flag (production d5a0df7e: the lab-b
+ * diabetes_range flag vetoed UNSUPPORTED_BY_SOURCE) keeps the flag visible,
+ * marked questioned with the reason code, counted apart from verification
+ * drops, and sends the encounter to needs review. The honestly named fake
+ * critic vetoes only the flag; it also records that the CDC threshold quote
+ * reached it.
+ */
+function questionedFlagIssues(run) {
+  const issues = baseIssues(run);
+  if (issues.length) return issues;
+  const answer = answerOf(run);
+  const flags = flagsOf(answer, 'diabetes_range');
+  if (flags.length !== 1) return [`diabetes_range_flags_${flags.length}`];
+  const [flag] = flags;
+  if (flag.critic_status !== 'questioned' || flag.critic_reason !== 'UNSUPPORTED_BY_SOURCE') issues.push('vetoed_flag_not_marked_questioned');
+  if (answer.critic_status !== 'reviewed') issues.push(`critic_status_${answer.critic_status}`);
+  if (answer.critic_flags_questioned !== 1) issues.push(`critic_flags_questioned_${answer.critic_flags_questioned}`);
+  if (answer.safety_flags_dropped !== 0) issues.push(`safety_flags_dropped_${answer.safety_flags_dropped}`);
+  if (answer.critic_rejected !== 0) issues.push('claims_removed_by_flag_veto');
+  const requests = run.h.service.criticProvider?.requests || [];
+  if (!requests.some((prompt) => prompt.includes('[safety flag]') && prompt.includes('Diabetes: 6.5% or above'))) issues.push('cdc_quote_not_sent_to_critic');
+  const trace = run.h.traceSink.list().filter((item) => item.operation === 'w2-scan-supervisor').at(-1);
+  if (!(trace?.evaluation?.issues || []).includes('critic_questioned_flags') || trace?.evaluation?.status !== 'needs_review') issues.push('questioned_flag_not_needs_review_in_trace');
+  if (trace?.verification?.critic_flags_questioned !== 1 || trace?.critic?.flags_questioned !== 1) issues.push('trace_questioned_count_wrong');
+  issues.push(...traceIssues(run, { code: 'diabetes_range', count: 1, absentValues: ['7.2'] }));
+  return issues;
+}
+
 function contradictedA1cIssues(run) {
   const issues = baseIssues(run);
   if (issues.length) return issues;
@@ -255,6 +285,7 @@ export function clinicalRulesCases({ kase, scan }) {
     kase('xc-fc-01-critical-potassium-flag', 'factually_consistent', 'A lab report with potassium 6.8 mmol/L (critical limit 6.0 mmol/L or greater) ships without exactly one critical_value safety flag citing that result by its 5-key document citation, the flag restates a value other than the cited one, the result itself stops being stated, or the trace lacks the flag code or carries the value.', scan('lab-a', 'lab_pdf', { service_overrides: labAWithPotassium('6.8', 'mmol/L') }), { custom: criticalPotassiumIssues }),
     kase('xc-fc-02-normal-potassium-no-flag', 'factually_consistent', 'A normal potassium (4.2 mmol/L) is flagged critical or sent to review (a false positive), or is not stated.', scan('lab-a', 'lab_pdf', { service_overrides: labAWithPotassium('4.2', 'mmol/L', 'No') }), { custom: (run) => noFlagIssues(run, 'critical_value', 'lab.k.value') }),
     kase('xc-fc-03-a1c-diabetes-range-flag', 'factually_consistent', 'The rasterized lab-b A1C of 7.2 % ships without a diabetes_range flag that cites both the result and the CDC "A1C Ranges" chunk (Diabetes: 6.5% or above).', scan('lab-b', 'lab_pdf'), { custom: diabetesRangeIssues }),
+    kase('xc-fc-08-critic-vetoed-flag-stays-questioned', 'factually_consistent', 'A critic veto (UNSUPPORTED_BY_SOURCE) of the verified lab-b diabetes_range flag hides the flag, drops it or counts it as a verification failure, instead of shipping it marked critic_status questioned with the reason code, counted in critic_flags_questioned and the trace, with the encounter in needs review; or the CDC threshold quote never reached the critic.', scan('lab-b', 'lab_pdf', { service_overrides: () => ({ criticProvider: scriptedFakeCritic({ decide: (text) => (/diabetes range/.test(text) ? 'UNSUPPORTED_BY_SOURCE' : null) }) }) }), { custom: questionedFlagIssues }),
     kase('xc-fc-04-a1c-below-range-no-flag', 'factually_consistent', 'The A1C of 6.1 % (below 6.5 %) on the high-confidence scan-text lab report is flagged in the diabetes range, sent to review by a rule, or not stated.', scan('scan-text-lab-a', 'lab_pdf'), { custom: (run) => noFlagIssues(run, 'diabetes_range', 'lab.a1c.value') }),
     kase('xc-fc-05-penicillin-amoxicillin-conflict', 'factually_consistent', 'An intake form with a penicillin allergy and amoxicillin in its medications ships without exactly one drug_allergy_conflict flag citing both form lines, or the trace carries a drug or allergen name.', scan('intake-a', 'intake_form', { service_overrides: intakeAWithMedication('Amoxicillin 500 mg three times daily') }), { custom: allergyConflictIssues }),
     kase('xc-fc-06-penicillin-metformin-no-conflict', 'factually_consistent', 'intake-a as printed (penicillin allergy, metformin) raises a drug_allergy_conflict flag.', scan('intake-a', 'intake_form'), { custom: (run) => noFlagIssues(run, 'drug_allergy_conflict', 'allergies') }),

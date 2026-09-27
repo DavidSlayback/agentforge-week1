@@ -62,7 +62,8 @@
  * template (see "Rules" below), and `answerComposer.js#verifySafetyFlags`
  * runs every flag's grounding facts through `verifyClaims` before it ships
  * (a failure is dropped and counted as `safety_flags_dropped`). The critic
- * reviews flags like claims and may veto one (`critic.js#criticItems`).
+ * reviews flags like claims, but a veto only marks a verified flag
+ * questioned (`critic_flags_questioned`); it never hides it (`critic.js`).
  *
  * Out of scope, on purpose: age-specific potassium limits (the fixtures are
  * adults), cross-reactivity between classes (e.g. penicillin and

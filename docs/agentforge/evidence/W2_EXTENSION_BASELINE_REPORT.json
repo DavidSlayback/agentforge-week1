@@ -4,10 +4,10 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 53,
+  "total_cases": 54,
   "missing_baseline": false,
-  "corpus_sha256": "1d9bed36a869c686615476e37d0deebdde14ef680c013d3198d42ffa5527d0ae",
-  "baseline_corpus_sha256": "1d9bed36a869c686615476e37d0deebdde14ef680c013d3198d42ffa5527d0ae",
+  "corpus_sha256": "0d7aa61b8387b91cabb4fab9f0c7d0b49dd40b5617dc93ae40fcc51e16edb6b4",
+  "baseline_corpus_sha256": "0d7aa61b8387b91cabb4fab9f0c7d0b49dd40b5617dc93ae40fcc51e16edb6b4",
   "baseline_mismatch": false,
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
@@ -28,8 +28,8 @@
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 16,
-      "passed": 16,
+      "cases": 17,
+      "passed": 17,
       "rate": 1
     },
     "safe_refusal": {
@@ -309,6 +309,12 @@
       "id": "xc-fc-03-a1c-diabetes-range-flag",
       "label": "factually_consistent",
       "guards_against": "The rasterized lab-b A1C of 7.2 % ships without a diabetes_range flag that cites both the result and the CDC \"A1C Ranges\" chunk (Diabetes: 6.5% or above).",
+      "passed": true
+    },
+    {
+      "id": "xc-fc-08-critic-vetoed-flag-stays-questioned",
+      "label": "factually_consistent",
+      "guards_against": "A critic veto (UNSUPPORTED_BY_SOURCE) of the verified lab-b diabetes_range flag hides the flag, drops it or counts it as a verification failure, instead of shipping it marked critic_status questioned with the reason code, counted in critic_flags_questioned and the trace, with the encounter in needs review; or the CDC threshold quote never reached the critic.",
       "passed": true
     },
     {

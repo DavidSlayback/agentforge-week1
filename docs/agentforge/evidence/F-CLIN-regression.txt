@@ -132,3 +132,37 @@ $ node --test test/clinical-rules.test.js test/not-documented.test.js   (exit 0)
 ℹ fail 0
 $ npm run eval:extensions --prefix agentforge   (exit 0)
 passed: true  total_cases: 53  failed_cases: 0
+
+== 8. Critic veto of a verified flag: questioned, never hidden (fix c1f353e4, 2026-09-27) ==
+Deliberate regression: restore hide-on-veto in critic.js#applyCriticVerdicts.
+index 0b82c97f..eb14da11 100644
+--- a/agentforge/src/critic.js
++++ b/agentforge/src/critic.js
+@@ -352,7 +352,7 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
+     composer: topup.length && answer.composer === 'model' ? 'model+deterministic-topup' : answer.composer,
+     patient_facts: shipped.filter((claim) => claim.kind === 'patient_fact'),
+     guideline_evidence: shipped.filter((claim) => claim.kind === 'guideline'),
+-    ...(answer.safety_flags ? { safety_flags: flags, critic_flags_questioned: questionedFlags } : {}),
++    ...(answer.safety_flags ? { safety_flags: flags.filter((flag) => flag.critic_status !== 'questioned'), critic_flags_questioned: 0 } : {}),
+     critic_status: 'reviewed',
+     critic_rejected: claims.length - survivors.length,
+     critic_claims_not_sent: notSent,
+
+$ node --test test/clinical-rules.test.js   (exit 1)
+✖ F-CLIN: a critic veto of a verified flag keeps it visible and questioned, never hidden (1.8413ms)
+AssertionError [ERR_ASSERTION]: the vetoed flag still ships
+ℹ tests 22
+ℹ pass 21
+ℹ fail 1
+
+$ npm run eval:extensions --prefix agentforge   (exit 1)
+passed: false  total_cases: 54
+  xc-fc-08-critic-vetoed-flag-stays-questioned (factually_consistent): diabetes_range_flags_0
+
+== 9. Reverted (git checkout agentforge/src/critic.js); the same commands pass on c1f353e4 ==
+$ node --test test/clinical-rules.test.js   (exit 0)
+ℹ tests 22
+ℹ pass 22
+ℹ fail 0
+$ npm run eval:extensions --prefix agentforge   (exit 0)
+passed: true  total_cases: 54  failed_cases: 0

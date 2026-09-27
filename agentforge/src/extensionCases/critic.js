@@ -180,7 +180,7 @@ function requestPhiIssues(run) {
   return identifiers.some((value) => text.includes(String(value).toLowerCase())) ? ['identifier_in_critic_request'] : [];
 }
 
-const ALLOWED_TRACE_CRITIC_KEYS = new Set(['status', 'reason', 'provider', 'model', 'duration_ms', 'input_tokens', 'output_tokens', 'cost_usd', 'cost_source', 'claims_reviewed', 'claims_kept', 'claims_rejected', 'claims_not_sent', 'claims_topup_unreviewed', 'reason_counts', 'error_code']);
+const ALLOWED_TRACE_CRITIC_KEYS = new Set(['status', 'reason', 'provider', 'model', 'duration_ms', 'input_tokens', 'output_tokens', 'cost_usd', 'cost_source', 'claims_reviewed', 'claims_kept', 'claims_rejected', 'claims_not_sent', 'claims_topup_unreviewed', 'flags_questioned', 'reason_counts', 'error_code']);
 
 export const criticCaseChecks = {
   async uncited(run) { return plantedIssues(run, UNCITED_SENTENCE, 'UNCITED'); },
