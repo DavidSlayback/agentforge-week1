@@ -399,8 +399,11 @@ a{color:var(--teal)}
         };
         // F-CLIN: deterministic clinical-rule flags (clinicalRules.js), each
         // with the citations of the facts that triggered it and its threshold source.
-        if ((answer.safety_flags || []).length || answer.safety_flags_dropped || answer.critic_flags_rejected) {
-          const withheldFlags = (answer.safety_flags_dropped || 0) + (answer.critic_flags_rejected || 0);
+        // A flag the critic vetoed after it passed verification is still shown,
+        // marked questioned; only a verification failure withholds a flag.
+        if ((answer.safety_flags || []).length || answer.safety_flags_dropped) {
+          const droppedFlags = answer.safety_flags_dropped || 0;
+          const questionedFlags = answer.critic_flags_questioned || 0;
           const rows = answer.safety_flags.map((flag) => {
             const row = document.createElement('li');
             row.dataset.flagCode = flag.code;
@@ -416,9 +419,15 @@ a{color:var(--teal)}
             source.rel = 'noopener';
             source.textContent = 'Threshold source: ' + flag.threshold_source.title;
             row.append(document.createTextNode(' '), source);
+            if (flag.critic_status === 'questioned') {
+              const questioned = document.createElement('p');
+              questioned.className = 'qualification';
+              questioned.textContent = 'Questioned by the critic (' + String(flag.critic_reason || 'no reason').toLowerCase().replaceAll('_', ' ') + ') — check the cited source.';
+              row.append(questioned);
+            }
             return row;
           });
-          const flagSection = listSection('Safety flags (' + answer.safety_flags.length + ')' + (withheldFlags ? '; ' + withheldFlags + ' withheld (failed verification or vetoed by the critic)' : ''), rows);
+          const flagSection = listSection('Safety flags (' + answer.safety_flags.length + ')' + (questionedFlags ? '; ' + questionedFlags + ' questioned by the critic' : '') + (droppedFlags ? '; ' + droppedFlags + ' withheld (failed verification)' : ''), rows);
           flagSection.className = 'safety-flags';
           scanResult.append(flagSection);
         }

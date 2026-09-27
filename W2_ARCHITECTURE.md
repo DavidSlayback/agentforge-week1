@@ -318,7 +318,9 @@ claim was added after the critic ran and is counted in
 `critic_topup_unreviewed`, not as reviewed. If the vetoes remove every claim,
 the answer ships with none. `critic_rejected` equals the number of claims
 removed from what ships, and the UI shows it together with any unreviewed
-count. Why a model next to `verifyClaims`: the
+count. Safety flags (§3d) are the exception: a veto never hides a flag that
+passed `verifyClaims`; it ships marked `critic_status: 'questioned'` with the
+reason code, counted in `critic_flags_questioned`. Why a model next to `verifyClaims`: the
 verifier is structural and has known gaps (a verbatim guideline span is exempt
 from its directive check; its directive patterns are a fixed list, so "The
 patient has to be taking lisinopril 10 mg daily." passes). The critic is a
@@ -540,8 +542,11 @@ copied into it. Flags are checked like claims.
 through `verifyClaims`: the typed lab result, the document line, the chart
 field, or the guideline chunk. A flag that fails is dropped and counted in
 `safety_flags_dropped`, which is a review issue in the trace. The critic
-receives flags as `safety_flag` items and may veto one; the veto is counted
-in `critic_flags_rejected`.
+receives flags as `safety_flag` items with every citation quote, including the
+guideline chunk's threshold text. A veto does not hide a verified flag: it
+stays in the Safety flags section marked "Questioned by the critic", is
+counted in `critic_flags_questioned` (trace issue `critic_questioned_flags`,
+needs review), and never in `safety_flags_dropped`.
 
 | Rule | Flag or review | Threshold and source |
 |---|---|---|

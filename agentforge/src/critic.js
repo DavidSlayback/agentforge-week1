@@ -14,7 +14,8 @@
  * sees each shipped claim's text and the `quote_or_value` strings of its
  * citations (what the clinician already sees), and returns one verdict per
  * claim: `keep`, or `reject` with a code from `CRITIC_REASON_CODES`. Its
- * output can only remove claims: verdicts are applied by claim index, the
+ * output can only remove claims (a vetoed safety flag is kept and marked
+ * questioned instead, see `applyCriticVerdicts`): verdicts are applied by claim index, the
  * critic's own text is never read back, and a verdict for an id it was not
  * sent (an "added" claim) is ignored.
  *
@@ -41,10 +42,9 @@
 import { deterministicTopUpClaims } from './answerComposer.js';
 import { OpenAICompatibleProvider } from './modelProvider.js';
 import { PRICE_TABLE } from './pricing.js';
-import { CRITIC_STATUS_VALUES } from './schemas.js';
+import { CRITIC_REASON_CODES, CRITIC_STATUS_VALUES } from './schemas.js';
 
-export { CRITIC_STATUS_VALUES };
-export const CRITIC_REASON_CODES = Object.freeze(['UNCITED', 'UNSUPPORTED_BY_SOURCE', 'UNSAFE_ACTION']);
+export { CRITIC_REASON_CODES, CRITIC_STATUS_VALUES };
 export const CRITIC_WORKER = 'critic-worker';
 export const DEFAULT_CRITIC_TIMEOUT_MS = 4000;
 export const CRITIC_PROVIDERS = Object.freeze(['openrouter']);
@@ -121,7 +121,10 @@ export function answerClaims(answer) {
 /**
  * What the critic reviews, in the fixed order verdict indexes refer to: every
  * shipped claim, then every safety flag (F-CLIN) as a `safety_flag` item
- * with its text and citations. The critic may veto a flag like any claim.
+ * with its text and citations. Each citation's full `quote_or_value` is sent,
+ * so a flag's guideline chunk (e.g. the CDC "A1C Ranges" threshold text) is
+ * in front of the critic. A veto of a flag marks it questioned; it is never
+ * hidden (`applyCriticVerdicts`).
  */
 export function criticItems(answer) {
   const flags = (answer?.safety_flags || []).map((flag) => ({ kind: 'safety_flag', text: flag.text, citations: flag.citations }));
@@ -301,7 +304,7 @@ const factKey = (citation) => (citation ? `${citation.source_type}:${citation.so
 
 /**
  * Apply a critic handoff to the answer. Only a `reviewed` handoff changes
- * claims: each rejected claim is removed by index, and every fact or
+ * claims or flags: each rejected claim is removed by index, and every fact or
  * guideline chunk a rejected claim cited is barred from coming back. The
  * composer's deterministic top-up (`deterministicTopUpClaims`) may still fill
  * a gap for a fact no rejected claim cited; such a claim was added after the
@@ -315,6 +318,13 @@ const factKey = (citation) => (citation ? `${citation.source_type}:${citation.so
  * without review because the identity guard held them back;
  * `critic_topup_unreviewed` is claims added after the critic ran.
  *
+ * Safety flags are different (F-CLIN): every flag here already passed
+ * `verifyClaims` (answerComposer.js#verifySafetyFlags), and hiding a verified
+ * safety warning on a model veto makes the answer less safe. A vetoed flag
+ * stays in `safety_flags`, marked `critic_status: 'questioned'` with the
+ * critic's `critic_reason` code, and is counted in `critic_flags_questioned`
+ * (a review issue in the runtime evaluation). It bars nothing.
+ *
  * `parts` is `partitionAnswerInputs(...)` for the same inputs the answer was
  * composed from (answerComposer.js).
  */
@@ -325,10 +335,13 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
   const claims = answerClaims(answer);
   const rejected = new Set(handoff.verdicts.filter((verdict) => verdict.verdict === 'reject').map((verdict) => verdict.index));
   const survivors = claims.filter((_, index) => !rejected.has(index));
-  // Safety flags follow the claims in `criticItems`; a vetoed flag is removed
-  // and counted, and bars nothing (its facts may still be stated).
-  const flags = answer.safety_flags || [];
-  const keptFlags = flags.filter((_, position) => !rejected.has(claims.length + position));
+  // Safety flags follow the claims in `criticItems`; a vetoed flag is kept,
+  // marked questioned with the critic's reason code, and bars nothing.
+  const rejectReason = new Map(handoff.verdicts.filter((verdict) => verdict.verdict === 'reject').map((verdict) => [verdict.index, verdict.reason]));
+  const flags = (answer.safety_flags || []).map((flag, position) => (rejected.has(claims.length + position)
+    ? { ...flag, critic_status: 'questioned', critic_reason: rejectReason.get(claims.length + position) }
+    : flag));
+  const questionedFlags = flags.filter((flag) => flag.critic_status === 'questioned').length;
   const barredFacts = new Set(claims.filter((_, index) => rejected.has(index)).flatMap((claim) => (claim.citations || []).map(factKey)));
   const topup = rejected.size && parts
     ? deterministicTopUpClaims(parts, survivors).filter((claim) => !(claim.citations || []).some((citation) => barredFacts.has(factKey(citation))))
@@ -339,7 +352,7 @@ export function applyCriticVerdicts(answer, handoff, parts = null) {
     composer: topup.length && answer.composer === 'model' ? 'model+deterministic-topup' : answer.composer,
     patient_facts: shipped.filter((claim) => claim.kind === 'patient_fact'),
     guideline_evidence: shipped.filter((claim) => claim.kind === 'guideline'),
-    ...(answer.safety_flags ? { safety_flags: keptFlags, critic_flags_rejected: flags.length - keptFlags.length } : {}),
+    ...(answer.safety_flags ? { safety_flags: flags, critic_flags_questioned: questionedFlags } : {}),
     critic_status: 'reviewed',
     critic_rejected: claims.length - survivors.length,
     critic_claims_not_sent: notSent,
@@ -370,18 +383,20 @@ export function criticTraceSummary(handoff) {
     claims_rejected: metrics.claims_rejected || 0,
     claims_not_sent: metrics.claims_not_sent || 0,
     claims_topup_unreviewed: 0,
+    flags_questioned: 0,
     reason_counts: metrics.reason_counts || emptyReasonCounts(),
     error_code: handoff?.error_code || null,
   };
 }
 
-/** The trace summary for an applied handoff: `claims_rejected` and
- * `claims_topup_unreviewed` come from what actually ships, not the verdicts. */
+/** The trace summary for an applied handoff: `claims_rejected`,
+ * `claims_topup_unreviewed` and `flags_questioned` come from what actually
+ * ships, not the verdicts. */
 export function criticAppliedSummary(handoff, appliedAnswer) {
-  return { ...criticTraceSummary(handoff), claims_rejected: appliedAnswer.critic_rejected || 0, claims_topup_unreviewed: appliedAnswer.critic_topup_unreviewed || 0 };
+  return { ...criticTraceSummary(handoff), claims_rejected: appliedAnswer.critic_rejected || 0, claims_topup_unreviewed: appliedAnswer.critic_topup_unreviewed || 0, flags_questioned: appliedAnswer.critic_flags_questioned || 0 };
 }
 
 /** The trace's `critic` block when the critic never ran (disabled, budget, no claims). */
 export function criticNotRunSummary(status, reason) {
-  return { status, reason, provider: null, model: null, duration_ms: 0, input_tokens: 0, output_tokens: 0, cost_usd: null, cost_source: 'no_call', claims_reviewed: 0, claims_kept: 0, claims_rejected: 0, claims_not_sent: 0, claims_topup_unreviewed: 0, reason_counts: emptyReasonCounts(), error_code: null };
+  return { status, reason, provider: null, model: null, duration_ms: 0, input_tokens: 0, output_tokens: 0, cost_usd: null, cost_source: 'no_call', claims_reviewed: 0, claims_kept: 0, claims_rejected: 0, claims_not_sent: 0, claims_topup_unreviewed: 0, flags_questioned: 0, reason_counts: emptyReasonCounts(), error_code: null };
 }
