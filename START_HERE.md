@@ -10,6 +10,6 @@
 - **Patient dashboard port:** [`PATIENT_DASHBOARD_MIGRATION.md`](PATIENT_DASHBOARD_MIGRATION.md)
 - **Week 1 documents:** [`AUDIT.md`](AUDIT.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`USERS.md`](USERS.md)
 - **Evaluation gate:** [`EVAL_GATE.md`](EVAL_GATE.md)
-- **W1 is frozen** at commit `84f232b` and no longer updated.
+- **W1 is frozen:** the submitted code is tag `week1-final` (`e4c0721`), and the `/agentforge` route runs the pinned image `agentforge-w1:84f232b`. Neither is updated.
 
 **Original OpenEMR:** https://github.com/Gauntlet-HQ/openemr-base-clean
