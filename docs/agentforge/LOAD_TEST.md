@@ -173,3 +173,12 @@ Same command and sampling as the `d5a0df7e` run.
 | 50 users | 200/200 ok | 0 | 103 ms | 3.26 s | 14.54 s | 11.2 req/s |
 
 scan-supervisor (n=4 per level): p50 11.9 s and 14.5 s, max 16.1 s and 16.9 s, within the 25 s scan deadline. `agentforge-w2` peaked at 44 % CPU and 64 MiB of its 512 MiB limit (20 samples covering both levels). Raw data: `docs/agentforge/evidence/load/ee036f38-{10,50}.json` and `ee036f38-docker-stats.jsonl`.
+
+## Final freeze run (2026-09-27, SHA `bfbb1eb2`)
+
+| Level | Requests | Errors | p50 | p95 | p99 | Throughput |
+|---|---|---|---|---|---|---|
+| 10 users | 200/200 ok | 0 | 59 ms | 2.71 s | 11.39 s | 12.4 req/s |
+| 50 users | 200/200 ok | 0 | 86 ms | 3.15 s | 11.66 s | 10.1 req/s |
+
+scan-supervisor (n=4 per level): p50 11.4 s and 11.7 s, max 13.4 s and 18.9 s, within the 25 s scan deadline. `agentforge-w2` peaked at 38 % CPU and 54 MiB of 512 MiB. The first run on this SHA had 20 `/ready` 503s out of 29 `/ready` requests at 50 users; every other route returned 0 errors (`evidence/load/bfbb1eb2-50-run1-ready-503s.json`). It did not reproduce in a 40-request parallel `/ready` burst or in this re-run. `/ready` does not log a failure reason, so the failing dependency is unknown.

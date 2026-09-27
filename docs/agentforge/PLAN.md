@@ -895,6 +895,14 @@ observed live** — the post-deploy smoke below has not run.
 - Browser screenshot of the bbox overlay. Then the user records the video (H5)
   and posts socially (H6).
 
+## Final freeze (2026-09-27 ~12:15 UTC): `w2-final` = `bfbb1eb2`
+
+- **E9c** (MR !123), at the owner's request, so that nothing on the live path is labeled unconfirmed: problems and allergies are read through fallback routes when the scoped route is empty (§3f). **Adapter read on production** (`AF-LIVE-01`, service identity): identity, encounters 2, problems 1 (hypertension), medications 6, allergies 1 (penicillin), all `success`; notes `not_requested` (by design, labeled).
+- **Live acceptance: 26/26 PASS on `bfbb1eb2`** (`evidence/LEDGER.md`). The first run had one FAIL: W2-C4, where one scan's retrieval came back `degraded: no_rerank` (a failed Qwen rerank call, labeled honestly). The re-run passed 26/26, with `degraded: null`.
+- **Bruno, deployed: 27/27, 64/64** (`evidence/bruno-deployed-bfbb1eb2.md`).
+- **Load test on `bfbb1eb2`:** 400/400 ok, 0 errors. 10 users: p95 2.71 s. 50 users: p95 3.15 s. scan-supervisor p50 11.4 s / 11.7 s (n=4 each). `agentforge-w2` peaked at 38 % CPU and 54 MiB. The first run had 20 `/ready` 503s at 50 users (`evidence/load/bfbb1eb2-50-run1-ready-503s.json`), not reproduced by a 40-request parallel `/ready` burst or by the re-run. Readiness failures are not logged with a reason, which is noted as a gap.
+- Tags: `w2-final` → `bfbb1eb2`; `w2-final-rc2` → `ee036f38` (demo video); `w2-final-rc1` → `d5a0df7e`.
+
 ## Re-freeze (2026-09-27 ~08:39 UTC): `w2-final` = `ee036f38`
 
 - After the first freeze (`d5a0df7e`, now tag `w2-final-rc1`), the owner asked for a UX pass and a recorded demo. Merged: MR !120 (UI polish, presentation only; the golden hash was unchanged) and MR !121 (a critic veto marks a verified safety flag *questioned* instead of hiding it. Observed in production: `gpt-4.1-nano` intermittently vetoed the CDC-cited A1C diabetes-range flag). Both services were redeployed from `ee036f38`.

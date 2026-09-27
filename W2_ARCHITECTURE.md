@@ -94,7 +94,7 @@ next section says exactly where that line sits.
 >   gap, a degraded mode, or "wired, not yet observed live" is a real limit,
 >   not a rounding error.
 
-**Freeze.** The submitted build is tag `w2-final` = `ee036f38`, a re-freeze of `d5a0df7e` (`w2-final-rc1`) with two changes: presentation-only UI polish and a critic veto that now marks a verified safety flag *questioned* instead of hiding it (§3d). On `ee036f38`: live acceptance 26/26, deployed Bruno 27/27, load test 400/400 with 0 errors (`docs/agentforge/evidence/`). Rows below that cite `d5a0df7e` or earlier SHAs are the observations made on those SHAs.
+**Freeze.** The submitted build is tag `w2-final` = `bfbb1eb2`. Earlier freezes: `d5a0df7e` (`w2-final-rc1`); `ee036f38` (`w2-final-rc2`: presentation-only UI polish, and a critic veto that now marks a verified safety flag *questioned* instead of hiding it, §3d). `bfbb1eb2` adds the live-path fallback reads for problems and allergies (E9c, §3f); an adapter read on production returns hypertension and penicillin for `AF-LIVE-01`. On `bfbb1eb2`: live acceptance 26/26, deployed Bruno 27/27, load test 400/400 with 0 errors (`docs/agentforge/evidence/`). Rows below that cite `d5a0df7e` or earlier SHAs are the observations made on those SHAs.
 
 ### Scope: how we read the PRD's "Core Deliverables" list
 
