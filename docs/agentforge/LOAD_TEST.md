@@ -162,3 +162,14 @@ projections. No provider cost in this file is an observed bill.
 | 50 users | 200/200 ok | 0 | 82 ms | 3.52 s | 11.75 s | 13.0 req/s |
 
 The p95 and p99 come from the capped share of full scan requests (OCR, model, critic); the cheap routes stay under 100 ms. `agentforge-w2` peaked at 32 % CPU and 58 MiB of its 512 MiB limit. Both levels share one sampling window of 7 samples, because they ran back to back. Raw data: `docs/agentforge/evidence/load/d5a0df7e-{10,50}.json` and `d5a0df7e-docker-stats.jsonl`.
+
+## Re-freeze run (2026-09-27, SHA `ee036f38`)
+
+Same command and sampling as the `d5a0df7e` run.
+
+| Level | Requests | Errors | p50 | p95 | p99 | Throughput |
+|---|---|---|---|---|---|---|
+| 10 users | 200/200 ok | 0 | 47 ms | 3.06 s | 11.93 s | 9.4 req/s |
+| 50 users | 200/200 ok | 0 | 103 ms | 3.26 s | 14.54 s | 11.2 req/s |
+
+scan-supervisor (n=4 per level): p50 11.9 s and 14.5 s, max 16.1 s and 16.9 s, within the 25 s scan deadline. `agentforge-w2` peaked at 44 % CPU and 64 MiB of its 512 MiB limit (20 samples covering both levels). Raw data: `docs/agentforge/evidence/load/ee036f38-{10,50}.json` and `ee036f38-docker-stats.jsonl`.

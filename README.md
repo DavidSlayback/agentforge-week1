@@ -139,7 +139,7 @@ the full gate rubric.
 | | Route / service | What it does | Status |
 |---|---|---|---|
 | **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing and follow-up. Reads the chart from synthetic fixtures (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. | Frozen snapshot of the W1 submission at `84f232b` (pinned image `agentforge-w1:84f232b`, never rebuilt). It keeps its known debt, including the `.some` verifier and $0 cost; see [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §4, "Week 1 debt". Superseded by Week 2. |
-| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public no-login demo, chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture". An OpenEMR-launched session (E9) reads the real chart for the designated synthetic patient `AF-LIVE-01` (observed on `b942391f`); problems and allergies stay unconfirmed there until a clinician re-authorizes the read client (`W2_ARCHITECTURE.md` §3f). | This submission, frozen at tag `w2-final` (`d5a0df7e`). `/health` reports the deployed SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
+| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public no-login demo, chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture". An OpenEMR-launched session (E9) reads the real chart for the designated synthetic patient `AF-LIVE-01` (observed on `b942391f`); problems and allergies stay unconfirmed there until a clinician re-authorizes the read client (`W2_ARCHITECTURE.md` §3f). | This submission, frozen at tag `w2-final` (`ee036f38`). `/health` reports the deployed SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
 
 Both services run on the same VM as OpenEMR, from the same repository (W1 as
 a pinned image). Caddy routes `/agentforge-w2` and `/agentforge` to their separate containers,
@@ -154,9 +154,12 @@ trend chart and contextual retrieval (query expansion, which applies only to
 the BM25 fallback). Every item is built and deployed.
 [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2, "Scope", gives each item's
 state with the SHA it was observed on and its evidence. The release freeze
-is tag `w2-final` (`d5a0df7e`), deployed to `/agentforge-w2` and `/dashboard`
-on 2026-09-27 at about 02:10 UTC; `main` is ahead only by evidence and docs
-commits. Live acceptance passed 26/26 on it
+is tag `w2-final` (`ee036f38`), deployed to `/agentforge-w2` and `/dashboard`
+on 2026-09-27 at about 08:39 UTC; `main` is ahead only by evidence and docs
+commits. It re-froze the earlier `d5a0df7e` (tag `w2-final-rc1`) after a UI
+polish and a fix that keeps a critic-questioned safety flag visible. Live
+acceptance passed 26/26 on `ee036f38`, as did Bruno (27/27) and the load test
+(400/400); the demo video was recorded on it
 ([`docs/agentforge/evidence/LEDGER.md`](docs/agentforge/evidence/LEDGER.md)).
 
 ## Local setup

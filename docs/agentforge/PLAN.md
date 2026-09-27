@@ -895,6 +895,14 @@ observed live** — the post-deploy smoke below has not run.
 - Browser screenshot of the bbox overlay. Then the user records the video (H5)
   and posts socially (H6).
 
+## Re-freeze (2026-09-27 ~08:39 UTC): `w2-final` = `ee036f38`
+
+- After the first freeze (`d5a0df7e`, now tag `w2-final-rc1`), the owner asked for a UX pass and a recorded demo. Merged: MR !120 (UI polish, presentation only; the golden hash was unchanged) and MR !121 (a critic veto marks a verified safety flag *questioned* instead of hiding it. Observed in production: `gpt-4.1-nano` intermittently vetoed the CDC-cited A1C diabetes-range flag). Both services were redeployed from `ee036f38`.
+- **Live acceptance: 26/26 PASS on `ee036f38`** (`evidence/LEDGER.md`). The first run on it had 3 `fetch failed` rows (X-3-MISLABEL, X-4, E8-SCOPE). The containers had not restarted and the logs showed no error; a full re-run passed 26/26. It is recorded here as a transient network failure between the laptop and the VM.
+- **Bruno, deployed: 27/27, 64/64** (`evidence/bruno-deployed-ee036f38.md`). The first run failed one request: W1 `/agentforge/ready` reported `model: not_ready` (its live model probe). Three immediate re-probes returned 200, and the re-run passed.
+- **Load test on `ee036f38`:** 400/400 ok, 0 errors; 10 users p95 3.06 s, 50 users p95 3.26 s; scan-supervisor p50 11.9 s / 14.5 s (n=4 each); `agentforge-w2` peaked at 44 % CPU and 64 MiB (`LOAD_TEST.md`, `evidence/load/ee036f38-*`).
+- **Demo video** recorded on `ee036f38` (script: `docs/agentforge/DEMO_VIDEO_SCRIPT.md`).
+
 ## Freeze record (E7, 2026-09-27 ~02:10 UTC)
 
 - **Freeze SHA `d5a0df7e`** (tag `w2-final`). `/agentforge-w2/health` and `/dashboard/health` both report it; W1 `/agentforge` stays at `84f232b`.
