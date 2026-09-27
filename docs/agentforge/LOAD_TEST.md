@@ -1,8 +1,8 @@
 # AgentForge load test
 
-Status: **tooling ready, run at the freeze.** No load run has been made on the
-current code. The results section below is empty until the orchestrator runs
-the commands in "Freeze run" against the freeze SHA.
+Status: **run on the freeze SHA `d5a0df7e`** (2026-09-27): 400/400 requests,
+0 errors. Numbers in "Results" and "Freeze run" below; raw data in
+`docs/agentforge/evidence/load/`.
 
 The harness is `agentforge/scripts/load-test.mjs` (Node `fetch`, no new
 dependency). It supersedes `scripts/agentforge-load.mjs`, which sent only
@@ -126,12 +126,16 @@ OCR work and say nothing about the deployed service.
 
 ## Results
 
-Pending the freeze run.
+From the freeze run on `d5a0df7e` (details in "Freeze run" below).
 
 | Level | Requests | Error rate | p50 | p95 | p99 | Throughput | Peak CPU / memory (agentforge-w2) | SHA |
 |---|---|---|---|---|---|---|---|---|
-| 10 | — | — | — | — | — | — | — | — |
-| 50 | — | — | — | — | — | — | — | — |
+| 10 | 200 | 0 % | 46 ms | 2.34 s | 9.58 s | 13.0 req/s | 32 % / 58 MiB of 512 MiB (both levels) | `d5a0df7e` |
+| 50 | 200 | 0 % | 82 ms | 3.52 s | 11.75 s | 13.0 req/s | same window | `d5a0df7e` |
+
+`scan-supervisor` alone (n = 4 per level, critic on): 10 users p50 9.6 s,
+max 11.2 s; 50 users p50 11.8 s, max 14.9 s
+(`docs/agentforge/evidence/load/d5a0df7e-{10,50}.json`, `summary.per_route`).
 
 ## Historical sample (W1, `56d1a35`)
 

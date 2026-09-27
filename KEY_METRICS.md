@@ -24,7 +24,7 @@ it was measured on. Week 1's metrics are frozen in
 | Metric | Definition | Target | Measured | Source |
 |---|---|---|---|---|
 | **Adversarial block rate** | Injected unsupported answer claims blocked before display, over a fixed probe set: invented value, misquoted field, value borrowed from another field, paraphrased guideline, patient fact cited to a guideline, treatment directive, low-confidence fact, unsupported negation or interpretation, uncited claim. | 100% | **100%** (10/10 blocked; 10/10 legitimate claims kept) | `npm run eval:trust-probes --prefix agentforge` (offline). The gate also keeps its invented-claim case. |
-| **Citation resolvability** | Displayed answer claims whose citation resolves to its exact source: a document field's bounding box on the rendered page, or a verbatim guideline chunk with its URL. | 100% | **100% offline** (47/47 document and guideline citations). **Live on `521af47`:** on the lab-a source preview, 12/12 citation links land on a box (`docs/agentforge/evidence/E1-click-to-source-live.md`). E7 re-checks it on the freeze SHA. | `npm run eval:metrics --prefix agentforge` (offline). The 50 chart-record citations are counted apart: offline they resolve by construction. Live: the source-preview box ids for each claim of a deployed scan. |
+| **Citation resolvability** | Displayed answer claims whose citation resolves to its exact source: a document field's bounding box on the rendered page, or a verbatim guideline chunk with its URL. | 100% | **100% offline** (47/47 document and guideline citations). **Live on `521af47`:** on the lab-a source preview, 12/12 citation links land on a box (`docs/agentforge/evidence/E1-click-to-source-live.md`). **Live on the freeze SHA `d5a0df7e`:** 12/12 again, no link without a box (`docs/agentforge/evidence/LEDGER.md` X-1). | `npm run eval:metrics --prefix agentforge` (offline). The 50 chart-record citations are counted apart: offline they resolve by construction. Live: the source-preview box ids for each claim of a deployed scan. |
 
 Why this is the north star: a confidently wrong clinical statement can harm a
 patient. The verifier drops unsupported claims, so "share of shown claims that
@@ -41,7 +41,7 @@ it lets through really lead back to their evidence.
 | **Model grounding rate** | Raw model answer claims that pass verification before anything is dropped. Reported together with the **composer fallback rate** (answers that fell back to the deterministic template). | ≥ 80% grounded; ≤ 20% fallback | **100% grounded** (121/121 model claims); **0% fallback** (0/12). Before the prompt fix: 60% (81/135) and 8% (1/12) on `a91452b`. | `measure-live-metrics.mjs`, `qwen3.8-flash`, 4 golden PDFs × 3 runs on the public URL. Small sample. If either target is missed, that triggers switching from Qwen to OpenRouter. |
 | **Guideline retrieval quality** (E3) | Recall@3 (hits in the top 3 over min(3, relevant chunks)), MRR@3 and hit@1 on 22 labeled queries from the golden documents' findings, chief concerns and clinician questions. | Improves with no query worse | **BM25 stage (22/22 queries): recall@3 0.886 → 0.939, MRR@3 0.879 → 0.909, hit@1 0.773 → 0.818** after query expansion. Full recorded hybrid pipeline (7/22 measurable): recall@3 0.905, MRR@3 1.000, unchanged, because the expansion is kept out of the hybrid rerank pool. Chunk headers: no change. | `node agentforge/scripts/benchmark-retrieval.mjs` (offline) on `ace4ff62`. The BM25 numbers cover the `local-lexical` provider and the hybrid `sparse_only` fallback, not the normal hybrid path. |
 | **Critic veto accuracy** (E2) | On a small synthetic benchmark of planted claims that pass `verifyClaims`: the share of planted uncited or unsafe claims the critic rejects, and the share of clean-answer runs in which it rejects anything. | All planted claims rejected; no clean claim rejected (the bar the model was chosen by) | **`openai/gpt-4.1-nano`: 10/10 planted claims rejected** (5/5 uncited, 5/5 directives as `UNSAFE_ACTION`); **0 false rejects** in 5 clean-answer runs; 15/15 valid JSON. Small synthetic benchmark (15 calls), not a clinical-accuracy claim. | `node agentforge/scripts/benchmark-critic-models.mjs` inside the deployed container on `e56eab86` (`docs/agentforge/evidence/E2-critic-model-benchmark.json`). |
-| **Time to grounded answer** *(optional)* | p50 and p95 from upload to grounded answer, with per-stage durations (OCR, retrieval, answer). | p95 ≤ 30 s | **p50 11.1 s, p95 22.1 s** (12 runs). Per-stage split not captured by the script; a single trace showed OCR ~6 s and retrieval ~3.5 s. Measured before the critic existed; with the critic on, the live `/v1/alerts` p95 on `fd6c959b` was 21.2 s. | `measure-live-metrics.mjs` on the public URL, wall time from the request. |
+| **Time to grounded answer** *(optional)* | p50 and p95 from upload to grounded answer, with per-stage durations (OCR, retrieval, answer). | p95 ≤ 30 s | **p50 11.1 s, p95 22.1 s** (12 runs). Per-stage split not captured by the script; a single trace showed OCR ~6 s and retrieval ~3.5 s. Measured before the critic existed. With the critic on, on the freeze SHA `d5a0df7e`: live `/v1/metrics` `scan_form` p50 10.5 s, p95 21.3 s; under the load test, `scan-supervisor` p50 9.6 s (10 users) and 11.8 s (50 users), n = 4 each (`W2_COST_LATENCY.md` §3). | `measure-live-metrics.mjs` on the public URL, wall time from the request. |
 
 Why these: **recall** asks whether it finds what matters. **Accuracy** asks
 whether what it read is right. **Grounding rate** asks whether the model's
@@ -68,14 +68,17 @@ reviewed scan. See [`W2_COST_LATENCY.md`](W2_COST_LATENCY.md).
 
 ## Measurement record
 
-Values are filled in only from a named command run on a named commit. This
-file is updated when the release commit is frozen.
+Values are filled in only from a named command run on a named commit.
 
-All values above were measured on `131d5a3` (2026-09-24), except the
-"before" grounding figures, which are from `a91452b`, and guideline retrieval
-quality, measured on `ace4ff62` (2026-09-26), critic veto accuracy, measured
-on `e56eab86` (2026-09-26), and the live citation check on `521af47`.
-Synthetic data only.
+The offline values (adversarial block rate 10/10, citation resolvability
+47/47, abnormal-finding recall 18/19, extraction accuracy 44/47) were re-run
+on the freeze SHA `d5a0df7e` by an independent auditor and are identical to
+the values first measured on `131d5a3` (2026-09-24). Model grounding and the
+12-run time to grounded answer are from `131d5a3` and were not re-run; the
+"before" grounding figures are from `a91452b`. Guideline retrieval quality
+was measured on `ace4ff62` (2026-09-26), critic veto accuracy on `e56eab86`
+(2026-09-26), and the live citation and latency checks on the SHAs named in
+the tables. Synthetic data only.
 
 - **Offline:** `npm run eval:trust-probes` and `npm run eval:metrics`
   (`--prefix agentforge`). The offline answer uses the deterministic composer,

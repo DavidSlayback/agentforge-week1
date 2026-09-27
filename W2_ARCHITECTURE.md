@@ -102,25 +102,47 @@ expansion of the Week 1 agent into two document types, two workers, and one
 regression gate" (p. 4). We read the first five items as core and the last
 five as extensions, and built the core first. On 2026-09-26 the owner decided
 to build all ten (`docs/agentforge/PLAN.md`, D12), and all ten are built and
-deployed. Each "observed live" entry below names the SHA it was seen on; the
-release freeze (E7, pending) re-observes every item on one SHA.
+deployed. The release freeze is tag `w2-final`, SHA `d5a0df7e`, deployed to
+`/agentforge-w2` and `/dashboard` on 2026-09-27 at about 02:10 UTC. Live
+acceptance on that SHA passed 26/26 (`docs/agentforge/evidence/LEDGER.md`).
+Its rows cover X-1 to X-4 and every core item except the 50-case dataset,
+which runs offline; X-5 is not observable live (see its row). Entries that
+cite an earlier SHA were observed there in more detail; the ledger row is
+the re-check on `d5a0df7e`.
 
 | PRD item | Our reading | State |
 |---|---|---|
-| Two document types: lab PDF and intake form | Core | Built and live (§3a); live acceptance 16/16 on `521af47` (`docs/agentforge/evidence/LEDGER.md`) |
-| One supervisor and two workers | Core | Built and live (§3b); decision sequence observed in `LEDGER.md` W2-C6 |
-| Basic hybrid RAG plus rerank | Core | Built and live (§3c); `LEDGER.md` W2-C4 |
+| Two document types: lab PDF and intake form | Core | Built and live (§3a); on `d5a0df7e`: `LEDGER.md` W2-C1, W2-C1-READBACK, W2-C2, W2-C11, W2-INTAKE-C1, W2-INTAKE-NO-PHI, W2-SF-WRONGTYPE, W2-SF-CROSSPATIENT |
+| One supervisor and two workers | Core | Built and live (§3b); decision sequence EXTRACT → RETRIEVE → ANSWER → CRITIQUE → DONE in `LEDGER.md` W2-C6 on `d5a0df7e` |
+| Basic hybrid RAG plus rerank | Core | Built and live (§3c); `LEDGER.md` W2-C4 on `d5a0df7e` |
 | 50-case golden dataset with boolean rubrics | Core | Built (§3e, `EVAL_GATE.md`) |
-| PR-blocking eval CI and an observable deployed demo | Core | Built: pre-commit gate (§3e), `/observability` |
-| X-1 Click-to-source UI with a simple document preview | Extension | Observed live on `521af47`: the lab-a preview had 12 citation links and 12 boxes, every link targets a box, and clicking the A1c citation highlighted its box (`docs/agentforge/evidence/E1-click-to-source-live.md`). Gated by `x1-*` extension cases. |
-| X-2 Critic agent that rejects uncited claims or unsafe action suggestions | Extension | Observed live on `e56eab86` with `openai/gpt-4.1-nano`: the UI showed "critic: reviewed", and the trace had one `CRITIQUE` decision and a critic duration of 1182 ms (`docs/agentforge/evidence/E2-critic-live.md`). The critic can only veto claims (§3b); `verifyClaims` stays the authority. Nine `x2-*` cases check the veto wiring with a fake critic model; the model choice came from `scripts/benchmark-critic-models.mjs` (`E2-critic-model-benchmark.json`). |
-| X-3 A third document type (medication list) | Extension | Observed live on `d952660b`: "Medication list · Layout A" reached READY with 19 cited fields and a reviewed critic; two low-OCR-confidence medications went to "Needs review"; the OpenEMR ledger shows the `medication_list` and derived-facts writes (`docs/agentforge/evidence/E4-E5-E8-live.md`). 15 `x3-*` cases. |
-| X-4 Lab trend chart from extracted Observation data | Extension | Observed live on `e0f9eb35`: after lab uploads, "Lab trends" showed A1C and hemoglobin charts read back from OpenEMR's FHIR Observation service, each point linked to its source (`E4-E5-E8-live.md`). Five `x4-*` cases. |
+| PR-blocking eval CI and an observable deployed demo | Core | Built: pre-commit gate (§3e), `/observability`; the trace fields in `LEDGER.md` W2-C10 on `d5a0df7e` |
+| X-1 Click-to-source UI with a simple document preview | Extension | Observed live on `521af47`: the lab-a preview had 12 citation links and 12 boxes, every link targets a box, and clicking the A1c citation highlighted its box (`docs/agentforge/evidence/E1-click-to-source-live.md`). On `d5a0df7e`, `LEDGER.md` X-1: 12 links, 12 boxes, none without a box. Gated by `x1-*` extension cases. |
+| X-2 Critic agent that rejects uncited claims or unsafe action suggestions | Extension | Observed live on `e56eab86` with `openai/gpt-4.1-nano`: the UI showed "critic: reviewed", and the trace had one `CRITIQUE` decision and a critic duration of 1182 ms (`docs/agentforge/evidence/E2-critic-live.md`). The critic can only veto claims (§3b); `verifyClaims` stays the authority. Nine `x2-*` cases check the veto wiring with a fake critic model; the model choice came from `scripts/benchmark-critic-models.mjs` (`E2-critic-model-benchmark.json`). On `d5a0df7e`: `LEDGER.md` X-2 (critic `reviewed`, 841 ms). |
+| X-3 A third document type (medication list) | Extension | Observed live on `d952660b`: "Medication list · Layout A" reached READY with 19 cited fields and a reviewed critic; two low-OCR-confidence medications went to "Needs review"; the OpenEMR ledger shows the `medication_list` and derived-facts writes (`docs/agentforge/evidence/E4-E5-E8-live.md`). On `d5a0df7e`: `LEDGER.md` X-3 and X-3-MISLABEL. 15 `x3-*` cases. |
+| X-4 Lab trend chart from extracted Observation data | Extension | Observed live on `e0f9eb35`: after lab uploads, "Lab trends" showed A1C and hemoglobin charts read back from OpenEMR's FHIR Observation service, each point linked to its source (`E4-E5-E8-live.md`). On `d5a0df7e`: `LEDGER.md` X-4. Five `x4-*` cases. |
 | X-5 Contextual retrieval improvements | Extension | Built and deployed since `e56eab86` (MR !96), fallback path only: BM25 query expansion raised recall@3 from 0.886 to 0.939 on 22 labeled queries (§3c, `KEY_METRICS.md`). It changes results only when BM25 ranks alone (`local-lexical`, or the hybrid `sparse_only` fallback), so it is not observable on the public URL unless the Gemini embed call fails. The normal hybrid path is unchanged on purpose. Two `x5-*` cases fail when it is off (`docs/agentforge/evidence/E3-retrieval-regression.txt`). |
 
 ## 3. How it works
 
 ### (a) Document ingestion flow
+
+**`attach_and_extract` in this build.** The PRD's
+`attach_and_extract(patient_id, file_path, doc_type)` is two HTTP calls.
+`POST /v1/source-documents` stores the source file in OpenEMR and returns its
+`document_id`. `POST /v1/scan-supervisor` extracts that document to the strict
+Zod schemas and persists the derived facts. Persistence differs by type:
+
+- **Lab PDF:** one `procedure_result` row per LOINC-mapped result (under one
+  `procedure_order`/`_report`, all `prelim`), read back through OpenEMR's FHIR
+  Observation service.
+- **Intake form and medication list:** a derived-facts JSON document stored
+  in OpenEMR. Medication and allergy list entries are written only through the
+  clinician-confirm lane (A3); the Node service does not call that route yet,
+  so no list entry is written today.
+
+Live evidence on `d5a0df7e`: `LEDGER.md` W2-C1, W2-C1-READBACK, W2-C11,
+W2-INTAKE-C1 and X-3.
 
 ```mermaid
 flowchart TD
@@ -568,8 +590,10 @@ wiring. The extension suite has 13 `xc-*` cases (listed in `EVAL_GATE.md`).
 regression failing both. Disabling the potassium rule and the not-documented
 path fails 8 unit tests and 4 cases. Restoring the old substring "no allergy"
 filter fails `xc-fc-07`. Letting flags bypass `verifyClaims` fails
-`xc-sr-05`. This work is implemented and tested, but not yet merged to
-`main` or deployed.
+`xc-sr-05`. F-CLIN is merged and deployed. The A1C diabetes-range flag was
+observed on the public URL on `99eaf8f8`
+(`docs/agentforge/evidence/F-lanes-live.md`); the freeze SHA `d5a0df7e`
+contains it, but the flag was not re-observed there.
 
 ### (e) Eval gate
 
@@ -749,7 +773,8 @@ body field; a copied claims object is refused):
   user/{patient,encounter,medical_problem,allergy,medication,document}.rs`).
   The fix is to re-authorize the read client as a clinician
   (`scripts/openemr-authorize-read-client.mjs`, runbook in
-  `deploy/vultr/README.md`); it is not observed yet. AgentForge therefore treats an empty answer from the two
+  `deploy/vultr/README.md`). The helper has not been run, so the fix is not
+  observed. AgentForge therefore treats an empty answer from the two
   patient-scoped list routes as `unverified_empty`
   (`error_class: openemr_scoped_list_empty`), not as a confirmed absence: the
   briefing is qualified ("Problems could not be confirmed from OpenEMR",
@@ -810,7 +835,9 @@ body field; a copied claims object is refused):
   `x9-live-chart-*` extension cases,
   `docs/agentforge/evidence/E9-live-chart-regression.txt` and
   `docs/agentforge/evidence/F-LIVE-regression.txt`. The F-LIVE changes are
-  implemented and tested, not deployed or observed on the public URL. The
+  merged (`e8718318`), tested and deployed on `d5a0df7e`, but not observed in
+  an OpenEMR-launched session: the single-use cookie and the dose wording
+  appear only there (`docs/agentforge/evidence/F-lanes-live.md`). The
   seeded patient and the operator steps are in `deploy/vultr/README.md`.
 
 ## 4. Tradeoffs
@@ -886,31 +913,37 @@ The PRD asks for Week 1 debt to be "documented and resolved before adding new
 surface area". This table lists all 25 items from the Week 1 review
 (`.scratch/assignments/REVIEW_2026-09-24.md` §2, audited on `0a1f3e06` and
 updated for E8 on `fd6c959b`, for F-API rows 15, 17 and 19, for F-OBS rows 6, 9, 13
-and 18, and for F-CLIN rows 3 and 20). Status is for the W2 route (`/agentforge-w2`).
-Totals are recomputed at the E7 freeze. F-OBS regression proof: `docs/agentforge/evidence/F-OBS-regression.txt`.
+and 18, and for F-CLIN rows 3 and 20). Status is for the W2 route (`/agentforge-w2`)
+at the freeze SHA `d5a0df7e`, which contains all of this work. `99eaf8f8`
+observations still hold for the code: `git diff --stat 99eaf8f8 d5a0df7e`
+shows only two docs files. F-OBS regression proof: `docs/agentforge/evidence/F-OBS-regression.txt`.
+
+**Totals (recomputed at the freeze):** 17 resolved, 3 accepted (4, 7, 12),
+1 partly (10), and 4 deployed and tested but not fully observed live (3, 9,
+18, 20).
 
 | # | Item | Status on W2 | Evidence | Frozen W1 route (`84f232b`) |
 |---|---|---|---|---|
 | 1 | Verifier used `.some`, so invented sentences passed | Resolved | `verifier.js` checks every clinical sentence (`UNANCHORED_CLAIM`); `claimBinding.js` binds every W2 claim; `verifier.test.js` warfarin probe | Still `.some` |
 | 2 | Production code read the eval answer key (`expected`) | Resolved (E8) | Briefing trust derived from record data (`recordTrust.js`); `test/no-eval-oracle.test.js` walks the import graph from `server.js` | Still reads it |
-| 3 | No clinical domain rules | Implemented, not deployed (F-CLIN) | `clinicalRules.js`: critical potassium, A1C diabetes range with `flag_contradicts_range`, and allergy vs medication class (§3d); `clinical-rules.test.js`, extension cases `xc-fc-01`–`06`, `xc-sr-01`, `xc-sr-02`; `docs/agentforge/evidence/F-CLIN-regression.txt` | Same |
+| 3 | No clinical domain rules | Deployed and tested (F-CLIN); one of three rules observed live | The A1C diabetes-range flag was observed on the public URL on `99eaf8f8` (`docs/agentforge/evidence/F-lanes-live.md`); the potassium and allergy rules were not. `clinicalRules.js`: critical potassium, A1C diabetes range with `flag_contradicts_range`, and allergy vs medication class (§3d); `clinical-rules.test.js`, extension cases `xc-fc-01`–`06`, `xc-sr-01`, `xc-sr-02`; `docs/agentforge/evidence/F-CLIN-regression.txt` | Same |
 | 4 | No LLM tool calling; follow-ups routed by regex | Accepted (D4) | `decideNext` is deterministic by design (§4) | Same |
 | 5 | Fixture chart data labeled as an OpenEMR read | Resolved (E8) | `chartSource.js`: fixture facts cite `synthetic_chart_fixture`, "Synthetic chart fixture"; `chart-citation-source.test.js` | Still reports an OpenEMR read (`retrieve_openemr_read`) |
-| 6 | `/ready` does not probe OpenEMR or observability | Wired and tested (F-OBS); not yet observed deployed | `/ready` probes the OpenEMR module's signed `health` route when `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (set for W2), checks the trace store (a corrupt file is moved aside at startup and reported as `TRACE_STORE_CORRUPT`, never a crash loop) with a probe write, and probes Langfuse only when it is configured (not on W2). A failure gives 503 with the names in `failing` and a reason code. Probes are cached 30 s and concurrent calls share one in-flight probe. The chart is still the fixture for the public demo; the E9 REST probe is unchanged. `f-obs-server.test.js`, module test in `tests/run.php` | Same |
+| 6 | `/ready` does not probe OpenEMR or observability | Resolved (F-OBS) | Observed on `99eaf8f8`: `/ready` 200 with `openemrModule`, `traceStore` and five other dependencies `ready` (`docs/agentforge/evidence/F-lanes-live.md`). `/ready` probes the OpenEMR module's signed `health` route when `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (set for W2), checks the trace store (a corrupt file is moved aside at startup and reported as `TRACE_STORE_CORRUPT`, never a crash loop) with a probe write, and probes Langfuse only when it is configured (not on W2). A failure gives 503 with the names in `failing` and a reason code. Probes are cached 30 s and concurrent calls share one in-flight probe. The chart is still the fixture for the public demo; the E9 REST probe is unchanged. `f-obs-server.test.js`, module test in `tests/run.php` | Same |
 | 7 | Unauthenticated token minting and ops endpoints; one role | Accepted (D4, D8) | `/v1/demo-context`, `/v1/source-document-context`, `/v1/traces`, `/v1/metrics`, `/v1/alerts` need no auth (`server.js`); the planned ops token was not built. Writes stay limited to the allowlisted synthetic patients | Same |
 | 8 | A question naming another patient was answered | Resolved (E8) | Refused as `out_of_scope_patient` on every answer path (§3d); ids and full names on fixtures, id patterns only on live OpenEMR; `x8-scope-other-patient-question` | Not fixed |
-| 9 | Correlation id missing from several calls and logs | Wired and tested (F-OBS); not yet observed deployed | One id per request: a caller's `x-correlation-id` only if it is a UUID or 16-64 lowercase hex (a name- or date-like value is dropped), else `af-<uuid>`; echoed on the response. It names the scan trace and is sent on getCase, the chart reads, the OAuth token refresh, the guideline embed and rerank calls and every module call; server error logs carry it. `correlation-propagation.test.js` checks every call of one scan request; `f-obs-server.test.js` checks the HTTP wiring. Briefings keep their existing id, now also on getCase | Same |
+| 9 | Correlation id missing from several calls and logs | Deployed and tested (F-OBS); partly observed | On `d5a0df7e` the scan trace is named by an `af-<uuid>` request id (`LEDGER.md` W2-C10); propagation to the downstream calls is not observable on the public URL. One id per request: a caller's `x-correlation-id` only if it is a UUID or 16-64 lowercase hex (a name- or date-like value is dropped), else `af-<uuid>`; echoed on the response. It names the scan trace and is sent on getCase, the chart reads, the OAuth token refresh, the guideline embed and rerank calls and every module call; server error logs carry it. `correlation-propagation.test.js` checks every call of one scan request; `f-obs-server.test.js` checks the HTTP wiring. Briefings keep their existing id, now also on getCase | Same |
 | 10 | Hand-rolled schemas; outputs unvalidated | Partly | W2 contracts are strict Zod (`schemas.js`); W1 briefing contracts and `getCase` output are not | Same |
 | 11 | Cost always $0 | Resolved | `pricing.js`; unknown cost is `null`; traces record `cost_usd` (`W2_COST_LATENCY.md`) | Still $0 |
 | 12 | Langfuse gets one flat span | Accepted (D8) | Not configured on W2 | Same |
-| 13 | Dashboard: 100-trace cap, no polling, wrong window label | Wired and tested (F-OBS); not yet observed deployed | 10 s polling, p99 and the window label (earlier). The cap is `AGENTFORGE_TRACE_LIMIT` (default 500), shown on the dashboard and in `/v1/metrics` `traceLimit`. W2 traces are on the `w2tracevolume` named volume (7-day retention), so a redeploy no longer empties the dashboard. `f-obs-server.test.js`, `w2-trace-volume.test.js` | Not fixed |
-| 14 | p95 alert at 2 s fires on every scan | Resolved (E8) | W2 compose sets `AGENTFORGE_ALERT_P95_MS=30000`; live `/v1/alerts` on `fd6c959b`: observed 21228 ms, not triggered | Still 2 s |
-| 15 | Load test: no p99, 8% timeouts, stale commit | Partly: tooling ready, run at freeze | `agentforge/scripts/load-test.mjs`: 10 and 50 users, ≥ 200 requests per level, route mix with a capped scan share, p50/p95/p99, error rate, per-route breakdown and raw JSON named by the target's SHA; percentile math tested (`agentforge/test/load-test.test.js`); local dry run on `7a625da0` (`docs/agentforge/evidence/load/dry-run/`). No run against the deployed service yet (`docs/agentforge/LOAD_TEST.md`) | Same |
-| 16 | Cost analysis has no LLM spend | Partly | Measured per-scan model cost in `W2_COST_LATENCY.md`; dev spend is pending the owner's console readback | Same |
-| 17 | API collection is a localhost PowerShell script | Partly: built and green locally, deployed run at freeze | Bruno collection `agentforge/api/bruno` (W1 and W2 endpoints, `local` and `deployed` environments, chained token → upload → scan); `collection.ps1` removed; 27/27 requests, 64/64 assertions on a local server from `4c630f5b` (`docs/agentforge/evidence/bruno/4c630f5b-local.json`). Not yet run against the public URL | Same |
-| 18 | Alerts computed only on request | Wired and tested (F-OBS); not yet observed deployed | `AlertMonitor` evaluates every `AGENTFORGE_ALERT_EVAL_INTERVAL_MS` (default 60 s) and on `GET /v1/alerts`, and logs each rule's ok/firing change once as a JSON line with codes only (`agentforge_alert_transition`). No notification channel: the log line is the alert. `observability/test/f-obs.test.js`, `f-obs-server.test.js` | Same |
+| 13 | Dashboard: 100-trace cap, no polling, wrong window label | Resolved (F-OBS) | Observed on `99eaf8f8`: 2 traces before and 2 after a container restart, `traceLimit` 500 (`F-lanes-live.md`). 10 s polling, p99 and the window label (earlier). The cap is `AGENTFORGE_TRACE_LIMIT` (default 500), shown on the dashboard and in `/v1/metrics` `traceLimit`. W2 traces are on the `w2tracevolume` named volume (7-day retention), so a redeploy no longer empties the dashboard. `f-obs-server.test.js`, `w2-trace-volume.test.js` | Not fixed |
+| 14 | p95 alert at 2 s fires on every scan | Resolved (E8) | W2 compose sets `AGENTFORGE_ALERT_P95_MS=30000`; live `/v1/alerts` on `d5a0df7e`: observed 21260 ms, not triggered (`LEDGER.md` W2-ALERT-P95) | Still 2 s |
+| 15 | Load test: no p99, 8% timeouts, stale commit | Resolved (F-API) | Freeze run on `d5a0df7e`: 400/400 requests, 0 errors; 10 users p50 46 ms / p95 2.34 s / p99 9.58 s, 50 users p50 82 ms / p95 3.52 s / p99 11.75 s (`docs/agentforge/LOAD_TEST.md`, `docs/agentforge/evidence/load/`). `agentforge/scripts/load-test.mjs`: 10 and 50 users, ≥ 200 requests per level, route mix with a capped scan share, p50/p95/p99, error rate, per-route breakdown and raw JSON named by the target's SHA; percentile math tested (`agentforge/test/load-test.test.js`); local dry run on `7a625da0` (`docs/agentforge/evidence/load/dry-run/`) | Same |
+| 16 | Cost analysis has no LLM spend | Resolved; the Qwen figure is an estimate | Measured per-scan model cost and dev spend in `W2_COST_LATENCY.md` §5: Vultr ≈ $7 of a $30 credit (owner readback), OpenRouter < $0.05, Gemini $0; Qwen is estimated because the owner cannot access its console | Same |
+| 17 | API collection is a localhost PowerShell script | Resolved (F-API) | Deployed run on `d5a0df7e`: 27/27 requests, 64/64 assertions (`docs/agentforge/evidence/bruno-deployed-d5a0df7e.md`). Bruno collection `agentforge/api/bruno` (W1 and W2 endpoints, `local` and `deployed` environments, chained token → upload → scan); `collection.ps1` removed; 27/27 requests, 64/64 assertions on a local server from `4c630f5b` (`docs/agentforge/evidence/bruno/4c630f5b-local.json`) | Same |
+| 18 | Alerts computed only on request | Deployed and tested (F-OBS); background monitor not observed live | `/v1/alerts` answered on `d5a0df7e` (`LEDGER.md` W2-ALERT-P95), but no `agentforge_alert_transition` log line has been observed on the VM. `AlertMonitor` evaluates every `AGENTFORGE_ALERT_EVAL_INTERVAL_MS` (default 60 s) and on `GET /v1/alerts`, and logs each rule's ok/firing change once as a JSON line with codes only (`agentforge_alert_transition`). No notification channel: the log line is the alert. `observability/test/f-obs.test.js`, `f-obs-server.test.js` | Same |
 | 19 | Evals never test unauthorized or ambiguous cases | Resolved (F-API) | The W1 runner (`evals/lib/adversarial.js`, run by `runner.js --service` and in the hook) sends 6 unauthorized cases (tampered payload, tampered signature, expired token, valid token for another patient, another patient's conversation, no token) and 3 ambiguous ones ("what changed?" with no prior visit, two identity records, a question naming two patients) to the running service; each fails when its protection is removed (`docs/agentforge/evidence/W1-evals-adversarial-regression.txt`). Run against a local server, not yet the public URL. The W2 gates also cover cross-patient scans and questions (`EVAL_GATE.md`) | Same |
-| 20 | Missing BP question dumps evidence instead of "not documented" | Implemented, not deployed (F-CLIN) | `notDocumented.js` on the scan answer and the briefing follow-up (§3d); `not-documented.test.js`, `xc-sr-03`, `xc-sr-04`; `/v1/follow-up-evidence` is unchanged | Same |
+| 20 | Missing BP question dumps evidence instead of "not documented" | Deployed and tested (F-CLIN); not observed live | `notDocumented.js` on the scan answer and the briefing follow-up (§3d); `not-documented.test.js`, `xc-sr-03`, `xc-sr-04`; `/v1/follow-up-evidence` is unchanged | Same |
 | 21 | `AUDIT.md`, `ARCHITECTURE.md`, `USER.md` not at the root | Resolved (MR !99) | All at the repo root | n/a (docs) |
 | 22 | Root `USERS.md` was a stale planning draft | Resolved (MR !99) | Replaced with the current version | n/a |
 | 23 | `START_HERE.md` said nothing was built | Resolved | Rewritten as an index (`40cd32a2`) | n/a |

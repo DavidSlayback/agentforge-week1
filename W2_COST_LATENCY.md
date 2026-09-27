@@ -47,8 +47,8 @@ run inside the deployed container on `e56eab86` cost $0.000946 for 15 calls,
 about **$0.000063 per call**
 (`docs/agentforge/evidence/E2-critic-model-benchmark.json`). That adds about
 $0.00006 to a scan's $0.00046–$0.00058, roughly 11–14%. The per-scan figures
-and the projection in §6 predate the critic and do not include it; at the
-Singapore rate §6 uses, it would add about 11% to the model-cost column.
+in §1 and the table above predate the critic; the projection in §6 includes
+it.
 
 ## 3. Latency (live)
 
@@ -57,6 +57,16 @@ Singapore rate §6 uses, it would add about 11% to the model-cost column.
 | Upload-to-answer wall time, mixed cold/warm | 11.1 s | 22.1 s | 12 | `131d5a3` |
 | Upload-to-answer wall time, mostly warm OCR cache | 11.2 s | 16.5 s | 12 | `00e43da` |
 | Cold scan (first upload of a document), total | 14.4–16.1 s (range) | | 4 | `00e43da` |
+| `scan-supervisor` request under load, 10 users, critic on | 9.6 s (max 11.2 s) | | 4 | `d5a0df7e` (freeze) |
+| `scan-supervisor` request under load, 50 users, critic on | 11.8 s (max 14.9 s) | | 4 | `d5a0df7e` (freeze) |
+| `scan_form` interaction, live `/v1/metrics`, critic on | 10.5 s | 21.3 s | traces in the service's store (count not reported) | `d5a0df7e` (freeze) |
+
+The load rows come from the freeze load test (`docs/agentforge/LOAD_TEST.md`,
+"Freeze run"; per-route data in
+`docs/agentforge/evidence/load/d5a0df7e-{10,50}.json`): 400/400 requests, 0
+errors, with scans capped at 4 per level. With n = 4, the table gives the
+median and the maximum, not a p95. The `/v1/metrics` row is the service's own
+figure, read with the load reports.
 
 Per stage, from the 14 traces on `00e43da`:
 
@@ -74,10 +84,12 @@ to a reviewed scan. It cannot push a scan past the deadline: it runs only if
 at least `AGENTFORGE_CRITIC_TIMEOUT_MS` (2500 ms on the VM) of the 25 s budget
 remains, and otherwise the answer ships labeled `skipped_budget`. With the
 critic on, the live `/v1/alerts` p95 (over the traces in its alert window)
-on `fd6c959b` was 21,228 ms against the 30,000 ms threshold. The upload-to-answer rows above were measured before the
-critic existed.
+was 21,228 ms on `fd6c959b` and 21,260 ms on the freeze SHA `d5a0df7e`
+(`docs/agentforge/evidence/LEDGER.md` W2-ALERT-P95), against the 30,000 ms
+threshold. The first three rows of the latency table were measured before the
+critic existed; the `d5a0df7e` rows include it.
 
-Target (`KEY_METRICS.md`): p95 ≤ 30 s. Met on both runs. The per-request
+Target (`KEY_METRICS.md`): p95 ≤ 30 s. Met on every run with a p95 above. The per-request
 deadline is 25 s (`AGENTFORGE_SCAN_DEADLINE_MS`); past it the answer falls
 back to the deterministic composer rather than hang.
 
@@ -118,7 +130,9 @@ only stage that scales with our own CPU.
   days (420 encounters/month), each with a lab PDF and an intake form
   (**840 scans/month**). This is a heavy-use upper bound; W1's model assumed
   4 prep sessions a month.
-- Model cost at Singapore list price ($0.00058/scan), the higher of the two.
+- Model cost at Singapore list price ($0.00058/scan), the higher of the two,
+  plus the critic (~$0.00006 per reviewed scan, §2): **$0.00064/scan**,
+  assuming every scan is reviewed.
 - One 2-vCPU OCR worker handles ~600 cold scans/hour at 50% utilization
   (2 concurrent OCR jobs × 6 s each). Demand is ~4.4 scans/hour per clinician
   on average, ~9 at peak, so **one worker serves ~65 clinicians**. Worker
@@ -128,12 +142,15 @@ only stage that scales with our own CPU.
   cost), document storage (~84 MB/clinician/month at ~100 KB per PDF),
   egress, monitoring, support, and compliance work.
 
-| Users (clinicians) | Scans / month | Model tokens / month | Model cost / month | OCR workers | Compute / month | **Total / month** | Per clinician |
+| Users (clinicians) | Scans / month | Model tokens / month (Qwen + Gemini) | Model cost / month (with critic) | OCR workers | Compute / month | **Total / month** | Per clinician |
 |---|---|---|---|---|---|---|---|
-| 100 | 84K | ~0.22B | ~$49 | 2 | ~$40 | **~$90** | ~$0.90 |
-| 1,000 | 840K | ~2.2B | ~$490 | ~16 | ~$320 | **~$0.8K** | ~$0.80 |
-| 10,000 | 8.4M | ~22B | ~$4.9K | ~155 | ~$3.1K | **~$8K** | ~$0.80 |
-| 100,000 | 84M | ~220B | ~$49K | ~1,550 | ~$31K | **~$80K** | ~$0.80 |
+| 100 | 84K | ~0.22B | ~$54 | 2 | ~$40 | **~$95** | ~$0.95 |
+| 1,000 | 840K | ~2.2B | ~$540 | ~16 | ~$320 | **~$0.9K** | ~$0.86 |
+| 10,000 | 8.4M | ~22B | ~$5.4K | ~155 | ~$3.1K | **~$8.5K** | ~$0.85 |
+| 100,000 | 84M | ~220B | ~$54K | ~1,550 | ~$31K | **~$85K** | ~$0.85 |
+
+The critic's tokens are not in the token column; its cost is in the model
+cost column.
 
 What changes along the way:
 
