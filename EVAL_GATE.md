@@ -352,6 +352,9 @@ What the gate does not cover, after the review fixes:
 
 ## Regression-blocked commit evidence
 
+**Pushes are gated too.** `.githooks/pre-push` runs the 50-case gate and the extension suite before every `git push` and refuses the push if either fails, so a regression cannot reach the remote or a merge request. Proof: `docs/agentforge/evidence/W2_PREPUSH_BLOCK.txt` (a planted `abnormal_flag: 'normal'` regression fails fc-01, fc-02, fc-03 and fc-11, and the push is blocked with exit 1; the clean tree passes).
+
+
 [`W2_PRECOMMIT_BLOCK.png`](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK.png) and
 its [raw transcript](docs/agentforge/evidence/W2_PRECOMMIT_BLOCK.txt) come from
 the superseded v2 gate: its text-fixture cases, with `0.1` added to extracted lab

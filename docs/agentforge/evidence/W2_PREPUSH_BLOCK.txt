@@ -1,0 +1,21 @@
+# Pre-push gate: blocked-push proof
+# base bb6e6dba, 2026-09-27T03:14:00Z; command: sh .githooks/pre-push
+
+## 1. clean tree
+AgentForge pre-push gate: W2 50-case eval gate...
+AgentForge pre-push gate: W2 extension suite...
+AgentForge pre-push gate: passed.
+exit=0
+
+## 2. planted regression (not committed): typedExtraction.js line 77 abnormal_flag forced to 'normal'
+planted lines: 1
+      "id": "fc-01-lab-a-values",
+      "id": "fc-02-lab-b-values",
+      "id": "fc-03-lab-d-high-low",
+      "id": "fc-11-retrieval-empty-clinician-question",
+Push blocked: the W2 50-case eval gate failed.
+exit=1
+
+## 3. reverted
+AgentForge pre-push gate: passed.
+exit=0

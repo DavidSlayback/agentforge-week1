@@ -1,0 +1,39 @@
+#!/bin/sh
+# PR-blocking eval gate. The GitLab project has no CI runner, so this hook is
+# what stops a regression from reaching the remote (and so any merge request):
+# every `git push` runs the W2 50-case gate and the extension suite, and the
+# push is refused if either fails. .githooks/pre-commit runs the same gates
+# plus the unit suites on every commit; .gitlab-ci.yml mirrors both.
+# Install once per clone: git config --local core.hooksPath .githooks
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "AgentForge pre-push gate requires Node.js 24 on PATH." >&2
+  exit 1
+fi
+if [ ! -d agentforge/node_modules ] || [ agentforge/package-lock.json -nt agentforge/node_modules ]; then
+  echo "AgentForge pre-push gate: installing locked dependencies..."
+  npm ci --silent --prefix agentforge
+fi
+
+report=$(mktemp)
+trap 'rm -f "$report"' EXIT
+
+echo "AgentForge pre-push gate: W2 50-case eval gate..."
+if ! node agentforge/scripts/run-w2-gate.mjs > "$report" 2>&1; then
+  tail -n 40 "$report" >&2
+  echo "Push blocked: the W2 50-case eval gate failed." >&2
+  exit 1
+fi
+
+echo "AgentForge pre-push gate: W2 extension suite..."
+if ! node agentforge/scripts/run-w2-extension-gate.mjs > "$report" 2>&1; then
+  tail -n 40 "$report" >&2
+  echo "Push blocked: the W2 extension suite failed." >&2
+  exit 1
+fi
+
+echo "AgentForge pre-push gate: passed."
