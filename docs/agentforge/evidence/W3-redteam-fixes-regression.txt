@@ -1,0 +1,8 @@
+W3 red-team fixes: deliberate regressions (agentforge/test/mint-guard.test.js)
+Each line: one fix removed from agentforge/src/server.js, then node --test test/mint-guard.test.js; the file is restored after.
+Run 2026-09-29 on the fix commit b0a67e70 (merged as 40cfbdff).
+
+F-831/F-24b: key check removed: exit 1; failing: ✖ F-831d4df407 / F-24b44c5180: every synthetic-context mint refuses a missing or wrong access key
+F-6ee: rate limit removed: exit 1; failing: ✖ F-6ee92046fb: the default limit lets normal use through and 429s 20 rapid mints with Retry-After | ✖ F-6ee92046fb: behind a trusted proxy the limit is per forwarded client, keyed on the rightmost entry
+W1 bypass: audience check removed: exit 1; failing: ✖ W1 bypass: a synthetic-demo token without this service audience is refused; a minted one is accepted
+restored; git diff vs original:  1 file changed, 34 insertions(+), 5 deletions(-)
