@@ -1,0 +1,21 @@
+meta {
+  name: W2 anonymous mint follows AGENTFORGE_DEMO_ACCESS (W3)
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/demo-context?patient_uuid={{patientUuid}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("anonymous mint answers as the environment's access mode expects", function () {
+    // anonymousMintStatus: 401 where the key is required (local runs), 200
+    // where the deployment is open for grading (AGENTFORGE_DEMO_ACCESS=open).
+    const expected = Number(bru.getEnvVar("anonymousMintStatus"));
+    expect(res.getStatus()).to.equal(expected);
+    if (expected === 401) expect(res.getBody().error).to.equal("demo_access_key_required");
+  });
+}

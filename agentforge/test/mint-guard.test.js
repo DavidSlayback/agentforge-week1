@@ -119,6 +119,25 @@ test('W1 bypass: a synthetic-demo token without this service audience is refused
   }
 });
 
+test('AGENTFORGE_DEMO_ACCESS=open: mints need no key, but the rate limit and the audience check stay on', async () => {
+  const port = 18966;
+  const base = `http://127.0.0.1:${port}`;
+  const child = await startTestServer(port, { AGENTFORGE_DEMO_ACCESS: 'open', AGENTFORGE_DEMO_ACCESS_KEY: '', AGENTFORGE_MINT_RATE_LIMIT: '4' });
+  try {
+    assert.doesNotMatch(await (await fetch(`${base}/`)).text(), /<form id="access-form">/);
+    for (const route of MINTS) assert.equal((await mint(base, route)).status, 200, `${route} anonymous in open mode`);
+    assert.equal((await mint(base, MINTS[0])).status, 200);
+    const limited = await mint(base, MINTS[0]);
+    assert.equal(limited.status, 429);
+    assert.ok(Number(limited.headers.get('retry-after')) >= 1);
+    const w1Token = issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', secret: SECRET });
+    const refused = await fetch(`${base}/v1/source-documents/does-not-exist/pages/1.png?patient_uuid=fixture-patient-001&demo_token=${encodeURIComponent(w1Token)}`);
+    assert.equal(refused.status, 403);
+  } finally {
+    child.kill();
+  }
+});
+
 test('mintGuard units: constant-time key match, proxy-aware client address, sliding window', () => {
   assert.equal(demoKeyMatches('k', 'k'), true);
   assert.equal(demoKeyMatches('k', 'kk'), false);

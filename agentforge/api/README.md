@@ -11,7 +11,7 @@ every public AgentForge endpoint, in two folders:
   scan-supervisor, scan-form evidence, source preview, a synthetic one-page PDF
   upload and its page image, lab trends, follow-up evidence (and its
   other-patient refusal), a cross-patient scan refusal, traces, metrics,
-  alerts, the observability page, and an anonymous-mint refusal (401, W3).
+  alerts, the observability page, and the anonymous-mint check (W3).
 
 Requests chain through collection variables: demo token, then upload (the
 `/v1/demo-scan-fixture` synthetic lab sample), then scan of that document,
@@ -20,7 +20,7 @@ and key fields. Synthetic data only.
 
 ## Evaluator access key (W3 security fix)
 
-On `/agentforge-w2`, the context mints (`/v1/demo-context`,
+With `AGENTFORGE_DEMO_ACCESS=key` (the code default), the context mints (`/v1/demo-context`,
 `/v1/source-document-context`, `/v1/clinical-action-context`) require
 `X-AgentForge-Demo-Key: <key>`, where the key is the service's
 `AGENTFORGE_DEMO_ACCESS_KEY`. This fixes W3 findings F-831d4df407 and
@@ -38,8 +38,10 @@ F-24b44c5180. The mints share a per-client limit of 15 per 60 s
 All other routes are unchanged. W2 refuses tokens that lack
 `aud: agentforge-w2`, including tokens minted by the frozen W1 service at
 `/agentforge`, whose mints stay anonymous. The collection sends the key from
-the secret environment variable `demoAccessKey`. `w2/20` checks that an
-anonymous mint gets 401.
+the secret environment variable `demoAccessKey`. `w2/20` checks the
+anonymous mint against `anonymousMintStatus`: 401 locally (`key` mode), 200 on
+the deployment, which runs `AGENTFORGE_DEMO_ACCESS=open` during W2 grading.
+In `open` mode the rate limit and the `aud` check still apply.
 
 ## Run it
 
@@ -47,7 +49,7 @@ Deployed (`https://dtstest.64.177.10.182.nip.io`):
 
 ```bash
 cd agentforge/api/bruno
-npx @usebruno/cli run --env deployed --env-var demoAccessKey=<key>
+npx @usebruno/cli run --env deployed
 ```
 
 Tested with `@usebruno/cli` 4.2.0 (`npx @usebruno/cli@4.2.0 run --env deployed`

@@ -103,18 +103,29 @@ The W3 red-team found that the synthetic-context mints on `/agentforge-w2`
 issued tokens to anyone. `/v1/demo-context` issued read tokens (F-831d4df407).
 `/v1/source-document-context` issued write tokens, and
 `/v1/clinical-action-context` is the same class of bug (F-24b44c5180). None of
-them were rate limited (F-6ee92046fb). All three mints now require an
-evaluator key and share a per-client rate limit:
+them were rate limited (F-6ee92046fb). All three mints share a per-client rate
+limit, and they can require an evaluator key:
 
 ```dotenv
-# Required by compose (agentforge-w2). Hand it to graders with the submission.
-AGENTFORGE_DEMO_ACCESS_KEY=<random value, e.g. openssl rand -hex 16>
+# `key` requires AGENTFORGE_DEMO_ACCESS_KEY on every mint (the code default).
+# `open` skips the key; the rate limit and the aud check stay on. Compose
+# defaults agentforge-w2 to `open`: the final W2 submission carries no key.
+AGENTFORGE_DEMO_ACCESS=open
+AGENTFORGE_DEMO_ACCESS_KEY=<random value, e.g. openssl rand -hex 16; required when AGENTFORGE_DEMO_ACCESS=key>
 # Optional; defaults shown. Mints per client address per window, over all three routes.
 AGENTFORGE_MINT_RATE_LIMIT=15
 AGENTFORGE_MINT_RATE_WINDOW_SECONDS=60
 ```
 
-- **Key.** A client sends the key in the `X-AgentForge-Demo-Key` header. The
+- **Mode (current deployment: `open`).** The owner decided on 2026-09-29 that
+  graders must reach the public demo without a key: the W2 submission is
+  final and names none. `key` mode was deployed and verified live on
+  `40cfbdff` (`docs/agentforge/evidence/W3-redteam-fixes-live.md`). To turn it
+  back on, set `AGENTFORGE_DEMO_ACCESS=key` in `.env` and redeploy. In
+  `open` mode, F-831d4df407 and F-24b44c5180 are accepted risks. The
+  compensating controls are the rate limit, 300 s tokens, the `aud` check,
+  synthetic-only data, and writes limited to allowlisted synthetic patients.
+- **Key (`key` mode).** A client sends the key in the `X-AgentForge-Demo-Key` header. The
   server compares it in constant time; missing or wrong returns 401
   `demo_access_key_required`. If the key is unset, every mint returns 503
   `demo_access_key_not_configured` and `/ready` is 503. The public page asks

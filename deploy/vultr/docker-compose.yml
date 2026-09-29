@@ -157,7 +157,11 @@ services:
       # and are rate limited per client. This service publishes no port and is
       # reached only through Caddy, which overwrites X-Forwarded-For, so the
       # service trusts that header for the client address.
-      AGENTFORGE_DEMO_ACCESS_KEY: ${AGENTFORGE_DEMO_ACCESS_KEY:?AGENTFORGE_DEMO_ACCESS_KEY is required}
+      # AGENTFORGE_DEMO_ACCESS=open (owner, 2026-09-29): the final W2 submission
+      # carries no key, so graders reach the demo without one. The rate limit
+      # and the aud check stay on. Set it to `key` after grading to require the key.
+      AGENTFORGE_DEMO_ACCESS: ${AGENTFORGE_DEMO_ACCESS:-open}
+      AGENTFORGE_DEMO_ACCESS_KEY: ${AGENTFORGE_DEMO_ACCESS_KEY:-}
       AGENTFORGE_MINT_RATE_LIMIT: ${AGENTFORGE_MINT_RATE_LIMIT:-15}
       AGENTFORGE_MINT_RATE_WINDOW_SECONDS: ${AGENTFORGE_MINT_RATE_WINDOW_SECONDS:-60}
       AGENTFORGE_TRUST_PROXY: "true"

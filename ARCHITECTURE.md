@@ -261,11 +261,12 @@ recommendation and no write operation.
 - Empty results are not retrieval failures and are not interpreted as
   non-completion.
 - Chart text cannot alter system instructions or tool selection.
-- No anonymous token minting (W3 security fix, `agentforge-w2`). The
-  W3 red-team found three issues. `/v1/demo-context` minted read tokens for
-  anyone (F-831d4df407). `/v1/source-document-context` minted write tokens for
-  anyone, and `/v1/clinical-action-context` had the same bug (F-24b44c5180).
-  The mints had no rate limit (F-6ee92046fb). Each mint now needs the
+- Token minting is rate limited and can be keyed (W3 security fix,
+  `agentforge-w2`). The W3 red-team found three issues. `/v1/demo-context`
+  minted read tokens for anyone (F-831d4df407). `/v1/source-document-context`
+  minted write tokens for anyone, and `/v1/clinical-action-context` had the
+  same bug (F-24b44c5180). The mints had no rate limit (F-6ee92046fb). With
+  `AGENTFORGE_DEMO_ACCESS=key` (the code default), each mint needs the
   `X-AgentForge-Demo-Key` header, compared in constant time with
   `AGENTFORGE_DEMO_ACCESS_KEY`: a missing or wrong key gets 401, and an unset
   key gets 503 and fails `/ready`. The mints share a per-client sliding window,
@@ -275,7 +276,11 @@ recommendation and no write operation.
   `X-Forwarded-For` entry only when `AGENTFORGE_TRUST_PROXY=true` (Caddy in
   deploy/vultr). W2 mints carry `aud: agentforge-w2`, and W2 refuses
   synthetic-demo tokens without it, including tokens from the frozen W1 mint,
-  which shares the signing secret. Code: `agentforge/src/mintGuard.js`. Tests:
+  which shares the signing secret. The deployment runs
+  `AGENTFORGE_DEMO_ACCESS=open` during W2 grading (owner, 2026-09-29): the key
+  check is skipped, and the rate limit and the `aud` check stay on. So
+  F-831d4df407 and F-24b44c5180 are accepted risks until the mode is set back
+  to `key`. Code: `agentforge/src/mintGuard.js`. Tests:
   `agentforge/test/mint-guard.test.js`.
 - Only the physician reviews and decides; AgentForge surfaces evidence and
   documented plans without recommending action.
@@ -313,7 +318,7 @@ validates its signature, patient binding, clinician binding, and read-only
 scope; a URL patient ID is never treated as authorization. The optional
 `/v1/demo-context` route is an explicit synthetic context issuer for evaluator
 rehearsal, not a live identity provider. On `agentforge-w2` it and the other
-synthetic mints require the evaluator access key and are rate limited (W3
+synthetic mints are rate limited and can require an evaluator access key (W3
 security fix; see Safety and verification invariants). The frozen Week 1
 service at `/agentforge` is unchanged.
 

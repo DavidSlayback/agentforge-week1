@@ -37,11 +37,11 @@ for anyone working on the underlying EHR.
 | Health / deployed SHA | `<W2 URL>/health` returns `{status, git_sha}` |
 
 Grader credentials for the OpenEMR and dashboard sign-in are in the
-submission notes, not in this repo. The same notes hold the **evaluator access
-code** that the W2 page asks for once per tab (field "Evaluator access code").
-It is required since the W3 security fix: the synthetic-context mints no longer
-issue tokens to anonymous callers (findings F-831d4df407, F-24b44c5180,
-F-6ee92046fb; `deploy/vultr/README.md`).
+submission notes, not in this repo. The W2 demo needs no access code: it runs
+with `AGENTFORGE_DEMO_ACCESS=open` for grading. The W3 security fix
+(F-831d4df407, F-24b44c5180, F-6ee92046fb) rate-limits the synthetic-context
+mints and refuses Week 1 tokens. Its evaluator-key gate (`key` mode) was
+verified live and is switched off until grading ends (`deploy/vultr/README.md`).
 
 **Patient dashboard port (W2 surprise challenge).** A React SPA with a BFF that
 reimplements OpenEMR's PHP patient dashboard on its REST/FHIR API. It runs at
@@ -214,7 +214,7 @@ php interface/modules/custom_modules/oe-module-agentforge/tests/run.php   # requ
 API collection (Bruno, every W1 and W2 endpoint; see `agentforge/api/README.md`):
 
 ```bash
-cd agentforge/api/bruno && npx @usebruno/cli run --env deployed --env-var demoAccessKey=<code>   # the public URL; makes one model-costing scan
+cd agentforge/api/bruno && npx @usebruno/cli run --env deployed   # the public URL; makes one model-costing scan
 node agentforge/scripts/run-bruno-local.mjs                        # a local server from this checkout, no model calls
 ```
 
@@ -255,7 +255,8 @@ narrative behind each group.
 | `AGENTFORGE_PUBLIC_BASE_PATH` | URL prefix the deployed reverse proxy mounts this service under | `''` | No (Yes behind Caddy) | No |
 | `AGENTFORGE_DEMO_SECRET` | Signs the synthetic demo context token | none | Yes | Yes |
 | `AGENTFORGE_SYNTHETIC_CONTEXT` | Enables the fixture/demo context issuer | `false` | Yes for synthetic mode | No |
-| `AGENTFORGE_DEMO_ACCESS_KEY` | Evaluator key that the context mints require in `X-AgentForge-Demo-Key` (W3). If unset, mints return 503 and `/ready` fails | none | Yes for synthetic mode | Yes |
+| `AGENTFORGE_DEMO_ACCESS` | `key`: the context mints require `AGENTFORGE_DEMO_ACCESS_KEY`. `open`: no key; the rate limit and the `aud` check stay on (W3) | `key` (compose: `open` for W2 grading) | No | No |
+| `AGENTFORGE_DEMO_ACCESS_KEY` | In `key` mode, the evaluator key that the context mints require in `X-AgentForge-Demo-Key` (W3). If unset, mints return 503 and `/ready` fails | none | Yes in `key` mode | Yes |
 | `AGENTFORGE_MINT_RATE_LIMIT` / `AGENTFORGE_MINT_RATE_WINDOW_SECONDS` | Mints per client address per window, shared by all three mints; over the limit gets 429 + `Retry-After` | `15` / `60` | No | No |
 | `AGENTFORGE_TRUST_PROXY` | Key the rate limit on the rightmost `X-Forwarded-For` entry. Set only behind a proxy that overwrites it (Caddy) | `false` | No (`true` for `agentforge-w2`) | No |
 | `AGENTFORGE_MAX_REQUEST_BODY_BYTES` | Upload size cap | 8 MiB | No | No |
