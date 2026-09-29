@@ -97,6 +97,49 @@ Set `AGENTFORGE_OPENEMR_MODE=live` explicitly for that path. The default Compose
 mode is `synthetic`; it requires `AGENTFORGE_SYNTHETIC_CONTEXT=true` and a
 non-empty `AGENTFORGE_DEMO_SECRET` before `/ready` can report ready.
 
+## Evaluator access key and mint rate limit (W3 security fix, `agentforge-w2`)
+
+The W3 red-team found that the synthetic-context mints on `/agentforge-w2`
+issued tokens to anyone. `/v1/demo-context` issued read tokens (F-831d4df407).
+`/v1/source-document-context` issued write tokens, and
+`/v1/clinical-action-context` is the same class of bug (F-24b44c5180). None of
+them were rate limited (F-6ee92046fb). All three mints now require an
+evaluator key and share a per-client rate limit:
+
+```dotenv
+# Required by compose (agentforge-w2). Hand it to graders with the submission.
+AGENTFORGE_DEMO_ACCESS_KEY=<random value, e.g. openssl rand -hex 16>
+# Optional; defaults shown. Mints per client address per window, over all three routes.
+AGENTFORGE_MINT_RATE_LIMIT=15
+AGENTFORGE_MINT_RATE_WINDOW_SECONDS=60
+```
+
+- **Key.** A client sends the key in the `X-AgentForge-Demo-Key` header. The
+  server compares it in constant time; missing or wrong returns 401
+  `demo_access_key_required`. If the key is unset, every mint returns 503
+  `demo_access_key_not_configured` and `/ready` is 503. The public page asks
+  for the key once ("Evaluator access code") and keeps it in
+  `sessionStorage` for the tab. Pages launched from OpenEMR never mint, so
+  they need no key.
+- **Rate limit.** Over the limit returns 429 `mint_rate_limited` with
+  `Retry-After` in seconds. The limit is checked before the key, so key
+  guessing is throttled too. 15 per minute covers the UI: about 2 mints per
+  patient opened, plus 2 per upload. A load test through the mints needs a
+  higher `AGENTFORGE_MINT_RATE_LIMIT` for its run.
+- **Client address.** Compose sets `AGENTFORGE_TRUST_PROXY=true` for
+  `agentforge-w2` only. That service publishes no port. Caddy 2.9 ignores
+  client-sent `X-Forwarded-*` headers (no `trusted_proxies` is configured),
+  so the rightmost `X-Forwarded-For` entry is always the real peer. Do not set
+  it on a service that clients can reach directly.
+- **Audience.** W2 mints add `aud: agentforge-w2`, and W2 rejects
+  `synthetic-demo` tokens without it. The frozen Week 1 service signs with the
+  same `AGENTFORGE_DEMO_SECRET` and still mints anonymously. Before this check,
+  its tokens were accepted on `/agentforge-w2`.
+
+Operational scripts (`load-test.mjs`, `w2-live-acceptance.mjs`,
+`w2-openemr-smoke.mjs`, `measure-live-metrics.mjs`, `evals/lib/runner.js`)
+read the key from `AGENTFORGE_DEMO_ACCESS_KEY` in their own environment.
+
 ## Week 2 OpenEMR round-trip (oe-module-agentforge)
 
 The `agentforge-w2` service keeps the synthetic fixture chart but persists

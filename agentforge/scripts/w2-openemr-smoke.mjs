@@ -43,7 +43,9 @@ const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('he
 async function publicSmoke(base) {
   const patient = arg('--patient') || 'fixture-patient-001';
   const origin = new URL(base).origin;
-  const getJson = async (url) => { const response = await fetch(url); return { status: response.status, body: await response.json().catch(() => ({})) }; };
+  // The context mints need the evaluator access key (W3); sent on every GET, ignored elsewhere.
+  const mintHeaders = process.env.AGENTFORGE_DEMO_ACCESS_KEY ? { 'x-agentforge-demo-key': process.env.AGENTFORGE_DEMO_ACCESS_KEY } : {};
+  const getJson = async (url) => { const response = await fetch(url, { headers: mintHeaders }); return { status: response.status, body: await response.json().catch(() => ({})) }; };
   const postJson = async (route, body) => { const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { status: response.status, body: await response.json().catch(() => ({})) }; };
 
   const health = await getJson(`${base}/health`);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 import { InMemoryTraceSink } from '../../observability/index.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 import { traceSafeHandoff } from '../src/activeWorkers.js';
@@ -236,17 +236,17 @@ test('HTTP scan-supervisor answers 403 for another patient\'s document and 422 f
   const child = await startTestServer(port, { AGENTFORGE_PROVIDER_MODE: 'deterministic' }, { path: '/health' });
   try {
     const base = `http://127.0.0.1:${port}`;
-    const write = await fetch(`${base}/v1/source-document-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const write = await fetch(`${base}/v1/source-document-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const upload = (content, filename) => fetch(`${base}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: write.demo_token, document_type: 'lab_pdf', filename, content_base64: content.toString('base64') }) }).then((response) => response.json());
     const scanSupervisor = (patient, token, sourceId) => fetch(`${base}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: token, source_document_id: sourceId, message: 'glycemic follow-up' }) });
     const lab = await upload(fs.readFileSync(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)), 'lab.txt');
-    const other = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-002`).then((response) => response.json());
+    const other = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-002`, DEMO_KEY_REQUEST).then((response) => response.json());
     const crossPatient = await scanSupervisor('fixture-patient-002', other.demo_token, lab.source_document.id);
     assert.equal(crossPatient.status, 403);
     assert.deepEqual(await crossPatient.json(), { error: 'document_scope_mismatch' });
     // A truncated "%PDF-" upload fails PDF validation before any OCR binary runs.
     const truncated = await upload(Buffer.from('%PDF-1'), 'truncated.pdf');
-    const own = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const own = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const unreadable = await scanSupervisor('fixture-patient-001', own.demo_token, truncated.source_document.id);
     assert.equal(unreadable.status, 422);
     assert.deepEqual(await unreadable.json(), { error: 'document_unreadable', final_state: 'BLOCKED', synthetic_only: true });

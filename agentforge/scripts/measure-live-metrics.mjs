@@ -153,7 +153,9 @@ async function jsonFetch(base, path, options) {
  * an HTTP-level failure (recorded as `ok: false` with the status/error
  * instead), so one bad run never aborts the whole sweep. */
 async function runOnce(baseUrl, sample, { fetchImpl = jsonFetch } = {}) {
-  const contextResponse = await fetchImpl(baseUrl, `/v1/source-document-context?patient_uuid=${PATIENT}`);
+  // The mint needs the evaluator access key (W3, F-24b44c5180).
+  const key = process.env.AGENTFORGE_DEMO_ACCESS_KEY;
+  const contextResponse = await fetchImpl(baseUrl, `/v1/source-document-context?patient_uuid=${PATIENT}`, key ? { headers: { 'x-agentforge-demo-key': key } } : undefined);
   const demoToken = contextResponse.data?.demo_token;
   if (!demoToken) return { ok: false, filename: sample.filename, stage: 'context', status: contextResponse.status };
 

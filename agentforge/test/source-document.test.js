@@ -7,7 +7,7 @@ import { SimulatedOpenEMRAdapter } from './helpers/simulatedOpenemrAdapter.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
 import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const signedContext = (patient_uuid, clinician_uuid = 'fixture-physician-001') => ({
@@ -181,8 +181,8 @@ test('synthetic source document API uploads, deduplicates, reads back, and scope
   const port = 18801;
   const child = await startServer(port);
   try {
-    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const body = {
       patient_uuid: 'fixture-patient-001',
       clinician_uuid: 'fixture-physician-001',
@@ -210,7 +210,7 @@ test('synthetic source document API uploads, deduplicates, reads back, and scope
     assert.equal(readback.source_document.id, first.source_document.id);
     assert.equal(Buffer.from(readback.content_base64, 'base64').toString(), '%PDF-1.7 synthetic API fixture');
 
-    const otherContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-002`).then((response) => response.json());
+    const otherContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-002`, DEMO_KEY_REQUEST).then((response) => response.json());
     const crossPatient = await fetch(`http://127.0.0.1:${port}/v1/source-documents/${first.source_document.id}?patient_uuid=fixture-patient-002&demo_token=${encodeURIComponent(otherContext.demo_token)}`);
     assert.equal(crossPatient.status, 403);
     assert.equal((await crossPatient.json()).error, 'invalid_demo_context');
@@ -224,7 +224,7 @@ test('the retired legacy lab-evidence, intake-evidence and supervisor routes now
   const child = await startServer(port);
   try {
     const patient = 'fixture-patient-001';
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
     const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'synthetic-lab.scan.txt', content_base64: content.toString('base64') }) }).then((response) => response.json());
     assert.ok(upload.source_document?.id);
@@ -256,8 +256,8 @@ test('synthetic scan-form evidence API and source preview preserve page-region c
   const child = await startServer(port);
   try {
     const patient = 'fixture-patient-001';
-    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
     const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-layout-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
     const evidencePath = `/v1/source-documents/${upload.source_document.id}/scan-form-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`;
@@ -295,8 +295,8 @@ test('scan-supervisor accepts an absent or empty message: the UI sends no canned
   const child = await startServer(port);
   try {
     const patient = 'fixture-patient-001';
-    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
     const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-layout-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
     // Empty string, exactly what ui.js now sends (no canned per-document-type query).
@@ -320,8 +320,8 @@ test('scan extraction responses are re-validated at the HTTP boundary and never 
   const child = await startServer(port, { AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION: 'true' });
   try {
     const patient = 'fixture-patient-001';
-    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
     const content = fs.readFileSync(fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/lab-layout-a-complete.scan.txt', import.meta.url)));
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-layout-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
     const evidencePath = `/v1/source-documents/${upload.source_document.id}/scan-form-evidence?patient_uuid=${patient}&demo_token=${encodeURIComponent(readContext.demo_token)}`;
@@ -340,8 +340,8 @@ test('source document API rejects malformed input and live-mode writeback', asyn
   const port = 18802;
   const child = await startServer(port);
   try {
-    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const malformed = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'unsupported', filename: 'bad.txt', content_base64: 'aGVsbG8=' }) });
     assert.equal(malformed.status, 400);
     assert.equal((await malformed.json()).error, 'invalid_source_document_request');
@@ -362,7 +362,7 @@ test('source document API rejects malformed input and live-mode writeback', asyn
   const failurePort = 18804;
   const failureChild = await startServer(failurePort, { AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE: 'true' });
   try {
-    const writeContext = await fetch(`http://127.0.0.1:${failurePort}/v1/source-document-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${failurePort}/v1/source-document-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const response = await fetch(`http://127.0.0.1:${failurePort}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab.pdf', content_base64: Buffer.from('%PDF-1.7 synthetic').toString('base64') }) });
     assert.equal(response.status, 500);
     assert.equal((await response.json()).error, 'SOURCE_DOCUMENT_PERSISTENCE_FAILED');

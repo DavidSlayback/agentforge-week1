@@ -8,7 +8,7 @@ import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { DeterministicProvider, ResilientProvider } from '../src/modelProvider.js';
 import { AgentForgeService } from '../src/service.js';
 import { SyntheticWriteback } from '../src/syntheticWriteback.js';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const SECRET = 'answer-service-integration-secret';
@@ -63,8 +63,8 @@ test('the HTTP boundary refuses to send (and, per code order, to persist from) a
   const child = await startTestServer(port, { AGENTFORGE_TEST_INVALID_ANSWER: 'true' });
   try {
     const patient = 'fixture-patient-001';
-    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
-    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
+    const readContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+    const writeContext = await fetch(`http://127.0.0.1:${port}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
     const content = labA();
     const upload = await fetch(`http://127.0.0.1:${port}/v1/source-documents`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: writeContext.demo_token, document_type: 'lab_pdf', filename: 'lab-a.pdf', content_base64: content.toString('base64') }) }).then((response) => response.json());
     const workflowResponse = await fetch(`http://127.0.0.1:${port}/v1/scan-supervisor`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: readContext.demo_token, source_document_id: upload.source_document.id, message: 'documented glycemic values medication adherence' }) });

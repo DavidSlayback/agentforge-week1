@@ -6,7 +6,7 @@ import { SyntheticClinicalActionStore } from '../src/clinicalActions.js';
 import { SimulatedOpenEMRAdapter } from './helpers/simulatedOpenemrAdapter.js';
 import { AgentForgeService } from '../src/service.js';
 import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 const fixturePath = fileURLToPath(new URL('../../docs/agentforge/fixtures/clinical-cases.json', import.meta.url));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -69,7 +69,7 @@ test('clinical action API drafts, confirms, reads back, cancels, and blocks unsa
   const child = await startServer(port);
   try {
     const patient = 'fixture-patient-001';
-    const context = await fetch(`http://127.0.0.1:${port}/v1/clinical-action-context?patient_uuid=${patient}`).then((response) => response.json());
+    const context = await fetch(`http://127.0.0.1:${port}/v1/clinical-action-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
     assert.equal(context.scope, 'write-clinical-action');
     const base = { patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: context.demo_token, action_type: 'diagnosis', instruction: 'Add hypertension as a diagnosis', instruction_source: 'clinician' };
     const draftResponse = await fetch(`http://127.0.0.1:${port}/v1/clinical-actions/drafts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(base) });
@@ -100,7 +100,7 @@ test('clinical action API drafts, confirms, reads back, cancels, and blocks unsa
 
     const agentOriginated = await fetch(`http://127.0.0.1:${port}/v1/clinical-actions/drafts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...base, instruction_source: 'agent' }) });
     assert.equal(agentOriginated.status, 400);
-    const otherContext = await fetch(`http://127.0.0.1:${port}/v1/clinical-action-context?patient_uuid=fixture-patient-002`).then((response) => response.json());
+    const otherContext = await fetch(`http://127.0.0.1:${port}/v1/clinical-action-context?patient_uuid=fixture-patient-002`, DEMO_KEY_REQUEST).then((response) => response.json());
     const wrongPatient = await fetch(`http://127.0.0.1:${port}/v1/clinical-actions/${draft.action.id}?patient_uuid=fixture-patient-002&demo_token=${encodeURIComponent(otherContext.demo_token)}`);
     assert.equal(wrongPatient.status, 403);
   } finally { child.kill(); }
@@ -111,7 +111,7 @@ test('clinical action API reports writeback failure and live mode stays write-di
   const failureChild = await startServer(failurePort, { AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE: 'true' });
   try {
     const patient = 'fixture-patient-001';
-    const context = await fetch(`http://127.0.0.1:${failurePort}/v1/clinical-action-context?patient_uuid=${patient}`).then((response) => response.json());
+    const context = await fetch(`http://127.0.0.1:${failurePort}/v1/clinical-action-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
     const base = { patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: context.demo_token, action_type: 'order', instruction: 'Order a CBC', instruction_source: 'clinician' };
     const draft = await fetch(`http://127.0.0.1:${failurePort}/v1/clinical-actions/drafts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(base) }).then((response) => response.json());
     const response = await fetch(`http://127.0.0.1:${failurePort}/v1/clinical-actions/${draft.action.id}/confirm`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...base, confirmation_event: { confirmed: true, event_id: 'evt-failure-api', actor: 'clinician' } }) });

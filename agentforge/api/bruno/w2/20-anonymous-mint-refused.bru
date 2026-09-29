@@ -1,0 +1,16 @@
+meta {
+  name: W2 anonymous mint is refused (W3 F-831d4df407)
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{w2BaseUrl}}/v1/demo-context?patient_uuid={{patientUuid}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+  res.body.error: eq demo_access_key_required
+}

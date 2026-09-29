@@ -6,7 +6,7 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { startFakeOpenEMRModule } from './fake-openemr-module.js';
 import { startFakeOpenEMRRest, LIVE_PATIENT, OTHER_PATIENT } from './helpers/fakeOpenemrRest.js';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 import { issueSignedContext } from '../src/accessContext.js';
 
 // E9 over HTTP: server.js in the W2 shape (synthetic mode, module persistence)
@@ -143,7 +143,7 @@ test('live reads on: the public demo stays on fixtures, and tampered or non-allo
   const stack = await startStack(18972, 'on');
   const { base, rest, module } = stack;
   try {
-    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
+    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST)).json();
     // Body fields cannot even name a chart source: the request contract refuses them.
     const spoofed = await post(base, '/v1/briefings', { patient_uuid: 'fixture-patient-001', clinician_uuid: demo.clinician_uuid, demo_token: demo.demo_token, chart_source: 'openemr_live' });
     assert.equal(spoofed.status, 400);
@@ -207,8 +207,8 @@ test('live reads without external-provider approval: nothing leaves the process;
     assert.equal(evidence.retrieval.guideline_provider, 'bm25-sparse-only');
     assert.equal(models.requests.length, 0);
     // Sensitivity: the same server calls out for the public demo's fixture chart.
-    const demo = await (await fetch(`${unapproved.base}/v1/source-document-context?patient_uuid=fixture-patient-001`)).json();
-    const demoRead = await (await fetch(`${unapproved.base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
+    const demo = await (await fetch(`${unapproved.base}/v1/source-document-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST)).json();
+    const demoRead = await (await fetch(`${unapproved.base}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST)).json();
     await post(unapproved.base, '/v1/briefings', { patient_uuid: 'fixture-patient-001', clinician_uuid: demoRead.clinician_uuid, demo_token: demoRead.demo_token });
     assert.ok(models.requests.length > 0, 'the fixture chart path does reach the model endpoint');
     assert.ok(demo.demo_token);
@@ -252,7 +252,7 @@ test('live pages and responses: honest data labels, no-store and no-referrer, to
     assert.equal(scanned.chart_source.designated_patient, true);
     const evidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read, message: 'blood pressure' }, session.cookie)).json();
     assert.equal(evidence.synthetic_only, false);
-    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
+    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST)).json();
     const demoEvidence = await (await post(base, '/v1/follow-up-evidence', { patient_uuid: 'fixture-patient-001', clinician_uuid: demo.clinician_uuid, demo_token: demo.demo_token, message: 'blood pressure' })).json();
     assert.equal(demoEvidence.synthetic_only, true);
   } finally { await stack.stop(); }
@@ -305,7 +305,7 @@ test('launch token is single-use: the first load opens a launch session, a repla
     const other = await launch(base);
     assert.equal((await post(base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, other.cookie)).status, 403);
     // The public demo path is unchanged.
-    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`)).json();
+    const demo = await (await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST)).json();
     const demoBriefing = await post(base, '/v1/briefings', { patient_uuid: 'fixture-patient-001', clinician_uuid: demo.clinician_uuid, demo_token: demo.demo_token });
     assert.equal(demoBriefing.status, 200);
   } finally { await stack.stop(); }

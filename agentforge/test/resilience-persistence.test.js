@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 const agentforgeRoot = fileURLToPath(new URL('..', import.meta.url));
 const port = 18911;
@@ -25,7 +25,7 @@ test('redacted traces survive a service restart through the configured store', a
   let child;
   try {
     child = await startServer(tracePath);
-    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((result) => result.json());
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((result) => result.json());
     const response = await fetch(`http://127.0.0.1:${port}/v1/briefings`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

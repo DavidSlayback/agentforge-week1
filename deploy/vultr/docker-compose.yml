@@ -152,6 +152,15 @@ services:
       AGENTFORGE_FIXTURES: /app/docs/agentforge/fixtures/clinical-cases.json
       AGENTFORGE_DEMO_SECRET: ${AGENTFORGE_DEMO_SECRET:?AGENTFORGE_DEMO_SECRET is required}
       AGENTFORGE_SYNTHETIC_CONTEXT: "true"
+      # W3 red-team fixes (F-831d4df407, F-24b44c5180, F-6ee92046fb): the
+      # synthetic-context mints need this evaluator key in X-AgentForge-Demo-Key
+      # and are rate limited per client. This service publishes no port and is
+      # reached only through Caddy, which overwrites X-Forwarded-For, so the
+      # service trusts that header for the client address.
+      AGENTFORGE_DEMO_ACCESS_KEY: ${AGENTFORGE_DEMO_ACCESS_KEY:?AGENTFORGE_DEMO_ACCESS_KEY is required}
+      AGENTFORGE_MINT_RATE_LIMIT: ${AGENTFORGE_MINT_RATE_LIMIT:-15}
+      AGENTFORGE_MINT_RATE_WINDOW_SECONDS: ${AGENTFORGE_MINT_RATE_WINDOW_SECONDS:-60}
+      AGENTFORGE_TRUST_PROXY: "true"
       AGENTFORGE_OPENEMR_MODE: synthetic
       AGENTFORGE_PUBLIC_BASE_PATH: /agentforge-w2
       AGENTFORGE_PROVIDER_MODE: qwen

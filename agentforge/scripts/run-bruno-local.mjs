@@ -25,7 +25,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startTestServer } from '../test/helpers/testServer.js';
+import { TEST_DEMO_ACCESS_KEY, startTestServer } from '../test/helpers/testServer.js';
 
 export const BRUNO_CLI = '@usebruno/cli@4.2.0';
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -88,7 +88,7 @@ async function main() {
   const startedAt = new Date().toISOString();
   let exitCode;
   try {
-    const args = ['-y', BRUNO_CLI, 'run', '--env', 'local', '--env-var', `w1BaseUrl=${baseUrl}`, '--env-var', `w2BaseUrl=${baseUrl}`, '--reporter-json', reportPath];
+    const args = ['-y', BRUNO_CLI, 'run', '--env', 'local', '--env-var', `w1BaseUrl=${baseUrl}`, '--env-var', `w2BaseUrl=${baseUrl}`, '--env-var', `demoAccessKey=${TEST_DEMO_ACCESS_KEY}`, '--reporter-json', reportPath];
     // npx is a .cmd shim on Windows, which Node only spawns through a shell.
     // Every argument above is a constant or a validated port.
     exitCode = await new Promise((resolve, reject) => {

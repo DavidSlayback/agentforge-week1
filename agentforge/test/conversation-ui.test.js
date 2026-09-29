@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 const base = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -34,7 +34,7 @@ test('serves a conversation surface with safe follow-up prompts', async () => {
     assert.match(page, /authorizedRequest\(\{ patient_uuid: otherPatient, message: 'What changed\?' \}, false\)/);
     assert.doesNotMatch(page, /<pre id="out">/);
 
-    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const briefing = await fetch(`http://127.0.0.1:${port}/v1/briefings`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

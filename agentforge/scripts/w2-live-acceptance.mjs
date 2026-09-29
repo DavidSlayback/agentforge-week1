@@ -441,7 +441,9 @@ async function main() {
     console.log(`[${pass ? 'PASS' : 'FAIL'}] ${id} — ${check} ${JSON.stringify(evidence)}`);
   };
 
-  const getJson = async (path) => { const response = await fetch(`${base}${path}`); let data = null; try { data = await response.json(); } catch { /* non-JSON or empty */ } return { status: response.status, data }; };
+  // The context mints need the evaluator access key (W3); sent on every GET, ignored elsewhere.
+  const mintHeaders = process.env.AGENTFORGE_DEMO_ACCESS_KEY ? { 'x-agentforge-demo-key': process.env.AGENTFORGE_DEMO_ACCESS_KEY } : {};
+  const getJson = async (path) => { const response = await fetch(`${base}${path}`, { headers: mintHeaders }); let data = null; try { data = await response.json(); } catch { /* non-JSON or empty */ } return { status: response.status, data }; };
   const postJson = async (path, body) => { const response = await fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); let data = null; try { data = await response.json(); } catch { /* non-JSON or empty */ } return { status: response.status, data }; };
   const writeContextFor = async (patient) => (await getJson(`/v1/source-document-context?patient_uuid=${encodeURIComponent(patient)}`)).data?.demo_token;
   // The read-scoped token the public UI keeps as `state.demoToken` (ui.js) for the source preview and lab trends.

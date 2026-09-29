@@ -37,7 +37,11 @@ for anyone working on the underlying EHR.
 | Health / deployed SHA | `<W2 URL>/health` returns `{status, git_sha}` |
 
 Grader credentials for the OpenEMR and dashboard sign-in are in the
-submission notes, not in this repo.
+submission notes, not in this repo. The same notes hold the **evaluator access
+code** that the W2 page asks for once per tab (field "Evaluator access code").
+It is required since the W3 security fix: the synthetic-context mints no longer
+issue tokens to anonymous callers (findings F-831d4df407, F-24b44c5180,
+F-6ee92046fb; `deploy/vultr/README.md`).
 
 **Patient dashboard port (W2 surprise challenge).** A React SPA with a BFF that
 reimplements OpenEMR's PHP patient dashboard on its REST/FHIR API. It runs at
@@ -139,7 +143,7 @@ the full gate rubric.
 | | Route / service | What it does | Status |
 |---|---|---|---|
 | **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing and follow-up. Reads the chart from synthetic fixtures (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. | Week 1 as submitted is tag `week1-final` (`e4c0721`). This route runs the pinned image `agentforge-w1:84f232b`, never rebuilt. It keeps its known debt, including the `.some` verifier and $0 cost; see [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §4, "Week 1 debt". Superseded by Week 2. |
-| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public no-login demo, chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture". An OpenEMR-launched session (E9) reads the real chart for the designated synthetic patient `AF-LIVE-01` (observed on `b942391f`); problems and allergies are read there through fallback routes that work with the current service grant (`W2_ARCHITECTURE.md` §3f, E9c). | This submission, frozen at tag `w2-final` (`bfbb1eb2`). `/health` reports the deployed SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
+| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public demo (evaluator access code, no OpenEMR login), chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture". An OpenEMR-launched session (E9) reads the real chart for the designated synthetic patient `AF-LIVE-01` (observed on `b942391f`); problems and allergies are read there through fallback routes that work with the current service grant (`W2_ARCHITECTURE.md` §3f, E9c). | This submission, frozen at tag `w2-final` (`bfbb1eb2`). `/health` reports the deployed SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
 
 Both services run on the same VM as OpenEMR, from the same repository (W1 as
 a pinned image). Caddy routes `/agentforge-w2` and `/agentforge` to their separate containers,
@@ -210,7 +214,7 @@ php interface/modules/custom_modules/oe-module-agentforge/tests/run.php   # requ
 API collection (Bruno, every W1 and W2 endpoint; see `agentforge/api/README.md`):
 
 ```bash
-cd agentforge/api/bruno && npx @usebruno/cli run --env deployed   # the public URL; makes one model-costing scan
+cd agentforge/api/bruno && npx @usebruno/cli run --env deployed --env-var demoAccessKey=<code>   # the public URL; makes one model-costing scan
 node agentforge/scripts/run-bruno-local.mjs                        # a local server from this checkout, no model calls
 ```
 
@@ -251,6 +255,9 @@ narrative behind each group.
 | `AGENTFORGE_PUBLIC_BASE_PATH` | URL prefix the deployed reverse proxy mounts this service under | `''` | No (Yes behind Caddy) | No |
 | `AGENTFORGE_DEMO_SECRET` | Signs the synthetic demo context token | none | Yes | Yes |
 | `AGENTFORGE_SYNTHETIC_CONTEXT` | Enables the fixture/demo context issuer | `false` | Yes for synthetic mode | No |
+| `AGENTFORGE_DEMO_ACCESS_KEY` | Evaluator key that the context mints require in `X-AgentForge-Demo-Key` (W3). If unset, mints return 503 and `/ready` fails | none | Yes for synthetic mode | Yes |
+| `AGENTFORGE_MINT_RATE_LIMIT` / `AGENTFORGE_MINT_RATE_WINDOW_SECONDS` | Mints per client address per window, shared by all three mints; over the limit gets 429 + `Retry-After` | `15` / `60` | No | No |
+| `AGENTFORGE_TRUST_PROXY` | Key the rate limit on the rightmost `X-Forwarded-For` entry. Set only behind a proxy that overwrites it (Caddy) | `false` | No (`true` for `agentforge-w2`) | No |
 | `AGENTFORGE_MAX_REQUEST_BODY_BYTES` | Upload size cap | 8 MiB | No | No |
 | `AGENTFORGE_FIXTURES` | Path to the synthetic fixture patient set | built-in path | No | No |
 | `AGENTFORGE_PREPARATION_CACHE_TTL_MS` / `AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS` / `AGENTFORGE_MAX_PREWARM_JOBS` / `AGENTFORGE_PREWARM_DEADLINE_MS` / `AGENTFORGE_RECORD_DELAY_MS` | Briefing cache and prewarm tuning (Week 1 lane, shared) | see `server.js` | No | No |

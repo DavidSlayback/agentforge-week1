@@ -161,7 +161,10 @@ test('launch label: the page says which chart source the verified launch selects
   const livePage = renderAgentForgePage({ token: 't', payload: moduleContext(), writeToken: 'w', chartSource: describeLaunchChartSource(router, moduleContext()) });
   assert.match(livePage, /id="chart-source" data-chart-source="openemr_live">Chart source: OpenEMR \(live\)</);
   // A module launch never asks the synthetic demo endpoints for its tokens.
-  assert.match(livePage, /if \(!true\) \{\s+const contextResponse = await fetch\(basePath \+ '\/v1\/demo-context/);
+  assert.match(livePage, /if \(!true\) \{\s+token = \(await mintContext\('\/v1\/demo-context'/);
+  // ...and so shows no evaluator access-code field (W3); the demo page does.
+  assert.doesNotMatch(livePage, /<form id="access-form">/);
+  assert.match(renderAgentForgePage({}), /<form id="access-form">/);
   assert.match(livePage, /writeToken: "w"/);
   const demoPage = renderAgentForgePage({});
   assert.match(demoPage, /Chart source: synthetic fixture</);

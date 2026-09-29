@@ -229,7 +229,10 @@ async function timedFetch(url, init, timeoutMs) {
 }
 
 const postJson = (baseUrl, route, body, timeoutMs) => timedFetch(`${baseUrl}${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }, timeoutMs);
-const getJson = (baseUrl, route, timeoutMs) => timedFetch(`${baseUrl}${route}`, { method: 'GET' }, timeoutMs);
+// The context mints need the evaluator access key (W3); sent on every GET, ignored elsewhere.
+// A load run also needs AGENTFORGE_MINT_RATE_LIMIT raised on the target, or its mints get 429.
+const MINT_HEADERS = process.env.AGENTFORGE_DEMO_ACCESS_KEY ? { 'x-agentforge-demo-key': process.env.AGENTFORGE_DEMO_ACCESS_KEY } : {};
+const getJson = (baseUrl, route, timeoutMs) => timedFetch(`${baseUrl}${route}`, { method: 'GET', headers: MINT_HEADERS }, timeoutMs);
 
 /** Short-lived signed tokens, refreshed well before their 300 s expiry. */
 class TokenCache {
