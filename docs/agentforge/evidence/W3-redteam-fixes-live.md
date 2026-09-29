@@ -16,3 +16,16 @@ These checks need no access key and print no tokens. Target: `https://dtstest.64
 Not observed by the agent on the public URL: the keyed path (a 200 mint with the real key), because the agent does not hold the key. It is covered by `test/mint-guard.test.js` and the local browser check (`PLAN.md`, W3 section).
 
 Deliberate regressions: `W3-redteam-fixes-regression.txt`.
+
+## Open mode for grading: `da7451d1` (deployed 2026-09-29 about 20:52 UTC)
+
+The owner switched the key off ("Switch the code off"): the final W2 submission names no key. MR !129 adds `AGENTFORGE_DEMO_ACCESS=open`, set in W2 compose.
+
+| Check | Result |
+|---|---|
+| `/health`, `/ready` | `da7451d1…`, 200 |
+| Public page | no "Evaluator access code" field |
+| Anonymous mints on all three routes | 200 (F-831d4df407 and F-24b44c5180 are accepted risks while open) |
+| 20 rapid mints from one client | 12 × 200, then 8 × 429 with `Retry-After: 60` (F-6ee92046fb still fixed; 3 mints were spent just before) |
+| W1-minted token on W2 | 403 `invalid_demo_context` (bypass still closed) |
+| Deployed Bruno (`--env deployed`) | 28/28 requests, 64/64 assertions, 19/19 tests |
