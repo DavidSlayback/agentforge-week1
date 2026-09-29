@@ -4,7 +4,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { runAdversarialSuite, ADVERSARIAL_CASES } = require('../lib/adversarial');
-const { startTestServer } = require('../../agentforge/test/helpers/testServer.js');
+const { startTestServer, TEST_DEMO_ACCESS_KEY } = require('../../agentforge/test/helpers/testServer.js');
+
+// The suite's demo-context mint sends this key (W3).
+process.env.AGENTFORGE_DEMO_ACCESS_KEY = TEST_DEMO_ACCESS_KEY;
 
 // The secret startTestServer gives the spawned service.
 const TEST_SECRET = 'synthetic-test-secret';

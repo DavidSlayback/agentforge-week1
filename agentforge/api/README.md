@@ -11,12 +11,35 @@ every public AgentForge endpoint, in two folders:
   scan-supervisor, scan-form evidence, source preview, a synthetic one-page PDF
   upload and its page image, lab trends, follow-up evidence (and its
   other-patient refusal), a cross-patient scan refusal, traces, metrics,
-  alerts and the observability page.
+  alerts, the observability page, and an anonymous-mint refusal (401, W3).
 
 Requests chain through collection variables: demo token, then upload (the
 `/v1/demo-scan-fixture` synthetic lab sample), then scan of that document,
 then the evidence, preview and trend reads. Every request asserts its status
 and key fields. Synthetic data only.
+
+## Evaluator access key (W3 security fix)
+
+On `/agentforge-w2`, the context mints (`/v1/demo-context`,
+`/v1/source-document-context`, `/v1/clinical-action-context`) require
+`X-AgentForge-Demo-Key: <key>`, where the key is the service's
+`AGENTFORGE_DEMO_ACCESS_KEY`. This fixes W3 findings F-831d4df407 and
+F-24b44c5180. The mints share a per-client limit of 15 per 60 s
+(F-6ee92046fb).
+
+| Mint response | Meaning |
+|---|---|
+| `200` | Token issued (`expires_in_seconds: 300`, carries `aud: agentforge-w2`) |
+| `401 {"error":"demo_access_key_required"}` | Key missing or wrong |
+| `429 {"error":"mint_rate_limited","retry_after_seconds":N}` + `Retry-After: N` | Over the limit. Cache tokens for their lifetime |
+| `503 {"error":"demo_access_key_not_configured"}` | The server has no key set |
+| `400` / `403` / `404` | Unchanged: bad patient id / live mode / synthetic context off |
+
+All other routes are unchanged. W2 refuses tokens that lack
+`aud: agentforge-w2`, including tokens minted by the frozen W1 service at
+`/agentforge`, whose mints stay anonymous. The collection sends the key from
+the secret environment variable `demoAccessKey`. `w2/20` checks that an
+anonymous mint gets 401.
 
 ## Run it
 
@@ -24,7 +47,7 @@ Deployed (`https://dtstest.64.177.10.182.nip.io`):
 
 ```bash
 cd agentforge/api/bruno
-npx @usebruno/cli run --env deployed
+npx @usebruno/cli run --env deployed --env-var demoAccessKey=<key>
 ```
 
 Tested with `@usebruno/cli` 4.2.0 (`npx @usebruno/cli@4.2.0 run --env deployed`
@@ -57,8 +80,9 @@ cd agentforge/api/bruno
 npx @usebruno/cli run --env local --env-var w1BaseUrl=http://127.0.0.1:8787 --env-var w2BaseUrl=http://127.0.0.1:8787
 ```
 
-The server needs `AGENTFORGE_SYNTHETIC_CONTEXT=true` and an
-`AGENTFORGE_DEMO_SECRET`.
+The server needs `AGENTFORGE_SYNTHETIC_CONTEXT=true`, an
+`AGENTFORGE_DEMO_SECRET` and an `AGENTFORGE_DEMO_ACCESS_KEY`; pass the same key
+as `--env-var demoAccessKey=<key>`. `run-bruno-local.mjs` does both.
 
 `agentforge/api/collection.ps1`, the Week 1 PowerShell script, is removed; this
 collection supersedes it. Its readiness-failure probe (`-ExpectNotReady`) has

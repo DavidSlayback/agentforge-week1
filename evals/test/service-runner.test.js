@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 // Shared startup helper (ESM, loaded through require(esm) on Node 24).
-const { startTestServer } = require('../../agentforge/test/helpers/testServer.js');
+const { startTestServer, TEST_DEMO_ACCESS_KEY } = require('../../agentforge/test/helpers/testServer.js');
 
 const base = path.resolve(__dirname, '../..');
 
@@ -17,7 +17,7 @@ test('golden suite can evaluate the running AgentForge service', async () => {
     const result = await new Promise((resolve, reject) => {
       // The spawned service signs with startTestServer's test secret; the
       // expired-token adversarial case needs it to mint an expired token.
-      const runner = spawn(process.execPath, ['evals/lib/runner.js', '--service', 'http://127.0.0.1:18788'], { cwd: base, env: { ...process.env, AGENTFORGE_EVAL_DEMO_SECRET: 'synthetic-test-secret' } });
+      const runner = spawn(process.execPath, ['evals/lib/runner.js', '--service', 'http://127.0.0.1:18788'], { cwd: base, env: { ...process.env, AGENTFORGE_EVAL_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_DEMO_ACCESS_KEY: TEST_DEMO_ACCESS_KEY } });
       let output = '';
       runner.stdout.on('data', (data) => { output += data; });
       runner.on('error', reject);

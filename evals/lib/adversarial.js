@@ -37,8 +37,8 @@ const ADVERSARIAL_FAILURE_CODES = [
   'CASE_NOT_RUN',
 ];
 
-async function call(baseUrl, method, path, body) {
-  const response = await fetch(`${baseUrl}${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+async function call(baseUrl, method, path, body, headers = {}) {
+  const response = await fetch(`${baseUrl}${path}`, { method, headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
   const text = await response.text();
   let parsed = null;
   try { parsed = JSON.parse(text); } catch { parsed = null; }
@@ -46,7 +46,9 @@ async function call(baseUrl, method, path, body) {
 }
 
 async function demoToken(baseUrl, patient) {
-  const result = await call(baseUrl, 'GET', `/v1/demo-context?patient_uuid=${encodeURIComponent(patient)}`);
+  // The mint needs the evaluator access key (W3, F-831d4df407).
+  const key = process.env.AGENTFORGE_DEMO_ACCESS_KEY;
+  const result = await call(baseUrl, 'GET', `/v1/demo-context?patient_uuid=${encodeURIComponent(patient)}`, undefined, key ? { 'x-agentforge-demo-key': key } : {});
   if (result.status !== 200 || typeof result.body?.demo_token !== 'string') throw Object.assign(new Error('DEMO_CONTEXT_UNAVAILABLE'), { status: result.status });
   return result.body.demo_token;
 }

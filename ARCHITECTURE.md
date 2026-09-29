@@ -261,6 +261,22 @@ recommendation and no write operation.
 - Empty results are not retrieval failures and are not interpreted as
   non-completion.
 - Chart text cannot alter system instructions or tool selection.
+- No anonymous token minting (W3 security fix, `agentforge-w2`). The
+  W3 red-team found three issues. `/v1/demo-context` minted read tokens for
+  anyone (F-831d4df407). `/v1/source-document-context` minted write tokens for
+  anyone, and `/v1/clinical-action-context` had the same bug (F-24b44c5180).
+  The mints had no rate limit (F-6ee92046fb). Each mint now needs the
+  `X-AgentForge-Demo-Key` header, compared in constant time with
+  `AGENTFORGE_DEMO_ACCESS_KEY`: a missing or wrong key gets 401, and an unset
+  key gets 503 and fails `/ready`. The mints share a per-client sliding window,
+  `AGENTFORGE_MINT_RATE_LIMIT` per `AGENTFORGE_MINT_RATE_WINDOW_SECONDS`
+  (15 per 60 s by default). Over the limit gets 429 with `Retry-After`. The
+  limit is checked before the key. The client address is the rightmost
+  `X-Forwarded-For` entry only when `AGENTFORGE_TRUST_PROXY=true` (Caddy in
+  deploy/vultr). W2 mints carry `aud: agentforge-w2`, and W2 refuses
+  synthetic-demo tokens without it, including tokens from the frozen W1 mint,
+  which shares the signing secret. Code: `agentforge/src/mintGuard.js`. Tests:
+  `agentforge/test/mint-guard.test.js`.
 - Only the physician reviews and decides; AgentForge surfaces evidence and
   documented plans without recommending action.
 
@@ -296,7 +312,10 @@ synthetic-only. The launcher uses a short-lived context and the service
 validates its signature, patient binding, clinician binding, and read-only
 scope; a URL patient ID is never treated as authorization. The optional
 `/v1/demo-context` route is an explicit synthetic context issuer for evaluator
-rehearsal, not a live identity provider.
+rehearsal, not a live identity provider. On `agentforge-w2` it and the other
+synthetic mints require the evaluator access key and are rate limited (W3
+security fix; see Safety and verification invariants). The frozen Week 1
+service at `/agentforge` is unchanged.
 
 The provider interface is failure-shaped: a configured OpenAI-compatible
 provider may be retried twice, then the deterministic provider is used as a

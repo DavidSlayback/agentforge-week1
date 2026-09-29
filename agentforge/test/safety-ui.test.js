@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 const base = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -17,12 +17,12 @@ test('renders partial qualification and exposes a cross-patient block probe', as
     const page = await fetch(`http://127.0.0.1:${port}/`).then((response) => response.text());
     assert.match(page, /id="cross-patient-probe"/);
     assert.match(page, /Partial retrieval is qualified/);
-    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-006`).then((response) => response.json());
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-006`, DEMO_KEY_REQUEST).then((response) => response.json());
     const partial = await fetch(`http://127.0.0.1:${port}/v1/briefings`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(authorized('fixture-patient-006', context.demo_token, { case_id: 'partial_retrieval' })) }).then((response) => response.json());
     assert.equal(partial.disposition, 'partial');
     assert.equal(partial.qualification.required, true);
     assert.deepEqual(partial.withheld_fields, ['encounters', 'notes']);
-    const otherContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const otherContext = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const blocked = await fetch(`http://127.0.0.1:${port}/v1/conversations/${partial.correlation_id}/messages`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(authorized('fixture-patient-001', otherContext.demo_token, { message: 'What changed?' })) }).then((response) => response.json());
     assert.equal(blocked.disposition, 'blocked');
     assert.equal(blocked.patient, null);

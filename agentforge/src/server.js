@@ -11,6 +11,7 @@ import { SyntheticClinicalActionStore } from './clinicalActions.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 import { createOpenEMRModuleWritebackFromEnv, parseUuidAllowlist } from './openemrModuleWriteback.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
+import { DEFAULT_MINT_RATE_LIMIT, DEFAULT_MINT_RATE_WINDOW_SECONDS, DEMO_KEY_HEADER, W2_TOKEN_AUDIENCE, clientAddress, createMintRateLimiter, demoKeyMatches } from './mintGuard.js';
 import { LaunchSessionStore, launchSessionCookie } from './launchSession.js';
 import { AgentForgeService, defaultFixturePath } from './service.js';
 import { validateBriefingResponse, validateClinicalActionConfirmationRequest, validateClinicalActionDraftRequest, validateClinicalActionResponse, validateFollowUpEvidenceResponse, validateFollowUpRequest, validateFollowUpResponse, validatePrepareRequest, validateScanExtractionTypedOutput, validateSourceDocumentRequest } from './contracts.js';
@@ -269,7 +270,7 @@ const openemrModuleReadiness = persistenceMode === 'openemr-module' ? { checkRea
 const traceStoreWriteProbe = cachedCheck(() => traceSink.probeWritable(), { ttlMs: READINESS_PROBE_TTL_MS });
 const langfuseReadiness = traceSink.exporter?.isConfigured?.() ? { checkReady: cachedCheck(() => traceSink.exporter.checkReachable(), { ttlMs: READINESS_PROBE_TTL_MS }) } : null;
 const readiness = createReadinessChecker({
-  configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') },
+  configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') && (liveOpenEMR || Boolean(process.env.AGENTFORGE_DEMO_ACCESS_KEY)) },
   retrieval: chartAdapter,
   ...(liveReadsEnabled ? { openemrLiveReadsConfiguration: { checkReady: async () => liveReadsMissingSettings.length === 0 } } : {}),
   model: modelReadiness,
@@ -329,7 +330,32 @@ const launchSessions = new LaunchSessionStore();
 const requestContext = (token, req) => {
   if (LaunchSessionStore.isHandle(token)) return launchSessions.resolve(token, req.headers.cookie);
   const payload = verifyContextToken(token);
-  return payload && payload.issuer === 'openemr-module' ? null : payload;
+  if (!payload || payload.issuer === 'openemr-module') return null;
+  // W3: a synthetic-demo token must be one this service minted. The frozen
+  // Week 1 service signs with the same secret, and its mints are anonymous.
+  if (payload.issuer === 'synthetic-demo' && payload.audience !== W2_TOKEN_AUDIENCE) return null;
+  return payload;
+};
+// W3 red-team fixes (mintGuard.js) for the three synthetic-context mints.
+// F-6ee92046fb: per-client rate limit, checked first so key guessing is
+// throttled too. F-831d4df407 / F-24b44c5180: the evaluator access key.
+// AGENTFORGE_TRUST_PROXY=true only behind a proxy that overwrites
+// X-Forwarded-For (Caddy in deploy/vultr).
+const mintRateLimiter = createMintRateLimiter({
+  limit: positiveIntegerFromEnv(process.env.AGENTFORGE_MINT_RATE_LIMIT, DEFAULT_MINT_RATE_LIMIT, 'AGENTFORGE_MINT_RATE_LIMIT'),
+  windowSeconds: positiveIntegerFromEnv(process.env.AGENTFORGE_MINT_RATE_WINDOW_SECONDS, DEFAULT_MINT_RATE_WINDOW_SECONDS, 'AGENTFORGE_MINT_RATE_WINDOW_SECONDS'),
+});
+const trustProxy = process.env.AGENTFORGE_TRUST_PROXY === 'true';
+const mintRefused = (req, res) => {
+  const take = mintRateLimiter.take(clientAddress(req, { trustProxy }));
+  if (!take.allowed) {
+    res.setHeader('retry-after', String(take.retryAfterSeconds));
+    json(res, 429, { error: 'mint_rate_limited', retry_after_seconds: take.retryAfterSeconds });
+    return true;
+  }
+  if (!process.env.AGENTFORGE_DEMO_ACCESS_KEY) { json(res, 503, { error: 'demo_access_key_not_configured' }); return true; }
+  if (!demoKeyMatches(req.headers[DEMO_KEY_HEADER], process.env.AGENTFORGE_DEMO_ACCESS_KEY)) { json(res, 401, { error: 'demo_access_key_required' }); return true; }
+  return false;
 };
 const LAUNCH_REFUSED_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>AgentForge</title></head><body><main><h1>Launch link already used or expired</h1><p>An AgentForge launch link works once. Open AgentForge again from the OpenEMR patient chart ("Prepare for visit").</p></main></body></html>';
 const syntheticWritebackEnabled = () => Boolean(writeback && typeof writeback.persistSourceDocument === 'function');
@@ -390,17 +416,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url.startsWith('/v1/demo-context')) {
       if (liveOpenEMR) return json(res, 404, { error: 'openemr_context_required' });
       if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });
+      if (mintRefused(req, res)) return;
       const patient = new URL(req.url, 'http://localhost').searchParams.get('patient_uuid');
       if (!patient || (!/^fixture-patient-\d{3}$/.test(patient) && patient !== 'fixture-patient-dup')) return json(res, 400, { error: 'invalid_synthetic_patient' });
-      const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', issuer: 'synthetic-demo', authn: 'synthetic', secret: process.env.AGENTFORGE_DEMO_SECRET });
+      const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', issuer: 'synthetic-demo', authn: 'synthetic', audience: W2_TOKEN_AUDIENCE, secret: process.env.AGENTFORGE_DEMO_SECRET });
       return json(res, 200, { demo_token: token, patient_uuid: patient, clinician_uuid: 'fixture-physician-001', expires_in_seconds: 300, synthetic_only: true });
     }
     if (req.method === 'GET' && req.url.startsWith('/v1/source-document-context')) {
       if (liveOpenEMR) return json(res, 403, { error: 'synthetic_writeback_only' });
       if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });
+      if (mintRefused(req, res)) return;
       const patient = new URL(req.url, 'http://localhost').searchParams.get('patient_uuid');
       if (!patient || (!/^fixture-patient-\d{3}$/.test(patient) && patient !== 'fixture-patient-dup')) return json(res, 400, { error: 'invalid_synthetic_patient' });
-      const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', secret: process.env.AGENTFORGE_DEMO_SECRET });
+      const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', audience: W2_TOKEN_AUDIENCE, secret: process.env.AGENTFORGE_DEMO_SECRET });
       return json(res, 200, { demo_token: token, patient_uuid: patient, clinician_uuid: 'fixture-physician-001', expires_in_seconds: 300, synthetic_only: true, scope: 'write-source-document' });
     }
     if (req.method === 'GET' && req.url === '/v1/demo-scan-fixture') {
@@ -426,9 +454,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url.startsWith('/v1/clinical-action-context')) {
       if (liveOpenEMR) return json(res, 403, { error: 'synthetic_writeback_only' });
       if (process.env.AGENTFORGE_SYNTHETIC_CONTEXT !== 'true') return json(res, 404, { error: 'synthetic_context_disabled' });
+      if (mintRefused(req, res)) return;
       const patient = new URL(req.url, 'http://localhost').searchParams.get('patient_uuid');
       if (!patient || (!/^fixture-patient-\d{3}$/.test(patient) && patient !== 'fixture-patient-dup')) return json(res, 400, { error: 'invalid_synthetic_patient' });
-      const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-clinical-action', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', secret: process.env.AGENTFORGE_DEMO_SECRET });
+      const token = issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', scope: 'write-clinical-action', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', audience: W2_TOKEN_AUDIENCE, secret: process.env.AGENTFORGE_DEMO_SECRET });
       return json(res, 200, { demo_token: token, patient_uuid: patient, clinician_uuid: 'fixture-physician-001', expires_in_seconds: 300, synthetic_only: true, scope: 'write-clinical-action' });
     }
     if (req.method === 'GET' && req.url === '/evals/deployed-service-results.json') return json(res, 200, readEvidence('deployed-service-results.json'));

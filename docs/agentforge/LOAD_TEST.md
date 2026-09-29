@@ -18,6 +18,12 @@ only because older docs cite it.
 - **Target:** one base URL. For the freeze run it is the W2 service,
   `https://dtstest.64.177.10.182.nip.io/agentforge-w2`, which serves every
   route in the mix.
+- **Mint access (W3 security fix, after the `bfbb1eb2` runs).** The script
+  sends `AGENTFORGE_DEMO_ACCESS_KEY` from its own environment as
+  `X-AgentForge-Demo-Key`. From one client, the target allows 15 mints per
+  60 s, so a load run needs `AGENTFORGE_MINT_RATE_LIMIT` raised on the target
+  for the run, then restored. Without that, the `demo-context` share reports
+  429s (`deploy/vultr/README.md`).
 - **Mix** (seeded shuffle, reproducible from `--seed`):
 
   | Route | Share | Request |

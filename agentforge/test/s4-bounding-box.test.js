@@ -7,7 +7,7 @@ import { createRecordedOcrReplay, extractPdfScanFixture, renderedPageFilename } 
 import { extractScanForm } from '../src/scanFormAdapter.js';
 import { parseOrIssues, PageSize, ScanExtractionMetadata } from '../src/schemas.js';
 import { citationBoxId, renderScanSourcePreview } from '../src/ui.js';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 const fixture = new URL('./fixtures/golden/ocr/lab-a.json', import.meta.url);
 const recording = JSON.parse(fs.readFileSync(fixture, 'utf8'));
@@ -126,9 +126,9 @@ test('page image route enforces signed patient scope and rejects fixtures withou
   t.after(() => child.kill());
   const base = `http://127.0.0.1:${port}`;
   const patient = 'fixture-patient-001';
-  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
-  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
-  const other = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-002`).then((response) => response.json());
+  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+  const other = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-002`, DEMO_KEY_REQUEST).then((response) => response.json());
   const upload = async (filename, content) => fetch(`${base}/v1/source-documents`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: write.demo_token, document_type: 'lab_pdf', filename, content_base64: content.toString('base64') }),
@@ -160,9 +160,9 @@ test('page rendering, cached scope checks, invalid pages, and render failures', 
   t.after(() => child.kill());
   const base = `http://127.0.0.1:${port}`;
   const patient = 'fixture-patient-001';
-  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
-  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
-  const other = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-002`).then((response) => response.json());
+  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+  const other = await fetch(`${base}/v1/demo-context?patient_uuid=fixture-patient-002`, DEMO_KEY_REQUEST).then((response) => response.json());
   const upload = async (filename, content) => fetch(`${base}/v1/source-documents`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', demo_token: write.demo_token, document_type: 'lab_pdf', filename, content_base64: content.toString('base64') }),
@@ -197,8 +197,8 @@ test('page route reports missing Poppler as 503 without exposing tool errors', a
   t.after(() => child.kill());
   const base = `http://127.0.0.1:${port}`;
   const patient = 'fixture-patient-001';
-  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
-  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
   const { content: pdf } = await labExtraction();
   const upload = await fetch(`${base}/v1/source-documents`, {
     method: 'POST', headers: { 'content-type': 'application/json' },

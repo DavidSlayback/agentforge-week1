@@ -10,6 +10,7 @@ import { SyntheticLabObservationStore } from '../src/syntheticLabObservations.js
 import { labResultsForModule } from '../src/openemrModuleWriteback.js';
 import { AgentForgeService } from '../src/service.js';
 import { renderAgentForgePage } from '../src/ui.js';
+import { DEMO_KEY_REQUEST, TEST_MINT_ENV } from './helpers/testServer.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const secret = 'synthetic-test-secret';
@@ -127,7 +128,7 @@ const envelope = (values) => [
 ].join('\n');
 
 async function startServer(port, extraEnv = {}) {
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: root, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: secret, AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_PROVIDER_MODE: 'deterministic', ...extraEnv }, stdio: ['ignore', 'ignore', 'pipe'] });
+  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: root, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: secret, ...TEST_MINT_ENV, AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_PROVIDER_MODE: 'deterministic', ...extraEnv }, stdio: ['ignore', 'ignore', 'pipe'] });
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk; });
   for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -139,8 +140,8 @@ async function startServer(port, extraEnv = {}) {
 }
 
 async function contexts(base, patient) {
-  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`).then((response) => response.json());
-  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`).then((response) => response.json());
+  const write = await fetch(`${base}/v1/source-document-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
+  const read = await fetch(`${base}/v1/demo-context?patient_uuid=${patient}`, DEMO_KEY_REQUEST).then((response) => response.json());
   return { write: write.demo_token, read: read.demo_token, clinician: read.clinician_uuid };
 }
 

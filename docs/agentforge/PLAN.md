@@ -895,6 +895,29 @@ observed live** — the post-deploy smoke below has not run.
 - Browser screenshot of the bbox overlay. Then the user records the video (H5)
   and posts socially (H6).
 
+## W3 red-team fixes (2026-09-29, branch `agentforge/w3-redteam-fixes`)
+
+Source: findings from the W3 red-team platform (`agentforge-redteam`, `docs/findings/`) against `/agentforge-w2` at `bfbb1eb2` (tag `w3-redteam-baseline`). Scope is W2 only (owner, 2026-09-29). Branched from `main` `5873640b`, which adds docs and evidence only on top of the deployed SHA.
+
+| Finding | Issue | Fix (owner decision) |
+| --- | --- | --- |
+| F-831d4df407 (critical, API2) | `/v1/demo-context` mints a read token anonymously | (a) Evaluator access code. The UI asks once and sends `X-AgentForge-Demo-Key`. The server compares it in constant time to `AGENTFORGE_DEMO_ACCESS_KEY`; missing or wrong returns 401. |
+| F-24b44c5180 (critical, API2) | `/v1/source-document-context` mints a write token anonymously. The public UI calls it for upload (`ui.js`). | The same key gates it. `/v1/clinical-action-context` is the same class of bug (a write mint the UI does not call), so it is gated the same way. |
+| F-6ee92046fb (medium, API4) | No rate limit on the mints | Per-client-IP sliding window shared by the three mints: `AGENTFORGE_MINT_RATE_LIMIT` (default 15) per `AGENTFORGE_MINT_RATE_WINDOW_SECONDS` (default 60). Over the limit returns 429 with `Retry-After`. The limit is counted before the key check, so key guessing is throttled too. |
+| (found during the fix) | Frozen W1 (`/agentforge`) mints tokens anonymously with the same `AGENTFORGE_DEMO_SECRET`, and W2 accepted them (probed read-only 2026-09-29: 404 not-found vs 403 for a forged token). This bypasses any W2 gate. | W2-only: W2's mints add `aud: agentforge-w2`, and W2's HTTP boundary rejects `synthetic-demo` tokens without it. W1 is left untouched. |
+
+Client IP: `agentforge-w2` publishes no port and is reached only through Caddy, which sets `X-Forwarded-For` from the TCP peer. So `AGENTFORGE_TRUST_PROXY=true` in `deploy/vultr/docker-compose.yml`, and the service uses the rightmost XFF entry. Unset means the socket address is used.
+
+UI: the public page shows an "Evaluator access code" field and keeps the code in `sessionStorage` for the tab. Pages launched from OpenEMR never mint, so they show no field.
+
+Status (2026-09-29): **wired, untested on the public URL. Not merged, not deployed** (waiting on the owner's go-ahead).
+- Tests: `agentforge/test/mint-guard.test.js` (6 tests). I sabotaged each fix one at a time and the matching tests failed: key check removed → the F-831/F-24b test fails; rate limit removed → both F-6ee tests fail; audience check removed → the W1-bypass test fails. Full suites: agentforge 692 pass / 0 fail / 3 skipped, evals 13/13, observability 42/42. Local Bruno 28/28 (`w2/20` gets the anonymous 401).
+- Browser (local server): an anonymous load shows "Enter the evaluator access code". With the code, a briefing is prepared and the text-fixture upload (write mint) completes. Past the budget, the page shows the 429 retry message.
+- Docs: `deploy/vultr/README.md` (env, header, limits, proxy choice), `agentforge/api/README.md`, `ARCHITECTURE.md` invariants, `W2_ARCHITECTURE.md` item 7, `README.md` env table and grader note, `LOAD_TEST.md`.
+- Deploy needs `AGENTFORGE_DEMO_ACCESS_KEY` in the server `.env` (compose refuses to start without it) and the code in the submission notes. The load test and live acceptance need the key in their environment. Load runs also need a raised `AGENTFORGE_MINT_RATE_LIMIT`.
+- Residual: W1 (`/agentforge`) still mints anonymously for its own frozen service, which is out of scope (owner). `/v1/traces`, `/v1/metrics` and `/v1/alerts` stay unauthenticated (D4, D8).
+- Red-team repo follow-up (not edited here): its `executor/token.py` must send `X-AgentForge-Demo-Key` and handle 429 with `Retry-After`.
+
 ## Final freeze (2026-09-27 ~12:15 UTC): `w2-final` = `bfbb1eb2`
 
 - **E9c** (MR !123), at the owner's request, so that nothing on the live path is labeled unconfirmed: problems and allergies are read through fallback routes when the scoped route is empty (§3f). **Adapter read on production** (`AF-LIVE-01`, service identity): identity, encounters 2, problems 1 (hypertension), medications 6, allergies 1 (penicillin), all `success`; notes `not_requested` (by design, labeled).

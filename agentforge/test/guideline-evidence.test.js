@@ -7,7 +7,7 @@ import { createCohereGuidelineRetriever, createGeminiHybridGuidelineRetriever, l
 import { createRecordedOrStubGeminiClient, stubEmbedding } from '../src/geminiClient.js';
 import { createGeminiReranker } from '../src/reranker.js';
 import { GuidelineEvidence, parseOrIssues } from '../src/schemas.js';
-import { startTestServer } from './helpers/testServer.js';
+import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
 
 test('real BM25 ranks a relevant real-corpus guideline for an on-topic query, with full provenance', () => {
   const result = retrieveGuidelineEvidence('A1C blood sugar diabetes diagnosis threshold');
@@ -266,7 +266,7 @@ test('follow-up evidence API separates patient facts from guideline evidence', a
   const port = 18807;
   const child = await startTestServer(port);
   try {
-    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`).then((response) => response.json());
+    const context = await fetch(`http://127.0.0.1:${port}/v1/demo-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST).then((response) => response.json());
     const response = await fetch(`http://127.0.0.1:${port}/v1/follow-up-evidence`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: context.demo_token, message: 'What should I review for diabetes medication follow-up?' }) });
     assert.equal(response.status, 200);
     const body = await response.json();

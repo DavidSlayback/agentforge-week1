@@ -7,8 +7,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { startFakeOpenEMRModule } from './fake-openemr-module.js';
-import { startTestServer, waitForServer } from './helpers/testServer.js';
+import { TEST_MINT_ENV, startTestServer, waitForServer } from './helpers/testServer.js';
 import { issueSignedContext } from '../src/accessContext.js';
+import { W2_TOKEN_AUDIENCE } from '../src/mintGuard.js';
 
 // F-OBS over HTTP, against the deployed server.js: the trace limit, the
 // background alert monitor, /ready naming its failing dependency, and the
@@ -33,7 +34,7 @@ const stop = (child) => new Promise((resolve) => { if (!child || child.exitCode 
 
 /** Spawn server.js with stdout and stderr captured (the helper discards stderr). */
 async function startCapturing(port, env) {
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: repoRoot, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: secret, AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: repoRoot, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: secret, ...TEST_MINT_ENV, AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   const output = { text: '' };
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk) => { output.text += chunk; });
@@ -209,7 +210,7 @@ test('the request correlation id is echoed, and a scan trace is filed under it',
       assert.match((await fetch(`${base}/health`, { headers: { 'x-correlation-id': rejected } })).headers.get('x-correlation-id'), /^af-[0-9a-f-]{36}$/, rejected);
     }
 
-    const write = issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', secret });
+    const write = issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', issuer: 'synthetic-demo', authn: 'synthetic', audience: W2_TOKEN_AUDIENCE, secret });
     const envelope = 'SYNTHETIC_SCAN_FORM|layout=pdf-ocr-lab_pdf|page_count=1\nFIELD|field_id=lab.a1c.test_name|label=A1C|value=A1C|unit=|quote=A1C|page=1|box=10,20,300,35|confidence=0.97\nFIELD|field_id=lab.a1c.value|label=A1C value|value=6.1|unit=%|quote=6.1|page=1|box=10,40,300,55|confidence=0.97';
     const post = (route, body, id) => fetch(`${base}${route}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-correlation-id': id }, body: JSON.stringify(body) });
     const upload = await post('/v1/source-documents', { patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', demo_token: write, document_type: 'lab_pdf', filename: 'lab.scan.txt', content_base64: Buffer.from(envelope).toString('base64') }, 'Jane.Doe.1980-01-01');

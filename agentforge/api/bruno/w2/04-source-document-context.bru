@@ -10,6 +10,10 @@ get {
   auth: none
 }
 
+headers {
+  X-AgentForge-Demo-Key: {{demoAccessKey}}
+}
+
 assert {
   res.status: eq 200
   res.body.scope: eq write-source-document

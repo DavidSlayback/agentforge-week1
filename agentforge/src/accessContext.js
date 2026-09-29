@@ -21,9 +21,12 @@ export function signedTokenFor(verifiedContext) {
 }
 
 /** Issue a short-lived synthetic session assertion for a read-only patient scope. */
-export function issueSignedContext({ patient_uuid, clinician_uuid, scope = 'read-briefing', ttlSeconds = 300, issuer = 'synthetic-demo', authn = 'synthetic', role = 'clinician', acl = 'read', secret, now = () => Math.floor(Date.now() / 1000) }) {
+export function issueSignedContext({ patient_uuid, clinician_uuid, scope = 'read-briefing', ttlSeconds = 300, issuer = 'synthetic-demo', authn = 'synthetic', role = 'clinician', acl = 'read', audience = null, secret, now = () => Math.floor(Date.now() / 1000) }) {
   if (!secret || !patient_uuid || !clinician_uuid || !CONTEXT_SCOPES.has(scope) || !Number.isInteger(ttlSeconds) || ttlSeconds <= 0 || ttlSeconds > MAX_CONTEXT_TTL_SECONDS || !issuer || !authn || role !== 'clinician' || !['read', 'write'].includes(acl) || (scope === 'read-briefing' && acl !== 'read') || (['write-source-document', 'write-clinical-action'].includes(scope) && acl !== 'write')) throw new Error('SIGNED_CONTEXT_CONFIG_REQUIRED');
-  const payload = { patient_uuid, clinician_uuid, scope, issuer, authn, role, acl, expires_at: now() + ttlSeconds };
+  if (audience !== null && (typeof audience !== 'string' || !audience)) throw new Error('SIGNED_CONTEXT_CONFIG_REQUIRED');
+  // `aud` (optional) names the one service the token is for. The OpenEMR
+  // module's verifier ignores fields it does not know.
+  const payload = { patient_uuid, clinician_uuid, scope, issuer, authn, role, acl, ...(audience ? { aud: audience } : {}), expires_at: now() + ttlSeconds };
   const encoded = encode(payload);
   const signature = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
   return `${encoded}.${signature}`;
@@ -40,7 +43,7 @@ export function verifySignedContext(token, secret, now = () => Math.floor(Date.n
   try {
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
     if (typeof payload.patient_uuid !== 'string' || !payload.patient_uuid || typeof payload.clinician_uuid !== 'string' || !payload.clinician_uuid || !CONTEXT_SCOPES.has(payload.scope) || typeof payload.issuer !== 'string' || !payload.issuer || typeof payload.authn !== 'string' || !payload.authn || payload.role !== 'clinician' || !['read', 'write'].includes(payload.acl) || (payload.scope === 'read-briefing' && payload.acl !== 'read') || (['write-source-document', 'write-clinical-action'].includes(payload.scope) && payload.acl !== 'write') || !Number.isFinite(payload.expires_at) || payload.expires_at <= now() || payload.expires_at > now() + MAX_CONTEXT_TTL_SECONDS) return null;
-    const context = { patient_uuid: payload.patient_uuid, clinician_uuid: payload.clinician_uuid, scope: payload.scope, issuer: payload.issuer, authn: payload.authn, role: payload.role, acl: payload.acl, expires_at: payload.expires_at };
+    const context = { patient_uuid: payload.patient_uuid, clinician_uuid: payload.clinician_uuid, scope: payload.scope, issuer: payload.issuer, authn: payload.authn, role: payload.role, acl: payload.acl, ...(typeof payload.aud === 'string' && payload.aud ? { audience: payload.aud } : {}), expires_at: payload.expires_at };
     verifiedContexts.add(context);
     signedTokens.set(context, token);
     return Object.freeze(context);

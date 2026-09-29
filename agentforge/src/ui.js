@@ -76,6 +76,7 @@ main{border-color:var(--line);border-radius:1.1rem;padding:clamp(1rem,3.4vw,2.25
 .section-heading{margin-top:1.9rem;padding-bottom:.35rem;border-bottom:1px solid #e9eff0}.section-heading h2{margin:.25rem 0 .55rem}
 form{gap:.8rem}#source-document-form .section-heading{margin-top:.4rem}
 #briefing-form{grid-template-columns:minmax(0,1fr) auto;align-items:end;padding:.25rem 0 .8rem}
+#access-form{grid-template-columns:minmax(0,1fr) auto;align-items:end;margin:.2rem 0 .6rem}
 #source-document-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:1rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 #source-document-form .section-heading,#source-status{grid-column:1/-1}
 #source-document-form button{justify-self:start}
@@ -112,12 +113,12 @@ a{color:var(--teal)}
 .fact-list{margin:.2rem 0;padding-left:1.1rem}.fact-list li{margin:.28rem 0}.citation-text,.fact-list a{font-size:.8rem;color:var(--muted)}.fact-list a{color:var(--teal)}.dup-count{color:var(--muted);font-size:.8rem}
 .tech-details dl{display:grid;grid-template-columns:max-content 1fr;gap:.2rem .8rem;font-size:.82rem;margin:.4rem 0}.tech-details dt{color:var(--muted);font-weight:700}.tech-details dd{margin:0;overflow-wrap:anywhere}
 .qualified-reasons{margin:.1rem 0 .5rem;color:#6b4e00;font-size:.88rem}
-@media(max-width:620px){#briefing-form,#source-document-form,#official-sources .source-links,#synthetic-samples .source-links{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button,#scan-sample{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
+@media(max-width:620px){#briefing-form,#access-form,#source-document-form,#official-sources .source-links,#synthetic-samples .source-links{grid-template-columns:1fr}#source-document-form .section-heading,#source-status{grid-column:auto}#source-document-form button,#scan-sample{width:100%}.header-row .badge{margin-top:.65rem}.section-heading{align-items:flex-start;flex-direction:column;gap:.2rem}}
 </style>
 </head>
 <body><main id="agentforge-app">
 <header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge" id="data-origin">${escapeHtml(dataBadge)}</span></div>
-<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Demo patients (synthetic)'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div></header>
+<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Demo patients (synthetic)'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div>${fixedContext ? '' : '<form id="access-form"><label>Evaluator access code<input type="password" name="access_code" autocomplete="off" placeholder="Provided with the submission"></label><button type="submit" class="secondary">Use code</button></form>'}</header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
 <div class="briefing-status"><p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button></div>
@@ -159,6 +160,18 @@ a{color:var(--teal)}
   const initialContextStatus = contextStatus?.textContent || '';
   let busy = false;
   const setStatus = (message, error = false) => { status.textContent = message; status.className = error ? 'status error' : 'status'; };
+  // W3 (F-831d4df407, F-24b44c5180): the synthetic-context mints require the
+  // evaluator access code (X-AgentForge-Demo-Key). It is kept for this tab only.
+  const ACCESS_CODE_STORAGE_KEY = 'agentforge-demo-access-code';
+  const accessForm = document.getElementById('access-form');
+  let accessCode = ''; try { accessCode = sessionStorage.getItem(ACCESS_CODE_STORAGE_KEY) || ''; } catch {}
+  const mintContext = async (route, patient, unavailable) => {
+    const response = await fetch(basePath + route + '?patient_uuid=' + encodeURIComponent(patient), { headers: accessCode ? { 'x-agentforge-demo-key': accessCode } : {} });
+    if (response.status === 401) throw new Error(accessCode ? 'The evaluator access code was not accepted.' : 'Enter the evaluator access code to use the demo.');
+    if (response.status === 429) throw new Error('Too many context requests. Try again in ' + (response.headers.get('retry-after') || '60') + ' seconds.');
+    if (!response.ok) throw new Error(unavailable);
+    return response.json();
+  };
   const setBusy = (value) => { busy = value; if (patientSelector) patientSelector.disabled = value; document.getElementById('agentforge-app').setAttribute('aria-busy', String(value)); [briefingForm, sourceDocumentForm, followupForm].filter(Boolean).forEach((form) => form.querySelectorAll('button').forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); })); if (scanSampleButton) scanSampleButton.disabled = value; pdfSampleButtons.forEach((button) => { button.disabled = value; button.classList.toggle('loading', value); }); crossPatientProbe.disabled = value; };
   // E9b: an OpenEMR list that answered empty without confirming absence.
   // F-LIVE: a group the live adapter does not read (notes) is named, never hidden.
@@ -232,9 +245,7 @@ a{color:var(--teal)}
       try {
         let token = initialDemoToken;
         if (!${fixedContext}) {
-          const contextResponse = await fetch(basePath + '/v1/demo-context?patient_uuid=' + encodeURIComponent(patient));
-          if (!contextResponse.ok) throw new Error('Patient context is unavailable.');
-          token = (await contextResponse.json()).demo_token;
+          token = (await mintContext('/v1/demo-context', patient, 'Patient context is unavailable.')).demo_token;
         }
         if (version !== generation) return {};
         state.demoToken = token;
@@ -265,9 +276,7 @@ a{color:var(--teal)}
       if (!['blocked', 'deadline-exceeded'].includes(response.disposition)) {
         // Opening always rechecks authorization and server cache expiry.
         if (!${fixedContext}) {
-          const contextResponse = await fetch(basePath + '/v1/demo-context?patient_uuid=' + encodeURIComponent(patient));
-          if (!contextResponse.ok) throw new Error('Patient context is unavailable.');
-          state.demoToken = (await contextResponse.json()).demo_token;
+          state.demoToken = (await mintContext('/v1/demo-context', patient, 'Patient context is unavailable.')).demo_token;
         }
         try {
           response = await request('/v1/prewarm/' + encodeURIComponent(response.correlation_id) + '/open', authorizedRequest({ patient_uuid: patient, reset_conversation: true }));
@@ -309,14 +318,10 @@ a{color:var(--teal)}
         if (!state.writeToken) throw new Error('Upload is unavailable for this OpenEMR launch (no write access or patient not allowlisted). Relaunch from the patient chart.');
         writeContext = { demo_token: state.writeToken };
       } else {
-        const contextResponse = await fetch(basePath + '/v1/source-document-context?patient_uuid=' + encodeURIComponent(patient));
-        if (!contextResponse.ok) throw new Error('Source-document context is unavailable.');
-        writeContext = await contextResponse.json();
+        writeContext = await mintContext('/v1/source-document-context', patient, 'Source-document context is unavailable.');
       }
       if (!${fixedContext} && (!state.demoToken || state.patient !== patient)) {
-        const readContextResponse = await fetch(basePath + '/v1/demo-context?patient_uuid=' + encodeURIComponent(patient));
-        if (!readContextResponse.ok) throw new Error('Patient context is unavailable.');
-        state.demoToken = (await readContextResponse.json()).demo_token;
+        state.demoToken = (await mintContext('/v1/demo-context', patient, 'Patient context is unavailable.')).demo_token;
         state.patient = patient;
       }
       const content = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
@@ -537,6 +542,7 @@ a{color:var(--teal)}
   document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => { input.value = button.dataset.prompt; input.focus(); }));
   patientSelector?.addEventListener('change', () => { if (busy) return; state.conversationId = null; state.patient = null; state.demoToken = ''; transcript.innerHTML = '<li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li>'; followupForm.classList.add('hidden'); crossPatientProbe.classList.add('hidden'); if (contextStatus) contextStatus.textContent = 'New patient selected. Preparing the authorized context.'; setStatus('Patient changed; previous conversation cleared.'); beginPreparation(); });
   reset.addEventListener('click', () => { if (busy) return; state.conversationId = null; state.patient = null; state.demoToken = initialDemoToken; transcript.innerHTML = '<li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li>'; followupForm.classList.add('hidden'); crossPatientProbe.classList.add('hidden'); if (contextStatus) contextStatus.textContent = initialContextStatus; setStatus('Conversation reset.'); beginPreparation(); });
+  accessForm?.addEventListener('submit', (event) => { event.preventDefault(); accessCode = accessForm.elements.access_code.value.trim(); accessForm.elements.access_code.value = ''; try { if (accessCode) sessionStorage.setItem(ACCESS_CODE_STORAGE_KEY, accessCode); else sessionStorage.removeItem(ACCESS_CODE_STORAGE_KEY); } catch {} setStatus(accessCode ? 'Access code set for this tab.' : 'Access code cleared.'); if (!busy) beginPreparation(); });
   beginPreparation();
 })();
 </script></body></html>`;

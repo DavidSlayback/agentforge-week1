@@ -51,11 +51,21 @@ export async function waitForServer(child, { port, path = null, timeoutMs = 1500
   throw fail(`did not answer ${path} with 2xx (last: ${lastStatus})`);
 }
 
+/** Evaluator access key the test servers accept on the synthetic-context mints (W3). */
+export const TEST_DEMO_ACCESS_KEY = 'synthetic-test-access-key';
+/**
+ * Mint settings for spawned test servers: the access key, and a rate limit high
+ * enough for suites that mint many tokens. mint-guard.test.js tests the default.
+ */
+export const TEST_MINT_ENV = Object.freeze({ AGENTFORGE_DEMO_ACCESS_KEY: TEST_DEMO_ACCESS_KEY, AGENTFORGE_MINT_RATE_LIMIT: '1000' });
+/** fetch() init for a mint request that carries the test access key. */
+export const DEMO_KEY_REQUEST = Object.freeze({ headers: { 'x-agentforge-demo-key': TEST_DEMO_ACCESS_KEY } });
+
 /** Spawn `agentforge/src/server.js` with synthetic test defaults and wait for it (see `waitForServer`). */
 export async function startTestServer(port, extraEnv = {}, { path = '/ready', timeoutMs = 15000 } = {}) {
   const child = spawn(process.execPath, ['agentforge/src/server.js'], {
     cwd: repoRoot,
-    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...extraEnv },
+    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...TEST_MINT_ENV, ...extraEnv },
     stdio: ['ignore', 'pipe', 'ignore'],
   });
   return waitForServer(child, { port, path, timeoutMs });
