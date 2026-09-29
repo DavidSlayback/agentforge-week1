@@ -32,7 +32,7 @@ const SAMPLE_CARDS = [
   ['medlist-b', 'medication_list', 'Medication list — pharmacy printout', 'Image-only PDF with pharmacy labels'],
 ];
 
-export function renderAgentForgePage({ token = '', payload = null, publicBasePath = '', liveOpenEMR = false, writeToken = '', chartSource = null, designatedPatient = false } = {}) {
+export function renderAgentForgePage({ token = '', payload = null, publicBasePath = '', liveOpenEMR = false, writeToken = '', chartSource = null, designatedPatient = false, demoAccessOpen = false } = {}) {
   const patient = payload?.patient_uuid || '';
   // E9: a page opened from the OpenEMR module launcher carries a verified
   // openemr-session context. Its patient, clinician and write token come from
@@ -118,7 +118,7 @@ a{color:var(--teal)}
 </head>
 <body><main id="agentforge-app">
 <header><div class="header-row"><div><div class="eyebrow">AgentForge / return visit</div><h1>Prepare for visit</h1><p class="subtitle">A concise, evidence-linked orientation for the next patient.</p></div><span class="badge" id="data-origin">${escapeHtml(dataBadge)}</span></div>
-<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Demo patients (synthetic)'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div>${fixedContext ? '' : '<form id="access-form"><label>Evaluator access code<input type="password" name="access_code" autocomplete="off" placeholder="Provided with the submission"></label><button type="submit" class="secondary">Use code</button></form>'}</header>
+<div class="context" id="patient-context"><strong>Patient context</strong><span id="context-status">${payload ? `Authorized OpenEMR context: <strong>${escapeHtml(patient)}</strong>` : liveOpenEMR ? 'Open this page from an authenticated OpenEMR patient chart.' : 'Demo patients (synthetic)'}</span><span class="badge" id="chart-source" data-chart-source="${escapeHtml(chartSourceValue)}">Chart source: ${escapeHtml(chartSourceLabel)}</span><span class="hint">Read-only · clinician review required</span></div>${fixedContext || demoAccessOpen ? '' : '<form id="access-form"><label>Evaluator access code<input type="password" name="access_code" autocomplete="off" placeholder="Provided with the submission"></label><button type="submit" class="secondary">Use code</button></form>'}</header>
 <section aria-labelledby="conversation-heading"><div class="section-heading"><h2 id="conversation-heading">Visit orientation</h2><span class="hint">Start with the bottom line, then inspect evidence.</span></div><ol id="transcript" role="log" aria-live="polite" aria-relevant="additions"><li id="empty-state">Prepare a briefing to see the documented visit reason, active concerns, and supporting records.</li></ol></section>
 <form id="briefing-form"${liveOpenEMR && !payload ? ' class="hidden"' : ''}><label>Patient ${patientControl}</label><input type="hidden" name="demo_token" value="${escapeHtml(token)}"><button type="submit">Prepare briefing</button></form>
 <div class="briefing-status"><p id="status" class="status" role="status"></p><button id="reset" class="secondary" type="button">Reset conversation</button></div>

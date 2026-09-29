@@ -270,7 +270,7 @@ const openemrModuleReadiness = persistenceMode === 'openemr-module' ? { checkRea
 const traceStoreWriteProbe = cachedCheck(() => traceSink.probeWritable(), { ttlMs: READINESS_PROBE_TTL_MS });
 const langfuseReadiness = traceSink.exporter?.isConfigured?.() ? { checkReady: cachedCheck(() => traceSink.exporter.checkReachable(), { ttlMs: READINESS_PROBE_TTL_MS }) } : null;
 const readiness = createReadinessChecker({
-  configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') && (liveOpenEMR || Boolean(process.env.AGENTFORGE_DEMO_ACCESS_KEY)) },
+  configuration: { checkReady: async () => ['qwen', 'openrouter'].includes(providerMode) && validOpenEMRMode && liveExternalProviderAllowed && Boolean(process.env.AGENTFORGE_DEMO_SECRET) && (liveOpenEMR || process.env.AGENTFORGE_SYNTHETIC_CONTEXT === 'true') && (liveOpenEMR || process.env.AGENTFORGE_DEMO_ACCESS === 'open' || Boolean(process.env.AGENTFORGE_DEMO_ACCESS_KEY)) },
   retrieval: chartAdapter,
   ...(liveReadsEnabled ? { openemrLiveReadsConfiguration: { checkReady: async () => liveReadsMissingSettings.length === 0 } } : {}),
   model: modelReadiness,
@@ -346,6 +346,12 @@ const mintRateLimiter = createMintRateLimiter({
   windowSeconds: positiveIntegerFromEnv(process.env.AGENTFORGE_MINT_RATE_WINDOW_SECONDS, DEFAULT_MINT_RATE_WINDOW_SECONDS, 'AGENTFORGE_MINT_RATE_WINDOW_SECONDS'),
 });
 const trustProxy = process.env.AGENTFORGE_TRUST_PROXY === 'true';
+// AGENTFORGE_DEMO_ACCESS: `key` (default) requires the evaluator key on the
+// mints. `open` skips the key and keeps the rate limit and the audience check.
+// Owner decision 2026-09-29: the W2 submission is final and carries no key,
+// so graders must reach the public demo without one.
+const demoAccessMode = process.env.AGENTFORGE_DEMO_ACCESS || 'key';
+if (!['key', 'open'].includes(demoAccessMode)) throw new Error('AGENTFORGE_DEMO_ACCESS must be key or open');
 const mintRefused = (req, res) => {
   const take = mintRateLimiter.take(clientAddress(req, { trustProxy }));
   if (!take.allowed) {
@@ -353,6 +359,7 @@ const mintRefused = (req, res) => {
     json(res, 429, { error: 'mint_rate_limited', retry_after_seconds: take.retryAfterSeconds });
     return true;
   }
+  if (demoAccessMode === 'open') return false;
   if (!process.env.AGENTFORGE_DEMO_ACCESS_KEY) { json(res, 503, { error: 'demo_access_key_not_configured' }); return true; }
   if (!demoKeyMatches(req.headers[DEMO_KEY_HEADER], process.env.AGENTFORGE_DEMO_ACCESS_KEY)) { json(res, 401, { error: 'demo_access_key_required' }); return true; }
   return false;
@@ -578,7 +585,7 @@ const server = http.createServer(async (req, res) => {
       if (payload?.issuer !== 'openemr-module') {
         // Not an OpenEMR launch: the public demo page, unchanged.
         const designatedPatient = Boolean(payload && livePatientAllowlist.has(String(payload.patient_uuid).toLowerCase()));
-        return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken: '', chartSource: describeLaunchChartSource(chartAdapter, payload), designatedPatient }));
+        return html(res, renderAgentForgePage({ token, payload, publicBasePath, liveOpenEMR, writeToken: '', chartSource: describeLaunchChartSource(chartAdapter, payload), designatedPatient, demoAccessOpen: demoAccessMode === 'open' }));
       }
       // E9: the module launcher also hands over a write-source-document token.
       // It is used only when it is verified and belongs to the same OpenEMR
