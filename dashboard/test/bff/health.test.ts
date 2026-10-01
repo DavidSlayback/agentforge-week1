@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -65,6 +65,25 @@ describe('config', () => {
     expect(() => loadConfig({ ...TEST_ENV, DASHBOARD_PUBLIC_ORIGIN: 'http://localhost:8790/dashboard' }, null)).toThrow(ConfigError);
     expect(() => loadConfig({ ...TEST_ENV, NODE_ENV: 'production' }, null)).toThrow(/https in production/);
     expect(() => loadConfig({ ...TEST_ENV, DASHBOARD_OPENEMR_TZ: 'Mars/Olympus' }, null)).toThrow(ConfigError);
+  });
+
+  // W3 hardening H4: the OpenEMR timezone had a placeholder default (America/Chicago) that nobody
+  // had checked against production. It is now required, and it must be a named IANA zone: PHP's
+  // gbl_time_zone / date.timezone are always zone names, and a fixed offset would ignore DST.
+  it('requires DASHBOARD_OPENEMR_TZ (no placeholder default) and refuses a bare offset', () => {
+    const env = Object.fromEntries(Object.entries(TEST_ENV).filter(([k]) => k !== 'DASHBOARD_OPENEMR_TZ'));
+    expect(() => loadConfig(env, null)).toThrow(/DASHBOARD_OPENEMR_TZ/);
+    expect(() => loadConfig({ ...TEST_ENV, DASHBOARD_OPENEMR_TZ: '' }, null)).toThrow(/DASHBOARD_OPENEMR_TZ/);
+    expect(() => loadConfig({ ...TEST_ENV, DASHBOARD_OPENEMR_TZ: '+05:00' }, null)).toThrow(/DASHBOARD_OPENEMR_TZ/);
+    expect(loadConfig({ ...TEST_ENV, DASHBOARD_OPENEMR_TZ: 'America/Chicago' }, null).openemrTimeZone).toBe('America/Chicago');
+    expect(loadConfig(TEST_ENV, null).openemrTimeZone).toBe('UTC');
+  });
+
+  it('the deploy compose file requires DASHBOARD_OPENEMR_TZ and carries no placeholder zone', () => {
+    const compose = readFileSync(new URL('../../../deploy/vultr/docker-compose.yml', import.meta.url), 'utf8');
+    const line = compose.split('\n').find((l) => l.trim().startsWith('DASHBOARD_OPENEMR_TZ:')) ?? '';
+    expect(line).toMatch(/\$\{DASHBOARD_OPENEMR_TZ:\?[^}]+\}/);
+    expect(compose).not.toContain('America/Chicago');
   });
 
   it('parses demo patients as neutral label=uuid pairs', () => {

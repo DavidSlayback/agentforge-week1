@@ -7,10 +7,15 @@
  * idempotency keys and the idempotent writer (database layer stubbed), and
  * the lab row plan, and the AgentForgeApi dispatcher with the OpenEMR runtime
  * stubbed (ACL, cross-patient reads and links, allowlist for every issuer,
- * separate signing and context secrets). Runs on plain PHP 8.4 with only
- * ext-hash and ext-json (the enforced .githooks/pre-commit runs it):
+ * separate signing and context secrets), the Ed25519 launcher tokens, list
+ * provenance and read auditing. Runs on plain PHP 8.4 with ext-hash, ext-json
+ * and ext-sodium (the enforced .githooks/pre-commit runs it):
  *
  *   php tests/run.php [path/to/hmac-vectors.json]
+ *
+ * When ext-sodium is not loaded (the Windows zip build ships php_sodium.dll
+ * but does not enable it), the runner re-executes itself once with
+ * `-d extension=sodium`; if that fails too it exits 1, never skips.
  *
  * The vectors default to agentforge/test/fixtures/hmac-vectors.json in this
  * repository; pass the path explicitly when the module is run elsewhere.
@@ -23,6 +28,22 @@
  */
 
 declare(strict_types=1);
+
+if (!function_exists('sodium_crypto_sign_detached')) {
+    if (getenv('AGENTFORGE_TESTS_SODIUM_REEXEC') === '1') {
+        fwrite(STDERR, "ext-sodium is required (launcher tokens are Ed25519); enable it in php.ini.\n");
+        exit(1);
+    }
+    $command = [PHP_BINARY];
+    $extensionDir = dirname(PHP_BINARY) . DIRECTORY_SEPARATOR . 'ext';
+    if (is_dir($extensionDir)) {
+        $command = [...$command, '-d', 'extension_dir=' . $extensionDir];
+    }
+    $command = [...$command, '-d', 'extension=sodium', __FILE__, ...array_slice($argv, 1)];
+    putenv('AGENTFORGE_TESTS_SODIUM_REEXEC=1');
+    $process = proc_open($command, [STDIN, STDOUT, STDERR], $pipes);
+    exit(is_resource($process) ? proc_close($process) : 1);
+}
 
 require_once dirname(__DIR__) . '/src/autoload.php';
 
@@ -47,6 +68,7 @@ use OpenEMR\Modules\AgentForge\Persistence\NonceStore;
 use OpenEMR\Modules\AgentForge\Persistence\WriteLedger;
 use OpenEMR\Modules\AgentForge\Persistence\WriteOutcome;
 use OpenEMR\Modules\AgentForge\Read\LabHistoryAssembler;
+use OpenEMR\Modules\AgentForge\Write\ClinicalListWriter;
 use OpenEMR\Modules\AgentForge\Write\LabRowPlanner;
 use OpenEMR\Modules\AgentForge\Api\AclChecker;
 use OpenEMR\Modules\AgentForge\Api\AgentForgeApi;
@@ -54,7 +76,10 @@ use OpenEMR\Modules\AgentForge\Api\ChartGateway;
 use OpenEMR\Modules\AgentForge\Domain\PatientUuid;
 use OpenEMR\Modules\AgentForge\Launch\LaunchGrant;
 use OpenEMR\Modules\AgentForge\Launch\LaunchScope;
+use OpenEMR\Modules\AgentForge\Launch\LaunchSigningKey;
 use OpenEMR\Modules\AgentForge\Launch\LaunchTokenMinter;
+use OpenEMR\Modules\AgentForge\Http\LaunchVerifyKey;
+use OpenEMR\Modules\AgentForge\Domain\ListItemProvenance;
 
 final class InMemoryNonceStore implements NonceStore
 {
@@ -153,9 +178,17 @@ final class RecordingAudit implements AuditSink
     /** @var list<string> */
     public array $events = [];
 
+    /** @var list<string> */
+    public array $reads = [];
+
     public function recordWrite(string $operation, Actor $actor, int $pid, ?int $documentId, int $rowCount): void
     {
         $this->events[] = sprintf('%s:%d:%s:%d:%s', $operation, $pid, $documentId ?? '-', $rowCount, $actor->issuer);
+    }
+
+    public function recordRead(string $operation, Actor $actor, int $pid, ?int $documentId, int $rowCount): void
+    {
+        $this->reads[] = sprintf('%s:%d:%s:%d:%s', $operation, $pid, $documentId ?? '-', $rowCount, $actor->issuer);
     }
 }
 
@@ -382,12 +415,15 @@ check('access policy: unknown route is 404', function (): void {
 });
 
 // E9 launcher (public/index.php -> LaunchTokenMinter): the tokens a logged-in
-// OpenEMR session hands to the W2 service. The same vector is verified by
-// Node in agentforge/test/chart-source-router.test.js.
-const LAUNCH_VECTOR_SECRET = 'launch-vector-secret';
+// OpenEMR session hands to the W2 service. W3 H1: they are Ed25519-signed with
+// a key only the openemr container holds. The synthetic test keypair and the
+// write-token vector are shared with Node (hmac-vectors.json
+// launch_token_vectors; agentforge/test/w3-launch-trust.test.js).
+$launchVectors = $vectors['launch_token_vectors'];
+$launchSigningKey = LaunchSigningKey::fromBase64Seed($launchVectors['signing_key_base64'], $launchVectors['verify_key_base64']);
+$launchVerifyKey = LaunchVerifyKey::fromBase64($launchVectors['verify_key_base64']);
 const LAUNCH_VECTOR_NOW = 1790000000;
 const LAUNCH_VECTOR_CLINICIAN = '6f1e2d3c-4b5a-4968-8776-655443322110';
-const LAUNCH_VECTOR_WRITE_TOKEN = 'eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6IjZmMWUyZDNjLTRiNWEtNDk2OC04Nzc2LTY1NTQ0MzMyMjExMCIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoib3BlbmVtci1tb2R1bGUiLCJhdXRobiI6Im9wZW5lbXItc2Vzc2lvbiIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAyODB9.yr7Os9mQ3I_ACdI8E3N6LV0l44pTFn4yZvKamK4d6bc';
 
 /**
  * @param list<string> $held "section/value" or "section/value/return" entries
@@ -417,27 +453,71 @@ check('launcher grant: only designated (live-allowlisted) patients; upload also 
     same(LaunchGrant::None, LaunchTokenMinter::grant(fakeAcl(['patients/docs/write']), true, true), 'write without read');
 });
 
-check('launcher tokens: openemr-module / openemr-session claims, scope-matched acl, TTL under 300 s', function () use ($patient): void {
-    $minter = new LaunchTokenMinter(LAUNCH_VECTOR_SECRET);
-    $verifier = new ContextTokenVerifier(LAUNCH_VECTOR_SECRET);
+check('launcher tokens: openemr-module / openemr-session claims, scope-matched acl, TTL under 300 s, Ed25519 shared vector', function () use ($patient, $launchSigningKey, $launchVerifyKey, $launchVectors): void {
+    $minter = new LaunchTokenMinter($launchSigningKey);
+    $verifier = new ContextTokenVerifier('unrelated-demo-secret', $launchVerifyKey);
     $read = $verifier->verify($minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW);
     same(['openemr-module', 'openemr-session', 'read-briefing', 'read', $patient, LAUNCH_VECTOR_CLINICIAN], [$read->issuer, $read->authn, $read->scope, $read->acl, $read->patientUuid, $read->clinicianUuid], 'read token');
     $write = $verifier->verify($minter->mint(strtoupper($patient), LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW);
     same(['openemr-module', 'openemr-session', 'write-source-document', 'write', $patient], [$write->issuer, $write->authn, $write->scope, $write->acl, $write->patientUuid], 'write token');
     same(true, $write->expiresAt > LAUNCH_VECTOR_NOW && $write->expiresAt <= LAUNCH_VECTOR_NOW + ContextTokenVerifier::MAX_TTL_SECONDS, 'ttl');
-    same(LAUNCH_VECTOR_WRITE_TOKEN, $minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), 'shared vector');
+    same($launchVectors['write_token'], $minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), 'shared vector');
 });
 
-check('launcher tokens: tampered or wrong-secret tokens are context_invalid', function () use ($patient): void {
-    $token = (new LaunchTokenMinter(LAUNCH_VECTOR_SECRET))->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW);
+check('launcher tokens: an openemr-module token HMAC-signed with AGENTFORGE_DEMO_SECRET is context_invalid (a demo-secret holder cannot forge a launch)', function () use ($secret, $launchVerifyKey, $launchVectors): void {
+    // The forged vector is HMAC-signed with $secret, the very secret this verifier holds.
+    throwsApiError(fn() => (new ContextTokenVerifier($secret, $launchVerifyKey))->verify($launchVectors['hmac_forged_write_token'], LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+    throwsApiError(fn() => (new ContextTokenVerifier($secret))->verify($launchVectors['hmac_forged_write_token'], LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+});
+
+check('launcher tokens: tampered, other-key, keyless and non-canonical tokens are context_invalid', function () use ($patient, $launchSigningKey, $launchVerifyKey): void {
+    $token = (new LaunchTokenMinter($launchSigningKey))->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW);
     [$encoded, $signature] = explode('.', $token);
     $forged = HmacVerifier::base64UrlEncode(str_replace('read-briefing', 'write-source-document', (string) base64_decode(strtr($encoded, '-_', '+/'))));
-    throwsApiError(fn() => (new ContextTokenVerifier(LAUNCH_VECTOR_SECRET))->verify($forged . '.' . $signature, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
-    throwsApiError(fn() => (new ContextTokenVerifier('another-secret'))->verify($token, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+    $verifier = new ContextTokenVerifier('unrelated-demo-secret', $launchVerifyKey);
+    throwsApiError(fn() => $verifier->verify($forged . '.' . $signature, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+    $otherKey = LaunchSigningKey::fromBase64Seed(base64_encode(str_repeat("\x01", 32)));
+    throwsApiError(fn() => (new ContextTokenVerifier('unrelated-demo-secret', $otherKey->verifyKey))->verify($token, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+    throwsApiError(fn() => (new ContextTokenVerifier('unrelated-demo-secret'))->verify($token, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+    // The last base64url character carries 4 unused bits: a twin string decodes to the same signature.
+    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    $twin = substr($signature, 0, -1) . $alphabet[strpos($alphabet, substr($signature, -1)) ^ 1];
+    throwsApiError(fn() => $verifier->verify($encoded . '.' . $twin, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
 });
 
-check('launcher tokens: a numeric user id is refused (the module resolves the actor by users.uuid)', function () use ($patient): void {
-    $minter = new LaunchTokenMinter(LAUNCH_VECTOR_SECRET);
+check('launcher tokens: each issuer has one scheme, so a synthetic-demo claim signed with the launch key is refused', function () use ($launchSigningKey, $launchVerifyKey): void {
+    $encoded = HmacVerifier::base64UrlEncode(json_encode(['patient_uuid' => 'p', 'clinician_uuid' => 'c', 'scope' => 'read-briefing', 'issuer' => 'synthetic-demo', 'authn' => 'synthetic', 'role' => 'clinician', 'acl' => 'read', 'expires_at' => LAUNCH_VECTOR_NOW + 100], JSON_THROW_ON_ERROR));
+    $token = $encoded . '.' . HmacVerifier::base64UrlEncode($launchSigningKey->sign($encoded));
+    throwsApiError(fn() => (new ContextTokenVerifier('unrelated-demo-secret', $launchVerifyKey))->verify($token, LAUNCH_VECTOR_NOW), 401, 'context_invalid');
+});
+
+check('launch keys: malformed seeds or verify keys, and a mismatched pair, are refused', function () use ($launchVectors): void {
+    foreach (['', 'not base64', base64_encode(str_repeat('a', 31)), rtrim($launchVectors['signing_key_base64'], '=')] as $bad) {
+        try {
+            LaunchSigningKey::fromBase64Seed($bad);
+        } catch (InvalidArgumentException) {
+            continue;
+        }
+        throw new RuntimeException("expected a malformed seed to be refused: $bad");
+    }
+    foreach (['', base64_encode(str_repeat('a', 33))] as $bad) {
+        try {
+            LaunchVerifyKey::fromBase64($bad);
+        } catch (InvalidArgumentException) {
+            continue;
+        }
+        throw new RuntimeException("expected a malformed verify key to be refused: $bad");
+    }
+    try {
+        LaunchSigningKey::fromBase64Seed(base64_encode(str_repeat("\x01", 32)), $launchVectors['verify_key_base64']);
+    } catch (InvalidArgumentException) {
+        return;
+    }
+    throw new RuntimeException('expected a signing key that does not match the verify key to be refused');
+});
+
+check('launcher tokens: a numeric user id is refused (the module resolves the actor by users.uuid)', function () use ($patient, $launchSigningKey): void {
+    $minter = new LaunchTokenMinter($launchSigningKey);
     foreach ([[$patient, '1'], ['17', LAUNCH_VECTOR_CLINICIAN]] as [$patientRef, $clinicianRef]) {
         try {
             $minter->mint($patientRef, $clinicianRef, LaunchScope::ReadBriefing, LAUNCH_VECTOR_NOW);
@@ -448,9 +528,9 @@ check('launcher tokens: a numeric user id is refused (the module resolves the ac
     }
 });
 
-check('launcher write token passes the module allowlist only for an allowlisted patient', function () use ($policy, $signedFor, $patient): void {
-    $minter = new LaunchTokenMinter(LAUNCH_VECTOR_SECRET);
-    $verifier = new ContextTokenVerifier(LAUNCH_VECTOR_SECRET);
+check('launcher write token passes the module allowlist only for an allowlisted patient', function () use ($policy, $signedFor, $patient, $launchSigningKey, $launchVerifyKey): void {
+    $minter = new LaunchTokenMinter($launchSigningKey);
+    $verifier = new ContextTokenVerifier('unrelated-demo-secret', $launchVerifyKey);
     $policy->authorize(AccessPolicy::policyFor('POST', 'documents'), $signedFor($patient), $verifier->verify($minter->mint($patient, LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW));
     $other = '11111111-2222-4333-8444-555555555555';
     throwsApiError(fn() => $policy->authorize(AccessPolicy::policyFor('POST', 'documents'), $signedFor($other), $verifier->verify($minter->mint($other, LAUNCH_VECTOR_CLINICIAN, LaunchScope::WriteSourceDocument, LAUNCH_VECTOR_NOW), LAUNCH_VECTOR_NOW)), 403, 'demo_patient_not_allowed');
@@ -466,7 +546,7 @@ foreach ($vectors['idempotency_key_vectors'] as $vector) {
     check("idempotency key vector {$vector['kind']}", function () use ($vector): void {
         $key = match ($vector['kind']) {
             'document' => IdempotencyKey::forDocument($vector['pid'], DocumentType::from($vector['document_type']), $vector['content_sha256']),
-            'derived_facts' => IdempotencyKey::forDerivedFacts($vector['pid'], $vector['source_document_id']),
+            'derived_facts' => IdempotencyKey::forDerivedFacts($vector['pid'], $vector['source_document_id'], $vector['content_sha256']),
             'lab_results' => IdempotencyKey::forLabResults($vector['pid'], $vector['source_sha256']),
             'list_item' => IdempotencyKey::forListItem($vector['pid'], ListItemKind::from($vector['list_kind']), $vector['source_document_id'], $vector['title']),
         };
@@ -506,18 +586,30 @@ check('idempotent writer: second call returns the first response and writes noth
     same(200, $second->httpStatus());
     same(201, $first->httpStatus());
     same(1, count($audit->events), 'audit events');
-    same(false, $second->payloadDiffers);
+    same(false, array_key_exists('payload_differs', $second->body()), 'no payload_differs flag: a differing payload is a 409');
     same(['acquire:' . $key->value, 'release:' . $key->value, 'acquire:' . $key->value, 'release:' . $key->value], $ledger->locks);
 });
 
-check('idempotent writer: a differing payload on a known key is flagged, not written', function () use ($actor): void {
+check('idempotent writer: a differing payload on a known key is a 409 idempotency_conflict, never a 200 duplicate, and writes nothing', function () use ($actor): void {
     $ledger = new InMemoryLedger();
-    $writer = new IdempotentWriter($ledger, new RecordingAudit());
-    $key = IdempotencyKey::forDerivedFacts(1, 57);
-    $writer->execute($key, 'doc:derived_facts', 1, null, 'payload-a', $actor, fn() => new WriteOutcome(['document_id' => 60], 60, null, 1));
-    $second = $writer->execute($key, 'doc:derived_facts', 1, null, 'payload-b', $actor, fn() => throw new RuntimeException('must not write'));
-    same(true, $second->payloadDiffers);
-    same(60, $second->response['document_id']);
+    $audit = new RecordingAudit();
+    $writer = new IdempotentWriter($ledger, $audit);
+    $key = IdempotencyKey::forLabResults(1, hash('sha256', 'pdf'));
+    $writer->execute($key, 'lab', 1, null, 'payload-a', $actor, fn() => new WriteOutcome(['procedure_order_id' => 9], 57, 9, 4));
+    throwsApiError(fn() => $writer->execute($key, 'lab', 1, null, 'payload-b', $actor, fn() => throw new LogicException('must not write')), 409, 'idempotency_conflict');
+    throwsApiError(fn() => $writer->assertNoConflict($key, 'payload-b'), 409, 'idempotency_conflict');
+    $writer->assertNoConflict($key, 'payload-a');
+    same(1, count($ledger->rows), 'ledger rows');
+    same(1, count($audit->events), 'audit events');
+    same('release:' . $key->value, end($ledger->locks), 'lock released after the conflict');
+});
+
+check('idempotency key: derived facts are content-addressed, so a re-extraction with other facts gets its own key', function (): void {
+    $a = IdempotencyKey::forDerivedFacts(1, 57, hash('sha256', '{"facts":"a"}'));
+    same($a->value, IdempotencyKey::forDerivedFacts(1, 57, hash('sha256', '{"facts":"a"}'))->value);
+    if ($a->value === IdempotencyKey::forDerivedFacts(1, 57, hash('sha256', '{"facts":"b"}'))->value) {
+        throw new RuntimeException('different derived content must not share a key');
+    }
 });
 
 check('idempotent writer: a failed write leaves no ledger row and releases the lock', function () use ($actor): void {
@@ -704,30 +796,41 @@ const PATIENT_C = '99999999-2222-4333-8444-555555555555'; // exists in OpenEMR, 
 const TEST_NOW = 1790000000;
 
 /**
- * @return array{AgentForgeApi, InMemoryLedger, FakeChart, FakeAcl}
+ * @return array{AgentForgeApi, InMemoryLedger, FakeChart, FakeAcl, RecordingAudit}
  */
-function makeApi(): array
+function makeApi(bool $withLaunchKey = true): array
 {
+    global $launchVerifyKey;
     $ledger = new InMemoryLedger();
     $chart = new FakeChart();
     $chart->pids = [PATIENT_A => 1, PATIENT_B => 2, PATIENT_C => 3];
     $acl = new FakeAcl();
+    $audit = new RecordingAudit();
     $api = new AgentForgeApi(
         new RequestAuthenticator(new HmacVerifier(TEST_HMAC_SECRET), new InMemoryNonceStore()),
-        new ContextTokenVerifier(TEST_CONTEXT_SECRET),
+        new ContextTokenVerifier(TEST_CONTEXT_SECRET, $withLaunchKey ? $launchVerifyKey : null),
         new AccessPolicy([PATIENT_A, PATIENT_B]),
         $ledger,
-        new IdempotentWriter($ledger, new RecordingAudit()),
+        new IdempotentWriter($ledger, $audit),
         $chart,
         $acl,
+        $audit,
     );
-    return [$api, $ledger, $chart, $acl];
+    return [$api, $ledger, $chart, $acl, $audit];
 }
 
-function contextToken(string $patient, string $scope = 'write-source-document', string $issuer = 'synthetic-demo', string $secret = TEST_CONTEXT_SECRET): string
+/**
+ * openemr-module tokens are Ed25519-signed with the test launch key, as the
+ * launcher does; `$hmacLauncher` signs one with the demo secret instead (a forgery).
+ */
+function contextToken(string $patient, string $scope = 'write-source-document', string $issuer = 'synthetic-demo', string $secret = TEST_CONTEXT_SECRET, bool $hmacLauncher = false): string
 {
+    global $launchSigningKey;
     $payload = ['patient_uuid' => $patient, 'clinician_uuid' => 'a2c37ca7-696f-41cd-be17-ce0e5ae0a9a3', 'scope' => $scope, 'issuer' => $issuer, 'authn' => $issuer === 'openemr-module' ? 'openemr-session' : 'synthetic', 'role' => 'clinician', 'acl' => $scope === 'read-briefing' ? 'read' : 'write', 'expires_at' => TEST_NOW + 200];
     $encoded = HmacVerifier::base64UrlEncode(json_encode($payload, JSON_THROW_ON_ERROR));
+    if ($issuer === ContextClaims::ISSUER_OPENEMR_MODULE && !$hmacLauncher) {
+        return $encoded . '.' . HmacVerifier::base64UrlEncode($launchSigningKey->sign($encoded));
+    }
     return $encoded . '.' . ContextTokenVerifier::sign($encoded, $secret);
 }
 
@@ -861,10 +964,105 @@ check('dispatcher: request signatures and context tokens use separate secrets', 
     same([401, 'context_invalid'], [$status, $body['error']]);
     same([], $chart->writes);
 });
+
+// ---------------------------------------------------------------------------
+// W3 H1: module trust (launcher key, list provenance, read audit, 409 conflicts).
+// ---------------------------------------------------------------------------
+
+check('dispatcher: an openemr-module token HMAC-signed with the demo secret is refused; the Ed25519 launcher token writes', function (): void {
+    [$api, , $chart, , $audit] = makeApi();
+    // Signed with TEST_CONTEXT_SECRET, the demo secret this API itself verifies synthetic tokens with.
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A, 'write-source-document', 'openemr-module', TEST_CONTEXT_SECRET, true));
+    same([401, 'context_invalid'], [$status, $body['error']]);
+    same([], $chart->writes, 'the forged launcher token wrote nothing');
+    same([], $audit->events);
+    [$status] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A, 'write-source-document', 'openemr-module'));
+    same(201, $status);
+    same(['doc:lab_pdf:1:57:1:openemr-module'], $audit->events, 'attributed to the launcher issuer');
+});
+
+check('dispatcher: without AGENTFORGE_LAUNCH_VERIFY_KEY every launcher token is refused and synthetic-demo writes are unchanged', function (): void {
+    [$api, , $chart] = makeApi(false);
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A, 'write-source-document', 'openemr-module'));
+    same([401, 'context_invalid', ['launch_verify_key_not_configured']], [$status, $body['error'], $body['issues'] ?? []]);
+    same(201, call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A))[0]);
+    same(['document:1:57'], $chart->writes);
+});
+
+check('list provenance: only an openemr-module actor is recorded as clinician-confirmed; a synthetic-demo row is labeled and unconfirmed', function (): void {
+    // allergyintolerance-verification option ids (sql/database.sql).
+    $verificationOptions = ['unconfirmed', 'confirmed', 'refuted', 'entered-in-error'];
+    $session = ClinicalListWriter::listRow(ListItemKind::Allergy, 58, 'confirm-1', new Actor(7, 'clinician', 'openemr-module'));
+    same(['allergy', 'AgentForge intake doc 58; clinician-confirmed confirm-1', 'confirmed'], [$session['type'], $session['comments'], $session['verification']]);
+    $demo = ClinicalListWriter::listRow(ListItemKind::Allergy, 58, 'confirm-1', new Actor(1, 'demo-actor', 'synthetic-demo'));
+    same('unconfirmed', $demo['verification']);
+    same(true, in_array($demo['verification'], $verificationOptions, true) && in_array($session['verification'], $verificationOptions, true), 'valid list options');
+    same(false, str_contains($demo['comments'], '; clinician-confirmed'), 'a demo row never claims clinician confirmation');
+    same(true, str_contains($demo['comments'], 'unauthenticated synthetic-demo'), 'a demo row names its provenance');
+    $demoMedication = ClinicalListWriter::listRow(ListItemKind::Medication, 58, 'confirm-1', new Actor(1, 'demo-actor', 'synthetic-demo'));
+    same(['medication', ''], [$demoMedication['type'], $demoMedication['verification']]);
+    same(false, str_contains($demoMedication['comments'], '; clinician-confirmed'));
+    same(ListItemProvenance::UnauthenticatedSyntheticDemo, ListItemProvenance::forActor(new Actor(1, 'demo-actor', 'synthetic-demo')));
+    try {
+        ListItemProvenance::forActor(new Actor(1, 'x', 'somebody-else'));
+    } catch (DomainException) {
+        return;
+    }
+    throw new RuntimeException('an unknown issuer must not be given a provenance');
+});
+
+check('read audit: document and lab-observation reads are audited with codes and ids only; refused reads are not', function (): void {
+    [$api, , , , $audit] = makeApi();
+    $id = storeLab($api, PATIENT_A, "%PDF-1.4\nlab one\n");
+    $audit->reads = [];
+    same(200, call($api, 'GET', ['route' => 'documents', 'patient_uuid' => PATIENT_A, 'document_id' => (string) $id], null, contextToken(PATIENT_A, 'read-briefing'))[0]);
+    same(200, call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A, 'source_document_id' => (string) $id], null, contextToken(PATIENT_A, 'read-briefing'))[0]);
+    same(200, call($api, 'GET', ['route' => 'lab-observations', 'patient_uuid' => PATIENT_A], null, contextToken(PATIENT_A, 'read-briefing'))[0]);
+    same(["doc:lab_pdf:1:$id:1:synthetic-demo", "lab:1:$id:0:synthetic-demo", 'lab-history:1:-:0:synthetic-demo'], $audit->reads);
+    same(404, call($api, 'GET', ['route' => 'documents', 'patient_uuid' => PATIENT_A, 'document_id' => '999'], null, contextToken(PATIENT_A, 'read-briefing'))[0]);
+    same(3, count($audit->reads), 'a refused read records nothing');
+});
+
+check('dispatcher: lab rows re-sent for the same source with other values are a 409 conflict, not a duplicate', function (): void {
+    [$api, , $chart] = makeApi();
+    $id = storeLab($api, PATIENT_A, "%PDF-1.4\nlab one\n");
+    $lab = ['patient_uuid' => PATIENT_A, 'source_document_id' => $id, 'source_sha256' => hash('sha256', "%PDF-1.4\nlab one\n"), 'results' => [['field_id' => 'lab.hgb', 'loinc_code' => '718-7', 'test_name' => 'Hemoglobin', 'value' => '9.9', 'unit' => 'g/dL', 'reference_range' => '12.0-16.0', 'abnormal' => 'low', 'collection_date' => '2026-09-20', 'page' => 1]]];
+    [$status, $body] = call($api, 'POST', ['route' => 'lab-results'], $lab, contextToken(PATIENT_A));
+    same([409, 'idempotency_conflict', ['payload_differs']], [$status, $body['error'], $body['issues'] ?? []]);
+    same(['document:1:57', 'lab:1:57'], $chart->writes, 'nothing new written');
+});
+
+check('dispatcher: a re-extraction with different derived facts is stored as its own derived-facts document (content-addressed key)', function (): void {
+    [$api, , $chart] = makeApi();
+    same(201, call($api, 'POST', ['route' => 'documents'], pdfBody(PATIENT_A), contextToken(PATIENT_A))[0]);
+    $derived = static function (string $json): array {
+        return ['patient_uuid' => PATIENT_A, 'document_type' => 'derived_facts', 'filename' => 'agentforge-derived-facts-57.json', 'mime_type' => 'application/json', 'content_sha256' => hash('sha256', $json), 'content_base64' => base64_encode($json), 'source_document_id' => 57];
+    };
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], $derived('{"facts":"a"}'), contextToken(PATIENT_A));
+    same([201, 58], [$status, $body['document_id']]);
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], $derived('{"facts":"a"}'), contextToken(PATIENT_A));
+    same([200, 'duplicate', 58], [$status, $body['status'], $body['document_id']]);
+    [$status, $body] = call($api, 'POST', ['route' => 'documents'], $derived('{"facts":"b"}'), contextToken(PATIENT_A));
+    same([201, 59], [$status, $body['document_id']]);
+    same(['document:1:57', 'document:1:58', 'document:1:59'], $chart->writes);
+});
+
+check('dispatcher: a list item whose key exists with another body is refused before any item of the request is written', function (): void {
+    [$api, , $chart] = makeApi();
+    call($api, 'POST', ['route' => 'documents'], medlistBody(PATIENT_A), contextToken(PATIENT_A));
+    $metformin = ['kind' => 'medication', 'title' => 'Metformin 500 mg twice daily oral', 'field_id' => 'medication.1'];
+    same(201, call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [$metformin]), contextToken(PATIENT_A, 'write-clinical-action'))[0]);
+    $lisinopril = ['kind' => 'medication', 'title' => 'Lisinopril 10 mg daily oral', 'field_id' => 'medication.2'];
+    [$status, $body] = call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [$lisinopril, ['field_id' => 'medication.3'] + $metformin]), contextToken(PATIENT_A, 'write-clinical-action'));
+    same([409, 'idempotency_conflict'], [$status, $body['error']]);
+    same(['document:1:57', 'list:1:medication'], $chart->writes, 'lisinopril was not written either');
+    [$status, $body] = call($api, 'POST', ['route' => 'clinical-list-items'], listItemsBody(PATIENT_A, 57, [$lisinopril, ['field_id' => 'medication.3', 'title' => 'LISINOPRIL 10 mg daily oral'] + $lisinopril]), contextToken(PATIENT_A, 'write-clinical-action'));
+    same([400, ['items[1].duplicate_title']], [$status, $body['issues'] ?? []]);
+});
 // ---------------------------------------------------------------------------
 // E4: medication_list, the third source document type. Stored like the
 // other sources; its medications reach the chart only through the
-// clinician-confirmed clinical-list-items route (A3), and only as medications.
+// confirm-only clinical-list-items route (A3), and only as medications.
 // ---------------------------------------------------------------------------
 
 check('document type: medication_list is a source type stored as a Medical Record PDF or scan envelope', function () use ($docBody): void {
@@ -912,7 +1110,7 @@ check('dispatcher: a medication list and its derived facts are stored idempotent
     same([200, 57], [call($api, 'GET', ['route' => 'documents', 'patient_uuid' => PATIENT_A, 'document_id' => '57'], null, contextToken(PATIENT_A))[0], 57]);
 });
 
-check('dispatcher: medication-list items reach the chart only as clinician-confirmed medications', function (): void {
+check('dispatcher: medication-list items reach the chart only through the confirm route (write-clinical-action), and only as medications', function (): void {
     [$api, , $chart] = makeApi();
     call($api, 'POST', ['route' => 'documents'], medlistBody(PATIENT_A), contextToken(PATIENT_A));
     $medication = ['kind' => 'medication', 'title' => 'Metformin 500 mg twice daily oral', 'field_id' => 'medication.1'];

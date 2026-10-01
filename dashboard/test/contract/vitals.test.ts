@@ -1,6 +1,6 @@
 import { pino } from 'pino';
 import { describe, expect, it } from 'vitest';
-import { loadVitals, SECONDARY_UNITS_NOT_SHOWN } from '../../bff/src/cards/vitals.ts';
+import { loadVitals, SECONDARY_UNITS_NOT_SHOWN, VITALS_DEADLINE_MS } from '../../bff/src/cards/vitals.ts';
 import { createUpstreamClient } from '../../bff/src/upstream/client.ts';
 import { parsePatientUuid, type PatientUuid } from '../../core/ids.ts';
 import { MAX_ENCOUNTER_SCAN } from '../../core/rules/vitals.ts';
@@ -194,6 +194,51 @@ describe('Vitals use case against shaped fixtures (contract)', () => {
     const walked = fake.calls.filter((c) => c.url.endsWith('/vital')).map((c) => c.url);
     expect(walked).toHaveLength(MAX_ENCOUNTER_SCAN);
     expect(walked[0]).toBe(vitalUrl(14, 1000 + MAX_ENCOUNTER_SCAN)); // newest first
+  });
+
+  // W3 hardening H4: the walk was sequential, up to 50 calls of up to 5 s each, with no overall
+  // budget. A load now has a deadline; past it the card is the labeled VITALS_DEADLINE error (never
+  // "Nothing Recorded"), and the in-flight call is aborted, not waited out.
+  it('an overall deadline ends a slow walk with VITALS_DEADLINE, aborting the in-flight call', async () => {
+    const template = encountersOf(PATIENT.dashSyn01)[0];
+    const many = Array.from({ length: 40 }, (_, i) => ({ ...template, eid: String(1000 + i) }));
+    const fake = new FakeOpenEmr();
+    serve(fake, PATIENT.dashSyn01, envelope(many));
+    let vitalCalls = 0;
+    // Every vitals call hangs until it is aborted; the per-call timeout (5 s) is far past the deadline.
+    const fetch = (url: string, init?: RequestInit): Promise<Response> => {
+      if (!url.endsWith('/vital')) return fake.fetch(url, init);
+      vitalCalls += 1;
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new Error('aborted'));
+        });
+      });
+    };
+    const upstream = createUpstreamClient({ fetch, baseUrl: BASE, timeoutMs: 5000, logger: pino({ level: 'silent' }), now: () => 0 });
+    const started = Date.now();
+    const card = await loadVitals({ upstream, today: () => TODAY, deadlineMs: 50 }, { patientId: uuid(PATIENT.dashSyn01), accessToken: TOKEN, correlationId: 'corr-dl' });
+    expect(card).toEqual({ kind: 'error', patientId: PATIENT.dashSyn01, correlationId: 'corr-dl', code: 'VITALS_DEADLINE' });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(vitalCalls).toBe(1);
+  });
+
+  it('the deadline also covers many fast-but-slow calls (each under the per-call timeout)', async () => {
+    const template = encountersOf(PATIENT.dashSyn01)[0];
+    const many = Array.from({ length: 40 }, (_, i) => ({ ...template, eid: String(1000 + i) }));
+    const fake = new FakeOpenEmr();
+    serve(fake, PATIENT.dashSyn01, envelope(many));
+    for (const e of many) fake.on('GET', vitalUrl(14, e.eid), () => new Promise((r) => {
+        setTimeout(() => {
+          r({ status: 404, body: null });
+        }, 20);
+      }));
+    const upstream = createUpstreamClient({ fetch: fake.fetch, baseUrl: BASE, timeoutMs: 1000, logger: pino({ level: 'silent' }), now: () => 0 });
+    const card = await loadVitals({ upstream, today: () => TODAY, deadlineMs: 120 }, { patientId: uuid(PATIENT.dashSyn01), accessToken: TOKEN, correlationId: 'c' });
+    expect(card).toMatchObject({ kind: 'error', code: 'VITALS_DEADLINE' });
+    expect(fake.calls.filter((c) => c.url.endsWith('/vital')).length).toBeLessThan(many.length);
+    expect(VITALS_DEADLINE_MS).toBeGreaterThan(0);
+    expect(VITALS_DEADLINE_MS).toBeLessThanOrEqual(30_000);
   });
 
   it('encounters are walked newest first by encounter number, whatever the list order', async () => {

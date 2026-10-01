@@ -22,7 +22,6 @@ final readonly class IdempotentResult
     public function __construct(
         public bool $created,
         public array $response,
-        public bool $payloadDiffers,
     ) {
     }
 
@@ -36,6 +35,6 @@ final readonly class IdempotentResult
      */
     public function body(): array
     {
-        return ['status' => $this->created ? 'created' : 'duplicate', 'payload_differs' => $this->payloadDiffers] + $this->response;
+        return ['status' => $this->created ? 'created' : 'duplicate'] + $this->response;
     }
 }

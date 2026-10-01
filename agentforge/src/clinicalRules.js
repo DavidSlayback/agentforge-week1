@@ -65,14 +65,27 @@
  * reviews flags like claims, but a veto only marks a verified flag
  * questioned (`critic_flags_questioned`); it never hides it (`critic.js`).
  *
+ * Unverified readings (W3 hardening H3): a lab value the answer cannot state
+ * as verified -- read under the confidence threshold, or printed with its
+ * unit unread -- is never stated as a patient fact, but a rule that would
+ * fire on it is not silenced either. `applyUnverifiedLabRules` raises the
+ * same flag, marked `verification_status: 'needs_verification'` with the
+ * `verification_reason` (`low_confidence` or `unit_not_read`), and its text
+ * says the reading is not verified. A missing unit is evaluated in the
+ * analyte's standard unit (mmol/L for potassium, % for A1C) and the text says
+ * so; over-flagging an unread unit for review is safer than hiding a
+ * possibly critical value. The workflow is then QUALIFIED, never READY.
+ *
  * Out of scope, on purpose: age-specific potassium limits (the fixtures are
- * adults), cross-reactivity between classes (e.g. penicillin and
- * cephalosporins), and low-confidence facts (already in needs review, so
- * no rule speaks for them).
+ * adults) and cross-reactivity between classes (e.g. penicillin and
+ * cephalosporins).
  */
 import { loadGuidelineCorpus } from './guidelineEvidence.js';
 
 export const SAFETY_FLAG_CODES = Object.freeze(['critical_value', 'diabetes_range', 'drug_allergy_conflict']);
+
+/** Why a flag's reading is not verified (`verification_reason`). */
+export const FLAG_VERIFICATION_REASONS = Object.freeze(['low_confidence', 'unit_not_read']);
 
 /** Needs-review reason codes a rule can add (codes only; no values). */
 export const RULE_REVIEW_REASONS = Object.freeze(['flag_contradicts_range', 'rule_unit_unrecognized', 'rule_value_unparseable', 'implausible_value']);
@@ -264,8 +277,8 @@ const onDate = (date) => (ISO_DATE.test(String(date || '').trim()) ? ` on ${Stri
 
 const POTASSIUM_UNIT_LABEL = Object.freeze({ 'mmol/l': 'mmol/L', 'meq/l': 'mEq/L' });
 
-function potassiumRule(result) {
-  const unit = normalizeUnit(result.unit);
+function potassiumRule(result, { unitNotRead = false } = {}) {
+  const unit = unitNotRead ? 'mmol/l' : normalizeUnit(result.unit);
   if (!POTASSIUM_UNITS.has(unit)) return { review: 'rule_unit_unrecognized' };
   const value = String(result.value).trim();
   if (!NUMERIC.test(value)) return { review: 'rule_value_unparseable' };
@@ -283,7 +296,9 @@ function potassiumRule(result) {
       code: 'critical_value',
       rule_id: 'potassium_critical_range',
       severity: 'critical',
-      text: `Potassium ${value} ${POTASSIUM_UNIT_LABEL[unit]}${onDate(result.collection_date)} is in the critical range used by this rule (${limit}).`,
+      text: unitNotRead
+        ? `Potassium ${value} (unit not read)${onDate(result.collection_date)} is in the critical range used by this rule (${limit}) if its unit is mmol/L.`
+        : `Potassium ${value} ${POTASSIUM_UNIT_LABEL[unit]}${onDate(result.collection_date)} is in the critical range used by this rule (${limit}).`,
       citations: [result.citation],
       threshold_source: POTASSIUM_SOURCE,
     },
@@ -294,8 +309,8 @@ function potassiumRule(result) {
 /** An A1C at or above this is not a plausible reading; it goes to review, never to a flag. */
 export const A1C_IMPLAUSIBLE_PERCENT = 20;
 
-function a1cRule(result) {
-  if (normalizeUnit(result.unit) !== '%') return { review: 'rule_unit_unrecognized' };
+function a1cRule(result, { unitNotRead = false } = {}) {
+  if (!unitNotRead && normalizeUnit(result.unit) !== '%') return { review: 'rule_unit_unrecognized' };
   const value = String(result.value).trim();
   if (!NUMERIC.test(value)) return { review: 'rule_value_unparseable' };
   const number = Number(value);
@@ -310,7 +325,9 @@ function a1cRule(result) {
       code: 'diabetes_range',
       rule_id: 'a1c_diabetes_range',
       severity: 'warning',
-      text: `A1C ${value} %${onDate(result.collection_date)} is in the CDC diabetes range (6.5% or above).`,
+      text: unitNotRead
+        ? `A1C ${value} (unit not read)${onDate(result.collection_date)} is in the CDC diabetes range (6.5% or above) if its unit is %.`
+        : `A1C ${value} %${onDate(result.collection_date)} is in the CDC diabetes range (6.5% or above).`,
       citations: [result.citation, source.citation],
       threshold_source: source,
     },
@@ -389,6 +406,49 @@ export function applyClinicalRules({ verifiedLabResults = [], factCitations = []
   }
   safetyFlags.push(...drugAllergyFlags(factCitations));
   return { labResults, needsReview, safetyFlags };
+}
+
+const UNVERIFIED_PREFIX = Object.freeze({
+  low_confidence: 'Low-confidence read, not verified: ',
+  unit_not_read: 'Unit not read, not verified: ',
+});
+
+/**
+ * Lab rules for readings the answer may not state as verified (see the
+ * module doc). Each flag is the one the confident rule would raise, marked
+ * `verification_status: 'needs_verification'` with its `verification_reason`
+ * and a text prefix saying the reading is not verified.
+ *
+ * Args:
+ *   lowConfidenceResults: typed `LabResult`s under the confidence threshold.
+ *   unitNotReadResults: `LabResult`-shaped rows whose value was read but whose
+ *     unit was not (`partialLabRows` in typedExtraction.js), each with the
+ *     citation of its value line. A rule that cannot use the row (no test
+ *     kind, a non-numeric value) raises nothing; the row is already in review.
+ *
+ * Returns the flags, each with the same non-enumerable `grounding` link the
+ * confident rules attach (lab flags from a typed result only).
+ */
+export function applyUnverifiedLabRules({ lowConfidenceResults = [], unitNotReadResults = [] } = {}) {
+  const flags = [];
+  const mark = (outcome, reason, grounding) => {
+    if (!outcome.flag) return;
+    const flag = { ...outcome.flag, text: `${UNVERIFIED_PREFIX[reason]}${outcome.flag.text}`, verification_status: 'needs_verification', verification_reason: reason };
+    flags.push(Object.defineProperty(flag, 'grounding', { value: grounding, enumerable: false }));
+  };
+  for (const result of lowConfidenceResults) {
+    const kind = labKind(result);
+    const outcome = kind === 'potassium' ? potassiumRule(result) : kind === 'a1c' ? a1cRule(result) : {};
+    mark(outcome, 'low_confidence', outcome.grounding);
+  }
+  for (const row of unitNotReadResults) {
+    const kind = labKind(row);
+    const outcome = kind === 'potassium' ? potassiumRule(row, { unitNotRead: true }) : kind === 'a1c' ? a1cRule(row, { unitNotRead: true }) : {};
+    // No typed result stands behind a row with an unread unit: the flag is
+    // grounded on its value line's own verbatim quote.
+    mark(outcome, 'unit_not_read', {});
+  }
+  return flags;
 }
 
 /** Codes and a count only, for the trace: one code per flag, sorted. */

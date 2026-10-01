@@ -56,6 +56,7 @@ export function askedMeasurementConcepts(question) {
   return MEASUREMENT_CONCEPTS.filter((concept) => concept.asked.test(text));
 }
 
+/** A lab result (or a partly read lab row) that records this concept. */
 function labRecords(concept, result) {
   if (concept.labKinds?.includes(labKind(result))) return true;
   if (concept.labName?.test(String(result?.test_name || '').trim())) return true;
@@ -89,6 +90,10 @@ function missingEntry(concept, readGroups, sourcesChecked) {
  *   withheldFields: chart field ids held back from the answer (a conflict,
  *     an unreadable group). A concept with a withheld field is recorded but
  *     not shown, which is not "not documented", so it is never reported as such.
+ *   unreadableLabRows: lab tests the document prints but that were only
+ *     partly read (`typedExtraction.js#partialLabRows`). Present but
+ *     unreadable, so never "not documented" either; the composer lists them
+ *     in `needs_review` as `partially_read`.
  *   readGroups: the kinds of data (`vitals`, `labs`) a source that was read
  *     actually holds. A missing concept in a group that was read is
  *     `not_documented`; in a group no source reads it is `not_retrieved`,
@@ -98,9 +103,11 @@ function missingEntry(concept, readGroups, sourcesChecked) {
  * asks for; `notDocumented` one `{ concept, status, label, text, sources_checked }`
  * per asked concept with no recording fact.
  */
-export function findNotDocumented({ question = '', labResults = [], facts = [], withheldFields = [], readGroups = [] } = {}) {
+export function findNotDocumented({ question = '', labResults = [], facts = [], withheldFields = [], unreadableLabRows = [], readGroups = [] } = {}) {
   const groups = new Set(readGroups);
-  const asked = askedMeasurementConcepts(question).filter((concept) => !withheldFields.some((field) => concept.field.test(String(field))));
+  const asked = askedMeasurementConcepts(question)
+    .filter((concept) => !withheldFields.some((field) => concept.field.test(String(field))))
+    .filter((concept) => !unreadableLabRows.some((row) => labRecords(concept, row)));
   const sourcesChecked = [...new Set([...(labResults.length ? ['document'] : []), ...facts.map((fact) => fact.source_type).filter(Boolean)])].sort();
   const notDocumented = asked
     .filter((concept) => !labResults.some((result) => labRecords(concept, result)) && !facts.some((fact) => factRecords(concept, fact)))

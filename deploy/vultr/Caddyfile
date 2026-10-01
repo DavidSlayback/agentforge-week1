@@ -15,17 +15,41 @@
     }
 }
 
+# Response headers for every HTTPS site block. `?` sets a header only when the
+# upstream did not (and defers it to the response), so OpenEMR's own
+# `X-Frame-Options: DENY` on the login page and the dashboard BFF's headers win.
+# Not set here: `X-Content-Type-Options: nosniff` and a CSP, site-wide, because
+# legacy OpenEMR pages were not tested with them. The AgentForge routes get
+# nosniff below; the dashboard BFF sets its own.
+# One `header` line per field: `?` fields in one block would share one
+# "all absent" condition, so an upstream Referrer-Policy would also drop
+# X-Frame-Options.
+(security_headers) {
+    header ?X-Frame-Options SAMEORIGIN
+    header ?Referrer-Policy strict-origin-when-cross-origin
+}
+
+(agentforge_nosniff) {
+    header ?X-Content-Type-Options nosniff
+}
+
 dtstest.64.177.10.182.nip.io {
     import agentforge_module_internal_only
+    import security_headers
+    # HSTS only on the public host: its certificate is publicly trusted. One
+    # year, no includeSubDomains or preload (nip.io is not ours to preload).
+    header ?Strict-Transport-Security "max-age=31536000"
     # Patient dashboard port: the app owns its /dashboard prefix (handle, not handle_path).
     redir /dashboard /dashboard/ 308
     handle /dashboard/* {
         reverse_proxy dashboard:8790
     }
     handle_path /agentforge-w2* {
+        import agentforge_nosniff
         reverse_proxy agentforge-w2:8788
     }
     handle_path /agentforge* {
+        import agentforge_nosniff
         reverse_proxy agentforge:8787
     }
     handle {
@@ -34,35 +58,31 @@ dtstest.64.177.10.182.nip.io {
 }
 
 :80 {
-    import agentforge_module_internal_only
-    # Patient dashboard port: the app owns its /dashboard prefix (handle, not handle_path).
-    redir /dashboard /dashboard/ 308
-    handle /dashboard/* {
-        reverse_proxy dashboard:8790
-    }
-    handle_path /agentforge-w2* {
-        reverse_proxy agentforge-w2:8788
-    }
-    handle_path /agentforge* {
-        reverse_proxy agentforge:8787
-    }
-    handle {
-        reverse_proxy openemr:80
-    }
+    # Plain HTTP by IP or any other name: redirect to the public HTTPS host
+    # instead of serving OpenEMR and AgentForge unencrypted. HTTP to the public
+    # host itself is redirected by Caddy's automatic HTTPS, and ACME HTTP
+    # challenges are answered before this route. Nothing internal uses this
+    # listener: services reach each other by Docker DNS name (http://openemr,
+    # agentforge-w2:8788), and every healthcheck calls its own container.
+    redir https://dtstest.64.177.10.182.nip.io{uri} 308
 }
 
 :443 {
     tls internal
     import agentforge_module_internal_only
+    # No HSTS here: this block answers by IP with an internal certificate.
+    import security_headers
     # Patient dashboard port: the app owns its /dashboard prefix (handle, not handle_path).
     redir /dashboard /dashboard/ 308
     handle /dashboard/* {
         reverse_proxy dashboard:8790
     }
     handle_path /agentforge-w2* {
+        import agentforge_nosniff
         reverse_proxy agentforge-w2:8788
     }
     handle_path /agentforge* {
+        import agentforge_nosniff
         reverse_proxy agentforge:8787
     }
     handle {

@@ -50,3 +50,25 @@ first, so a wrong secret is also `CASE_NOT_RUN`, never a pass.
 `test/adversarial-service.test.js` runs them against a spawned server in the
 pre-commit hook. Each case was shown to fail when its protection is removed
 (`docs/agentforge/evidence/W1-evals-adversarial-regression.txt`).
+
+## Oracle rules for evidence (H5)
+
+A claim is supported only when it has evidence and every evidence item belongs
+to the case's patient and names a `source_ref`; one good item no longer excuses
+the rest. `PATIENT_MIXING` is raised when the response context names another
+patient or when any claim cites another patient's evidence.
+`test/oracles.test.js` covers both.
+
+## Committed reports
+
+| File | Produced by | Kept current by |
+|---|---|---|
+| `results.json` | `node evals/lib/runner.js > evals/results.json` | `test/committed-results.test.js` compares it with a fresh run |
+| `error-analysis.json` | `node evals/lib/error-analysis.js > evals/error-analysis.json` | same test, against a fresh analysis |
+| `service-results.json` | `runner.js --service` against a local server started like `test/service-runner.test.js` does | same test: every golden case and the adversarial suite |
+| `deployed-service-results.json` | `runner.js --service <deployed URL>` | same test: it must match the runner's case list, or carry `provenance.stale: true` and the commit it came from |
+
+`deployed-service-results.json` is still the 7-case snapshot from
+`3a54988a` (the deployed service's own SHA was not recorded). It is regenerated
+only against the deployed service, from the deploy step, never from a
+developer machine.

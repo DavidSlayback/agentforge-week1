@@ -34,7 +34,7 @@ const stop = (child) => new Promise((resolve) => { if (!child || child.exitCode 
 
 /** Spawn server.js with stdout and stderr captured (the helper discards stderr). */
 async function startCapturing(port, env) {
-  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: repoRoot, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: secret, ...TEST_MINT_ENV, AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['agentforge/src/server.js'], { cwd: repoRoot, env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: secret, ...TEST_MINT_ENV, AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_PROVIDER_MODE: 'deterministic', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   const output = { text: '' };
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk) => { output.text += chunk; });
@@ -97,7 +97,7 @@ test('alerts are evaluated in the background and a transition is logged once, wi
 test('/ready probes the OpenEMR module in openemr-module mode and names it when it fails', async () => {
   const dir = tempDir();
   const module = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [LIVE_PATIENT] });
-  const env = (url) => ({ AGENTFORGE_PROVIDER_MODE: 'qwen', AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_MODULE_HMAC_SECRET: moduleHmacSecret, AGENTFORGE_OPENEMR_MODULE_URL: url, AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: LIVE_PATIENT, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: '', AGENTFORGE_TRACE_PATH: path.join(dir, 'traces.json') });
+  const env = (url) => ({ AGENTFORGE_PROVIDER_MODE: 'deterministic', AGENTFORGE_PERSISTENCE_MODE: 'openemr-module', AGENTFORGE_MODULE_HMAC_SECRET: moduleHmacSecret, AGENTFORGE_OPENEMR_MODULE_URL: url, AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS: LIVE_PATIENT, AGENTFORGE_OPENEMR_DEMO_PATIENT_MAP: '', AGENTFORGE_TRACE_PATH: path.join(dir, 'traces.json') });
   let child;
   try {
     child = await startTestServer(18984, env(module.url), { path: '/health' });

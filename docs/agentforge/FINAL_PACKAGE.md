@@ -31,13 +31,13 @@ The existing Week 1 read-only workflow remains separate.
 
 ## Evidence status
 
-| Area | Current evidence | Status |
+| Area | Evidence (2026-09-23) | Status |
 | --- | --- | --- |
 | Assignment schemas | Lab: two tests with name, value, unit, reference range, collection date, abnormal flag. Intake: name, DOB, phone, chief concern, medications, allergies, family history. | Implemented |
 | PDF fixture matrix | Four generated synthetic PDFs; two layouts per type, with vector and rasterized pages. | 38/38 expected values exact, valid, and cited locally |
-| Public PDF workflow | Lab Layout B through current local Tesseract mode. | READY; 12 cited fields. Two earlier Gemini attempts returned HTTP 503. |
+| Public PDF workflow | Lab Layout B through local Tesseract mode. | READY; 12 cited fields. Two earlier Gemini attempts returned HTTP 503. |
 | Public page | HTTPS landing page, health, readiness, and sample controls. | HTTP 200; latest page and health/readiness inspected |
-| Regression | Previous candidate passed the AgentForge serial suite and 50-case W2 gate. Current code received syntax and diff checks; full suite not rerun. | Previous candidate: 130/130 and 50/50; current provider path: unverified |
+| Regression | Previous candidate passed the AgentForge serial suite and 50-case W2 gate. `6e5d691` received syntax and diff checks; full suite not rerun. | Previous candidate: 130/130 and 50/50; `6e5d691` provider path: unverified |
 | VLM/provider | Gemini 3.8 Flash adapter and server key are configured; `.env` permissions are 600. The active scan mode is local after two Google requests returned 503. The adapter has bounded retries for retryable HTTP statuses. | Integrated but inactive; retry path and quality remain unverified |
 | Observability | Public dashboard loads and shows redacted operational panels and alert thresholds. | No traces or observations were present after container restart; show the alert view and label the trace window as empty unless a new trace is generated. |
 | Real scan accuracy | Fixtures are clean computer-generated pages. Physical scans, handwriting, and arbitrary layouts are not benchmarked. | Open |
@@ -54,7 +54,7 @@ patient forms.
 2. Run one lab and one intake PDF. Show worker handoffs, READY status, and the
    source preview with citations.
 3. Show the evaluator's 50-case gate and the redacted alert view. The evaluator
-   page currently reports 50/50; the trace window is empty after restart, so
+   page reported 50/50 on 2026-09-23; the trace window is empty after restart, so
    describe it accurately if no new trace is available.
 4. Keep the recording synthetic. The generated pages do not demonstrate
    physical scan or handwriting accuracy.
@@ -64,11 +64,11 @@ patient forms.
 - Retry Gemini after Google’s 503 issue clears, then measure exact fields and
   grounded citations on hard synthetic scans before selecting a final
   provider. Early submission can describe the integrated experiment and its
-  current availability limit.
+  availability limit at the time.
 - Record and review the requested 3–5 minute demo against this deployed
   candidate. Verify playback, citations, evaluation, and observability.
 - Reconcile whether the assignment requires physical scanned forms or an
-  OpenEMR round trip beyond the current synthetic implementation.
+  OpenEMR round trip beyond the synthetic implementation of 2026-09-23.
 - Approve external sharing or final submission separately.
 
 All fixture and patient data are synthetic. These results do not establish

@@ -30,7 +30,7 @@ export async function runW2ExtensionGate({ cases = buildW2ExtensionSet(), baseli
     injectDefect,
     expectedCount: cases.length,
     requireEveryLabel: false,
-    hashFunctions: true,
+    extension: true,
     schemaVersion: 'w2-extension-gate-v1',
   });
   return { ...result, missing_baseline: missingBaseline, passed: result.passed && !missingBaseline };

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { GapNote } from '../../../core/cardResult.ts';
 import type { CardState } from '../useCard.ts';
+import { RenderErrorBoundary } from './RenderErrorBoundary.tsx';
 import { NonDataState } from './States.tsx';
 
 const STORAGE_PREFIX = 'dashboard.card.';
@@ -82,6 +83,20 @@ function Notes({ notes }: { readonly notes: readonly GapNote[] }) {
   );
 }
 
+/** Calls the card's row renderer inside the boundary, so a throw in it is caught there. */
+function CardRows({ render }: { readonly render: () => ReactNode }) {
+  return <>{render()}</>;
+}
+
+/** What a card shows when its data rendered with an error: the title stays, no error text is shown. */
+function RenderErrorState({ id, title }: { readonly id: string; readonly title: string }) {
+  return (
+    <p className="state state-error" role="alert" data-render-error={id}>
+      Couldn&apos;t display {title} (RENDER_ERROR).
+    </p>
+  );
+}
+
 /**
  * The shared card shell: title bar with a collapse toggle, and exactly one of
  * loading, ok, empty ("Nothing Recorded"), forbidden, error or reauth
@@ -122,10 +137,11 @@ export function Card<T>({ id, title, state, renderRows, source, emptyText }: Car
         aria-label={scrolls ? `${title}, scrolls sideways` : undefined}
       >
         {state.kind === 'ok' ? (
-          <>
-            {renderRows(state.rows)}
+          // A render throw stays inside this card: it shows its error state, the other cards keep rendering.
+          <RenderErrorBoundary resetKey={state} fallback={<RenderErrorState id={id} title={title} />}>
+            <CardRows render={() => renderRows(state.rows)} />
             <Notes notes={state.notes} />
-          </>
+          </RenderErrorBoundary>
         ) : state.kind === 'forbidden' ? (
           // 3.14: one card can be denied while the others load (e.g. Medical Problems needs encounters/notes).
           <p className="state state-forbidden">Not authorized for this section.</p>

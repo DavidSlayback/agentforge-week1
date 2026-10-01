@@ -26,9 +26,30 @@ named `tesseract-recorded-replay` (`createRecordedOcrReplay`). The production
 default stays `tesseractOcrEngine` (the real binaries). This keeps the gate
 deterministic on machines without Tesseract, such as Windows hosts. The
 parity test `agentforge/test/ocr-golden-parity.test.js` re-runs live OCR on
-every golden PDF whenever `pdftoppm`, `pdfinfo` and `tesseract` are on PATH, and
-it fails if any line's text, box or confidence has drifted from the recording.
-It skips, with a message, where the tools are absent.
+every golden PDF and fails if any line's text, box or confidence has drifted
+from the recording. It and the two other live-OCR tests (listed in
+`agentforge/test/helpers/ocrTools.js`) never skip silently:
+
+- In the unit run on a host without the tools they skip and print a `SKIP`
+  line naming the test and the missing tools.
+- The pre-commit hook then runs them with `AGENTFORGE_REQUIRE_OCR=1` through
+  `agentforge/scripts/run-ocr-tests.sh`: natively when the tools are on PATH,
+  otherwise in Docker, in an image built from the repo `Dockerfile`'s own
+  `FROM` and `RUN apk add ... tesseract` lines (tagged by their hash, so later
+  runs reuse it). With neither tools nor Docker, the hook blocks a commit that
+  touches the OCR path or OCR fixtures, and prints a loud SKIP banner otherwise.
+- `.gitlab-ci.yml` installs the tools and sets `AGENTFORGE_REQUIRE_OCR=1`, so a
+  missing tool fails there.
+
+Running them for the first time (H5, 2026-10-01) found that live OCR had not
+matched the recordings since S6 (2026-09-24). S6 passed `--psm 6` to
+Tesseract and called it Tesseract's default; the default is `--psm 3`, which
+the 50-case recordings were made with. At psm 6 the deployed path read
+`gen-lab-d-flags`' "A1C abnormal: H" as "Al1C" and joined the table lab's name
+and date into one line, and 8 golden cases failed against live OCR. The default
+is back to psm 3 (`DEFAULT_OCR_MODE = 'psm3'`). The 10 original recordings are
+byte-identical at psm 3; the 3 extension recordings (`medlist-a`, `medlist-b`,
+`lab-c`) were re-recorded at psm 3, and the extension suite passes 54/54 (56/56 with the H5 cases).
 
 The gate calls no live model and no external service. Guideline retrieval is
 the S5 hybrid pipeline (BM25 ∪ dense ∪ listwise rerank) over the real corpus in
@@ -99,8 +120,19 @@ npm ci --prefix agentforge
 
 The enforced gate is the tracked pre-commit hook. It runs `npm ci` if
 `agentforge/node_modules` is missing or stale, the agentforge, evals and
-observability unit suites, and then this gate. It rejects the commit if any of
-them fails. The GitLab project has no CI runner, so [`.gitlab-ci.yml`](.gitlab-ci.yml)
+observability unit suites, the live-OCR tests (see above), and then this gate.
+It rejects the commit if any of them fails.
+
+The hook and `.githooks/pre-push` test the working tree, so both first refuse
+when it differs from what is committed or pushed
+(`.githooks/lib/gated-tree.sh`). Pre-commit refuses unstaged or untracked files
+under the gated paths (`agentforge`, `evals`, `observability`, `dashboard`,
+`deploy/vultr`, the PHP module, `docs/agentforge/{fixtures,evidence,schemas}`,
+`Dockerfile`, `.githooks`, `.gitlab-ci.yml`). Pre-push refuses any difference
+from `HEAD`, and a push of a ref other than `HEAD`. Stage, discard or ignore the
+files, then retry. Do not stash: the stash stack is shared by every worktree.
+Copying the index into a temp tree was rejected because it needs a second
+`npm ci` for agentforge and the dashboard on every commit. The GitLab project has no CI runner, so [`.gitlab-ci.yml`](.gitlab-ci.yml)
 mirrors the hook in the deployed `node:24-alpine` + Tesseract image but does not
 execute. Install the hook once per clone:
 
@@ -124,7 +156,7 @@ npm run eval:gate --prefix agentforge -- --update-baseline    # explicit rebasel
 | `citation_present` | 9 | Every fact, typed lab result, observed intake field and handoff citation has all 5 keys (`source_type`, `source_id`, `page_or_section`, `field_or_chunk_id`, `quote_or_value`). `source_id` must be the stored document id. `quote_or_value` must appear verbatim in the recorded OCR text (or the `.scan.txt` document's own field quotes) and must contain the fact's value; a typed lab result's quote must contain the truth-file value, so it cites the value line, not the test-name line. `bounding_box` must lie inside the page and equal the box of the quoted OCR line. A fact from an OCR line below 0.85 confidence must carry the human-review flag, and a fact at or above 0.85 must not. Guideline evidence must carry `source_type: guideline` citations quoting its chunk. Covers a `.scan.txt` lab upload and a `.scan.txt` intake upload. |
 | `factually_consistent` | 11 | Value, unit, reference range, collection date and abnormal flag of every typed lab result equal the truth file, and its `confidence` equals the minimum confidence of its six source OCR lines (found by the label printed on the document, recorded in the truth file). No test may be missing or invented. Intake demographics, chief concern, medications, allergies and family history equal the truth file. The other-patient intake, uploaded to its own patient, must be READY with identity `match`. Four retrieval cases (abnormal A1C, fatigue chief concern, medication reconciliation, and an empty clinician question where the query must come from the document's own abnormal A1C) require a ready evidence worker, a descending ranking and the relevant top source. |
 | `safe_refusal` | 12 | Each case must be refused, stopped or qualified, never READY. Table-layout lab and blank page: BLOCKED `no_fields_extracted`. Intake uploaded as lab: BLOCKED, with the detected `intake_form` type reported. Lab uploaded as intake: QUALIFIED `doc_type_mismatch`. Patient mismatch is BLOCKED `patient_mismatch`, with no retrieval, for three inputs: another patient's intake, an intake with this patient's name but a different DOB (`mismatched_fields: ['dob']`), and lab-a (whose printed header names `fixture-patient-001`) uploaded to `fixture-patient-002`. An intake for a patient with no chart record: QUALIFIED `patient_identity_unverified`. Cross-patient document read: the service answers `blocked: document_scope_mismatch` (HTTP 403). An off-topic question on the noisy scanned PDF: QUALIFIED with no evidence and no guideline claim in the answer. Corrupt PDF: `unreadable` / BLOCKED `document_unreadable` (HTTP 422), traced as `blocked`. A `.scan.txt` envelope with no readable fields: BLOCKED `no_fields_extracted`. |
-| `no_phi_in_logs` | 9 | Runs real workflows with an `InMemoryTraceSink` while capturing console, stdout and stderr, including the patient-mismatch, noisy-scan, `.scan.txt`-upload and unreadable-PDF refusal paths. The serialized traces and captured output must contain none of the truth-file identifiers: patient name, DOB, phone, chief concern, medication and allergy names, family history, lab values and collection dates. A defense-in-depth case records the workflow's raw handoffs through the real trace redactor, and value- and quote-keyed content must still be stripped. |
+| `no_phi_in_logs` | 9 | Runs real workflows while capturing console, stdout and stderr, including the patient-mismatch, noisy-scan, `.scan.txt`-upload and unreadable-PDF refusal paths. Three things are scanned: the run's trace as the deployed `FileTraceSink` persists it to disk, the run's own raw workflow handoffs recorded through the same redacting sink, and the captured output. None may contain the truth-file identifiers (patient name, DOB, phone, chief concern, medication and allergy names, family history, lab values, collection dates, reference ranges) or the values this run extracted. No typed lab field (`test_name`, `value`, `unit`, `reference_range`, `collection_date`, `abnormal_flag`) may appear as a serialized key/value pair. The service records only metrics in its trace, so a redactor regression shows in the raw-handoff replay, which every case with a workflow runs (`np-10` requires it). |
 
 Each case's `guards_against` string names the failure mode it protects against
 (W1 engineering requirement). The report prints it for failing cases.
@@ -143,12 +175,46 @@ At 20 or more, one failure (95%) would pass both the rate rule and the 5-point
 rule.
 
 The hash covers the judge thresholds (`JUDGE_CONFIG`), the required case count,
-the case specs, the manifest, every truth file, every OCR recording, the text
-documents and the guideline corpus. Loosening a threshold, editing a truth file or re-recording OCR
-therefore fails the gate until someone runs `--update-baseline`. That rewrites
-`W2_BASELINE_REPORT.json`, so the change is visible in the diff.
-`--update-baseline` refuses to write a baseline from a run that misses any
-per-category threshold or has a `no_phi` failure.
+the case specs (function-valued fields, such as a fake provider, by their
+source), the judge's own source (`w2RegressionGate.js` with every check
+function, and `gateClaimJudge.js`), the manifest, every truth file, every OCR
+recording, the text documents and the guideline corpus. Loosening a threshold
+or a check, editing a truth file or re-recording OCR therefore fails the gate
+until someone runs `--update-baseline`. That rewrites `W2_BASELINE_REPORT.json`,
+so the change is visible in the diff. `--update-baseline` refuses to write a
+baseline from a run that misses any per-category threshold or has a `no_phi`
+failure.
+
+The baseline records the commit it was generated at (`generated_at.git_sha`,
+and `dirty` when tracked files other than the two baseline reports had
+uncommitted changes). Each gate run prints that
+SHA next to its own on stderr and reports both (`git_sha`,
+`baseline_generated_at`). A different SHA is expected after code changes and
+never fails the gate; the hash is what pins the judge and its inputs.
+
+## Independent claim judge
+
+Every case with `expect.answer` runs `judgeAnswerClaims`
+(`agentforge/src/gateClaimJudge.js`) on the shipped answer. It imports nothing,
+so a defect in the production verifier (`claimBinding.js`) cannot also hide
+from it; `test/gate-claim-judge.test.js` fails if it ever imports anything.
+
+- Each claim must have a citation.
+- Each citation must name a source this run produced (same `source_type`,
+  `source_id`, `field_or_chunk_id` and `quote_or_value`), of the claim's kind.
+- Every number in the claim text must appear in what it cites: the quote or a
+  typed field of the cited item, such as a range, collection date or guideline
+  version date.
+
+The gate still re-runs `verifyClaims` against its own allowed-value set, now
+reported as `answer_claim_fails_production_verifier_recheck`; that check is not
+independent. `fc-08`'s fake model also returns a claim with no citation, which
+must be dropped and counted. The extension cases `xh5-judge-uncited-model-claim`
+and `xh5-judge-number-not-in-cited-source` plant an uncited claim and a claim
+with a number its source does not hold on the model path, where a model answer
+actually ships. `cp-05`'s low-confidence check is structural: no patient-fact
+claim may cite a lab result or intake field below 0.85, and each one must be in
+`needs_review` by field id.
 
 The gate runs only from the command line and the pre-commit hook. The deployed
 server's `/evals` page and `/evals/w2-baseline.json` serve the committed
@@ -187,9 +253,13 @@ still blocks commits.
   to `index.js`. A case can carry its own check (`expect.custom`) and inject
   service collaborators (`scenario.service_overrides`), so a slice never
   edits the golden dispatcher.
-- The suite has 53 cases (`W2_EXTENSION_BASELINE_REPORT.json`): 40 on
-  `main` at `a925b803`, plus the 13 F-CLIN cases. They are listed below by
-  slice.
+- The suite has 56 cases (`W2_EXTENSION_BASELINE_REPORT.json`): the 54 in
+  that baseline at `9b25806c` plus the 2 H5 claim-judge cases (`xh5-*`,
+  `extensionCases/claimJudge.js`). They are listed below by slice.
+- The critic is disabled in all 50 golden cases (`critic_disabled`), so a
+  critic that never vetoes passes the 50-case gate. The `x2-*` cases catch it,
+  and the extension suite blocks in the same places as the golden gate: the
+  pre-commit hook, `.githooks/pre-push` and the `w2-regression-gate` CI job.
 - Click-to-source (E1): `x1-click-to-source-lab-a` and `x1-click-to-source-intake-b`.
   Each renders the deployed source preview from the real post-OCR extraction
   and fails if a cited field has no box, or if a "View source region" link
@@ -289,6 +359,29 @@ still blocks commits.
   --update-baseline`. As with the golden gate, it refuses unless every
   threshold is met.
 
+## H5 mutation table (2026-10-01)
+
+Layers that fail for each mutation, before (`9b25806c`) and after H5. Raw
+exit codes and the hook transcripts:
+[`docs/agentforge/evidence/H5-gate-integrity-regression.txt`](docs/agentforge/evidence/H5-gate-integrity-regression.txt).
+
+| Mutation | Before | After |
+| --- | --- | --- |
+| m1 abnormal flag always `normal` | unit, gate, ext | unit, gate, ext, OCR step |
+| m2 redactor stops stripping `value` | obs, gate (np-10 only), ext | obs, gate (8 no_phi cases), ext |
+| m3 critic never vetoes | unit, ext | unit, ext (critic is off in the 50 cases) |
+| m4 zero facts not blocking | unit, gate, ext | unit, gate, ext |
+| m5 g/dL reported as g/L | unit, gate, ext | unit, gate, ext, OCR step |
+| m6 verifier anchors uncited claims | unit | unit, gate (fc-08), ext |
+| m7 pdftoppm 200 to 72 DPI | nothing | OCR step (hook refuses the commit) |
+| m8 test name and range in the trace metrics | unit | unit, gate (4 no_phi cases), ext |
+| m9 composer ships low-confidence facts | unit, gate, ext | unit, gate, ext |
+| m10 verifier ignores numbers | nothing | ext (`xh5-judge-number-not-in-cited-source`) |
+| m11 a check function loosened | nothing | gate, ext (case-set hash) |
+| m12 oracle back to `some` | (was the code) | evals |
+| m13 redactor misses typed lab keys | (was the code) | obs, gate, ext |
+| m14 OCR default back to psm 6 | (was the code) | OCR step |
+
 ## Regression matrix
 
 [`docs/agentforge/evidence/W2_REGRESSION_MATRIX.md`](docs/agentforge/evidence/W2_REGRESSION_MATRIX.md)
@@ -306,9 +399,12 @@ node agentforge/scripts/run-regression-matrix.mjs
 What the gate does not cover, after the review fixes:
 
 - **Live OCR.** The gate replays recorded OCR. Live Tesseract output is compared
-  with the recordings only by the parity test, which runs where the OCR tools
-  are installed (the Docker image), not on a Windows host. A change in Tesseract
-  or poppler versions is caught there, not by the gate.
+  with the recordings by the parity test, which the hook runs natively or in
+  Docker and CI runs with `AGENTFORGE_REQUIRE_OCR=1`. Only a host with neither
+  the tools nor Docker skips it, loudly, and only for commits that do not touch
+  the OCR path. The Docker image is built from the floating `node:24-alpine`
+  tag, so a Tesseract or poppler upgrade there shows up as parity drift, not as
+  a gate failure.
 - **Real-world documents.** The golden PDFs are clean or lightly noised synthetic
   pages. They say nothing about accuracy on real scans, handwriting or other
   layouts.
@@ -325,8 +421,8 @@ What the gate does not cover, after the review fixes:
   assertions check the top source, ordering and empty-for-off-topic; they are
   not a graded relevance benchmark.
 - **Answers.** Five cases assert the S6 grounded answer (`fc-01`, `cp-05`,
-  `fc-05`, `fc-08`, `sr-07`) and re-verify every claim with the S7
-  verifier. The answer is composed deterministically (or by a fake model in
+  `fc-05`, `fc-08`, `sr-07`), judge every claim with the independent claim
+  judge and re-check it with the S7 verifier. The answer is composed deterministically (or by a fake model in
   `fc-08`); no real model output is exercised.
 - **Identity.**
   - Patient identity uses the synthetic fixture demographics

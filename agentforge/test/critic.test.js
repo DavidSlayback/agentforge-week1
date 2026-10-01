@@ -404,7 +404,8 @@ test('runtime evaluation reflects the critic status', () => {
   const base = answerWith([factClaim('encounter.reason', 'x', 'y')], [], { composer: 'deterministic-fallback' });
   assert.equal(computeRuntimeEvaluation({ workflow: workflow({ ...base, critic_status: 'reviewed', critic_rejected: 0 }) }).evaluation.status, 'passed');
   const rejected = computeRuntimeEvaluation({ workflow: workflow({ ...base, critic_status: 'reviewed', critic_rejected: 1 }) }).evaluation;
-  assert.equal(rejected.status, 'passed');
+  // W3 hardening H3: a vetoed claim asks for review; it never grades passed.
+  assert.equal(rejected.status, 'needs_review');
   assert.ok(rejected.issues.includes('critic_rejected_claims'));
   for (const status of ['failed', 'skipped_budget']) {
     const evaluation = computeRuntimeEvaluation({ workflow: workflow({ ...base, critic_status: status, critic_rejected: 0 }) }).evaluation;

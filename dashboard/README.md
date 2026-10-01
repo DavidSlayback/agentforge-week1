@@ -85,11 +85,18 @@ no card route is called before that read succeeds.
   section, kept in its legacy position): REST `/api/patient/:puuid/encounter`,
   then `/api/patient/:pid/encounter/:eid/vital` one encounter at a time,
   newest encounter number first, until an encounter has a set. That route
-  excludes deleted forms, so the card shows the **latest non-deleted** set, a
-  deliberate deviation from the legacy card, whose join can show a deleted set
-  (5.01); FHIR `Observation` is never used (no deleted filter, 5.02). At most
-  50 encounters are walked; past that with encounters left unchecked the card
-  is an error (`VITALS_SCAN_LIMIT`), never "Nothing Recorded". Every encounter
+  excludes deleted forms, so the card shows the newest **non-deleted** set of
+  the highest-numbered encounter that has one. That is the latest set only
+  while encounter-number order matches visit-date order, which holds on every
+  seeded patient but is not enforced by the schema: a newer set on a
+  lower-numbered encounter is missed
+  ([VITALS.md (c)](../docs/legacy-audit/walkthroughs/VITALS.md)). Never showing
+  a deleted set is a deliberate deviation from the legacy card, whose join can
+  show one (5.01); FHIR `Observation` is never used (no deleted filter, 5.02).
+  At most 50 encounters are walked; past that with encounters left unchecked
+  the card is an error (`VITALS_SCAN_LIMIT`), never "Nothing Recorded". The
+  whole load has a 10 s deadline (`VITALS_DEADLINE_MS`): past it the call in
+  flight is aborted and the card is an error (`VITALS_DEADLINE`). Every encounter
   and vitals row must be the patient's. Fields follow the legacy order, labels,
   skip rule and number formats, with the unit each value carries from the API
   (`<field>_unit`; one unit system, no metric secondary). Pediatric patients
@@ -142,8 +149,9 @@ by the `dashboard-check` job in `.gitlab-ci.yml`.
 ## Configuration
 
 `bff/src/config.ts` is the only module that reads the environment; it refuses
-to start on a missing or short secret, a public origin with a path, or a
-non-https public origin in production.
+to start on a missing or short secret, a public origin with a path, a
+non-https public origin in production, or a missing or invalid
+`DASHBOARD_OPENEMR_TZ`.
 
 | Variable | Required | Meaning |
 |---|---|---|
@@ -153,7 +161,7 @@ non-https public origin in production.
 | `DASHBOARD_OAUTH_CLIENT_SECRET` | yes | Client secret, sent on every `/token` call |
 | `DASHBOARD_SESSION_SECRET` | yes | ≥ 32 chars; signs the session cookies |
 | `DASHBOARD_OPENEMR_INTERNAL_URL` | no (`http://openemr`) | Server-side origin for `/token`, JWKS and the APIs |
-| `DASHBOARD_OPENEMR_TZ` | no (`America/Chicago`) | OpenEMR's PHP timezone: "today" for ages and "now" for the active-issue rule. Must match the PHP `date.timezone` (the local stack runs UTC) |
+| `DASHBOARD_OPENEMR_TZ` | yes (no default) | OpenEMR's effective PHP timezone, an IANA name (`UTC`, `America/Chicago`; a bare offset is refused): "today" for ages and the pediatric rule, "now" for the active-issue rule. Rule and commands below |
 | `DASHBOARD_DEMO_PATIENTS` | no | `label=<uuid>,…` neutral demo links |
 | `DASHBOARD_UPSTREAM_TIMEOUT_MS` | no (5000) | Per-call upstream timeout |
 | `DASHBOARD_GIT_SHA` | no | SHA fallback when `BUILD_SHA` is not stamped |
@@ -163,9 +171,51 @@ non-https public origin in production.
 `git archive` through `export-subst`), else `DASHBOARD_GIT_SHA`, else
 `unversioned`.
 
+### Choosing `DASHBOARD_OPENEMR_TZ`
+
+The legacy card decides "active" in PHP: `filterActiveIssues()` compares
+`strtotime(enddate) > strtotime('now')`
+(`interface/patient_file/summary/demographics.php:1110-1113`), and ages use
+PHP `date()` (`PatientService::getPatientAge()`). Both run in PHP's default
+timezone, which OpenEMR sets as follows (`interface/globals.php:509-518`):
+
+1. the `gbl_time_zone` global (Administration > Globals > Locale > Time Zone),
+   if it is non-empty: `date_default_timezone_set($gl_value)`;
+2. otherwise php.ini `date.timezone`;
+3. otherwise PHP's built-in default, `UTC`.
+
+OpenEMR then sets each MySQL session's `time_zone` to PHP's current offset
+(`SET time_zone = ?`), so MySQL's own `@@global.time_zone` and
+`@@system_time_zone` do not decide anything here. Set `DASHBOARD_OPENEMR_TZ`
+to the first of the three that applies; the commands for the VM are in
+[`deploy/vultr/README.md`](../deploy/vultr/README.md) ("Patient dashboard
+port"). A wrong zone shifts the active-issue cut-off and the age by the UTC
+offset. On the local stack (checked 2026-10-01) `gbl_time_zone` is empty and
+`date.timezone` is unset in `/etc/php85/php.ini` (Apache's mod_php loads the
+same file), so PHP runs `UTC`.
+
 ## Known limits (this slice)
 
 - Sessions are in memory: a restart signs everyone out. No refresh token is
   requested (`offline_access` is never asked for), so sessions end with the
   1 h access token.
 - OpenEMR's logout revokes no token; the BFF destroys its own copy first.
+
+## Hardening (W3, lane H4)
+
+- The `/bff/*` guards (cross-site refusal, no query strings, `no-store`) key
+  on the route the router matched (`req.routeOptions.url`), not the raw URL,
+  so encoded spellings such as `/dashboard/%62ff/...` meet them too
+  (`test/bff/security.test.ts`).
+- `/login` is unauthenticated, so pending login transactions are capped at
+  `MAX_PENDING_TRANSACTIONS` (5000, oldest evicted; that sign-in fails and
+  can be retried), and the expiry sweep runs at most once a minute.
+- `returnTo` refuses dot segments, encoded dots and slashes and backslashes in
+  every decoding; the id token must carry `exp`, `iat` and `sub`.
+- Upstream bodies are read as a stream and capped at 2 MiB
+  (`MAX_UPSTREAM_BODY_BYTES`); a larger one is the card error
+  `UPSTREAM_BODY_TOO_LARGE`, never parsed.
+- Each card has a React error boundary: a render throw shows "Couldn't display
+  <card> (RENDER_ERROR)" in that card and the others keep rendering; a throw
+  outside the cards shows a page-level message instead of a blank page.
+- `@fastify/static` is 10.1.5 (`npm audit --omit=dev`: 0 vulnerabilities).

@@ -65,12 +65,13 @@
  *     only when a read-back was attempted -- see the `readBack` note above).
  *   - `'needs_review'`: the answer is complete and verified, and the safety
  *     design asks a human to look: a fact was excluded for low OCR
- *     confidence (`answer.needs_review.length > 0`) or the document is
- *     `QUALIFIED` rather than `READY`.
- *   - `'passed'`: none of the above. A claim the verifier dropped
- *     (`answer.unverified_dropped > 0`) is listed in `issues` as
- *     `claims_dropped` but does not change the status: the shipped answer
- *     is still fully verified.
+ *     confidence (`answer.needs_review.length > 0`), the document is
+ *     `QUALIFIED` rather than `READY`, the verifier dropped a claim
+ *     (`claims_dropped`), the critic vetoed one (`critic_rejected_claims`),
+ *     or a safety flag needs verification.
+ *   - `'passed'`: none of the above. A run that shipped only part of what
+ *     was proposed is never `passed` (W3 hardening H3): the shipped claims
+ *     are verified, but something was removed to get there.
  *
  * `verification` is the answer verifier's own per-claim summary: counts and
  * closed reason codes only, never claim text, citation quotes, or extracted
@@ -152,19 +153,21 @@ function summarizeAnswerVerification(answer) {
 // Issues that mean the encounter did not work as designed. The rest
 // (needs_review, qualified_not_ready, claims_dropped) are the safety design
 // working: a human is asked to look, or the verifier removed an unsupported
-// claim, and the shipped answer is still fully verified.
+// claim. The shipped answer is still fully verified, but it is not `passed`.
 // E2: a critic that was configured but failed, or was skipped because the
 // scan deadline left too little time, means the designed review did not
 // happen -- degraded. A critic veto (`critic_rejected_claims`) is the safety
-// design working, like `claims_dropped`; a disabled critic adds no issue but
-// is reported as `critic_status`.
+// design working, like `claims_dropped`, and asks for review; a disabled
+// critic adds no issue but is reported as `critic_status`.
 const DEGRADING_ISSUES = new Set(['answer_missing', 'read_back_failed', 'critic_failed', 'critic_skipped_budget']);
 // E2: claims shipped without critic review (identity hold-back, or a top-up
 // added after the critic ran) ask a human to look.
 // F-CLIN: a rule flag that failed verification (dropped), or a verified flag
 // the critic vetoed (shipped, marked questioned), is a safety signal a human
 // should look at.
-const REVIEW_ISSUES = new Set(['needs_review', 'qualified_not_ready', 'critic_skipped_identity_only', 'critic_claims_not_sent', 'critic_topup_unreviewed', 'safety_flags_dropped', 'critic_questioned_flags']);
+// H3: a dropped or vetoed claim, and a flag raised on an unverified reading,
+// ask for review too; none of them may grade `passed`.
+const REVIEW_ISSUES = new Set(['needs_review', 'qualified_not_ready', 'claims_dropped', 'critic_rejected_claims', 'critic_skipped_identity_only', 'critic_claims_not_sent', 'critic_topup_unreviewed', 'safety_flags_dropped', 'critic_questioned_flags', 'safety_flags_need_verification']);
 
 /** Closed status set for a non-blocked encounter: degraded > needs_review > passed. */
 export function statusForIssues(issues) {
@@ -211,6 +214,7 @@ export function computeRuntimeEvaluation({ workflow, readBack = null } = {}) {
   if ((answer?.critic_topup_unreviewed || 0) > 0) issues.push('critic_topup_unreviewed');
   if ((answer?.safety_flags_dropped || 0) > 0) issues.push('safety_flags_dropped');
   if ((answer?.critic_flags_questioned || 0) > 0) issues.push('critic_questioned_flags');
+  if ((answer?.safety_flags || []).some((flag) => flag.verification_status === 'needs_verification')) issues.push('safety_flags_need_verification');
 
   return {
     evaluation: {

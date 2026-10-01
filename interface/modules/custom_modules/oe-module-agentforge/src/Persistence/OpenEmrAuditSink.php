@@ -1,8 +1,8 @@
 <?php
 
 /**
- * Writes one OpenEMR audit-log event per AgentForge write: operation, ids,
- * row count and issuer only, never values, names or document text.
+ * Writes one OpenEMR audit-log event per AgentForge write or read: operation,
+ * ids, row count and issuer only, never values, names or document text.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -22,8 +22,18 @@ final readonly class OpenEmrAuditSink implements AuditSink
 {
     public function recordWrite(string $operation, Actor $actor, int $pid, ?int $documentId, int $rowCount): void
     {
+        self::record('agentforge-write', $operation, $actor, $pid, $documentId, $rowCount);
+    }
+
+    public function recordRead(string $operation, Actor $actor, int $pid, ?int $documentId, int $rowCount): void
+    {
+        self::record('agentforge-read', $operation, $actor, $pid, $documentId, $rowCount);
+    }
+
+    private static function record(string $event, string $operation, Actor $actor, int $pid, ?int $documentId, int $rowCount): void
+    {
         EventAuditLogger::getInstance()->newEvent(
-            'agentforge-write',
+            $event,
             $actor->username,
             'Default',
             1,

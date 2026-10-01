@@ -58,6 +58,76 @@ log records how each slice got there.
 
 <!-- New entries go below this line, newest first. -->
 
+## 2026-10-01 — W3 hardening, lane H4 — patient dashboard review findings
+
+**Status:** ready-for-commit (committed on the lane branch; not merged, not deployed) · **Branch:** `agentforge/w3h-h4` · **SHA:** code at `050c87ee`; no merge SHA yet
+
+Lane H4 of the W3 hardening plan (`docs/agentforge/PLAN.md`, "W3 hardening"),
+from the 2026-10-01 repository review. Corrects, without editing, the 01-02-01
+entry's open question on the production timezone and the 01-05-01 Vitals
+wording.
+
+### Worked on
+- **Encoded-path guard bypass (major).** `http/security.ts` matched the raw
+  URL against `/dashboard/bff/` while the router decodes the path, so
+  `GET /dashboard/%62ff/patients/<uuid>/header?_sort=x` with
+  `Sec-Fetch-Site: cross-site` returned 200 with the header DTO and no
+  `Cache-Control: no-store`. Both hooks now key on `req.routeOptions.url`, the
+  route the router matched. `static.ts` checked: its raw-URL test only decides
+  whether a 404 under `/patients/` gets `index.html`; an encoded spelling gets
+  the JSON 404 instead, so it fails closed and was left as is.
+- **Timezone (major).** `DASHBOARD_OPENEMR_TZ` is required in `config.ts`
+  (an IANA name; a bare offset is refused) and in the compose file
+  (`${DASHBOARD_OPENEMR_TZ:?…}`); the `America/Chicago` placeholder is gone.
+  Rule, from `interface/globals.php:509-518`: `gbl_time_zone` if non-empty,
+  else php.ini `date.timezone`, else `UTC`; MySQL sessions follow PHP's offset.
+  The VM commands are in `deploy/vultr/README.md`. Local: `UTC`.
+- **Lab Results vs Vitals (rubric honesty).** `PATIENT_DASHBOARD_MIGRATION.md`
+  now records that the 2026-09-24 parity spec and `PLAN.md` W2D-4 named Lab
+  Results, that the decision record covers Notes → Vitals only, and that no
+  record says why Lab Results was not taken back up. Not built.
+- **`/login`**: pending transactions capped at 5000 (oldest evicted), expiry
+  sweep at most once per 60 s. **`returnTo`**: dot segments refused in every
+  decoding. **id token**: `requiredClaims: ['exp', 'iat', 'sub']`.
+- **Vitals**: 10 s load deadline (`VITALS_DEADLINE`) through an `AbortSignal`
+  on every call of the load; README wording now states the encounter-number
+  order caveat. **Upstream bodies**: streamed, capped at 2 MiB
+  (`UPSTREAM_BODY_TOO_LARGE`).
+- **SPA**: `RenderErrorBoundary` per card (inside `Card`) and at the root.
+- **`@fastify/static`** 8.3.0 → 10.1.5; no code change was needed.
+
+### Decisions
+- Eviction rather than 503 when the login store is full: a flood then costs
+  the oldest pending sign-ins a retry, instead of blocking every sign-in.
+- New error codes `UPSTREAM_BODY_TOO_LARGE` and `VITALS_DEADLINE` render
+  through the existing error state ("Couldn't load … (CODE)"). A render error
+  shows "Couldn't display <card> (RENDER_ERROR)" and never the error text
+  (`assertNever` stringifies the failing value).
+
+### Tests
+- Gate (`npm run check --prefix dashboard` + full `.githooks/pre-commit`,
+  commit `050c87ee`): 355 tests in 36 files, all passing (+20 over 335):
+  core 107 · contract 83 · BFF 81 · component 81 · lint-boundary 3. Typecheck
+  0, lint 0, bundle 72.5 kB gzip JS, 1.3 kB CSS (budget 150 kB).
+- Deliberate regression: the raw-URL prefix match restored in `security.ts`
+  → the hook refused the commit (exit 1, HEAD unchanged) with 1 red,
+  "applies the /bff guards to every encoding of the path the router decodes"
+  → reverted. One break per fix, each with its named red test, plus the
+  red-before-green runs and the `/login` bench (40k creates: 9.9 s and 16.7 MB
+  before, 0.38 s and 2.6 MB after):
+  [`evidence/w3-h4-regression.txt`](evidence/w3-h4-regression.txt).
+- `npm audit --omit=dev`: 1 high before, 0 after.
+- Integration (local stack): not run. Live: not deployed. **Implemented and
+  tested; not wired on the VM** until `DASHBOARD_OPENEMR_TZ` is set there and
+  the lane is merged and deployed.
+
+### Open questions / follow-ups
+- Set `DASHBOARD_OPENEMR_TZ` in `/opt/agentforge-week1/.env` from the
+  `deploy/vultr/README.md` commands before the next deploy; Compose refuses
+  to interpolate the file for every service while it is missing.
+- `vitest` 3.2.7 has a moderate dev-only advisory (GHSA-82fw-gwwq-j7x9);
+  the fix is a vitest major upgrade, not done here.
+
 ## 2026-09-26 (later) — Arc 01 / Story 01-06 / Slice 01-06-01 — Allergies finding: seed workaround, re-verified
 
 **Status:** ready-for-commit (evidence + docs only; not merged, not deployed) · **Branch:** `agentforge/w2-dashboard` · **SHA:** no merge SHA yet

@@ -61,11 +61,15 @@ export const TEST_MINT_ENV = Object.freeze({ AGENTFORGE_DEMO_ACCESS_KEY: TEST_DE
 /** fetch() init for a mint request that carries the test access key. */
 export const DEMO_KEY_REQUEST = Object.freeze({ headers: { 'x-agentforge-demo-key': TEST_DEMO_ACCESS_KEY } });
 
-/** Spawn `agentforge/src/server.js` with synthetic test defaults and wait for it (see `waitForServer`). */
+/**
+ * Spawn `agentforge/src/server.js` with synthetic test defaults and wait for it (see `waitForServer`).
+ * The default model mode is the explicit `deterministic` one: a `qwen` mode with no
+ * endpoint or key is not ready (W3 H2), and tests make no model calls.
+ */
 export async function startTestServer(port, extraEnv = {}, { path = '/ready', timeoutMs = 15000 } = {}) {
   const child = spawn(process.execPath, ['agentforge/src/server.js'], {
     cwd: repoRoot,
-    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', ...TEST_MINT_ENV, ...extraEnv },
+    env: { ...process.env, PORT: String(port), AGENTFORGE_DEMO_SECRET: 'synthetic-test-secret', AGENTFORGE_SYNTHETIC_CONTEXT: 'true', AGENTFORGE_PROVIDER_MODE: 'deterministic', ...TEST_MINT_ENV, ...extraEnv },
     stdio: ['ignore', 'pipe', 'ignore'],
   });
   return waitForServer(child, { port, path, timeoutMs });

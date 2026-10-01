@@ -43,6 +43,14 @@ services:
       # get it (never the Week 1 agentforge service); it must differ from
       # AGENTFORGE_DEMO_SECRET, which keeps signing context tokens.
       AGENTFORGE_MODULE_HMAC_SECRET: ${AGENTFORGE_MODULE_HMAC_SECRET:?AGENTFORGE_MODULE_HMAC_SECRET is required}
+      # W3 H1: the "Prepare for visit" launcher signs its openemr-module tokens
+      # with this Ed25519 key (base64 32-byte seed). Only this service gets the
+      # private key; agentforge-w2 gets only the verify (public) key and the
+      # Week 1 service gets neither, so no holder of AGENTFORGE_DEMO_SECRET can
+      # forge a launcher token. Empty: the launcher refuses with a labeled 503
+      # and the module refuses every launcher token; synthetic-demo is unchanged.
+      AGENTFORGE_LAUNCH_SIGNING_KEY: ${AGENTFORGE_LAUNCH_SIGNING_KEY:-}
+      AGENTFORGE_LAUNCH_VERIFY_KEY: ${AGENTFORGE_LAUNCH_VERIFY_KEY:-}
     depends_on:
       mysql:
         condition: service_healthy
@@ -165,6 +173,9 @@ services:
       AGENTFORGE_MINT_RATE_LIMIT: ${AGENTFORGE_MINT_RATE_LIMIT:-15}
       AGENTFORGE_MINT_RATE_WINDOW_SECONDS: ${AGENTFORGE_MINT_RATE_WINDOW_SECONDS:-60}
       AGENTFORGE_TRUST_PROXY: "true"
+      # Origin binding on the anonymous mints: a present Origin outside this list gets 403, an
+      # absent one is allowed. Stops cross-origin browser abuse only, not a scripted client.
+      AGENTFORGE_DEMO_ALLOWED_ORIGINS: ${AGENTFORGE_DEMO_ALLOWED_ORIGINS:-https://dtstest.64.177.10.182.nip.io}
       AGENTFORGE_OPENEMR_MODE: synthetic
       AGENTFORGE_PUBLIC_BASE_PATH: /agentforge-w2
       AGENTFORGE_PROVIDER_MODE: qwen
@@ -245,6 +256,11 @@ services:
       # never served from fixtures. The REST reads use the server-held OAuth
       # refresh token (read scopes) in the mounted cache file below.
       AGENTFORGE_OPENEMR_LIVE_READS: ${AGENTFORGE_OPENEMR_LIVE_READS:-off}
+      # W3 H1: the launcher's Ed25519 public key (never the signing key). It is
+      # the only way this service accepts an openemr-module token; startup fails
+      # when live reads are on without it, and without it a launcher link gets
+      # a labeled 503 page.
+      AGENTFORGE_LAUNCH_VERIFY_KEY: ${AGENTFORGE_LAUNCH_VERIFY_KEY:-}
       AGENTFORGE_OPENEMR_BASE_URL: ${AGENTFORGE_OPENEMR_BASE_URL:-http://openemr}
       AGENTFORGE_OPENEMR_TOKEN_URL: ${AGENTFORGE_OPENEMR_TOKEN_URL:-}
       AGENTFORGE_OPENEMR_CLIENT_ID: ${AGENTFORGE_OPENEMR_CLIENT_ID:-}
@@ -262,8 +278,15 @@ services:
       AGENTFORGE_LIVE_PATIENT_UUIDS: ${AGENTFORGE_LIVE_PATIENT_UUIDS:-}
     volumes:
       # Same server-only OAuth token cache as the Week 1 block; only a service
-      # that reads the live chart opens it (W1 runs the synthetic mode).
-      - ../../secrets/openemr-token.json:/run/secrets/agentforge-openemr-token.json
+      # that reads the live chart opens it (W1 runs the synthetic mode). Long
+      # syntax with create_host_path: false, so a missing file fails `up`
+      # instead of Docker creating a root-owned directory in its place.
+      # deploy.sh checks the file before it ships anything.
+      - type: bind
+        source: ../../secrets/openemr-token.json
+        target: /run/secrets/agentforge-openemr-token.json
+        bind:
+          create_host_path: false
       # Trace store (AGENTFORGE_TRACE_PATH above); separate from W1's tracevolume.
       - w2tracevolume:/data
     expose:
@@ -305,8 +328,9 @@ services:
       DASHBOARD_OAUTH_CLIENT_ID: ${DASHBOARD_OAUTH_CLIENT_ID:?DASHBOARD_OAUTH_CLIENT_ID is required}
       DASHBOARD_OAUTH_CLIENT_SECRET: ${DASHBOARD_OAUTH_CLIENT_SECRET:?DASHBOARD_OAUTH_CLIENT_SECRET is required}
       DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:?DASHBOARD_SESSION_SECRET is required}
-      # Placeholder default; slice 01-02-01 confirms the timezone OpenEMR's NOW() runs in.
-      DASHBOARD_OPENEMR_TZ: ${DASHBOARD_OPENEMR_TZ:-America/Chicago}
+      # Required, no default: OpenEMR's effective PHP timezone (gbl_time_zone if set,
+      # else php.ini date.timezone, else UTC). How to read it: deploy/vultr/README.md.
+      DASHBOARD_OPENEMR_TZ: ${DASHBOARD_OPENEMR_TZ:?DASHBOARD_OPENEMR_TZ is required}
       DASHBOARD_DEMO_PATIENTS: ${DASHBOARD_DEMO_PATIENTS:-}
     expose:
       - "8790"
@@ -337,10 +361,11 @@ services:
     depends_on:
       openemr:
         condition: service_healthy
+      # Started, not healthy, for both AgentForge services: a failing /ready
+      # (the frozen W1 model probe, or agentforge-w2's OpenEMR module probe)
+      # must never keep Caddy, and with it OpenEMR, from starting.
       agentforge:
-        condition: service_healthy
-      # Started, not healthy: agentforge-w2's /ready depends on the OpenEMR
-      # module, and a module outage must never keep Caddy from starting.
+        condition: service_started
       agentforge-w2:
         condition: service_started
 

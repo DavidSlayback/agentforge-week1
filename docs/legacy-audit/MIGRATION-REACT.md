@@ -785,7 +785,7 @@ behind Caddy, reporting its SHA. Deployment itself needs David's approval
       DASHBOARD_OAUTH_CLIENT_ID: ${DASHBOARD_OAUTH_CLIENT_ID:?DASHBOARD_OAUTH_CLIENT_ID is required}
       DASHBOARD_OAUTH_CLIENT_SECRET: ${DASHBOARD_OAUTH_CLIENT_SECRET:?DASHBOARD_OAUTH_CLIENT_SECRET is required}
       DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:?DASHBOARD_SESSION_SECRET is required}
-      DASHBOARD_OPENEMR_TZ: ${DASHBOARD_OPENEMR_TZ:-America/Chicago}
+      DASHBOARD_OPENEMR_TZ: ${DASHBOARD_OPENEMR_TZ:?DASHBOARD_OPENEMR_TZ is required}
       DASHBOARD_DEMO_PATIENTS: ${DASHBOARD_DEMO_PATIENTS:-}
     expose:
       - "8790"
@@ -807,9 +807,11 @@ behind Caddy, reporting its SHA. Deployment itself needs David's approval
 - **Don't add `dashboard` to `proxy.depends_on`.** A failing dashboard must
   not keep Caddy, and with it OpenEMR and AgentForge, from starting; Caddy
   returns 502 for `/dashboard/*` only.
-- The `DASHBOARD_OPENEMR_TZ` default is a placeholder. Slice 01-02-01 must set
-  it to the timezone OpenEMR's `NOW()` runs in, confirmed from the stack's
-  config, not assumed.
+- `DASHBOARD_OPENEMR_TZ` is required, with no default (W3 hardening H4
+  replaced the `America/Chicago` placeholder shown in earlier versions of this
+  block). It must equal OpenEMR's effective PHP timezone: `gbl_time_zone` if
+  set, else php.ini `date.timezone`, else `UTC` (`interface/globals.php:509-518`);
+  the VM commands are in `deploy/vultr/README.md`.
 - `DASHBOARD_DEMO_PATIENTS` is an optional list of `label=puuid` pairs for the
   landing page's "Demo patients (configured)" links. The labels are neutral,
   e.g. "Demo A (data-rich)"; there are no names.

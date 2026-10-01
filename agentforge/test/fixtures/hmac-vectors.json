@@ -68,6 +68,17 @@
       }
     }
   ],
+  "launch_token_vectors": {
+    "purpose": "W3 H1: launcher tokens (issuer openemr-module) are Ed25519-signed by the openemr container only. Synthetic TEST-ONLY keypair (seed = sha256 of a fixed label), never deployed. Shared by agentforge/test/w3-launch-trust.test.js and oe-module-agentforge/tests/run.php.",
+    "signing_key_base64": "rfO7ISuZAYNs447bzDablrP5GeMFOX6FnMBs+vrunTk=",
+    "verify_key_base64": "kewrcBLAvunOT/pe3A9bz8FRkrrZb/Hg7QOMfJxHa9c=",
+    "now": 1790000000,
+    "patient_uuid": "a2c37f7f-1076-4172-b17a-bee8bb8d2da6",
+    "clinician_uuid": "6f1e2d3c-4b5a-4968-8776-655443322110",
+    "write_token": "eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6IjZmMWUyZDNjLTRiNWEtNDk2OC04Nzc2LTY1NTQ0MzMyMjExMCIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoib3BlbmVtci1tb2R1bGUiLCJhdXRobiI6Im9wZW5lbXItc2Vzc2lvbiIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAyODB9.A3YsrH9Ub6lJbQqHOPbsSUlwJiG57CaEFW6g6UfCUA8Br1X2HDmBL5fpsC_nbgffFpqyeBGAA7g-GF6rgxPaAA",
+    "hmac_forged_write_token": "eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6IjZmMWUyZDNjLTRiNWEtNDk2OC04Nzc2LTY1NTQ0MzMyMjExMCIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoib3BlbmVtci1tb2R1bGUiLCJhdXRobiI6Im9wZW5lbXItc2Vzc2lvbiIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAyODB9.41SXx9-43cZdrCaLTAPBAMA_-XvENliSA94GmXS42LY",
+    "hmac_forged_note": "The same claims HMAC-signed with the top-level secret (what any AGENTFORGE_DEMO_SECRET holder could mint). Both verifiers must reject it."
+  },
   "idempotency_key_vectors": [
     {
       "kind": "document",
@@ -80,7 +91,8 @@
       "kind": "derived_facts",
       "pid": 1,
       "source_document_id": 57,
-      "expected": "derived:v1:1:57"
+      "expected": "derived:v2:1:57:3e17f6a23facf5d9b75a68b0f114077e79c161560799ef938f7bff0d8b0c9071",
+      "content_sha256": "3e17f6a23facf5d9b75a68b0f114077e79c161560799ef938f7bff0d8b0c9071"
     },
     {
       "kind": "lab_results",

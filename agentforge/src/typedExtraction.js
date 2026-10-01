@@ -39,9 +39,10 @@ function isValidConfidence(value) {
  *     `{field_id, value, confidence, citation}`.
  *
  * Returns:
- *   `{results, issues}` — validated `LabResult` objects, plus one issue per
- *   test or fact that could not be typed. A test is never fabricated from
- *   partial or low-confidence data.
+ *   `{results, issues, partial}` — validated `LabResult` objects, one issue
+ *   per test or fact that could not be typed, and one `partial` row per test
+ *   that was printed but not typed (see `partialLabRows`). A test is never
+ *   fabricated from partial or low-confidence data.
  */
 export function buildTypedLabResults(facts) {
   const groups = new Map();
@@ -57,15 +58,18 @@ export function buildTypedLabResults(facts) {
   }
   const results = [];
   const issues = [];
+  const partial = [];
   for (const [testId, fields] of groups) {
     const missing = LAB_SUFFIXES.filter((suffix) => !fields[suffix]);
     if (missing.length) {
       issues.push(`typed_lab_result_incomplete:${testId}:${missing.join(',')}`);
+      partial.push(partialRow(testId, fields, missing));
       continue;
     }
     const missingConfidence = LAB_SUFFIXES.filter((suffix) => !isValidConfidence(fields[suffix].confidence));
     if (missingConfidence.length) {
       issues.push(`typed_lab_result_missing_confidence:${testId}:${missingConfidence.join(',')}`);
+      partial.push(partialRow(testId, fields, []));
       continue;
     }
     const candidate = {
@@ -80,7 +84,10 @@ export function buildTypedLabResults(facts) {
     };
     const parsed = parseOrIssues(LabResult, candidate);
     if (parsed.ok) results.push(parsed.data);
-    else issues.push(...parsed.issues.map((issue) => `typed_lab_result_invalid:${testId}:${issue}`));
+    else {
+      issues.push(...parsed.issues.map((issue) => `typed_lab_result_invalid:${testId}:${issue}`));
+      partial.push(partialRow(testId, fields, []));
+    }
   }
   // General safety net: a fact that never joined any group above (it does
   // not match the known `lab.<test>.<field>` naming, e.g. a flat `lab.hgb`
@@ -89,7 +96,39 @@ export function buildTypedLabResults(facts) {
   for (const fact of facts) {
     if (!consumed.has(fact.field_id)) issues.push(`fact_not_mapped_to_typed_output:${fact.field_id}`);
   }
-  return { results, issues };
+  return { results, issues, partial };
+}
+
+/** One printed-but-untyped lab test, as `partialLabRows` describes it. */
+function partialRow(testId, fields, missing) {
+  const read = (suffix) => fields[suffix]?.value ?? null;
+  const anchor = fields.value || fields.test_name || fields[LAB_SUFFIXES.find((suffix) => fields[suffix])];
+  const confidences = LAB_SUFFIXES.map((suffix) => fields[suffix]?.confidence).filter(isValidConfidence);
+  return {
+    test_id: testId,
+    test_name: read('test_name'),
+    value: read('value'),
+    unit: read('unit'),
+    reference_range: read('reference_range'),
+    collection_date: read('collection_date'),
+    abnormal_flag: fields.abnormal ? abnormalFlagFrom(fields.abnormal.value) : 'unknown',
+    confidence: confidences.length ? Math.min(...confidences) : null,
+    missing,
+    field_ids: LAB_SUFFIXES.filter((suffix) => fields[suffix]).map((suffix) => `${testId}.${suffix}`),
+    citation: anchor.citation,
+  };
+}
+
+/**
+ * Lab tests the document prints but that did not become a typed `LabResult`
+ * (a part was not read, a confidence is missing, or a part is invalid). They
+ * are present but unreadable: never "not documented", and never a patient
+ * fact. Each row carries what was read (`null` for an unread part), the
+ * parts that were `missing`, its `field_ids`, and the citation of its value
+ * line (or of its first read part when the value itself was not read).
+ */
+export function partialLabRows(facts = []) {
+  return buildTypedLabResults(facts).partial;
 }
 
 const INTAKE_LEAF_PATHS = Object.freeze({

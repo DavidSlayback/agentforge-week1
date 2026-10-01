@@ -424,6 +424,12 @@ a{color:var(--teal)}
             source.rel = 'noopener';
             source.textContent = 'Threshold source: ' + flag.threshold_source.title;
             row.append(document.createTextNode(' '), source);
+            if (flag.verification_status === 'needs_verification') {
+              const unverified = document.createElement('p');
+              unverified.className = 'qualification';
+              unverified.textContent = 'Needs verification (' + String(flag.verification_reason || 'unverified reading').replaceAll('_', ' ') + ') — the reading behind this flag is not verified; check the cited source.';
+              row.append(unverified);
+            }
             if (flag.critic_status === 'questioned') {
               const questioned = document.createElement('p');
               questioned.className = 'qualification';

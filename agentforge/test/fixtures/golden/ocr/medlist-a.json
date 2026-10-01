@@ -25,7 +25,7 @@
      "top": 170,
      "right": 527,
      "bottom": 201,
-     "confidence": 0.91553581,
+     "confidence": 0.91007149,
      "text": "MEDICATION LIST"
     },
     {
@@ -174,9 +174,9 @@
      ],
      "page": 1,
      "left": 202,
-     "top": 2033,
+     "top": 2037,
      "right": 926,
-     "bottom": 2064,
+     "bottom": 2060,
      "confidence": 0.90454346,
      "text": "Fictional values for software demonstration. Not a real patient record."
     }

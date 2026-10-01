@@ -96,8 +96,9 @@ test('active supervisor keeps worker handoffs inspectable and qualifies incomple
   const ready = await runActiveSupervisor({ sourceDocumentId: 'src-lab-a', documentType: 'lab_pdf', layoutId: 'lab-a', content: fixture('lab-layout-a-complete.scan.txt'), query: 'documented glycemic values medication adherence' });
   // The flat lab.hgb/lab.a1c fixture ids cannot be typed into LabResult, and the
   // text envelope prints no patient header, so the workflow may not claim READY.
+  // No document text is given, so its type is undetermined too (W3 H3).
   assert.equal(ready.final_state, 'QUALIFIED');
-  assert.deepEqual(ready.qualification.reasons, ['patient_identity_unverified', 'extraction_incomplete']);
+  assert.deepEqual(ready.qualification.reasons, ['doc_type_undetermined', 'patient_identity_unverified', 'extraction_incomplete']);
   assert.equal(ready.typed_outputs.evidence.output_status, 'ready');
   assert.equal(ready.handoffs.length, 2);
   assert.equal(ready.handoffs[0].worker, 'scan-form-extraction-worker');

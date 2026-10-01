@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tesseractOcrEngine } from '../src/pdfScanAdapter.js';
+import { extractPdfScanFixture, tesseractOcrEngine } from '../src/pdfScanAdapter.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const goldenDir = join(repoRoot, 'agentforge/test/fixtures/golden');
@@ -29,13 +29,19 @@ const version = (command, args) => {
 };
 const toolVersions = { tesseract: version('tesseract', ['--version']), pdftoppm: version('pdftoppm', ['-v']) };
 
+// Record at the OCR options the deployed scan path passes by default
+// (captured from extractPdfScanFixture), never the engine's own defaults.
+let productionOptions = null;
+const firstPdf = manifest.documents.find((item) => item.pdf && item.id === 'lab-a');
+await extractPdfScanFixture({ content: await readFile(join(repoRoot, firstPdf.pdf)), documentType: 'lab_pdf', ocrEngine: { name: 'spy', recognize: async (content, options) => { productionOptions = { psm: options.psm }; return tesseractOcrEngine.recognize(content, options); } } });
+
 await mkdir(join(goldenDir, 'ocr'), { recursive: true });
 for (const document of manifest.documents.filter((item) => item.pdf && (!only || only.has(item.id)))) {
   const content = await readFile(join(repoRoot, document.pdf));
   const base = { schema_version: 'agentforge-golden-ocr-v1', document_id: document.id, pdf: document.pdf, pdf_sha256: createHash('sha256').update(content).digest('hex'), engine: tesseractOcrEngine.name, tools: toolVersions };
   let recording;
   try {
-    const { pageCount, pages } = await tesseractOcrEngine.recognize(content);
+    const { pageCount, pages } = await tesseractOcrEngine.recognize(content, productionOptions);
     recording = { ...base, page_count: pageCount, pages };
   } catch (error) {
     // Only the error code is kept; stderr from the tools is not recorded.

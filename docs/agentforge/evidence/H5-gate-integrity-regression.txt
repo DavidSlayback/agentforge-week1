@@ -1,0 +1,78 @@
+H5 gate integrity: mutation table (2026-10-01)
+
+Each mutation is one source edit (exact text in the H5 lane's mutate.mjs,
+same m1-m7 as the 2026-10-01 review). Exit codes: 0 = passed (mutation NOT
+caught), 1 = failed (caught). "ocr" is the hook's live-OCR step
+(agentforge/scripts/run-ocr-tests.sh; Docker on this Windows host).
+
+before = 9b25806c (git archive copy; that tree had no OCR step)
+after  = ab23a90d, m14 re-run after the parity test was made to use the
+         scan path's own OCR options (the follow-up commit)
+
+before:
+m1_abnormal_flag_flip unit=1 evals=0 obs=0 gate=1 ext=1 ocr=na
+m2_redaction_drop_value unit=1 evals=0 obs=1 gate=1 ext=1 ocr=na
+m3_critic_never_veto unit=1 evals=0 obs=0 gate=0 ext=1 ocr=na
+m4_zero_facts_not_blocking unit=1 evals=0 obs=0 gate=1 ext=1 ocr=na
+m5_unit_swap unit=1 evals=0 obs=0 gate=1 ext=1 ocr=na
+m6_claim_binding_accepts_uncited unit=1 evals=0 obs=0 gate=0 ext=0 ocr=na
+m7_live_ocr_dpi unit=0 evals=0 obs=0 gate=0 ext=0 ocr=na
+m8_real_trace_leaks_lab_fields unit=1 evals=0 obs=0 gate=0 ext=0 ocr=na
+m9_composer_ships_low_confidence unit=1 evals=0 obs=0 gate=1 ext=1 ocr=na
+m10_claim_binding_ignores_numbers unit=0 evals=0 obs=0 gate=0 ext=0 ocr=na
+m11_weaken_check_refusal unit=0 evals=0 obs=0 gate=0 ext=0 ocr=na
+m12_oracle_some         (the before code is this mutation: oracles used `some`)
+m13_redactor_drops_lab_keys (the before code is this mutation)
+m14_ocr_default_psm6    (the before code is this mutation: S6 default psm 6)
+
+after:
+m1_abnormal_flag_flip unit=1 evals=0 obs=0 gate=1 ext=1 ocr=1
+m2_redaction_drop_value unit=1 evals=0 obs=1 gate=1 ext=1 ocr=0
+m3_critic_never_veto unit=1 evals=0 obs=0 gate=0 ext=1 ocr=0
+m4_zero_facts_not_blocking unit=1 evals=0 obs=0 gate=1 ext=1 ocr=0
+m5_unit_swap unit=1 evals=0 obs=0 gate=1 ext=1 ocr=1
+m6_claim_binding_accepts_uncited unit=1 evals=0 obs=0 gate=1 ext=1 ocr=0
+m7_live_ocr_dpi unit=0 evals=0 obs=0 gate=0 ext=0 ocr=1
+m8_real_trace_leaks_lab_fields unit=1 evals=0 obs=0 gate=1 ext=1 ocr=0
+m9_composer_ships_low_confidence unit=1 evals=0 obs=0 gate=1 ext=1 ocr=0
+m10_claim_binding_ignores_numbers unit=1 evals=1* obs=0 gate=0 ext=1 ocr=0
+m11_weaken_check_refusal unit=1 evals=0 obs=0 gate=1 ext=1 ocr=0
+m12_oracle_some unit=0 evals=1 obs=0 gate=0 ext=0 ocr=0
+m13_redactor_drops_lab_keys unit=1 evals=0 obs=1 gate=1 ext=1 ocr=0
+m14_ocr_default_psm6 ocr=0 at ab23a90d; ocr=1 after the parity fix
+  (parity test: "live Tesseract OCR matches the committed recordings" fails)
+
+* m10 evals=1 is noise: the evals service tests could not bind their fixed
+  test port (another lane's suite was running). m10's unit=1 is the unit test
+  that runs the extension suite.
+
+Which case catches what (after):
+- m2: 8 no_phi cases (np-01, -03, -04, -05, -06, -07, -10, -11:
+  synthetic_phi_in_redacted_raw_handoffs). Before: np-10 only. The real stored
+  trace is byte-identical under m2; the service records only metrics.
+- m6: fc-08 (answer_claim[0]:uncited, ...) and xh5-judge-uncited-model-claim.
+- m8: np-01, np-06, np-07, np-11 (synthetic_phi_in_trace: the reference range
+  and run-extracted test name now reach the persisted trace).
+- m10: xh5-judge-number-not-in-cited-source (number_not_in_cited_source).
+- m11: baseline_mismatch (the case-set hash covers the check functions).
+- m1, m5: the live "real scan path on a sample lab PDF" test in the OCR step,
+  in addition to the gates.
+
+Hook-level proof, m7 (pdftoppm -r 200 -> 72 in pdfScanAdapter.js), staged and
+committed on ab23a90d + the parity fix:
+  AgentForge gate: live OCR tests...
+  AgentForge OCR tests: Docker agentforge-ocr-test:247b8ffa55b1, repo mounted read-only (...)
+  x live Tesseract OCR matches the committed recordings line for line
+  x real scan path on a sample lab PDF produces schema-valid typed LabResult objects matching the manifest
+  AgentForge gate: live OCR tests failed.
+  -> git commit exit 1; HEAD unchanged (ab23a90d)
+
+Hook-level proof, clean-tree rule (untracked agentforge/src/h5-untracked-probe.js):
+  AgentForge gate: unstaged or untracked files under gated paths, so the gates would not test what is committed.
+    untracked: agentforge/src/h5-untracked-probe.js
+  -> git commit exit 1
+
+Docker OCR step timing on this host (Docker 29.8, node:24-alpine already
+pulled): first run after removing the image and pruning the build cache 36 s
+(image build included); cached run 33 s. A host that has never pulled
+node:24-alpine also pays that pull once.

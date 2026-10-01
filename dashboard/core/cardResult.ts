@@ -7,12 +7,14 @@ import type { PatientUuid } from './ids.ts';
 export type ErrorCode =
   | 'UPSTREAM_STATUS' // any other 4xx/5xx
   | 'UPSTREAM_TIMEOUT' // no answer within the per-call budget
+  | 'UPSTREAM_BODY_TOO_LARGE' // a body over the BFF's read cap (MAX_UPSTREAM_BODY_BYTES), never parsed
   | 'UPSTREAM_UNAVAILABLE' // network error
   | 'UPSTREAM_VALIDATION' // HTTP 200 carrying validationErrors / internalErrors (6.02)
   | 'UPSTREAM_OPERATION_OUTCOME' // FHIR OperationOutcome where a resource was expected (6.03)
   | 'SCHEMA_MISMATCH' // a 2xx body that fails the route's schema
   | 'PATIENT_MISMATCH' // a response about another patient (5.04)
   | 'VITALS_SCAN_LIMIT' // Vitals: no set in the newest encounters within the per-load cap, and more remain
+  | 'VITALS_DEADLINE' // Vitals: the walk ran past its overall time budget (VITALS_DEADLINE_MS) before finding a set
   | 'BFF_UNAVAILABLE'; // SPA only: the BFF itself could not be reached or answered unexpectedly
 
 /** A documented API gap shown next to the data ("Not available via API"). */

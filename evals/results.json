@@ -1,6 +1,6 @@
 {
-  "total_cases": 7,
-  "passed_cases": 7,
+  "total_cases": 9,
+  "passed_cases": 9,
   "failed_cases": 0,
   "critical_failures": 0,
   "gate_passed": true,
@@ -37,6 +37,16 @@
     },
     {
       "case_id": "partial_retrieval",
+      "passed": true,
+      "issues": []
+    },
+    {
+      "case_id": "empty_successful_lookup",
+      "passed": true,
+      "issues": []
+    },
+    {
+      "case_id": "no_prior_comparison",
       "passed": true,
       "issues": []
     }

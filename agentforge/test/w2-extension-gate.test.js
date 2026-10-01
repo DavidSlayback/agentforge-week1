@@ -61,5 +61,5 @@ test('the extension corpus hash ignores line endings in check functions (CRLF ch
   const crlf = new Function('run', body.replace(/\n/g, '\r\n'));
   const spec = (check) => [kase('x0-eol', 'schema_valid', 'line endings change the corpus hash', scan('lab-a', 'lab_pdf'), { custom: check })];
   assert.notEqual(lf.toString(), crlf.toString());
-  assert.equal(goldenCorpusHash(spec(lf), { caseCount: 1, hashFunctions: true }), goldenCorpusHash(spec(crlf), { caseCount: 1, hashFunctions: true }));
+  assert.equal(goldenCorpusHash(spec(lf), { caseCount: 1, extension: true }), goldenCorpusHash(spec(crlf), { caseCount: 1, extension: true }));
 });

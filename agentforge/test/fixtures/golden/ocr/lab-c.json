@@ -29,7 +29,7 @@
      "top": 174,
      "right": 975,
      "bottom": 200,
-     "confidence": 0.9014504999999999,
+     "confidence": 0.8853066300000001,
      "text": "SYNTHETIC LABORATORY REPORT - LAYOUT C"
     },
     {
@@ -62,7 +62,7 @@
      "top": 331,
      "right": 836,
      "bottom": 355,
-     "confidence": 0.91650314,
+     "confidence": 0.89224243,
      "text": "Patient: Test Patient One - DOB: 1980-04-12"
     },
     {
@@ -237,7 +237,7 @@
      "top": 1650,
      "right": 527,
      "bottom": 1677,
-     "confidence": 0.74529228,
+     "confidence": 0.51134094,
      "text": "A1C abnormal: Yes"
     },
     {
@@ -258,7 +258,7 @@
      "top": 2037,
      "right": 973,
      "bottom": 2060,
-     "confidence": 0.91488106,
+     "confidence": 0.90984314,
      "text": "Fictional values for software demonstration. Not a real patient record."
     }
    ]

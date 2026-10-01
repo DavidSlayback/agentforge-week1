@@ -21,4 +21,6 @@ body:json {
 
 assert {
   res.status: eq 200
+  res.body.retrieval.guideline_provider: isUndefined
+  res.body.retrieval.guideline_usage: isUndefined
 }

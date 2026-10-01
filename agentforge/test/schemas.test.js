@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { liveOcrSkip } from './helpers/ocrTools.js';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -103,19 +103,11 @@ test('.scan.txt lab and intake extraction produce citations that validate agains
   }
 });
 
-function toolsOnPath() {
-  for (const tool of ['pdftoppm', 'tesseract']) {
-    const probe = spawnSync(tool, ['-v'], { stdio: 'ignore' });
-    if (probe.error || probe.status === null) return false;
-  }
-  return true;
-}
-
 const pdfSamplesDir = fileURLToPath(new URL('../../docs/agentforge/fixtures/scan-forms/pdf-samples/', import.meta.url));
 const pdfManifest = JSON.parse(fs.readFileSync(`${pdfSamplesDir}manifest.json`, 'utf8'));
 const labASample = pdfManifest.samples.find((sample) => sample.layout === 'lab-a');
 
-test('real scan path on a sample lab PDF produces schema-valid typed LabResult objects matching the manifest', { skip: !toolsOnPath() ? 'pdftoppm/tesseract are not on PATH on this machine; the PDF-OCR path is untested here (verify in CI or the container, which install poppler-utils/tesseract-ocr).' : false }, async () => {
+test('real scan path on a sample lab PDF produces schema-valid typed LabResult objects matching the manifest', { skip: liveOcrSkip('real scan path on a sample lab PDF', ['pdftoppm', 'tesseract']) }, async () => {
   const content = fs.readFileSync(`${pdfSamplesDir}${labASample.filename}`);
   const prepared = await extractPdfScanFixture({ content, documentType: 'lab_pdf' });
   const extraction = extractScanForm({ sourceDocumentId: 'pdf-sample-lab-a', documentType: 'lab_pdf', layoutId: `pdf-ocr-lab_pdf`, pageCount: prepared.pageCount, content: prepared.content });

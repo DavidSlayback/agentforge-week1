@@ -136,7 +136,7 @@ export function verifyObservationReadBack(bundle, labResponse, rows) {
  * its configured demo actor and records the issuer. Every patient must be on
  * the allowlist, whatever the issuer.
  *
- * `secret` is AGENTFORGE_DEMO_SECRET (context tokens only); module request
+ * `secret` is AGENTFORGE_DEMO_SECRET (synthetic-demo context tokens only); module request
  * signatures use the client's separate AGENTFORGE_MODULE_HMAC_SECRET.
  */
 export class OpenEMRModuleWriteback {
@@ -220,7 +220,6 @@ export class OpenEMRModuleWriteback {
     const module = await this.client.storeDocument({ patientUuid, contextToken, documentType, filename, mimeType: pdf ? 'application/pdf' : 'text/plain', content, correlationId });
     if (module.content_sha256 !== sha256Hex(content)) throw new OpenEMRModuleError('OPENEMR_MODULE_CONTENT_HASH_MISMATCH');
     const document = this.publicDocument({ patientRef, patientUuid, module, documentType, filename, uploadedBy });
-    document.openemr.payload_differs = module.payload_differs === true;
     return { duplicate: module.status === 'duplicate', document };
   }
 
@@ -248,9 +247,10 @@ export class OpenEMRModuleWriteback {
     const { patientUuid, contextToken } = this.moduleContext(verifiedContext, patientRef, 'write-source-document');
     const derivedContent = Buffer.from(JSON.stringify(derivedFactsDocument({ sourceDocument, extraction })));
     const derived = await this.client.storeDocument({ patientUuid, contextToken, documentType: 'derived_facts', filename: `agentforge-derived-facts-${sourceId}.json`, mimeType: 'application/json', content: derivedContent, sourceDocumentId: sourceId, correlationId });
-    // payload_differs: the key already held a different payload (e.g. a re-extraction that
-    // produced other values); the first write is kept and the difference is reported.
-    const result = { ...base, status: 'persisted', derived_document_id: derived.document_id, derived_payload_differs: derived.payload_differs === true, lab_payload_differs: false, unmapped_lab_results: [] };
+    // W3 H1: the module keys derived facts by content, so a re-extraction with other
+    // facts is its own document; lab rows are keyed by the source, so other values for
+    // the same source are refused (409 OPENEMR_MODULE_IDEMPOTENCY_CONFLICT, thrown).
+    const result = { ...base, status: 'persisted', derived_document_id: derived.document_id, unmapped_lab_results: [] };
     let duplicate = derived.status === 'duplicate';
     if (sourceDocument.document_type === 'lab_pdf') {
       const mapped = labResultsForModule(extraction);
@@ -261,7 +261,7 @@ export class OpenEMRModuleWriteback {
         const readBack = verifyObservationReadBack(bundle, lab, mapped.results);
         if (!readBack.verified) throw new OpenEMRModuleError('OPENEMR_OBSERVATION_READBACK_MISMATCH', { httpStatus: 502 });
         duplicate = duplicate && lab.status === 'duplicate';
-        Object.assign(result, { procedure_order_id: lab.procedure_order_id, observation_ids: lab.observation_ids, read_path: MODULE_OBSERVATION_READ_PATH, read_back: readBack, lab_payload_differs: lab.payload_differs === true });
+        Object.assign(result, { procedure_order_id: lab.procedure_order_id, observation_ids: lab.observation_ids, read_path: MODULE_OBSERVATION_READ_PATH, read_back: readBack });
       }
     }
     return { ...result, duplicate };

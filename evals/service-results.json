@@ -1,6 +1,6 @@
 {
-  "total_cases": 7,
-  "passed_cases": 7,
+  "total_cases": 9,
+  "passed_cases": 9,
   "failed_cases": 0,
   "critical_failures": 0,
   "gate_passed": true,
@@ -39,7 +39,98 @@
       "case_id": "partial_retrieval",
       "passed": true,
       "issues": []
+    },
+    {
+      "case_id": "empty_successful_lookup",
+      "passed": true,
+      "issues": []
+    },
+    {
+      "case_id": "no_prior_comparison",
+      "passed": true,
+      "issues": []
     }
   ],
-  "issues": []
+  "issues": [],
+  "adversarial": {
+    "total_cases": 9,
+    "passed_cases": 9,
+    "failed_cases": 0,
+    "not_run_cases": 0,
+    "unauthorized": {
+      "total": 6,
+      "passed": 6
+    },
+    "ambiguous": {
+      "total": 3,
+      "passed": 3
+    },
+    "gate_passed": true,
+    "cases": [
+      {
+        "case_id": "unauth_tampered_token_other_patient",
+        "category": "unauthorized",
+        "description": "A patient-001 token whose payload is edited to patient-002, signature kept, cannot open patient-002.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "unauth_tampered_signature",
+        "category": "unauthorized",
+        "description": "A token with one signature character changed is refused for its own patient.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "unauth_expired_token",
+        "category": "unauthorized",
+        "description": "A correctly signed token whose expiry has passed is refused.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "unauth_valid_token_other_patient",
+        "category": "unauthorized",
+        "description": "A valid patient-001 token cannot open a patient-002 briefing.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "unauth_other_patient_conversation",
+        "category": "unauthorized",
+        "description": "A valid patient-002 token cannot continue patient-001's conversation.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "unauth_missing_token",
+        "category": "unauthorized",
+        "description": "A briefing request with no token fails closed.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "ambiguous_what_changed_no_prior_visit",
+        "category": "ambiguous",
+        "description": "\"What changed?\" for a patient with no earlier comparison value says so instead of inventing a change.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "ambiguous_duplicate_identity",
+        "category": "ambiguous",
+        "description": "A chart with two identity records for one patient is qualified, identity is withheld, and a follow-up does not pick one.",
+        "passed": true,
+        "issues": []
+      },
+      {
+        "case_id": "ambiguous_question_names_two_patients",
+        "category": "ambiguous",
+        "description": "A question on patient-001's conversation that also names another synthetic patient is refused, not answered from either chart.",
+        "passed": true,
+        "issues": []
+      }
+    ]
+  },
+  "golden_gate_passed": true
 }

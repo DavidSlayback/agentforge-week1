@@ -32,9 +32,12 @@ test('golden suite can evaluate the running AgentForge service', async () => {
     assert.deepEqual(result.adversarial.ambiguous, { total: 3, passed: 3 });
     assert.equal(result.gate_passed, true);
     const metrics = await (await fetch('http://127.0.0.1:18788/v1/metrics')).json();
-    // 9 golden briefings + 10 traced adversarial calls. The 4 requests the
-    // HTTP boundary refuses with 403 never reach the service, so no trace.
-    assert.equal(metrics.requests, 19);
+    // 9 golden briefings + 8 traced adversarial calls. Refused requests (the
+    // 403s at the HTTP boundary, and briefings or follow-ups that fail
+    // authorization or conversation scope) record no trace since the W3
+    // hardening (H2); they are counted in `refusals` instead.
+    assert.equal(metrics.requests, 17);
+    assert.deepEqual(metrics.refusals, { total: 6, byReason: { invalid_demo_context: 4, conversation_scope_invalid: 1, server_context_missing_or_invalid: 1 } });
     assert.ok(metrics.retrievalAttempts >= 9);
     const dashboard = await (await fetch('http://127.0.0.1:18788/observability')).text();
     assert.ok(dashboard.includes('Observability'));

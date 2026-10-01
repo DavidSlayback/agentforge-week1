@@ -1,8 +1,11 @@
 # AgentForge load test
 
-Status: **run on the freeze SHA `d5a0df7e`** (2026-09-27): 400/400 requests,
-0 errors. Numbers in "Results" and "Freeze run" below; raw data in
-`docs/agentforge/evidence/load/`.
+Status: **run on the W2 freeze SHA `bfbb1eb2`** (tag `w2-final`, 2026-09-27):
+400/400 requests, 0 errors on the re-run. Earlier runs on `d5a0df7e` (tag
+`w2-final-rc1`) and `ee036f38` (`w2-final-rc2`) are kept below as history.
+Numbers in "Results" and the per-SHA sections; raw data in
+`docs/agentforge/evidence/load/`. No load run exists yet for a W3 (post-freeze)
+SHA.
 
 The harness is `agentforge/scripts/load-test.mjs` (Node `fetch`, no new
 dependency). It supersedes `scripts/agentforge-load.mjs`, which sent only
@@ -132,16 +135,18 @@ OCR work and say nothing about the deployed service.
 
 ## Results
 
-From the freeze run on `d5a0df7e` (details in "Freeze run" below).
+From the final freeze run on `bfbb1eb2` (tag `w2-final`; details in "Final
+freeze run" below).
 
 | Level | Requests | Error rate | p50 | p95 | p99 | Throughput | Peak CPU / memory (agentforge-w2) | SHA |
 |---|---|---|---|---|---|---|---|---|
-| 10 | 200 | 0 % | 46 ms | 2.34 s | 9.58 s | 13.0 req/s | 32 % / 58 MiB of 512 MiB (both levels) | `d5a0df7e` |
-| 50 | 200 | 0 % | 82 ms | 3.52 s | 11.75 s | 13.0 req/s | same window | `d5a0df7e` |
+| 10 | 200 | 0 % | 59 ms | 2.71 s | 11.39 s | 12.4 req/s | 38 % / 54 MiB of 512 MiB (both levels) | `bfbb1eb2` |
+| 50 | 200 | 0 % | 86 ms | 3.15 s | 11.66 s | 10.1 req/s | same window | `bfbb1eb2` |
 
-`scan-supervisor` alone (n = 4 per level, critic on): 10 users p50 9.6 s,
-max 11.2 s; 50 users p50 11.8 s, max 14.9 s
-(`docs/agentforge/evidence/load/d5a0df7e-{10,50}.json`, `summary.per_route`).
+`scan-supervisor` alone (n = 4 per level, critic on): p50 11.4 s and 11.7 s,
+max 13.4 s and 18.9 s
+(`docs/agentforge/evidence/load/bfbb1eb2-{10,50}.json`, `summary.per_route`).
+The first 50-user run on this SHA had 20 `/ready` 503s; see "Final freeze run".
 
 ## Historical sample (W1, `56d1a35`)
 
@@ -158,7 +163,7 @@ history.
 `docs/agentforge/COST_MODEL.md` and `W2_COST_LATENCY.md` hold the scale
 projections. No provider cost in this file is an observed bill.
 
-## Freeze run (2026-09-27, SHA `d5a0df7e`)
+## First freeze run (2026-09-27, SHA `d5a0df7e`, now tag `w2-final-rc1`)
 
 `node agentforge/scripts/load-test.mjs --base-url https://dtstest.64.177.10.182.nip.io/agentforge-w2 --live`, with `docker stats` sampled every 5 s on the VM.
 

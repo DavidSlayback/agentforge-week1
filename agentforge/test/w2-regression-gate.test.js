@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { buildW2GoldenSet, phiIdentifiers, runW2RegressionGate, W2_GATE_CASE_COUNT, W2_GATE_LABELS, withCapturedOutput, goldenCorpusHash, JUDGE_CONFIG } from '../src/w2RegressionGate.js';
+import { buildW2GoldenSet, phiIdentifiers, runW2RegressionGate, W2_GATE_CASE_COUNT, W2_GATE_LABELS, withCapturedOutput, goldenCorpusHash, judgeSources, JUDGE_CONFIG } from '../src/w2RegressionGate.js';
 
 const truthDir = new URL('./fixtures/golden/truth/', import.meta.url);
 
@@ -98,4 +98,31 @@ test('loosening a threshold or the case count changes the case-set hash', () => 
   assert.notEqual(goldenCorpusHash(cases, { judge: { ...JUDGE_CONFIG, per_label_min_rate: 0.9 } }), base);
   assert.notEqual(goldenCorpusHash(cases, { judge: { ...JUDGE_CONFIG, max_regression: 0.2 } }), base);
   assert.notEqual(goldenCorpusHash(cases, { caseCount: 40 }), base);
+});
+
+test('the case-set hash covers the check functions and function-valued case fields (H5)', () => {
+  const sources = judgeSources();
+  assert.deepEqual(sources.map(([name]) => name), ['w2RegressionGate.js', 'gateClaimJudge.js']);
+  const [gateSource, judgeSource] = sources.map(([, text]) => text);
+  for (const name of ['evaluateCase', 'checkRefusal', 'checkNoPhi', 'checkAnswer', 'checkCitations', 'phiLeaks']) assert.match(gateSource, new RegExp(`function ${name}\\(`));
+  assert.match(judgeSource, /export function judgeAnswerClaims\(/);
+  assert.ok(judgeSources({ extension: true }).some(([name]) => name === 'extensionCases/claimJudge.js'));
+  const cases = buildW2GoldenSet();
+  const withProvider = cases.findIndex((item) => typeof item.scenario.answer_provider === 'function');
+  assert.ok(withProvider >= 0);
+  const swapped = cases.map((item, index) => (index === withProvider ? { ...item, scenario: { ...item.scenario, answer_provider: () => null } } : item));
+  assert.notEqual(goldenCorpusHash(swapped), goldenCorpusHash(cases), 'a different fake provider must change the hash');
+});
+
+test('both committed baselines name the git commit they were generated at (H5)', async () => {
+  const { gitProvenance, describeBaselineSha } = await import('../scripts/gitProvenance.mjs');
+  for (const name of ['W2_BASELINE_REPORT.json', 'W2_EXTENSION_BASELINE_REPORT.json']) {
+    const baseline = JSON.parse(fs.readFileSync(new URL(`../../docs/agentforge/evidence/${name}`, import.meta.url), 'utf8'));
+    assert.match(String(baseline.generated_at?.git_sha), /^[0-9a-f]{40}$/, `${name} must record generated_at.git_sha (run --update-baseline)`);
+    assert.equal(typeof baseline.generated_at.dirty, 'boolean');
+  }
+  const current = { git_sha: 'b'.repeat(40), dirty: false };
+  assert.match(describeBaselineSha('gate', { generated_at: { git_sha: 'a'.repeat(40), dirty: false } }, current), /different commit; expected after code changes, not a failure/);
+  assert.match(describeBaselineSha('gate', {}, current), /baseline names no SHA/);
+  assert.match(gitProvenance().git_sha, /^([0-9a-f]{40}|unknown)$/);
 });

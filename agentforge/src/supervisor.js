@@ -49,13 +49,18 @@ export function isRecordLookupQuestion(query) {
   return RECORD_LOOKUP_QUESTION.test(text);
 }
 
-/** Content-addressed cache key: the same bytes at the same OCR mode always
- * hit the same entry, regardless of which `sourceDocumentId` they arrived
- * under (F11 review fix -- keying by document id let a re-uploaded or
- * re-fixtured document with different content silently reuse a stale
- * extraction). */
-function extractionCacheKey(content, ocrMode) {
-  return `${createHash('sha256').update(content).digest('hex')}:${ocrMode}`;
+/** Extraction cache key. The content hash stays in it (F11 review fix --
+ * keying by document id alone let a re-uploaded or re-fixtured document with
+ * different content silently reuse a stale extraction). W3 hardening (H2): it
+ * is also scoped to the patient, document id, document type and layout. A
+ * cached handoff carries its document's `source_document_id` and every
+ * citation's `source_id`, so a content-only key let the same bytes uploaded
+ * for patient B return patient A's document id in B's answer and persisted
+ * facts. The OCR itself is cached separately, per document
+ * (`service.js#prepareScanSource`). */
+function extractionCacheKey({ content, ocrMode, patientRef, sourceDocumentId, documentType, layoutId }) {
+  const contentHash = createHash('sha256').update(content).digest('hex');
+  return createHash('sha256').update(JSON.stringify([contentHash, ocrMode, patientRef ?? null, sourceDocumentId ?? null, documentType ?? null, layoutId ?? null])).digest('hex');
 }
 
 /** Bounded `Map.set`, mirroring `AgentForgeService#scanPreparations`'s FIFO
@@ -97,7 +102,8 @@ function boundedCacheSet(cache, key, value, limit = EXTRACTION_CACHE_LIMIT) {
  * Args (all in `state`, every key optional):
  *   stepCount, maxSteps: loop-iteration guard.
  *   extraction: the extraction worker handoff once it has run, else `null`.
- *   extractionCached: a cached handoff exists for this doc + OCR mode.
+ *   extractionCached: a cached handoff exists for this patient, document,
+ *     content and OCR mode.
  *   safetyBlocking: fail-loud blocking reasons from `documentSafety.js`
  *     (`assessDocumentSafety(...).blocking`), once known.
  *   confidenceSummary: `summarizeExtractionConfidence(...)` output.
@@ -167,9 +173,11 @@ export function decideNext(state = {}) {
  * `documentText` (OCR text or the text envelope) and `targetPatient`
  * (`{name, dob}` or `null`) feed the fail-loud checks in `documentSafety.js`:
  * patient mismatch or zero facts stop at BLOCKED before retrieval; a
- * doc-type mismatch, an unverified intake identity or an incomplete
- * extraction caps the result at QUALIFIED. Every reason is listed in
- * `qualification.reasons`.
+ * doc-type mismatch or undetermined type, an unverified identity or an
+ * incomplete extraction caps the result at QUALIFIED, and so does an answer
+ * that states no patient fact, lost every claim to a critic veto, or carries
+ * a safety flag that needs verification (`answerQualifyingReasons`). Every
+ * reason is listed in `qualification.reasons`.
  *
  * Async: the evidence-retrieval worker awaits its retriever (it may be a
  * remote/async provider such as the Gemini hybrid retriever), so this
@@ -192,13 +200,14 @@ export function decideNext(state = {}) {
  *
  * S6 additions (all optional, all backward compatible when omitted):
  *   extractionCache: a `Map`-like `{has, get, set}` the caller owns across
- *     calls, keyed by the sha256 of `content` plus the OCR mode (see
+ *     calls, keyed by the sha256 of `content`, the OCR mode, `patientRef`,
+ *     `sourceDocumentId`, `documentType` and `layoutId` (see
  *     `extractionCacheKey`), backing the
  *     `extraction_cached` decision. Defaults to a fresh, call-scoped `Map`,
  *     so behavior is unchanged unless a caller shares one across calls (the
  *     service does, for the same document).
  *   ocrMode: a label for the OCR mode `content` was produced with (the
- *     cache key's second half). Defaults to `'psm6'` (Tesseract's default
+ *     cache key's second half). Defaults to `'psm3'` (Tesseract's default
  *     page-segmentation mode).
  *   reextractWithAlternateOcr: an optional `async () => {content, ocrMode}`
  *     the caller supplies to actually re-OCR at an alternate mode for the
@@ -226,7 +235,7 @@ export function decideNext(state = {}) {
  * shape) -- reasons are fixed codes, never values, so this is redaction-safe
  * by construction.
  */
-export async function runActiveSupervisor({ sourceDocumentId, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null, documentText = '', targetPatient = null, extractionCache = new Map(), ocrMode = 'psm6', reextractWithAlternateOcr = null, maxSteps = DEFAULT_MAX_STEPS, signal = null, composeAnswer = null, critic = null } = {}) {
+export async function runActiveSupervisor({ sourceDocumentId, patientRef = null, documentType, layoutId, pageCount = 1, content, sourceClass = 'synthetic_fixture', syntheticOnly = true, processingMode = 'deterministic_local', query, patientFacts = [], extractionAdapter, retrievalAdapter, observer = null, documentText = '', targetPatient = null, extractionCache = new Map(), ocrMode = 'psm3', reextractWithAlternateOcr = null, maxSteps = DEFAULT_MAX_STEPS, signal = null, composeAnswer = null, critic = null } = {}) {
   const retriever = retrievalAdapter || localLexicalGuidelineRetriever;
   const transitions = [STATES.START];
   const decisions = [];
@@ -257,7 +266,7 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
   };
 
   for (let step = 0; step < maxSteps + 1; step += 1) {
-    const cacheKey = extractionCacheKey(currentContent, currentOcrMode);
+    const cacheKey = extractionCacheKey({ content: currentContent, ocrMode: currentOcrMode, patientRef, sourceDocumentId, documentType, layoutId });
     const decision = decideNext({
       stepCount: step,
       maxSteps,
@@ -301,7 +310,7 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
         confidenceSummary = summarizeExtractionConfidence(extractionWorker.extraction);
         observer?.setExtraction({ status: extractionWorker.output_status, confidence: confidenceSummary, document_count: 1, fact_count: extractionWorker.extraction?.facts?.length || 0, issue_count: extractionWorker.extraction?.issues?.length || 0 });
         transitions.push(STATES.INTAKE_EXTRACTOR);
-        safety = assessDocumentSafety({ documentType, documentText, extraction: extractionWorker.extraction, targetPatient });
+        safety = assessDocumentSafety({ documentType, documentText, extraction: extractionWorker.extraction, targetPatient, layoutId });
         if (safety.blocking.length) return activeStop(STATES.BLOCKED, safety.blocking[0], transitions, extractionWorker, null, safety, decisions, currentOcrMode);
         continue;
       }
@@ -330,12 +339,19 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
       const candidateConfidence = summarizeExtractionConfidence(candidate.extraction);
 
       // Never let a retry replace a good extraction with a worse or invalid
-      // one: keep whichever has the higher mean confidence, and never adopt
-      // a `blocked` (contract-invalid) candidate over a previously valid one.
+      // one: keep whichever has the higher mean confidence, never adopt a
+      // `blocked` (contract-invalid) candidate over a previously valid one,
+      // and never trade facts for none: a retry that read fewer fields than
+      // the low-confidence read (zero facts, or no typed value to have a
+      // mean at all) is worse, not "unknown".
       if (decision.reason === 'low_confidence_retry' && previousExtraction) {
         const candidateMean = candidateConfidence.mean;
         const previousMean = previousConfidence?.mean ?? -Infinity;
-        const candidateIsWorse = candidate.output_status === 'blocked' || (candidateMean !== null && candidateMean < previousMean);
+        const candidateFacts = candidate.extraction?.facts?.length || 0;
+        const previousFacts = previousExtraction.extraction?.facts?.length || 0;
+        const lostFacts = previousFacts > 0 && candidateFacts === 0;
+        const lostMean = candidateMean === null && previousConfidence?.mean !== null && previousConfidence?.mean !== undefined;
+        const candidateIsWorse = candidate.output_status === 'blocked' || lostFacts || lostMean || (candidateMean !== null && candidateMean < previousMean);
         if (candidateIsWorse) {
           extractionWorker = previousExtraction;
           confidenceSummary = previousConfidence;
@@ -350,8 +366,8 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
       observer?.setExtraction({ status: extractionWorker.output_status, confidence: confidenceSummary, document_count: 1, fact_count: extractionWorker.extraction?.facts?.length || 0, issue_count: extractionWorker.extraction?.issues?.length || 0 });
       transitions.push(STATES.INTAKE_EXTRACTOR);
       if (extractionWorker.output_status === 'blocked') return activeStop(STATES.BLOCKED, 'extraction_contract_invalid', transitions, extractionWorker, null, null, decisions, currentOcrMode);
-      safety = assessDocumentSafety({ documentType, documentText, extraction: extractionWorker.extraction, targetPatient });
-      boundedCacheSet(extractionCache, extractionCacheKey(currentContent, currentOcrMode), extractionWorker);
+      safety = assessDocumentSafety({ documentType, documentText, extraction: extractionWorker.extraction, targetPatient, layoutId });
+      boundedCacheSet(extractionCache, extractionCacheKey({ content: currentContent, ocrMode: currentOcrMode, patientRef, sourceDocumentId, documentType, layoutId }), extractionWorker);
       if (safety.blocking.length) return activeStop(STATES.BLOCKED, safety.blocking[0], transitions, extractionWorker, null, safety, decisions, currentOcrMode);
       continue;
     }
@@ -398,20 +414,54 @@ export async function runActiveSupervisor({ sourceDocumentId, documentType, layo
 
   const answerFields = answer ? { answer, ...(critique ? { critique } : {}) } : {};
   const criticHandoffs = criticWorker ? [criticWorker] : [];
+  // Readiness also depends on what the answer could actually say (H3): an
+  // answer with no patient facts, or a safety rule that fired on a value the
+  // answer could not verify, is never READY.
+  const answerReasons = answerQualifyingReasons({ answer, extraction: extractionWorker.extraction });
 
   if (evidenceWorker) {
-    const ready = evidenceWorker.output_status === 'ready' && !safety.qualifying.length;
+    const ready = evidenceWorker.output_status === 'ready' && !safety.qualifying.length && !answerReasons.length;
     transitions.push(evidenceWorker.output_status === 'ready' ? STATES.VERIFY : STATES.CLARIFY);
     transitions.push(ready ? STATES.READY : STATES.QUALIFIED);
-    const reasons = [...safety.qualifying, ...(evidenceWorker.output_status === 'ready' ? [] : evidenceWorker.qualification.reasons)];
+    const reasons = [...safety.qualifying, ...answerReasons, ...(evidenceWorker.output_status === 'ready' ? [] : evidenceWorker.qualification.reasons)];
     return { workflow_version: 'w2-active-supervisor-v1', final_state: ready ? STATES.READY : STATES.QUALIFIED, readiness: ready ? 'ready' : 'qualified', stop_reason: null, qualification: { required: !ready, reasons }, safety_checks: safety.checks, transitions, decisions, ocr_mode: currentOcrMode, handoffs: [extractionWorker, evidenceWorker, ...criticHandoffs], typed_outputs: { extraction: extractionWorker.extraction, evidence: evidenceWorker }, ...answerFields };
   }
 
   // Retrieval was deliberately skipped (record_lookup_only): the answer
-  // rests on facts alone, so readiness depends only on the safety check.
-  const ready = !safety.qualifying.length;
+  // rests on facts alone, so readiness depends on the safety check and on
+  // the answer itself.
+  const ready = !safety.qualifying.length && !answerReasons.length;
   transitions.push(STATES.VERIFY, ready ? STATES.READY : STATES.QUALIFIED);
-  return { workflow_version: 'w2-active-supervisor-v1', final_state: ready ? STATES.READY : STATES.QUALIFIED, readiness: ready ? 'ready' : 'qualified', stop_reason: null, qualification: { required: !ready, reasons: [...safety.qualifying] }, safety_checks: safety.checks, transitions, decisions, ocr_mode: currentOcrMode, handoffs: [extractionWorker, ...criticHandoffs], typed_outputs: { extraction: extractionWorker.extraction, evidence: null }, ...answerFields };
+  return { workflow_version: 'w2-active-supervisor-v1', final_state: ready ? STATES.READY : STATES.QUALIFIED, readiness: ready ? 'ready' : 'qualified', stop_reason: null, qualification: { required: !ready, reasons: [...safety.qualifying, ...answerReasons] }, safety_checks: safety.checks, transitions, decisions, ocr_mode: currentOcrMode, handoffs: [extractionWorker, ...criticHandoffs], typed_outputs: { extraction: extractionWorker.extraction, evidence: null }, ...answerFields };
+}
+
+/**
+ * Qualifying reasons that come from the composed answer itself, not the
+ * extraction or the evidence (W3 hardening H3). A clean extraction can still
+ * produce an answer that must not be READY:
+ *
+ * - `answer_has_no_patient_facts`: the document had extracted fields, but the
+ *   answer states none of them (all held back for review, or none verified).
+ *   A `not-documented` answer is exempt: it answers a question about a value
+ *   no source records, and says so.
+ * - `critic_vetoed_all_claims`: the critic removed every claim it reviewed and
+ *   nothing was left to ship.
+ * - `safety_flag_needs_verification`: a clinical rule fired on a value the
+ *   answer could not state as verified (a low-confidence read, or a value
+ *   whose unit was not read). The flag ships, marked, and a human must check it.
+ *
+ * Pure; reads only the answer and the extraction this run produced.
+ */
+export function answerQualifyingReasons({ answer, extraction } = {}) {
+  if (!answer) return [];
+  const reasons = [];
+  const extractedFacts = extraction?.facts?.length || 0;
+  const patientFacts = answer.patient_facts?.length || 0;
+  const shippedClaims = patientFacts + (answer.guideline_evidence?.length || 0);
+  if (extractedFacts > 0 && patientFacts === 0 && answer.composer !== 'not-documented') reasons.push('answer_has_no_patient_facts');
+  if ((answer.critic_rejected || 0) > 0 && shippedClaims === 0) reasons.push('critic_vetoed_all_claims');
+  if ((answer.safety_flags || []).some((flag) => flag.verification_status === 'needs_verification')) reasons.push('safety_flag_needs_verification');
+  return reasons;
 }
 
 function activeStop(state, reason, transitions, extraction, evidence, safety, decisions = [], ocrMode = null) {

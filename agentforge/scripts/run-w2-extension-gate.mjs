@@ -1,10 +1,12 @@
 import { writeFileSync } from 'node:fs';
+import { describeBaselineSha, gitProvenance } from './gitProvenance.mjs';
 import { W2_EXTENSION_BASELINE_PATH, runW2ExtensionGate } from '../src/w2ExtensionGate.js';
 
 const injectedDefect = process.argv.includes('--inject-defect');
 const updateBaseline = process.argv.includes('--update-baseline');
 
 const result = await runW2ExtensionGate({ injectDefect: injectedDefect });
+const provenance = gitProvenance();
 const report = {
   schema_version: result.schema_version,
   synthetic_only: result.synthetic_only,
@@ -16,6 +18,8 @@ const report = {
   corpus_sha256: result.corpus_sha256,
   baseline_corpus_sha256: result.baseline_corpus_sha256,
   baseline_mismatch: result.baseline_mismatch,
+  git_sha: provenance.git_sha,
+  baseline_generated_at: result.baseline_generated_at,
   judge_config: result.judge_config,
   by_label: result.by_label,
   regressions: result.regressions,
@@ -37,6 +41,8 @@ if (updateBaseline) {
     missing_baseline: false,
     baseline_mismatch: false,
     baseline_corpus_sha256: result.corpus_sha256,
+    generated_at: provenance,
+    baseline_generated_at: provenance,
     regressions: Object.fromEntries(Object.keys(result.regressions).map((label) => [label, 0])),
     cases: result.results.map(({ id, label, guards_against, passed }) => ({ id, label, guards_against, passed })),
     evidence_command: 'npm run eval:extensions --prefix agentforge',
@@ -49,4 +55,5 @@ if (updateBaseline) {
 }
 
 console.log(JSON.stringify(report, null, 2));
+console.error(describeBaselineSha('W2 extension suite', { generated_at: result.baseline_generated_at }, provenance));
 if (!result.passed) process.exitCode = 1;
