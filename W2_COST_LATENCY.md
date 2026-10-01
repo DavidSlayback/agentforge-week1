@@ -5,6 +5,12 @@ grounded answer) on the public deployment, synthetic data only. Every
 measured number names its commit and source. Projections are Fermi
 estimates with their assumptions written out; they are not provider quotes.
 
+**Which cost document is current:** this one, for the Week 2 scan path. The
+older [`docs/agentforge/COST_MODEL.md`](docs/agentforge/COST_MODEL.md) covers
+only the Week 1 briefing, and its 100,000-user figure ($1.2K–$3.5K/month) is
+infrastructure-only with provider spend left out, so it is lower than the
+~$85K here by design, not by disagreement.
+
 ## 1. Measured per-scan usage (live)
 
 Source: 14 `w2-scan-supervisor` traces from `GET /agentforge-w2/v1/traces`
@@ -36,7 +42,7 @@ Prices from official pricing pages, retrieved 2026-09-24:
 | One encounter (a lab PDF + an intake form = 2 scans) | **~$0.0009** | **~$0.0012** |
 | Worst case per scan (3 answer attempts) | ~$0.0010 | ~$0.0013 |
 
-Since `dcaa180`, every trace records these costs per stage (`modelTotals.cost_usd`). Two live scans on that commit: $0.00038 (lab PDF) and $0.00055 (intake form). A follow-up encounter costs about a tenth of a cent in model calls. The
+Since `dcaa180`, every trace records these costs per stage (`modelTotals.cost_usd`). Since the W3 hardening (H3), that includes answer attempts whose output was rejected before the deterministic fallback answered; earlier traces recorded such a scan's answer stage as $0. Two live scans on that commit: $0.00038 (lab PDF) and $0.00055 (intake form). A follow-up encounter costs about a tenth of a cent in model calls. The
 account may be on a prepaid Alibaba "token plan" (the endpoint host is
 `token-plan.cn-beijing.maas.aliyuncs.com`); if so, marginal cost inside the
 plan is lower than list price. This report uses list price.

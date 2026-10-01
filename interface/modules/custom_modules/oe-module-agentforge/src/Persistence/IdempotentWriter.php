@@ -2,7 +2,9 @@
 
 /**
  * Lock, look up, and only then write: a repeated request returns the first
- * stored response and adds zero rows. Pure given its WriteLedger/AuditSink.
+ * stored response and adds zero rows. The same key with a different payload
+ * is refused with 409 idempotency_conflict (W3 H1), never answered as a
+ * duplicate of a write that did not happen. Pure given its WriteLedger/AuditSink.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -17,6 +19,7 @@ namespace OpenEMR\Modules\AgentForge\Persistence;
 
 use OpenEMR\Modules\AgentForge\Domain\Actor;
 use OpenEMR\Modules\AgentForge\Domain\IdempotencyKey;
+use OpenEMR\Modules\AgentForge\Http\ApiError;
 
 final readonly class IdempotentWriter
 {
@@ -24,6 +27,25 @@ final readonly class IdempotentWriter
         private WriteLedger $ledger,
         private AuditSink $audit,
     ) {
+    }
+
+    /**
+     * Unlocked pre-check, so a multi-item request can refuse a conflict before
+     * writing any item; `execute` checks again under the lock.
+     */
+    public function assertNoConflict(IdempotencyKey $key, string $payloadSha256): void
+    {
+        $existing = $this->ledger->find($key->value);
+        if ($existing !== null) {
+            self::refuseConflict($existing, $payloadSha256);
+        }
+    }
+
+    private static function refuseConflict(LedgerEntry $existing, string $payloadSha256): void
+    {
+        if (!hash_equals($existing->payloadSha256, $payloadSha256)) {
+            throw new ApiError(409, 'idempotency_conflict', ['payload_differs']);
+        }
     }
 
     /**
@@ -42,7 +64,8 @@ final readonly class IdempotentWriter
         try {
             $existing = $this->ledger->find($key->value);
             if ($existing !== null) {
-                return new IdempotentResult(false, $existing->response, !hash_equals($existing->payloadSha256, $payloadSha256));
+                self::refuseConflict($existing, $payloadSha256);
+                return new IdempotentResult(false, $existing->response);
             }
             $response = $this->ledger->transaction(function () use ($key, $operation, $pid, $contentSha256, $payloadSha256, $actor, $write): array {
                 $outcome = $write();
@@ -62,7 +85,7 @@ final readonly class IdempotentWriter
                 $this->audit->recordWrite($operation, $actor, $pid, $outcome->ledgerDocumentId, $outcome->rowCount);
                 return $response;
             });
-            return new IdempotentResult(true, $response, false);
+            return new IdempotentResult(true, $response);
         } finally {
             $this->ledger->releaseLock($key->value);
         }

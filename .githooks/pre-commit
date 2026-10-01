@@ -7,6 +7,10 @@ set -eu
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+# The gates must test exactly what is committed (.githooks/lib/gated-tree.sh).
+. "$repo_root/.githooks/lib/gated-tree.sh"
+require_gated_tree_matches index
+
 if ! command -v node >/dev/null 2>&1; then
   echo "AgentForge gate requires Node.js 24 on PATH." >&2
   exit 1
@@ -44,6 +48,32 @@ echo "AgentForge gate: unit suites..."
 npm test --silent --prefix agentforge
 npm test --silent --prefix evals
 node --test observability/test/*.test.js >/dev/null
+
+# Live OCR (pdftoppm + Tesseract): the three tests in
+# agentforge/test/helpers/ocrTools.js skip, visibly, in the unit run above
+# when the tools are missing. This step runs them with AGENTFORGE_REQUIRE_OCR=1,
+# natively or in Docker on the deployed Dockerfile's base and OCR packages.
+# With neither tools nor Docker it blocks a commit that touches the OCR path
+# and otherwise prints a loud SKIP. CI installs the tools and sets
+# AGENTFORGE_REQUIRE_OCR=1 (.gitlab-ci.yml).
+echo "AgentForge gate: live OCR tests..."
+ocr_status=0
+sh agentforge/scripts/run-ocr-tests.sh || ocr_status=$?
+if [ "$ocr_status" = 3 ]; then
+  ocr_paths='^(agentforge/src/pdfScanAdapter\.js|agentforge/test/fixtures/golden/(ocr|pdf)/|docs/agentforge/fixtures/scan-forms/pdf-samples/|agentforge/test/(ocr-golden-parity|s4-bounding-box|schemas)\.test\.js|agentforge/test/helpers/ocrTools\.js|agentforge/scripts/(run-ocr-tests\.sh|record-golden-ocr\.mjs|generate-golden-pdfs\.mjs)|Dockerfile$)'
+  if git diff --cached --name-only | grep -Eq "$ocr_paths"; then
+    echo "AgentForge gate: this commit changes the OCR path or OCR fixtures, and neither pdftoppm/pdfinfo/tesseract nor a running Docker is available to test it. Start Docker or install poppler-utils and tesseract-ocr." >&2
+    exit 1
+  fi
+  echo "############################################################################" >&2
+  echo "# AgentForge gate: SKIP live OCR tests: no pdftoppm/pdfinfo/tesseract and  #" >&2
+  echo "# no running Docker. Allowed only because this commit does not touch the   #" >&2
+  echo "# OCR path or OCR fixtures. Live OCR is NOT tested by this commit.         #" >&2
+  echo "############################################################################" >&2
+elif [ "$ocr_status" != 0 ]; then
+  echo "AgentForge gate: live OCR tests failed." >&2
+  exit 1
+fi
 
 # deploy/vultr/deploy.sh: offline tests with fake ssh/docker/curl (keepalives,
 # build before replace, detached build that survives a dropped session, SHA

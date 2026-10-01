@@ -177,7 +177,15 @@ context-token hash — `openemrModuleClient.js`) using a key derived from
 `AGENTFORGE_MODULE_HMAC_SECRET`, held only by `openemr` and `agentforge-w2`.
 Every write is limited to `AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS`, whatever the
 caller's token issuer, and a write needs a write-scoped token — a read-scoped
-one gets `persistence_not_authorized`, never a silent success.
+one gets `persistence_not_authorized`, never a silent success. Every
+successful module read (document bytes, lab Observations) and write is in
+the OpenEMR audit log (`agentforge-read` / `agentforge-write`: operation,
+ids, count and issuer, no values). A reused write key with a different body
+is a 409 `idempotency_conflict` (surfaced as
+`openemr_module_idempotency_conflict`), never a duplicate of a write that did
+not happen; derived facts are keyed by their content, so a re-extraction
+with other facts is stored as its own document, while lab rows stay keyed by
+their source (other values for the same source are refused).
 
 Idempotency is a SHA-256 of the document content: re-uploading the same
 bytes returns the same OpenEMR document id and adds zero new rows
@@ -186,14 +194,24 @@ checks). OCR is real `pdftoppm` + Tesseract 5.5.2 in production; the 50-case
 gate and unit tests replay OCR recorded once from that exact stack
 (`tesseract-recorded-replay`) so they run deterministically on machines
 without the binaries (Windows, most graders), while a separate parity test
-re-runs live OCR wherever the tools exist and fails on drift. Each field
+re-runs live OCR in the pre-commit hook (natively, or in Docker on the
+`Dockerfile`'s base and OCR packages) and in CI, and fails on drift (H5). Each field
 carries the OCR confidence of the line it came from; a field below 0.85
 confidence is flagged `low_confidence_requires_human_review` rather than
 shown as verified. `documentSafety.js`'s checks run after every extraction:
 zero facts or a patient-identity mismatch (name/DOB read from the document
-vs. the chart) is `BLOCKED`; a doc-type mismatch, an unverifiable identity,
-or an incomplete extraction is `QUALIFIED` — the workflow never reports
-`READY` on any of these. A `BLOCKED` workflow writes no derived facts or lab
+vs. the chart) is `BLOCKED`; a doc-type mismatch, a type the text does not
+confirm (`doc_type_undetermined`), an unverifiable identity, or an incomplete
+extraction is `QUALIFIED` — the workflow never reports `READY` on any of
+these. A printed date of birth is read in its layout's day/month order (NHS
+intake layouts are DD/MM, the synthetic and US state-lab layouts MM/DD); an
+impossible date, or a slash date on an undeclared layout that reads as two
+different real dates, is unverified, never a match. The composed answer can
+also hold the run at `QUALIFIED` (`supervisor.js#answerQualifyingReasons`, W3
+hardening): an answer that states no patient fact although the document had
+fields (`answer_has_no_patient_facts`), a critic veto that removed every claim
+(`critic_vetoed_all_claims`), or a safety flag on an unverified reading
+(`safety_flag_needs_verification`, below). A `BLOCKED` workflow writes no derived facts or lab
 rows (the source PDF is already stored at upload), and a call without a
 workflow state throws. Only a `READY` or `QUALIFIED` workflow persists a
 derived-facts JSON document and, for a lab PDF, one
@@ -221,8 +239,11 @@ medication table stays an intake. Any declared-versus-detected mismatch is
 the chart like an intake form. The source PDF and a derived-facts JSON are
 stored through the module (`DocumentType::MedicationList`), idempotently.
 No medication is written to the chart on upload: the module's
-`clinical-list-items` route accepts only clinician-confirmed `medication`
-items from a medication list (an allergy item is rejected), and, as for
+`clinical-list-items` route accepts only confirmed `medication` items from a
+medication list (an allergy item is rejected); a row is recorded as
+clinician-confirmed only for an `openemr-module` (OpenEMR session) token,
+while a `synthetic-demo` write is labeled an unauthenticated demo action and
+an allergy from it stays `unconfirmed` (`ListItemProvenance`). As for
 intake forms, the Node clinical-action lane does not call that route yet
 (A3 in `docs/agentforge/PLAN.md`). Tests: `agentforge/test/medication-list.test.js`,
 the medication-list cases in `oe-module-agentforge/tests/run.php`, and the
@@ -263,9 +284,9 @@ The reasons it can return:
 | Condition | `next` | `reason` |
 |---|---|---|
 | No extraction yet, none cached | `EXTRACT` | `extraction_needed` |
-| No extraction yet, cached for this content hash + OCR mode | `EXTRACT` | `extraction_cached` (loads the cache; still an extraction, not a `RETRIEVE`) |
+| No extraction yet, cached for this patient, document, content hash and OCR mode | `EXTRACT` | `extraction_cached` (loads the cache; still an extraction, not a `RETRIEVE`) |
 | Extraction just ran, fail-loud check blocks | `DONE` | the blocking reason (`patient_mismatch`, `no_fields_extracted`, `extraction_contract_invalid`) |
-| Extraction valid, mean confidence < 0.7, no retry yet | `EXTRACT` | `low_confidence_retry` (re-OCRs once at Tesseract `--psm 4`, keeps whichever result has the higher mean confidence and is not contract-invalid) |
+| Extraction valid, mean confidence < 0.7, no retry yet | `EXTRACT` | `low_confidence_retry` (re-OCRs once at Tesseract `--psm 4`, keeps whichever result has the higher mean confidence and is not contract-invalid; a retry that read no fields never replaces one that did) |
 | Facts ready, question is a pure record lookup ("what was the hemoglobin value?") | `ANSWER` | `record_lookup_only` (RETRIEVE is skipped entirely) |
 | Facts ready, ordinary question | `RETRIEVE` | `evidence_needed` |
 | Facts and (if not skipped) evidence ready | `ANSWER` | `facts_and_evidence_ready` |
@@ -276,10 +297,15 @@ The reasons it can return:
 | Answer composed, scan budget left < critic timeout | `DONE` | `critic_skipped_budget` (`skipped_budget`; the deadline is never widened) |
 | Critic has run | `DONE` | `critique_reviewed` or `critique_failed` |
 
-The extraction cache is keyed by a SHA-256 of the extracted content plus the
-OCR mode, not by document id, so a re-uploaded or re-fixtured document with
-identical bytes still hits the cache; it is bounded to 50 entries with FIFO
-eviction. `isRecordLookupQuestion` has one canonical definition (imported by
+The extraction cache is keyed by a SHA-256 of the extracted content, the OCR
+mode, the patient, the document id, the document type and the layout. Content
+stays in the key, so a document whose content changed never reuses a stale
+extraction. W3 hardening (H2): it used to be content and OCR mode only, and a
+cached extraction carries its document's id in every citation, so the same
+bytes uploaded for a second patient answered with, and persisted facts citing,
+the first patient's document id. The expensive step (OCR) is cached separately
+per document (`service.js#prepareScanSource`). The cache is bounded to 50
+entries with FIFO eviction. `isRecordLookupQuestion` has one canonical definition (imported by
 both the supervisor and the answer composer, so they cannot silently
 disagree): a direct "what is/was the X value/result/level" question, unless
 it also names a guideline-seeking word (target, recommended, threshold,
@@ -339,7 +365,10 @@ default 4000). The trace gets a `critic` stage, a model-usage entry and a
 reason code, claims removed and claims topped up unreviewed; no claim text.
 A failed or budget-skipped critic makes the per-encounter runtime evaluation
 `degraded`; claims shipped unreviewed (held back or topped up) make it
-`needs_review`.
+`needs_review`, and so does a critic veto (`critic_rejected_claims`) or a
+claim the verifier dropped (`claims_dropped`): a run that removed claims to
+reach its answer is never graded `passed` (W3 hardening). A veto that removes
+every claim also makes the workflow `QUALIFIED` (`critic_vetoed_all_claims`).
 
 ### (c) RAG design
 
@@ -504,14 +533,34 @@ that were actually available, those specific gaps are filled
 deterministically (`composer: 'model+deterministic-topup'`) rather than
 left out. `model_rejected_reason` records why a real model's output could
 not be used as-is (`invalid_json`, `provider_error`,
-`all_claims_unverified`, or `deadline`). Facts below 0.85 confidence are
-excluded from claims entirely and listed under `needs_review`. Demographics
+`all_claims_unverified`, or `deadline`). Every billed model attempt is
+recorded on the trace, including attempts whose output was rejected before
+the deterministic fallback answered (`ResilientProvider`'s `primary_usage`):
+the usage entry then names the model and its summed tokens and cost, and
+`status` still says `deterministic-fallback`. Facts below 0.85 confidence are
+excluded from claims entirely and listed under `needs_review`. So is a lab
+test the document prints but that was only partly read (`partially_read`):
+it is present but unreadable, never "not documented". Demographics
 (name, DOB, phone, sex) never reach the prompt or the model's claims — they
 are identity data, already checked by `documentSafety.js`, not a clinical
 finding. The result separates `patient_facts` from `guideline_evidence`, per
 the assignment's "separate patient-record facts from guideline evidence."
 The server validates this exact shape before persisting anything derived —
 an invalid answer is a 500, never an unvalidated write.
+
+**Applicability and currency on `/v1/follow-up-evidence` (W3).** Two
+deterministic checks (`evidenceApplicability.js`) run on the question and the
+chart facts only. A question that names a condition the chart does not
+document returns `qualification.required: true` with
+`condition_not_in_chart:<condition>`, so guideline evidence is never presented
+as applying to a patient it does not fit. Each fact carries `current`: the
+latest `recorded_at` of a field is current, earlier values are history, and a
+field whose latest value cannot be told apart is qualified
+(`field_history_unresolved:<field>`) instead of guessed. Not modeled: age or
+other population limits inside a guideline (for example the statin
+recommendation for adults 76 and older). `clientResponse.js` removes provider
+and model names, token and cost telemetry and OpenEMR uuids from the wire copy
+of this response and of `/v1/scan-supervisor`; traces keep them.
 
 **Questions that name another patient (E8).** The briefing follow-up, the
 scan answer and `/v1/follow-up-evidence` check the question text
@@ -565,10 +614,17 @@ rows, as optional fields, so a report without potassium is still complete.
 The answer panel shows a "Safety flags" section, with citation links and the
 threshold source. The trace records only the flag codes and a count
 (`verification.safety_flag_codes`, `safety_flag_count`), plus the new review
-reason codes. Known limits: no age-specific limits (the fixtures are adults),
-no cross-class reactivity (e.g. penicillin and cephalosporins), and no rule
-for a fact below the confidence threshold, which is already in
-`needs_review`.
+reason codes. A rule that would fire on a reading the answer may not state
+is not silenced (W3 hardening): a lab result below the confidence threshold,
+or a potassium/A1C row whose unit alone was not read, still raises its flag,
+marked `verification_status: 'needs_verification'` with
+`verification_reason` `low_confidence` or `unit_not_read`, a "not verified"
+prefix in its text, and a "Needs verification" line in the panel. A missing
+unit is evaluated in the analyte's standard unit (mmol/L, %), and the text
+says so: flagging a possibly critical value for review is the conservative
+choice. The reading itself stays out of `patient_facts`, and the workflow is
+`QUALIFIED`. Known limits: no age-specific limits (the fixtures are adults)
+and no cross-class reactivity (e.g. penicillin and cephalosporins).
 
 `notDocumented.js` handles W1 debt item 20. A closed list of measurement
 concepts says how a question asks for each one (blood pressure, heart rate,
@@ -587,7 +643,8 @@ answer says so, with no claims and no model call. The scan answer does this
 with `composer: 'not-documented'`, a `not_documented` entry per concept and
 the sources checked. The briefing follow-up answers in the same form. Safety
 flags and `needs_review` still ship. A concept whose chart field was withheld is
-not reported as not documented. A question that also names another topic
+not reported as not documented, and neither is a lab test the document
+prints but that was only partly read (`partialLabRows`). A question that also names another topic
 ("documented medication and blood pressure") keeps its normal answer plus the
 `not_documented` entry.
 
@@ -623,8 +680,8 @@ workers → the same HTTP response validator `server.js` applies — on 10
 golden PDFs plus `.scan.txt` fixtures. The one non-live step is OCR itself,
 replayed from a real Tesseract 5.5.2 recording made once inside the exact
 `Dockerfile` image, so the gate is deterministic on machines without the
-binaries; a separate parity test re-runs live OCR wherever the tools exist
-and fails on drift. Guideline retrieval, as of this commit, is **not** the
+binaries; a separate parity test re-runs live OCR in the pre-commit hook
+(natively or in Docker) and in CI, and fails on drift. Guideline retrieval, as of this commit, is **not** the
 deterministic stand-in every earlier checkpoint used: `test/fixtures/
 retrieval/COMPLETE.json` records a completed fixture set (42-chunk corpus
 embeddings fingerprint, `alibaba-qwen`/`qwen3.8-flash` rerank fixtures for
@@ -683,13 +740,14 @@ server-side, where a bug is a rejected id, not a truncated response.
 
 The scan answer's "patient record" facts and the briefing come from one of
 two chart adapters, chosen per request by `chartSourceRouter.js` from the
-HMAC-verified context token and nothing else (no query parameter, header or
-body field; a copied claims object is refused):
+verified context token (HMAC for `synthetic-demo`, Ed25519 for
+`openemr-module`) and nothing else (no query parameter, header or body
+field; a copied claims object is refused):
 
 | Token (verified claims) | Minted by | Chart read | Citation `source_type` | Label |
 |---|---|---|---|---|
 | `issuer: synthetic-demo`, `authn: synthetic` | the public demo (`/v1/demo-context` and friends) | `FixtureAdapter`, `docs/agentforge/fixtures/clinical-cases.json` | `synthetic_chart_fixture` | Chart source: synthetic fixture |
-| `issuer: openemr-module`, `authn: openemr-session` | the module launcher (`oe-module-agentforge/public/index.php`) from a logged-in OpenEMR session, after the ACL checks | `OpenEMRRestAdapter`, OpenEMR standard REST API (GET only, server-held OAuth read token) | `openemr_record` | Chart source: OpenEMR (live) |
+| `issuer: openemr-module`, `authn: openemr-session` | the module launcher (`oe-module-agentforge/public/index.php`) from a logged-in OpenEMR session, after the ACL checks, Ed25519-signed with `AGENTFORGE_LAUNCH_SIGNING_KEY` (only `openemr` holds it) | `OpenEMRRestAdapter`, OpenEMR standard REST API (GET only, server-held OAuth read token) | `openemr_record` | Chart source: OpenEMR (live) |
 
 - With `AGENTFORGE_OPENEMR_LIVE_READS=off` (the default), a launcher token
   is refused with `openemr_live_reads_disabled` (a blocked briefing, a 403
@@ -714,6 +772,22 @@ body field; a copied claims object is refused):
   the service's OAuth read token, so per-user authorization happens once, at
   launch. OpenEMR sensitivity levels and facility restrictions that would
   hide part of a chart from this user are not reproduced by the service.
+- **Only OpenEMR can mint a launch token (W3 H1).** The frozen Week 1
+  service and `agentforge-w2` hold `AGENTFORGE_DEMO_SECRET`, so a launcher
+  token signed with that secret would let either impersonate any OpenEMR
+  user to the module (ACL checks and audit attribution). Launcher tokens are
+  therefore Ed25519-signed with a key only `openemr` holds, and verified
+  with its public key (`AGENTFORGE_LAUNCH_VERIFY_KEY`) by
+  `accessContext.js` and the module's `ContextTokenVerifier`. Each issuer
+  has exactly one scheme: an HMAC-signed `openemr-module` token, or an
+  Ed25519-signed token of another issuer, is refused; so is any launcher
+  token when no verify key is set (the W2 page answers 503 "OpenEMR launch
+  is not configured", and live reads refuse to start). A non-canonical
+  base64url signature string is refused too, so one signature has one token
+  string (the single-use exchange keys on the string). Tests:
+  `agentforge/test/w3-launch-trust.test.js` and the launcher cases in
+  `oe-module-agentforge/tests/run.php`, over a shared synthetic keypair in
+  `agentforge/test/fixtures/hmac-vectors.json`.
 - **Launch tokens are single-use (F-LIVE).** The launcher's tokens (280 s)
   arrive in the URL. The first page load exchanges them, once, for an
   in-memory launch session (`launchSession.js`): the session secret goes
@@ -731,7 +805,13 @@ body field; a copied claims object is refused):
   demo's tokens are unchanged. Residuals: the session cookie is a bearer
   secret for up to 280 s in the browser that opened the link; two launches
   for the same patient and user in the same second mint identical tokens,
-  so the second is refused as a replay.
+  so the second is refused as a replay. Deferred (W3 H1): the tokens still
+  arrive in the URL query, so they can reach browser history and proxy
+  access logs for their 280 s; moving them to a fragment or a POST hand-off
+  changes the launcher page, the W2 page route and the page script together
+  and was left out of the hardening pass. The module accepts a forwarded
+  launcher token repeatedly within its life (no `jti`), but only inside an
+  HMAC-signed request from `agentforge-w2`.
 - **Labels.** A response built from a live read says `synthetic_only: false`
   (scan and follow-up evidence) and carries `chart_source.designated_patient`;
   the page header says "Live OpenEMR chart (synthetic patient)" for a
@@ -944,9 +1024,9 @@ minting half is fixed.
 | 4 | No LLM tool calling; follow-ups routed by regex | Accepted (D4) | `decideNext` is deterministic by design (§4) | Same |
 | 5 | Fixture chart data labeled as an OpenEMR read | Resolved (E8) | `chartSource.js`: fixture facts cite `synthetic_chart_fixture`, "Synthetic chart fixture"; `chart-citation-source.test.js` | Still reports an OpenEMR read (`retrieve_openemr_read`) |
 | 6 | `/ready` does not probe OpenEMR or observability | Resolved (F-OBS) | Observed on `99eaf8f8`: `/ready` 200 with `openemrModule`, `traceStore` and five other dependencies `ready` (`docs/agentforge/evidence/F-lanes-live.md`). `/ready` probes the OpenEMR module's signed `health` route when `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (set for W2), checks the trace store (a corrupt file is moved aside at startup and reported as `TRACE_STORE_CORRUPT`, never a crash loop) with a probe write, and probes Langfuse only when it is configured (not on W2). A failure gives 503 with the names in `failing` and a reason code. Probes are cached 30 s and concurrent calls share one in-flight probe. The chart is still the fixture for the public demo; the E9 REST probe is unchanged. `f-obs-server.test.js`, module test in `tests/run.php` | Same |
-| 7 | Unauthenticated token minting and ops endpoints; one role | Partly (W3 security fix, 2026-09-29) | Minting: `/v1/demo-context`, `/v1/source-document-context` and `/v1/clinical-action-context` are rate limited per client, with 429 and `Retry-After`. In `key` mode they need `X-AgentForge-Demo-Key` (`AGENTFORGE_DEMO_ACCESS_KEY`); this was verified live on `40cfbdff`. The deployment runs `AGENTFORGE_DEMO_ACCESS=open` during grading (owner): the submission names no key, so anonymous minting is an accepted risk until the mode is set back to `key` (W3 findings F-831d4df407, F-24b44c5180, F-6ee92046fb; `mintGuard.js`, `test/mint-guard.test.js`). W2 refuses synthetic-demo tokens without `aud: agentforge-w2`, so W1-minted tokens no longer work here. Still accepted (D4, D8): `/v1/traces`, `/v1/metrics` and `/v1/alerts` need no auth, and there is one role. Writes stay limited to the allowlisted synthetic patients | Same (W1 is frozen; its mints stay anonymous) |
+| 7 | Unauthenticated token minting and ops endpoints; one role | Partly (W3 security fix, 2026-09-29) | Minting: `/v1/demo-context`, `/v1/source-document-context` and `/v1/clinical-action-context` are rate limited per client, with 429 and `Retry-After`. In `key` mode they need `X-AgentForge-Demo-Key` (`AGENTFORGE_DEMO_ACCESS_KEY`); this was verified live on `40cfbdff`. The deployment runs `AGENTFORGE_DEMO_ACCESS=open` during grading (owner): the submission names no key, so anonymous minting is an accepted risk until the mode is set back to `key` (W3 findings F-831d4df407, F-24b44c5180, F-6ee92046fb; `mintGuard.js`, `test/mint-guard.test.js`). W2 refuses synthetic-demo tokens without `aud: agentforge-w2`, so W1-minted tokens no longer work here. Still accepted (D4, D8): `/v1/traces`, `/v1/metrics` and `/v1/alerts` need no auth, and there is one role. W3 hardening (H2, not yet deployed): refused requests record no trace and are counted in `/v1/metrics` `refusals`, so they cannot fill the public trace store; trace values under `reason`, `errorCode`, `issues` and `correlationId` must be code-shaped or are redacted. Writes stay limited to the allowlisted synthetic patients | Same (W1 is frozen; its mints stay anonymous) |
 | 8 | A question naming another patient was answered | Resolved (E8) | Refused as `out_of_scope_patient` on every answer path (§3d); ids and full names on fixtures, id patterns only on live OpenEMR; `x8-scope-other-patient-question` | Not fixed |
-| 9 | Correlation id missing from several calls and logs | Deployed and tested (F-OBS); partly observed | On `d5a0df7e` the scan trace is named by an `af-<uuid>` request id (`LEDGER.md` W2-C10); propagation to the downstream calls is not observable on the public URL. One id per request: a caller's `x-correlation-id` only if it is a UUID or 16-64 lowercase hex (a name- or date-like value is dropped), else `af-<uuid>`; echoed on the response. It names the scan trace and is sent on getCase, the chart reads, the OAuth token refresh, the guideline embed and rerank calls and every module call; server error logs carry it. `correlation-propagation.test.js` checks every call of one scan request; `f-obs-server.test.js` checks the HTTP wiring. Briefings keep their existing id, now also on getCase | Same |
+| 9 | Correlation id missing from several calls and logs | Deployed and tested (F-OBS); partly observed | On `d5a0df7e` the scan trace is named by an `af-<uuid>` request id (`LEDGER.md` W2-C10); propagation to the downstream calls is not observable on the public URL. One id per request: a caller's `x-correlation-id` only if it is a UUID or 16-64 lowercase hex (a name- or date-like value is dropped), else `af-<uuid>`; echoed on the response. It names the scan trace and is sent on getCase, the chart reads, the OAuth token refresh, the guideline embed and rerank calls and every module call; server error logs carry it. `correlation-propagation.test.js` checks every call of one scan request; `f-obs-server.test.js` checks the HTTP wiring. W3 hardening (H2, implemented and tested, not yet deployed): briefing, prewarm, prepared-open and follow-up traces and their chart and model calls also use the request id (the conversation id in the response is unchanged), a follow-up's URL path segment is never a trace id, and a refused follow-up or briefing records no trace (`w3h-server-security.test.js`) | Same |
 | 10 | Hand-rolled schemas; outputs unvalidated | Partly | W2 contracts are strict Zod (`schemas.js`); W1 briefing contracts and `getCase` output are not | Same |
 | 11 | Cost always $0 | Resolved | `pricing.js`; unknown cost is `null`; traces record `cost_usd` (`W2_COST_LATENCY.md`) | Still $0 |
 | 12 | Langfuse gets one flat span | Accepted (D8) | Not configured on W2 | Same |

@@ -48,13 +48,16 @@ test('document type is detected from keyword vocabulary, and a weak signal stays
 test('patient identity check matches, mismatches and refuses to guess', () => {
   const form = (name, dob) => ({ demographics: { name: name ? { status: 'observed', value: name } : { status: 'not_found_on_form' }, dob: dob ? { status: 'observed', value: dob } : { status: 'not_found_on_form' } } });
   const chart = { name: 'Test Patient One', dob: '1980-04-12' };
-  assert.equal(checkPatientIdentity(form('TEST  patient one', '04/12/1980'), chart).status, 'match');
+  assert.equal(checkPatientIdentity(form('TEST  patient one', '04/12/1980'), chart, { dateOrder: 'MDY' }).status, 'match');
+  // W3 hardening H3: with no declared layout order, 04/12/1980 could be either date.
+  assert.equal(checkPatientIdentity(form('TEST  patient one', '04/12/1980'), chart).status, 'unverified');
   assert.deepEqual(checkPatientIdentity(form('Test Conflict', '1968-07-21'), chart), { status: 'mismatch', mismatched_fields: ['name', 'dob'] });
   assert.deepEqual(checkPatientIdentity(form('Test Patient One', '1980-04-13'), chart).mismatched_fields, ['dob']);
   assert.equal(checkPatientIdentity(form(null, null), chart).status, 'unverified');
   assert.equal(checkPatientIdentity(form('Test Patient One', 'twelfth of April'), chart).status, 'unverified');
   assert.equal(checkPatientIdentity(form('Test Patient One', '1980-04-12'), null).status, 'unverified');
-  assert.equal(normalizeDob('4/2/1980'), '1980-04-02');
+  assert.equal(normalizeDob('4/2/1980', 'MDY'), '1980-04-02');
+  assert.equal(normalizeDob('4/2/1980'), null);
 });
 
 test('zero extracted facts is BLOCKED no_fields_extracted before retrieval', async () => {

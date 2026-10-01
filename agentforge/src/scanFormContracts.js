@@ -1,4 +1,5 @@
 import { Citation, IntakeForm, LabResult, MedicationList, ScanExtractionMetadata, parseOrIssues } from './schemas.js';
+import { MAX_MESSAGE_LENGTH } from './contracts.js';
 
 export const SCAN_FORM_CONTRACT_VERSION = 'w2-scan-v1';
 export const SCAN_DOCUMENT_TYPES = Object.freeze(['lab_pdf', 'intake_form', 'medication_list']);
@@ -149,6 +150,7 @@ export function validateActiveSupervisorRequest(value) {
   if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
   for (const field of ['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id']) if (!nonEmpty(value[field])) issues.push(`${field}_required`);
   if ('message' in value && typeof value.message !== 'string') issues.push('message_must_be_string');
+  if (typeof value.message === 'string' && value.message.length > MAX_MESSAGE_LENGTH) issues.push('message_too_long');
   const allowed = new Set(['patient_uuid', 'clinician_uuid', 'demo_token', 'source_document_id', 'message']);
   for (const field of Object.keys(value)) if (!allowed.has(field)) issues.push(`${field}_not_allowed`);
   return { valid: issues.length === 0, issues };

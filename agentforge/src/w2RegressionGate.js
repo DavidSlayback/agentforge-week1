@@ -1,9 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspect } from 'node:util';
 import baselineReport from '../../docs/agentforge/evidence/W2_BASELINE_REPORT.json' with { type: 'json' };
-import { InMemoryTraceSink } from '../../observability/index.js';
+import { FileTraceSink, InMemoryTraceSink } from '../../observability/index.js';
 import { issueSignedContext, verifySignedContext } from './accessContext.js';
 import { formulateEvidenceQuery } from './activeWorkers.js';
 import { validateScanExtractionTypedOutput } from './contracts.js';
@@ -19,6 +21,7 @@ import { AgentForgeService } from './service.js';
 import { SyntheticWriteback } from './syntheticWriteback.js';
 import { DeterministicAnswerComposer, labelForCitation } from './answerComposer.js';
 import { verifyClaims } from './claimBinding.js';
+import { judgeAnswerClaims } from './gateClaimJudge.js';
 
 export const W2_GATE_LABELS = Object.freeze(['schema_valid', 'citation_present', 'factually_consistent', 'safe_refusal', 'no_phi_in_logs']);
 export const W2_GATE_CASE_COUNT = 50;
@@ -70,6 +73,7 @@ export const kase = (id, category, guardsAgainst, scenario, expect) => ({ id, ca
 // chunk first, which is the most useful for interpreting 6.1% or 7.2%.
 const A1C_INTERPRETATION_SOURCES = Object.freeze(['cdc-a1c-diagnostic-ranges', 'cdc-a1c-test-definition', 'medlineplus-a1c-results-meaning', 'medlineplus-a1c-what-it-is', 'niddk-a1c-test-uses']);
 const INVENTED_CLAIM_MARKER ='gate-test invented claim: potassium was recorded at 9.9 mmol/L on 2000-01-01.';
+export const UNCITED_CLAIM_MARKER = 'Potassium 9.9 mmol/L.';
 function fakeInventingModelPrimary() {
   return {
     name: 'fake-inventing-model', model: 'gate-test-only',
@@ -85,7 +89,11 @@ function fakeInventingModelPrimary() {
       // exactly as it was when the old contract cited it directly.
       const ref = anyCitation ? labelForCitation([...args.factLabels, ...args.guidelineLabels], anyCitation) : null;
       const invented = ref ? [{ kind: 'patient_fact', text: INVENTED_CLAIM_MARKER, refs: [ref] }] : [];
-      return { text: JSON.stringify({ claims: invented }), inputTokens: 12, outputTokens: 12, estimatedCostUsd: 0.001 };
+      // H5: plus one claim with no citation at all. The production verifier
+      // must drop it (UNCITED_CLAIM); if it ever ships, the gate's independent
+      // judge fails the case (`answer_claim[i]:uncited`).
+      const uncited = { kind: 'patient_fact', text: UNCITED_CLAIM_MARKER, refs: [] };
+      return { text: JSON.stringify({ claims: [...invented, uncited] }), inputTokens: 12, outputTokens: 12, estimatedCostUsd: 0.001 };
     },
   };
 }
@@ -128,7 +136,7 @@ export function buildW2GoldenSet() {
     kase('fc-05-intake-a-values', 'factually_consistent', 'Intake demographics, chief concern, medications, allergies or family history no longer match the form. S6: every observed intake leaf must also survive independently in the grounded answer as a cited patient_fact claim (the deterministic intake template).', scan('intake-a', 'intake_form'), { intake_facts: true, answer: { verified: true, separated: true } }),
     kase('fc-06-intake-b-values', 'factually_consistent', 'Alternate intake labels map values into the wrong typed fields.', scan('intake-b', 'intake_form'), { intake_facts: true }),
     kase('fc-07-intake-own-patient', 'factually_consistent', 'The patient-identity check rejects a form whose demographics do match the chart, or its values drift.', scan('gen-intake-c-conflict', 'intake_form', { upload_patient: P2 }), { intake_facts: true, workflow: { final_state: 'READY', identity: 'match' } }),
-    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one real claim plus one invented, uncited-in-substance claim must have the invented claim dropped and counted, never shipped.', scan('lab-a', 'lab_pdf', { query: Q.glycemic, answer_provider: fakeInventingModelProvider }), { retrieval_top: A1C_INTERPRETATION_SOURCES, answer: { fake_provider_drops_invented_claim: true } }),
+    kase('fc-08-retrieval-abnormal-a1c', 'factually_consistent', 'Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one invented, uncited-in-substance claim and one claim with no citation at all must have both dropped and counted, never shipped (the independent claim judge in this gate fails the case if the uncited claim ships).', scan('lab-a', 'lab_pdf', { query: Q.glycemic, answer_provider: fakeInventingModelProvider }), { retrieval_top: A1C_INTERPRETATION_SOURCES, answer: { fake_provider_drops_invented_claim: true } }),
     kase('fc-09-retrieval-fatigue', 'factually_consistent', 'Retrieval for the intake chief concern (fatigue) ranks an unrelated chunk first.', scan('intake-a', 'intake_form', { query: Q.fatigue }), { retrieval_top: 'nhlbi-anemia-fatigue-symptoms' }),
     kase('fc-10-retrieval-medrec', 'factually_consistent', 'Retrieval for medication reconciliation of the intake list ranks an unrelated chunk first.', scan('intake-b', 'intake_form', { query: Q.medrec }), { retrieval_top: 'cdc-medication-list-tell-doctor' }),
     kase('fc-11-retrieval-empty-clinician-question', 'factually_consistent', "Query formulation stops building the query from the document's own typed abnormal lab findings (e.g. the abnormal-findings phrase is dropped), so a request with no clinician message at all finds no evidence even though the document has a real abnormal A1C.", scan('lab-a', 'lab_pdf', { query: '' }), { retrieval_top: A1C_INTERPRETATION_SOURCES }),
@@ -609,41 +617,113 @@ export function phiIdentifiers(truth) {
     const first = item.split(/\s+/)[0];
     if (first.length >= 5 && !(form.family_history || []).includes(item)) words.push(first);
   }
-  for (const result of truth.lab_results || []) { numbers.push(result.value); words.push(result.collection_date); }
+  const pairs = [];
+  for (const result of truth.lab_results || []) {
+    numbers.push(result.value);
+    words.push(result.collection_date, result.reference_range);
+    // test_name, unit and abnormal_flag are too generic as bare words ("A1C",
+    // "%", "high"), so they are matched as a serialized key/value pair, the
+    // shape the L0 leak had (`"unit":"g/dL"`). np-11 guards these keys.
+    for (const key of LAB_PHI_KEYS) pairs.push([key, result[key]]);
+  }
   // E4 medication lists (extension suite only): identity, list date, source
   // and every drug name. Doses are left out: bare "10" or "20" would match
   // unrelated trace numbers, so the row text is covered by the drug name.
   const list = truth.medication_list || {};
   words.push(list.patient_name, list.dob, list.list_date, list.prescriber_or_source);
   for (const item of list.medications || []) words.push(item.name, [item.name, item.dose, item.unit].join(' '));
-  return { words: [...new Set(words.filter(Boolean))], numbers: [...new Set(numbers.filter(Boolean))] };
+  return { words: [...new Set(words.filter(Boolean))], numbers: [...new Set(numbers.filter(Boolean))], pairs: pairs.filter(([, value]) => typeof value === 'string' && value) };
 }
+
+const LAB_PHI_KEYS = ['test_name', 'value', 'unit', 'reference_range', 'collection_date', 'abnormal_flag'];
+const NUMERIC = /^\d+(?:\.\d+)?$/;
+// Flag values also name trace keys and codes (`abnormal_flag`); they are matched as pairs only.
+const FLAG_WORDS = /^(normal|abnormal|high|low|critical|none|unknown)$/i;
+
+/**
+ * Identifiers taken from what this run itself extracted, not the truth file:
+ * a misread value (the noisy scan) or a field the truth file does not list is
+ * still covered. Non-numeric fact values and typed lab, intake and
+ * medication-list fields of 4+ characters are matched as words, typed lab
+ * values as numbers, and every typed lab field as a serialized key/value pair.
+ */
+export function runPhiIdentifiers(run) {
+  const extraction = extractionOf(run);
+  const words = [];
+  const numbers = [];
+  const pairs = [];
+  // Bare numbers are matched only for typed lab values: a dose or count such
+  // as "10" would match unrelated trace numbers (the truth-file rule too).
+  const add = (value) => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (text.length >= 4 && !NUMERIC.test(text) && !FLAG_WORDS.test(text)) words.push(text);
+  };
+  for (const fact of extraction?.facts || []) add(fact.value);
+  for (const result of extraction?.lab_results || []) {
+    for (const key of ['test_name', 'reference_range', 'collection_date']) add(result[key]);
+    if (NUMERIC.test(String(result.value ?? '').trim())) numbers.push(String(result.value).trim());
+    for (const key of LAB_PHI_KEYS) pairs.push([key, result[key]]);
+  }
+  const form = extraction?.intake_form;
+  if (form) for (const field of [...Object.values(form.demographics || {}), form.chief_concern, ...(form.current_medications || []), ...(form.allergies || []), ...(form.family_history || [])]) if (field?.status === 'observed') add(field.value);
+  for (const item of extraction?.medication_list?.medications || []) add(item.name);
+  return { words: [...new Set(words)], numbers: [...new Set(numbers)], pairs: pairs.filter(([, value]) => typeof value === 'string' && value) };
+}
+
+const mergeIdentifiers = (sets) => sets.reduce((all, item) => ({ words: [...all.words, ...item.words], numbers: [...all.numbers, ...item.numbers], pairs: [...all.pairs, ...(item.pairs || [])] }), { words: [], numbers: [], pairs: [] });
 
 function phiLeaks(text, identifiers) {
   const lower = text.toLowerCase();
   const leaks = identifiers.words.filter((word) => lower.includes(word.toLowerCase())).map(() => 'identifier');
   for (const number of identifiers.numbers) if (new RegExp(`(?<![\\d.])${escapeRegExp(number)}(?!\\d)`).test(text)) leaks.push('lab_value');
+  // JSON (`"unit":"g/dL"`) and util.inspect (`unit: 'g/dL'`) serializations.
+  for (const [key, value] of identifiers.pairs || []) if (new RegExp(`["']?\\b${escapeRegExp(key)}["']?\\s*:\\s*["']${escapeRegExp(value)}["']`).test(text)) leaks.push('lab_field');
   return leaks;
 }
 
-function checkNoPhi(run, output, expect) {
+/** The traces as the deployed FileTraceSink persists them: recorded through its redactor and read back from disk. */
+async function persistedTraceText(traces) {
+  if (!traces.length) return '[]';
+  const dir = mkdtempSync(join(tmpdir(), 'agentforge-gate-trace-'));
+  try {
+    const filePath = join(dir, 'traces.json');
+    const sink = new FileTraceSink({ filePath, maxTraces: traces.length + 1, clock: () => GATE_CLOCK, log: () => {} });
+    for (const trace of traces) sink.record(trace);
+    await sink.flush();
+    return readFileSync(filePath, 'utf8');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * no_phi_in_logs. Two trace views are scanned, against the truth file's
+ * identifiers and the run's own extracted values:
+ * - the real trace the service recorded, as the deployed FileTraceSink
+ *   persists it to disk;
+ * - the run's own raw workflow handoffs recorded through the same redacting
+ *   sink (defense in depth). The service records only metrics, so the real
+ *   trace never hands value- or quote-keyed content to the redactor; this
+ *   replay is what shows a redactor regression on real workflow output.
+ *   Every case with a workflow runs it; `raw_handoffs` makes it required.
+ */
+async function checkNoPhi(run, output, expect) {
   if (run.error) return ['workflow_threw'];
   const traces = run.h.traceSink.list();
   const issues = [];
   if (!traces.length) issues.push('no_trace_recorded');
   if (!expect.no_handoffs && !traces.some((trace) => trace.handoffs?.length)) issues.push('trace_has_no_handoffs');
-  const identifiers = run.docs.map((doc) => phiIdentifiers(doc.truth)).reduce((all, item) => ({ words: [...all.words, ...item.words], numbers: [...all.numbers, ...item.numbers] }), { words: [], numbers: [] });
-  let traceText = JSON.stringify(traces);
-  if (expect.raw_handoffs) {
-    // Defense in depth: record the workflow's raw (unfiltered) handoffs through the real sink's redactor.
+  const identifiers = mergeIdentifiers([...run.docs.map((doc) => phiIdentifiers(doc.truth)), runPhiIdentifiers(run)]);
+  if (phiLeaks(await persistedTraceText(traces), identifiers).length) issues.push('synthetic_phi_in_trace');
+  const handoffs = run.result?.workflow?.handoffs || [];
+  if (expect.raw_handoffs && !handoffs.length) issues.push('no_raw_handoffs');
+  if (handoffs.length) {
     const sink = new FixedClockTraceSink();
     const trace = sink.start({ correlationId: 'gate-raw-handoff', operation: 'w2-scan-supervisor', scope: { patientRef: P1 } });
-    for (const handoff of run.result?.workflow?.handoffs || []) trace.recordHandoff(handoff);
+    for (const handoff of handoffs) trace.recordHandoff(handoff);
     trace.complete({ status: 'success' });
-    traceText = JSON.stringify(sink.list());
-    if (!run.result?.workflow?.handoffs?.length) issues.push('no_raw_handoffs');
+    if (phiLeaks(await persistedTraceText(sink.list()), identifiers).length) issues.push('synthetic_phi_in_redacted_raw_handoffs');
   }
-  if (phiLeaks(traceText, identifiers).length) issues.push('synthetic_phi_in_trace');
   if (phiLeaks(output, identifiers).length) issues.push('synthetic_phi_in_stdout_or_stderr');
   return issues;
 }
@@ -674,12 +754,22 @@ async function answerAllowedValues(run) {
   const intakeCitations = intakeLeavesOf(extraction?.intake_form).filter((leaf) => leaf.confidence >= 0.85).map((leaf) => leaf.citation).filter(Boolean);
   const guidelineEvidence = run.result?.workflow?.typed_outputs?.evidence?.guideline_evidence || [];
   const patientRef = run.result?.source_document?.patient_ref;
-  let patientFactCitations = [];
+  let chartFacts = [];
   if (patientRef) {
     const chart = await run.h.service.retrievePatientChartFacts(patientRef).catch(() => ({ patient_facts: [] }));
-    patientFactCitations = (chart.patient_facts || []).map((fact) => fact.citation).filter(Boolean);
+    chartFacts = (chart.patient_facts || []).filter((fact) => fact.citation);
   }
-  return { labResults, intakeCitations, guidelineEvidence, patientFactCitations, allowedValues: [...labResults, ...intakeCitations, ...guidelineEvidence, ...patientFactCitations] };
+  const patientFactCitations = chartFacts.map((fact) => fact.citation);
+  // What the independent judge (gateClaimJudge.js) lets a claim cite, with the
+  // strings whose numbers a claim citing that item may state.
+  const intakeLeaves = intakeLeavesOf(extraction?.intake_form).filter((leaf) => leaf.confidence >= 0.85 && leaf.citation);
+  const judgeSources = [
+    ...labResults.map((result) => ({ citation: result.citation, kind: 'patient_fact', texts: [result.citation?.quote_or_value, result.value, result.reference_range, result.collection_date, result.unit] })),
+    ...intakeLeaves.map((leaf) => ({ citation: leaf.citation, kind: 'patient_fact', texts: [leaf.citation.quote_or_value, leaf.value] })),
+    ...chartFacts.map((fact) => ({ citation: fact.citation, kind: 'patient_fact', texts: [fact.citation.quote_or_value, fact.value, fact.recorded_at] })),
+    ...guidelineEvidence.map((item) => ({ citation: item.citation, kind: 'guideline', texts: [item.citation?.quote_or_value, item.snippet, item.title, item.section, item.version] })),
+  ];
+  return { labResults, intakeCitations, guidelineEvidence, patientFactCitations, judgeSources, allowedValues: [...labResults, ...intakeCitations, ...guidelineEvidence, ...patientFactCitations] };
 }
 
 /**
@@ -732,9 +822,15 @@ async function checkAnswer(run, expect) {
   if (!schemaValidation.ok) return [...issues, ...schemaValidation.issues.map((issue) => `answer_schema_invalid:${issue}`)];
   const allClaims = [...answer.patient_facts, ...answer.guideline_evidence];
 
-  const { labResults: highConfidenceLabResults, intakeCitations: highConfidenceIntakeCitations, allowedValues } = await answerAllowedValues(run);
+  const { labResults: highConfidenceLabResults, intakeCitations: highConfidenceIntakeCitations, allowedValues, judgeSources } = await answerAllowedValues(run);
+  // Independent judge: its own rules, no production verifier code, so a
+  // defect in claimBinding.js cannot also hide from it (gateClaimJudge.js).
+  issues.push(...judgeAnswerClaims(allClaims, judgeSources));
+  // Cross-check with the production verifier against the gate's own
+  // allowed-value set. Not independent of verifyClaims; it catches a composer
+  // that verified against the wrong inputs.
   const reverification = verifyClaims({ claims: allClaims.map((claim) => ({ kind: claim.kind, text: claim.text, citations: claim.citations })), allowedValues });
-  if (allClaims.length && reverification.verdicts.some((verdict) => verdict.status !== 'anchored')) issues.push('answer_claim_fails_independent_reverification');
+  if (allClaims.length && reverification.verdicts.some((verdict) => verdict.status !== 'anchored')) issues.push('answer_claim_fails_production_verifier_recheck');
 
   const evidenceWasReturned = (run.result?.workflow?.typed_outputs?.evidence?.guideline_evidence || []).length > 0;
   if (evidenceWasReturned && answer.guideline_evidence.length === 0) issues.push('answer_guideline_evidence_empty_despite_retrieved_evidence');
@@ -758,14 +854,21 @@ async function checkAnswer(run, expect) {
     const extraction = extractionOf(run);
     // Checked against the composer's own confidence gate (`LOW_CONFIDENCE_THRESHOLD`
     // in answerComposer.js), i.e. the *typed* `LabResult.confidence` (min of
-    // its source fields) -- not a raw per-field `fact.uncertainty` flag,
-    // which can coincidentally share a value (e.g. the same collection date)
-    // with an unrelated, separately-confident fact and would false-positive here.
-    const lowConfidenceLabValues = (extraction?.lab_results || []).filter((result) => result.confidence < 0.85).map((result) => result.value).filter(Boolean);
-    if (!lowConfidenceLabValues.length) issues.push('no_low_confidence_fact_to_check');
-    const claimText = JSON.stringify(answer.patient_facts);
-    for (const value of lowConfidenceLabValues) if (claimText.includes(`recorded at ${value} `)) issues.push('answer_low_confidence_value_present_as_patient_fact');
-    if (lowConfidenceLabValues.length && !answer.needs_review.length) issues.push('answer_low_confidence_fact_not_listed_as_needs_review');
+    // its source fields) and intake leaf confidence -- not a raw per-field
+    // `fact.uncertainty` flag. Structural: no patient_fact claim may cite a
+    // low-confidence item, and each one is listed in needs_review by its
+    // field id. Claim wording is never inspected (a template change cannot
+    // silently disable this). A claim that states a low-confidence value
+    // while citing another item fails the judge's number rule above.
+    const lowConfidence = [
+      ...(extraction?.lab_results || []).filter((result) => result.confidence < 0.85).map((result) => result.citation),
+      ...intakeLeavesOf(extraction?.intake_form).filter((leaf) => leaf.confidence < 0.85).map((leaf) => leaf.citation),
+    ].filter(Boolean);
+    if (!lowConfidence.length) issues.push('no_low_confidence_fact_to_check');
+    const lowKeys = new Set(lowConfidence.map(factCitationKey));
+    if (answer.patient_facts.some((claim) => claim.citations.some((citation) => lowKeys.has(factCitationKey(citation))))) issues.push('answer_low_confidence_fact_cited_as_patient_fact');
+    const reviewFields = new Set(answer.needs_review.map((item) => item.field));
+    for (const citation of lowConfidence) if (!reviewFields.has(citation.field_or_chunk_id)) issues.push(`answer_low_confidence_fact_not_in_needs_review:${citation.field_or_chunk_id}`);
   }
   if (expect.no_guideline_claims && answer.guideline_evidence.length) issues.push('answer_has_guideline_claims_for_unsupported_query');
   if (expect.fake_provider_drops_invented_claim) {
@@ -773,6 +876,8 @@ async function checkAnswer(run, expect) {
     if (answer.model_rejected_reason !== 'all_claims_unverified') issues.push('answer_fake_provider_rejection_reason_wrong');
     if (answer.unverified_dropped < 1) issues.push('answer_invented_claim_not_dropped_and_counted');
     if (JSON.stringify(allClaims).includes(INVENTED_CLAIM_MARKER)) issues.push('answer_invented_claim_survived_verification');
+    if (allClaims.some((claim) => claim.text === UNCITED_CLAIM_MARKER)) issues.push('answer_uncited_claim_survived_verification');
+    if (answer.unverified_dropped < 2) issues.push('answer_uncited_claim_not_dropped_and_counted');
   }
   return issues;
 }
@@ -793,7 +898,7 @@ async function evaluateCase(testCase) {
     if (expect.workflow) issues.push(...checkWorkflow(run, expect.workflow));
     if (expect.retrieval_top) issues.push(...checkRetrievalTop(run, expect.retrieval_top));
     if (expect.refusal) issues.push(...checkRefusal(run, expect.refusal));
-    if (expect.no_phi) issues.push(...checkNoPhi(run, output, expect.no_phi));
+    if (expect.no_phi) issues.push(...await checkNoPhi(run, output, expect.no_phi));
     if (expect.answer) issues.push(...await checkAnswer(run, expect.answer));
     // Extension-suite cases (w2ExtensionGate.js) carry their own check, so a new
     // slice adds cases without editing this dispatcher.
@@ -837,18 +942,36 @@ export function goldenScenarioQueries(cases = buildW2GoldenSet()) {
   return [...queries];
 }
 
-/** Hash of the thresholds, case count, case specs, every golden input (truth files, OCR recordings, text docs) and the real guideline corpus, so none can change silently — including a corpus edit that would otherwise silently reshuffle the fc-08/09/10 retrieval-ranking expectations. */
-export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_GATE_CASE_COUNT, hashFunctions = false } = {}) {
-  // The 50-case corpus hash predates function-valued case fields and must not
-  // change, so only the extension suite hashes function source (its checks
-  // live in `expect.custom`).
-  // Function source is hashed with LF line endings, so a Windows (CRLF)
-  // checkout and a Linux (LF) clone agree on the same baseline.
-  const replacer = hashFunctions ? (_key, value) => (typeof value === 'function' ? `fn:${normalizeEol(value.toString())}` : value) : undefined;
+/**
+ * The judge's own source: this module (case specs, dispatcher and every
+ * check function) and the independent claim judge. Hashed into the case-set
+ * hash so a weakened check fails the gate until an explicit rebaseline (H5).
+ * The extension suite also hashes its case files, whose helpers sit outside
+ * the `expect.custom` functions themselves.
+ */
+const JUDGE_SOURCE_FILES = ['w2RegressionGate.js', 'gateClaimJudge.js'];
+export function judgeSources({ extension = false } = {}) {
+  const files = [...JUDGE_SOURCE_FILES];
+  if (extension) files.push(...readdirSync(new URL('./extensionCases/', import.meta.url)).filter((name) => name.endsWith('.js')).sort().map((name) => `extensionCases/${name}`));
+  return files.map((name) => [name, readText(new URL(`./${name}`, import.meta.url))]);
+}
+
+/**
+ * Hash of the thresholds, case count, case specs (function-valued fields by
+ * their source), the judge's own source, every golden input (truth files, OCR
+ * recordings, text docs) and the real guideline corpus, so none can change
+ * silently -- including a corpus edit that would reshuffle the fc-08/09/10
+ * retrieval-ranking expectations, or a check function that is loosened.
+ * `extension` adds the extension documents and case files.
+ */
+export function goldenCorpusHash(cases, { judge = JUDGE_CONFIG, caseCount = W2_GATE_CASE_COUNT, extension = false } = {}) {
+  // Function source and judge files are hashed with LF line endings, so a
+  // Windows (CRLF) checkout and a Linux (LF) clone agree on the same baseline.
+  const replacer = (_key, value) => (typeof value === 'function' ? `fn:${normalizeEol(value.toString())}` : value);
   const { manifest, rawFiles, extensionManifest, extensionRawFiles } = golden();
-  const payload = { judge, case_count: caseCount, cases, manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() };
+  const payload = { judge, case_count: caseCount, cases, judge_sources: judgeSources({ extension }), manifest, files: Object.keys(rawFiles).sort().map((name) => [name, rawFiles[name]]), guideline_corpus: loadGuidelineCorpus() };
   // Only the extension suite covers the extension documents (see readGolden).
-  if (hashFunctions) Object.assign(payload, { extension_manifest: extensionManifest, extension_files: Object.keys(extensionRawFiles).sort().map((name) => [name, extensionRawFiles[name]]) });
+  if (extension) Object.assign(payload, { extension_manifest: extensionManifest, extension_files: Object.keys(extensionRawFiles).sort().map((name) => [name, extensionRawFiles[name]]) });
   return createHash('sha256').update(JSON.stringify(payload, replacer)).digest('hex');
 }
 
@@ -865,15 +988,15 @@ export const JUDGE_CONFIG = Object.freeze({ version: 'w2-assignment-rubrics-v3',
  *   requireEveryLabel: Every W2 label must have cases (golden set). The
  *     extension suite sets this false: a label with no cases is skipped, but
  *     every label that has cases must meet the same per-label threshold.
- *   hashFunctions / schemaVersion: see `goldenCorpusHash`; report version.
+ *   extension / schemaVersion: see `goldenCorpusHash`; report version.
  *
  * Returns:
  *   A report with per-category rates, regressions against the baseline,
  *   critical (no_phi) failures and `passed`. `thresholds_passed` ignores the
  *   baseline comparison and is what `--update-baseline` requires.
  */
-export async function runW2RegressionGate({ cases = buildW2GoldenSet(), baseline = null, injectDefect = false, expectedCount = W2_GATE_CASE_COUNT, requireEveryLabel = true, hashFunctions = false, schemaVersion = 'w2-regression-gate-v3' } = {}) {
-  const expectedCorpusHash = goldenCorpusHash(cases, { caseCount: expectedCount, hashFunctions });
+export async function runW2RegressionGate({ cases = buildW2GoldenSet(), baseline = null, injectDefect = false, expectedCount = W2_GATE_CASE_COUNT, requireEveryLabel = true, extension = false, schemaVersion = 'w2-regression-gate-v3' } = {}) {
+  const expectedCorpusHash = goldenCorpusHash(cases, { caseCount: expectedCount, extension });
   const baselineArtifact = baseline || baselineReport;
   const results = [];
   for (const [index, testCase] of cases.entries()) {
@@ -901,6 +1024,7 @@ export async function runW2RegressionGate({ cases = buildW2GoldenSet(), baseline
     total_cases: results.length,
     corpus_sha256: expectedCorpusHash,
     baseline_corpus_sha256: baselineArtifact.corpus_sha256,
+    baseline_generated_at: baselineArtifact.generated_at || null,
     baseline_mismatch: baselineMismatch,
     judge_config: JUDGE_CONFIG,
     rubric_mapping: {

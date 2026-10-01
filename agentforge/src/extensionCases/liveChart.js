@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { issueSignedContext, verifySignedContext } from '../accessContext.js';
 import { ChartSourceRouter } from '../chartSourceRouter.js';
 import { FixtureAdapter } from '../fixtureAdapter.js';
@@ -23,6 +24,16 @@ const OTHER_PATIENT = '0d9e8f7a-6b5c-4d3e-8f21-0a1b2c3d4e5f';
 const LIVE_CLINICIAN = '6f1e2d3c-4b5a-4968-8776-655443322110';
 const CASE_SECRET = 'extension-case-live-chart-secret';
 const REST = '/apis/default/api/patient/';
+// W3 H1: launcher (openemr-module) tokens are Ed25519-signed by the OpenEMR
+// container only. These cases stand in for that launcher with an ephemeral,
+// in-process gate keypair; it is generated per run and never deployed.
+const gateLaunchKeys = crypto.generateKeyPairSync('ed25519');
+function gateLaunchContext({ patient_uuid, clinician_uuid, scope = 'read-briefing' }) {
+  const payload = { patient_uuid, clinician_uuid, scope, issuer: 'openemr-module', authn: 'openemr-session', role: 'clinician', acl: scope === 'read-briefing' ? 'read' : 'write', expires_at: Math.floor(Date.now() / 1000) + 280 };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const token = `${encoded}.${crypto.sign(null, Buffer.from(encoded), gateLaunchKeys.privateKey).toString('base64url')}`;
+  return verifySignedContext(token, CASE_SECRET, undefined, { launchVerifyKey: gateLaunchKeys.publicKey });
+}
 
 const REST_ROWS = {
   [`${REST}${LIVE_PATIENT}`]: { data: { uuid: LIVE_PATIENT, pid: LIVE_PID, fname: 'Test', mname: '', lname: 'Patient One', DOB: '1980-04-12' } },
@@ -67,7 +78,7 @@ function routerOverrides(liveReads, restOptions = {}) {
   };
 }
 
-const moduleContext = (scope) => verifySignedContext(issueSignedContext({ patient_uuid: LIVE_PATIENT, clinician_uuid: LIVE_CLINICIAN, scope, acl: scope === 'read-briefing' ? 'read' : 'write', issuer: 'openemr-module', authn: 'openemr-session', secret: CASE_SECRET }), CASE_SECRET);
+const moduleContext = (scope) => gateLaunchContext({ patient_uuid: LIVE_PATIENT, clinician_uuid: LIVE_CLINICIAN, scope });
 const chartCitations = (answer) => (answer?.patient_facts || []).flatMap((claim) => claim.citations || []).filter((citation) => citation.source_type !== 'document');
 
 /** Upload the case's golden document for the live patient from a module session and run the scan on it. */
@@ -114,7 +125,7 @@ export const liveChartCaseChecks = {
     const { stored, result } = await moduleSessionScan(run);
     if (!result) return [`module_upload_failed:${stored.reason || stored.status}`];
     if (result.status !== 'blocked' || result.reason !== 'openemr_live_reads_disabled') issues.push(`live_off_scan_not_refused:${result.status}:${result.reason || result.chart_source?.chart_source}`);
-    const briefing = await run.h.service.prepare({ patient_uuid: 'fixture-patient-001', clinician_uuid: LIVE_CLINICIAN }, { verifiedContext: verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: LIVE_CLINICIAN, issuer: 'openemr-module', authn: 'openemr-session', secret: CASE_SECRET }), CASE_SECRET) });
+    const briefing = await run.h.service.prepare({ patient_uuid: 'fixture-patient-001', clinician_uuid: LIVE_CLINICIAN }, { verifiedContext: gateLaunchContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: LIVE_CLINICIAN }) });
     if (briefing.disposition !== 'blocked' || briefing.qualification?.reasons?.[0] !== 'openemr_live_reads_disabled') issues.push(`live_off_briefing_not_refused:${briefing.disposition}`);
     if (briefing.claims?.length) issues.push('live_off_briefing_served_fixture_claims');
     if (rest.calls.length) issues.push('live_off_reached_openemr');

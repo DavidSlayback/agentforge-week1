@@ -1,6 +1,8 @@
 # Clinical Co-Pilot planning
 
-Status: Stage 5 implementation active; `ARCHITECTURE.md` is the source of truth.
+> **Archived (2026-10-01).** Week 1 planning notes from 2026-09-16, kept as history. The only active plan is [`PLAN.md`](../PLAN.md); the Week 1 architecture is [`ARCHITECTURE.md`](../../../ARCHITECTURE.md). The status line below described that day and is no longer true.
+
+Status (2026-09-16, historical): Stage 5 implementation active.
 
 ## Confirmed with David
 

@@ -4,12 +4,31 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const REDACTED = '[REDACTED]';
-const SENSITIVE = /(patient|clinician|chart|prompt|response|text|excerpt|note|dob|address|phone|email|author|source[_-]?ref|content|raw|value|field|quote|image|screenshot|extracted)/i;
+const SENSITIVE = /(patient|clinician|chart|prompt|response|text|excerpt|note|dob|address|phone|email|author|source[_-]?ref|content|raw|value|field|quote|image|screenshot|extracted|test_name|unit|reference_range|collection_date|abnormal_flag)/i;
+
+// W3 hardening (H2): keys whose values must be codes, not free text. The key
+// test above does not match them, so a message or a caller-supplied id put
+// there (an exception message under errorCode, a path segment as the
+// correlationId) used to pass through. A string under one of these keys is
+// kept only when it is code-shaped and not a date; anything else becomes
+// [REDACTED]. Case-insensitive because error codes are upper case
+// (TRACE_STORE_CORRUPT). Residual: a single-token name with no space or
+// digits ("Smith") is code-shaped and still passes; the callers are responsible
+// for putting only codes here.
+const CODE_ONLY_KEYS = new Set(['reason', 'reasons', 'errorcode', 'error_code', 'issues', 'correlationid', 'correlation_id']);
+const CODE_SHAPED = /^[a-z0-9_.:-]{1,80}$/i;
+const DATE_SHAPED = /(?:^|[^0-9])(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}-\d{1,2}-\d{4})(?:[^0-9]|$)/;
+function codeOnly(value) {
+  if (typeof value === 'string') return CODE_SHAPED.test(value) && !DATE_SHAPED.test(value) ? value : REDACTED;
+  if (Array.isArray(value)) return value.map(codeOnly);
+  if (value && typeof value === 'object') return redactPayload(value);
+  return value;
+}
 
 function redactPayload(value) {
   if (Array.isArray(value)) return value.map(redactPayload);
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, SENSITIVE.test(key) ? REDACTED : redactPayload(item)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, SENSITIVE.test(key) ? REDACTED : CODE_ONLY_KEYS.has(key.toLowerCase()) ? codeOnly(item) : redactPayload(item)]));
   }
   return value;
 }
@@ -167,6 +186,26 @@ class InMemoryTraceSink {
   constructor({ maxTraces = 100 } = {}) {
     this.maxTraces = maxTraces;
     this.traces = [];
+    this.refusals = { total: 0, byReason: {} };
+  }
+
+  /**
+   * W3 hardening (H2): a request refused before authorization succeeded
+   * (missing or invalid context, out-of-scope conversation, mint refusal)
+   * records no trace: its identifiers are caller-controlled, and the trace
+   * store is public and exported. It is counted here instead, by reason code,
+   * and reported as `refusals` by `snapshot()`. Refusals are kept out of
+   * `requests`, `errorRate` and the latency percentiles, so a flood of them can
+   * neither dilute nor trip the error-rate and p95 alerts; watch
+   * `refusals.total` for that. Counts are since process start (not windowed)
+   * and are not persisted. A reason that is not code-shaped is counted as
+   * `other`, and at most 50 distinct reasons are kept.
+   */
+  countRefusal(reason) {
+    const code = typeof reason === 'string' && CODE_SHAPED.test(reason) ? reason : 'other';
+    this.refusals.total += 1;
+    if (code in this.refusals.byReason || Object.keys(this.refusals.byReason).length < 50) this.refusals.byReason[code] = (this.refusals.byReason[code] || 0) + 1;
+    else this.refusals.byReason.other = (this.refusals.byReason.other || 0) + 1;
   }
 
   start(meta) {
@@ -229,6 +268,7 @@ class InMemoryTraceSink {
       errorRate: traces.length ? errors / traces.length : 0,
       latencyMs: { p50: percentile(.5), p95: percentile(.95), p99: percentile(.99) },
       latencyByInteraction,
+      refusals: { total: this.refusals.total, byReason: { ...this.refusals.byReason } },
       deadlineOutcomes,
       cacheOutcomes,
       windowMs,
@@ -595,7 +635,9 @@ function createReadinessChecker(dependencies) {
           const outcome = await dependency.checkReady();
           const ready = typeof outcome === 'object' && outcome !== null ? outcome.ready === true : Boolean(outcome);
           const reason = typeof outcome === 'object' && outcome !== null && !ready && typeof outcome.reason === 'string' ? outcome.reason : null;
-          result[name] = { status: ready ? 'ready' : 'not_ready', ...(reason ? { reason } : {}) };
+          // `mode` labels how a ready dependency is satisfied (e.g. model: deterministic).
+          const mode = typeof outcome === 'object' && outcome !== null && typeof outcome.mode === 'string' ? outcome.mode : null;
+          result[name] = { status: ready ? 'ready' : 'not_ready', ...(reason ? { reason } : {}), ...(mode ? { mode } : {}) };
           if (!ready) ok = false;
         } catch {
           result[name] = { status: 'not_ready', errorCode: 'CHECK_FAILED' };

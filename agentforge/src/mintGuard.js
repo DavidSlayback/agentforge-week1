@@ -71,3 +71,26 @@ export function createMintRateLimiter({ limit = DEFAULT_MINT_RATE_LIMIT, windowS
     },
   };
 }
+
+/**
+ * Origin binding for the anonymous synthetic mints (defense in depth).
+ *
+ * `allowed` is the parsed `AGENTFORGE_DEMO_ALLOWED_ORIGINS` list. Rule:
+ * an `Origin` header that is present and not in the list is refused; an absent
+ * header is allowed (a same-origin GET and every non-browser client omit it, so
+ * absence proves nothing); an empty list disables the check.
+ *
+ * What this is NOT: it stops another website's JavaScript from using a visitor's
+ * browser to mint tokens. A scripted client can omit or forge `Origin`, so the
+ * mint stays anonymous to it. It does not change the accepted risk of
+ * F-831d4df407 / F-24b44c5180.
+ */
+export function parseAllowedOrigins(value) {
+  return String(value ?? '').split(',').map((entry) => entry.trim().replace(/\/+$/, '').toLowerCase()).filter(Boolean);
+}
+
+export function originRefused(originHeader, allowed) {
+  if (!allowed.length || originHeader === undefined) return false;
+  const origin = typeof originHeader === 'string' ? originHeader.trim().replace(/\/+$/, '').toLowerCase() : '';
+  return !allowed.includes(origin);
+}

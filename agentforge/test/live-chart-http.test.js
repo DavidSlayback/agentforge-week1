@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { startFakeOpenEMRModule } from './fake-openemr-module.js';
 import { startFakeOpenEMRRest, LIVE_PATIENT, OTHER_PATIENT } from './helpers/fakeOpenemrRest.js';
 import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
-import { issueSignedContext } from '../src/accessContext.js';
+import { TEST_LAUNCH_VERIFY_KEY, issueTestLaunchToken } from './helpers/launchKeys.js';
 
 // E9 over HTTP: server.js in the W2 shape (synthetic mode, module persistence)
 // with AGENTFORGE_OPENEMR_LIVE_READS on or off, a fake OpenEMR REST API and a
@@ -18,7 +18,7 @@ const moduleHmacSecret = 'synthetic-module-hmac-secret';
 const clinician = '6f1e2d3c-4b5a-4968-8776-655443322110';
 // 280 s like the PHP launcher; each mint is one second shorter so two mints in the same second are distinct launches.
 let mints = 0;
-const moduleToken = (patient, scope = 'read-briefing') => issueSignedContext({ patient_uuid: patient, clinician_uuid: clinician, scope, acl: scope === 'read-briefing' ? 'read' : 'write', issuer: 'openemr-module', authn: 'openemr-session', ttlSeconds: 280 - (mints++ % 200), secret });
+const moduleToken = (patient, scope = 'read-briefing') => issueTestLaunchToken({ patient_uuid: patient, clinician_uuid: clinician, scope, ttlSeconds: 280 - (mints++ % 200) });
 const labEnvelope = [
   'SYNTHETIC_SCAN_FORM|layout=pdf-ocr-lab_pdf|page_count=1',
   ...[
@@ -63,10 +63,11 @@ async function startRecordingModelServer() {
 
 async function startStack(port, liveReads, extraEnv = {}) {
   const rest = await startFakeOpenEMRRest();
-  const module = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [LIVE_PATIENT] });
+  const module = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, launchVerifyKey: TEST_LAUNCH_VERIFY_KEY, allowlist: [LIVE_PATIENT] });
   const child = await startTestServer(port, {
     AGENTFORGE_PROVIDER_MODE: 'deterministic',
     AGENTFORGE_OPENEMR_LIVE_READS: liveReads,
+    AGENTFORGE_LAUNCH_VERIFY_KEY: TEST_LAUNCH_VERIFY_KEY,
     AGENTFORGE_OPENEMR_BASE_URL: rest.url,
     AGENTFORGE_OPENEMR_ACCESS_TOKEN: 'synthetic-token',
     AGENTFORGE_PERSISTENCE_MODE: 'openemr-module',
@@ -204,7 +205,8 @@ test('live reads without external-provider approval: nothing leaves the process;
     const briefing = await (await post(unapproved.base, '/v1/briefings', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read }, session.cookie)).json();
     assert.deepEqual(briefing.qualification.reasons, ['live_external_provider_not_approved']);
     const evidence = await (await post(unapproved.base, '/v1/follow-up-evidence', { patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, demo_token: session.read, message: 'blood pressure' }, session.cookie)).json();
-    assert.equal(evidence.retrieval.guideline_provider, 'bm25-sparse-only');
+    // The provider name no longer reaches the client (F-ca9486ff1b); the request count below is the proof that no model was called.
+    assert.equal('guideline_provider' in evidence.retrieval, false);
     assert.equal(models.requests.length, 0);
     // Sensitivity: the same server calls out for the public demo's fixture chart.
     const demo = await (await fetch(`${unapproved.base}/v1/source-document-context?patient_uuid=fixture-patient-001`, DEMO_KEY_REQUEST)).json();

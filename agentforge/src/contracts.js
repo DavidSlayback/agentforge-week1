@@ -201,12 +201,17 @@ export function validatePrepareRequest(value) {
   return { valid: issues.length === 0, issues };
 }
 
+// W3 hardening (H2): a clinician question is short. The cap bounds what one
+// request can push into chart matching, retrieval and a model prompt.
+export const MAX_MESSAGE_LENGTH = 2000;
+
 export function validateFollowUpRequest(value) {
   const issues = [];
   if (!isRecord(value)) return { valid: false, issues: ['request_must_be_object'] };
   unknownFields(issues, value, API_CONTRACTS.followUpRequest.allowed);
   requiredFields(issues, value, API_CONTRACTS.followUpRequest.required);
   for (const field of ['patient_uuid', 'message', 'clinician_uuid']) if (field in value) nonEmptyString(issues, value, field);
+  if (typeof value.message === 'string' && value.message.length > MAX_MESSAGE_LENGTH) issues.push('message_too_long');
   if ('demo_token' in value && typeof value.demo_token !== 'string') issues.push('demo_token_must_be_string');
   return { valid: issues.length === 0, issues };
 }

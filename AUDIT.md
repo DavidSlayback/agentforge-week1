@@ -1,10 +1,14 @@
 # OpenEMR audit
 
 > **Snapshot note (2026-09-18):** The deployment-security statements below are
-> historical audit observations. Later Vultr evidence records trusted HTTPS
-> and an HTTP redirect for a named candidate, but that candidate is not the
-> active local branch. Preserve this audit as evidence; use the claim-
-> consistency Wayfinder map for current-status wording.
+> historical audit observations, kept as evidence. The current proxy
+> configuration (trusted HTTPS on the public host, HTTP redirected to it, and
+> the response headers it adds) is
+> [`deploy/vultr/Caddyfile`](deploy/vultr/Caddyfile), described in
+> [`deploy/vultr/README.md`](deploy/vultr/README.md). Current status is in
+> [`docs/agentforge/PLAN.md`](docs/agentforge/PLAN.md). The claim-consistency
+> map this note used to point to is archived at
+> [`docs/agentforge/archive/WAYFINDER_MAP.md`](docs/agentforge/archive/WAYFINDER_MAP.md).
 
 ## Executive summary
 

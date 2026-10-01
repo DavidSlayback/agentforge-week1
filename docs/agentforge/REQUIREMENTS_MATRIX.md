@@ -1,11 +1,19 @@
 # AgentForge requirements matrix
 
+> **Historical snapshot (Week 1 rebaseline, 2026-09-19 to 2026-09-21).** The
+> "current" wording below describes that date: deployed commit `d8b4ba8`, which
+> is no longer deployed. It is kept because the demo guide links to it. Current
+> status, SHAs and acceptance evidence are in [`PLAN.md`](PLAN.md) and
+> [`evidence/LEDGER.md`](evidence/LEDGER.md); the Week 2 submission is tag
+> `w2-final` (`bfbb1eb2`), and `/agentforge-w2/health` reports what is deployed
+> now.
+
 **Rebaseline date:** 2026-09-19.
 **Source:** verified `Week 1 - AgentForge.pdf`, pp. 2–13, supplied outside the
 repository; `REQUIREMENTS.md` is the repository transcription.
 **Status vocabulary:** Done = supported for this synthetic checkpoint; Partial = some evidence exists but a required boundary is open; Missing = no adequate evidence; Blocked = requires an owner/external decision; Undecided = draft exists but no decision is authorized.
 
-**Current repository state (2026-09-21):** local `main` tracks GitLab
+**Repository state on 2026-09-21 (historical):** local `main` tracks GitLab
 `staging/main` at deployed commit `d8b4ba8`. The current synthetic Vultr
 runtime was rebuilt from that source; runtime hashes match the local changed
 files. Local verification is 91/91 repository checks plus 4/4 script checks.
@@ -39,7 +47,7 @@ and submission evidence.
 | Runnable API collection | p. 8 | `agentforge/api/bruno` (Bruno; `collection.ps1` removed by F-API) | 27/27 requests and 64/64 assertions against the deployed freeze `d5a0df7e` (`evidence/bruno-deployed-d5a0df7e.md`) and against a local server on `4c630f5b` (`evidence/bruno/4c630f5b-local.json`); the removed PowerShell collection's external run is historical | Done | — |
 | Separate `/health` and meaningful `/ready` | p. 8 | `server.js` readiness checker | Local tests; historical Vultr `/health` and `/ready` 200 after server-only model credential rotation; prior 503 was correctly surfaced; readiness remains dependency/configuration evidence | Partial | Latency, provider quality, and production suitability remain open; readiness is not production readiness. |
 | Three alerts with meaning and response | p. 8 | `/v1/alerts`, `OBSERVABILITY.md`, `INCIDENT_RESPONSE.md` | Alert tests and historical drill | Done synthetic | External notification delivery/on-call ownership is open. |
-| Realistic deployed load/stress tests at 10 and 50 concurrent users | p. 9 | `agentforge/scripts/load-test.mjs` (F-API; run at the freeze, `LOAD_TEST.md`), historically `scripts/agentforge-load.mjs`, current smoke readback in `RELEASE_READINESS.md` | Freeze run on `d5a0df7e` (W2 service): 400/400 requests, 0 errors; p95 2.34 s at 10 users and 3.52 s at 50, p99 9.58 s and 11.75 s (`LOAD_TEST.md`, `evidence/load/`). Historical split-lane sample on `56d1a35`: 10/10 at concurrency 10; 46/50 at concurrency 50 with 8% client timeouts | Done | — |
+| Realistic deployed load/stress tests at 10 and 50 concurrent users | p. 9 | `agentforge/scripts/load-test.mjs` (F-API; run at the freeze, `LOAD_TEST.md`), historically `scripts/agentforge-load.mjs`, smoke readback in [`archive/RELEASE_READINESS.md`](archive/RELEASE_READINESS.md) | Final freeze run on `bfbb1eb2` (W2 service, tag `w2-final`): 400/400 requests, 0 errors; p95 2.71 s at 10 users and 3.15 s at 50, p99 11.39 s and 11.66 s (`LOAD_TEST.md`, `evidence/load/bfbb1eb2-*`). Earlier run on `d5a0df7e` (`w2-final-rc1`): p95 2.34 s and 3.52 s. Historical split-lane sample on `56d1a35`: 10/10 at concurrency 10; 46/50 at concurrency 50 with 8% client timeouts | Done | — |
 | CPU, memory, latency, throughput baselines | p. 9 | `LOAD_TEST.md`, current bounded load readback | Latency/throughput/error metrics plus container CPU/memory sample captured | Partial | Host-wide/database saturation and production SLO evidence remain open. |
 | Cost analysis: actual spend and 100/1K/10K/100K projections | p. 9 | `COST_MODEL.md`, AF-18 | Account billing readback and draft model | Partial | Provider billing attribution and scale validation remain open now that both provider lanes are real. |
 | Repository setup guide, architecture overview, deployed link | p. 9 | `README`/docs, `ARCHITECTURE.md`, `SUBMISSION.md` | Repository inspection | Partial | Final link must identify the verified candidate, not a stale snapshot. |
@@ -49,7 +57,7 @@ and submission evidence.
 | Demo video, 3–5 minutes | p. 9 | Untracked `agentforge-*.mp4`, screenshots/logs; demo HTML | File inventory only | Partial/unknown custody | Verify final media duration, content, provenance, and intended deliverable before publication. |
 | Eval dataset and results | p. 9 | `evals/`, fixture corpus, evidence | 9/9 local golden cases; 10/10 evaluation tests; current candidate API readback passes complete/partial workflow probes | Done synthetic | Saved deployed report remains a historical 7-case artifact; current candidate parity is bounded to the exercised API collection. |
 | Deployed application works in live environment | p. 9 | Vultr deployment docs/evidence | Current candidate `d8b4ba8`; HTTPS readback; `/health`, `/ready`, visual `/observability` 200; Qwen synthesis, OpenRouter follow-up, synthetic prewarm/open, API collection, and current runtime hash readback | Partial | Historical 50-concurrency smoke has 8% client timeouts and p95 ~45s; host-wide/database capacity remains open. |
-| Early technical interview | pp. 4, 9–10 | archived local `INTERVIEW_PREP.md`, `FINAL_INTERVIEW_PREP.md` | Draft inspection | Undecided | The untracked draft was moved to the local archive on 2026-09-19; scheduling/attendance is external and owner-gated. |
+| Early technical interview | pp. 4, 9–10 | `INTERVIEW_PREP.md` (archived outside the repository), [`FINAL_INTERVIEW_PREP.md`](FINAL_INTERVIEW_PREP.md) | Draft inspection | Undecided | The untracked draft was moved to the local archive on 2026-09-19; scheduling/attendance is external and owner-gated. |
 | Final social post | p. 9 | `FINAL_SOCIAL_DRAFT.md` | Draft inspection | Undecided | No publication authorized. |
 | Final AI interview | p. 9 | Interview prep docs | Draft inspection | Undecided | External invitation/recording not established. |
 | Early/final checkpoint schedule and interview gates | pp. 4, 9 | `REQUIREMENTS.md`, package/interview docs | Document inspection | Undecided | Dates, submission state, and external interview completion require owner evidence. |
@@ -62,6 +70,6 @@ and submission evidence.
 
 - `USER.md` now points to canonical `USERS.md`; this resolves the brief's filename inconsistency without duplicating the user model.
 - Railway evidence is earlier checkpoint evidence. Current candidate `d8b4ba8` has synthetic selected-Vultr runtime readback for the externally reachable workflow and primary Qwen success; this remains candidate-scoped proof, not PHI or production release evidence.
-- The former local queue and tickets are summarized in `HISTORICAL_QUEUE_SUMMARY.md` and are no longer an execution source. New work must be mapped to this matrix and an explicitly approved GitLab issue.
+- The former local queue and tickets are summarized in [`archive/HISTORICAL_QUEUE_SUMMARY.md`](archive/HISTORICAL_QUEUE_SUMMARY.md) and are no longer an execution source. New work is planned in `PLAN.md`.
 - The deterministic provider remains the local/default fallback. Vultr has authorized Qwen3.6 synthesis and OpenRouter Gemini Flash-Lite follow-up lanes for synthetic evaluation; neither establishes a BAA, authorizes PHI, or closes spending/retention terms.
 - Synthetic OpenEMR context and fixture parity demonstrate safety behavior; the seeded Vultr corpus and read-only path additionally verify current synthetic E2E integration, but not HIPAA compliance, PHI authorization, or production readiness.

@@ -244,7 +244,7 @@ export function renderLabTrendSection(trends, links = {}) {
  * read-scoped signed token for exactly this patient. Returns false when the
  * request is not for this route.
  */
-export async function handleLabTrendRoute(req, res, { service, verifyToken, json, html, basePath = '', errorStatus, correlationId = null }) {
+export async function handleLabTrendRoute(req, res, { service, verifyToken, json, html, basePath = '', errorStatus, errorCode = (error) => (error.code || 'internal_error'), correlationId = null }) {
   const match = req.method === 'GET' ? req.url.match(/^\/v1\/patients\/([^/?]+)\/lab-trends(\/chart)?(?:\?.*)?$/) : null;
   if (!match) return false;
   let patient_uuid;
@@ -259,7 +259,7 @@ export async function handleLabTrendRoute(req, res, { service, verifyToken, json
     else json(res, 200, result);
   } catch (error) {
     if (error?.name === 'OpenEMRModuleError') throw error;
-    json(res, errorStatus(error), { error: error.code || error.message });
+    json(res, errorStatus(error), { error: errorCode(error) });
   }
   return true;
 }

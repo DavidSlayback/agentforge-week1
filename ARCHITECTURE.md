@@ -2,16 +2,65 @@
 
 ## Executive summary
 
-AgentForge is a read-only, clinician-reviewed preparation layer embedded in
+AgentForge is a read-only, clinician-reviewed preparation layer beside
 OpenEMR. Its first workflow is a primary-care physician preparing for a
-returning patient's visit. The system accepts an already authenticated
-physician, the visibly active patient, and a patient-scoped request. It checks
-that binding before any chart retrieval, retrieves only the record groups
-needed by the briefing, normalizes every result into an evidence object, and
-produces a compact orientation followed by documented changes since the
-comparison baseline. A separate verification stage checks patient scope,
-provenance, dates, coverage, claim support, and discrepancy status before the
-result can be displayed.
+returning patient's visit ([`USERS.md`](USERS.md)): a short orientation, then
+what changed since the comparison baseline, each statement linked to the chart
+record it came from, plus patient-scoped follow-up questions. This document
+covers that Week 1 briefing. Week 2 (document ingestion, hybrid retrieval, a
+supervisor with workers, the eval gate) is in
+[`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md).
+
+**Key decisions.**
+
+1. **A separate service, not code inside OpenEMR.** The agent is a Node service
+   (`agentforge/src/server.js`) reached through Caddy on the same origin. The
+   custom module `oe-module-agentforge` adds only the "Prepare for visit"
+   launcher (`public/index.php`), which signs a short-lived context for the
+   session's active patient. Model and presentation code never run in
+   OpenEMR's PHP process, and never see its write routes or SQL.
+2. **Bind identity before reading anything.** The service verifies the signed
+   context (clinician, patient, scope, issuer, expiry) before any retrieval. A
+   patient id in a URL is never authorization. A missing or mismatched binding
+   returns `blocked` with no patient data.
+3. **One adapter, a fixed read-only operation map.** Only the chart adapter
+   (`fixtureAdapter.js` or the REST `openemrAdapter.js`) reads chart data,
+   through fixed groups: identity, encounters, problems, medications, allergies
+   and notes. The model never chooses identifiers, routes or filters. Each
+   group reports exactly one coverage outcome (`success`, `empty`, `failed`,
+   `timeout`, `unauthorized`, `not_requested`), so "no records" is never
+   confused with "could not read".
+4. **Verify before display.** Deterministic rules (`verifier.js`) check patient
+   scope, provenance, dates, coverage and claim support. They withhold
+   same-date conflicting values, never call a newer value "reassessed" unless
+   the chart says so, and withhold claims that depend on a failed group. The
+   result is `complete`, `qualified`, `partial` or `blocked`.
+5. **The model only phrases verified evidence.** A hosted model (Qwen, through
+   the OpenAI-compatible interface in `modelProvider.js`) gets two retries and
+   then a visible deterministic fallback. It decides neither authorization nor
+   facts. Chart text is untrusted data and cannot change instructions or
+   routing.
+
+**Major considerations.** The build is synthetic-only: no hosted provider is
+approved for PHI, and real PHI would first need provider, retention, BAA and
+access decisions. The deployed Week 1 route reads the nine synthetic cases in
+`docs/agentforge/fixtures/clinical-cases.json`
+(`AGENTFORGE_OPENEMR_MODE=synthetic`). The OpenEMR REST adapter exists and is
+tested, but it is not the Week 1 deployed mode. Every retrieval group writes a
+redacted attempt trace (correlation id, operation, outcome, duration,
+coverage) with no raw chart content.
+
+**Tradeoffs.** Withholding beats guessing, so incomplete charts produce
+visibly qualified briefings rather than confident ones. Read-only means
+AgentForge never writes notes, orders or medications, so its value is in
+preparation, not documentation. A separate service costs a second runtime and
+a signed-token handoff, in exchange for a narrow, testable boundary.
+Retrieval does one bounded read per group; the retry budget applies only to
+model calls. The submitted Week 1 build (tag `week1-final`, served from the
+frozen image `agentforge-w1:84f232b`) keeps known debt, such as a verifier
+that checked with `.some`, so invented sentences could pass. That debt is
+listed in `W2_ARCHITECTURE.md` §4, "Week 1 debt", and fixed on the Week 2
+service.
 
 ## Week 1 and Week 2 boundary
 

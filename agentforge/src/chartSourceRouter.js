@@ -2,7 +2,7 @@ import { isVerifiedContext } from './accessContext.js';
 import { CHART_RECORD_SOURCES, chartReadOrigin, chartRecordCitationSource } from './chartSource.js';
 
 /**
- * E9: pick the chart adapter per request from the HMAC-verified context
+ * E9: pick the chart adapter per request from the signature-verified context
  * claims, and only from them.
  *
  * - `issuer: 'openemr-module'`, `authn: 'openemr-session'` (minted by the
@@ -20,7 +20,8 @@ import { CHART_RECORD_SOURCES, chartReadOrigin, chartRecordCitationSource } from
  *
  * No query parameter, header or body field takes part in the choice: the
  * router reads `verifiedContext`, which exists only after `verifySignedContext`
- * checked the HMAC (a copied plain object is rejected by `isVerifiedContext`).
+ * checked the signature (HMAC for synthetic-demo, Ed25519 for openemr-module;
+ * W3 H1) and a copied plain object is rejected by `isVerifiedContext`.
  */
 export const LIVE_READS_VALUES = Object.freeze(['on', 'off']);
 

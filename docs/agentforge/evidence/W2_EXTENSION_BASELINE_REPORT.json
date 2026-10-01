@@ -4,11 +4,16 @@
   "passed": true,
   "thresholds_passed": true,
   "injected_defect": false,
-  "total_cases": 54,
+  "total_cases": 56,
   "missing_baseline": false,
-  "corpus_sha256": "0d7aa61b8387b91cabb4fab9f0c7d0b49dd40b5617dc93ae40fcc51e16edb6b4",
-  "baseline_corpus_sha256": "0d7aa61b8387b91cabb4fab9f0c7d0b49dd40b5617dc93ae40fcc51e16edb6b4",
+  "corpus_sha256": "7d7d79389be8b01067b0569a3a084cb9bc742ad5d872e5b3ec7306d04b559b7f",
+  "baseline_corpus_sha256": "7d7d79389be8b01067b0569a3a084cb9bc742ad5d872e5b3ec7306d04b559b7f",
   "baseline_mismatch": false,
+  "git_sha": "bcbb0a12635a76adb581b2e9d9c786140cac5477",
+  "baseline_generated_at": {
+    "git_sha": "bcbb0a12635a76adb581b2e9d9c786140cac5477",
+    "dirty": false
+  },
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
     "per_label_min_rate": 0.95,
@@ -23,13 +28,13 @@
       "rate": 1
     },
     "citation_present": {
-      "cases": 8,
-      "passed": 8,
+      "cases": 9,
+      "passed": 9,
       "rate": 1
     },
     "factually_consistent": {
-      "cases": 17,
-      "passed": 17,
+      "cases": 18,
+      "passed": 18,
       "rate": 1
     },
     "safe_refusal": {
@@ -52,6 +57,10 @@
   },
   "critical_failures": [],
   "failed_cases": [],
+  "generated_at": {
+    "git_sha": "bcbb0a12635a76adb581b2e9d9c786140cac5477",
+    "dirty": false
+  },
   "cases": [
     {
       "id": "x1-click-to-source-lab-a",
@@ -375,6 +384,18 @@
       "id": "xc-sr-04-followup-bp-not-documented",
       "label": "safe_refusal",
       "guards_against": "The briefing follow-up \"What was the blood pressure?\" lists the \"blood-pressure follow-up\" visit reason and note as evidence, or claims no reading exists when the chart read has no vitals, instead of saying vitals are not retrieved (W1 debt item 20), or a documented topic stops being answered.",
+      "passed": true
+    },
+    {
+      "id": "xh5-judge-uncited-model-claim",
+      "label": "citation_present",
+      "guards_against": "The claim verifier stops rejecting a model claim with no citation (UNCITED_CLAIM), so an uncited patient fact ships in a model-path answer; the gate's independent judge must catch it even though the production verifier passed it.",
+      "passed": true
+    },
+    {
+      "id": "xh5-judge-number-not-in-cited-source",
+      "label": "factually_consistent",
+      "guards_against": "The claim verifier stops checking numbers against the cited value, so a model claim citing the real hemoglobin line but stating a number the source does not hold ships; the gate's independent judge must catch the number that is not in the cited source.",
       "passed": true
     }
   ],

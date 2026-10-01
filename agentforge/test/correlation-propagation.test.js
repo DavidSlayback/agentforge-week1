@@ -13,7 +13,8 @@ import { OpenEMRModuleWriteback } from '../src/openemrModuleWriteback.js';
 import { createGeminiHybridGuidelineRetriever, loadGuidelineCorpus } from '../src/guidelineEvidence.js';
 import { createLiveGeminiClient } from '../src/geminiClient.js';
 import { createQwenReranker } from '../src/reranker.js';
-import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
+import { parseLaunchVerifyKey, verifySignedContext } from '../src/accessContext.js';
+import { TEST_LAUNCH_VERIFY_KEY, issueTestLaunchToken } from './helpers/launchKeys.js';
 import { startFakeOpenEMRModule } from './fake-openemr-module.js';
 import { fakeOpenEMRRestFetch, LIVE_PATIENT } from './helpers/fakeOpenemrRest.js';
 
@@ -39,7 +40,7 @@ const headerId = (options) => options?.headers?.['x-correlation-id'] ?? null;
 async function buildStack() {
   const calls = [];
   const record = (kind, id) => calls.push({ kind, id });
-  const module = await startFakeOpenEMRModule({ hmacSecret, contextSecret: secret, allowlist: [LIVE_PATIENT] });
+  const module = await startFakeOpenEMRModule({ hmacSecret, contextSecret: secret, launchVerifyKey: TEST_LAUNCH_VERIFY_KEY, allowlist: [LIVE_PATIENT] });
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentforge-corr-'));
   const cachePath = path.join(cacheDir, 'token.json');
   fs.writeFileSync(cachePath, JSON.stringify({ access_token: 'expired', refresh_token: 'synthetic-refresh', expires_at: 0 }));
@@ -67,7 +68,7 @@ async function buildStack() {
   return { service, calls, traceSink, stop: async () => { await module.close(); fs.rmSync(cacheDir, { recursive: true, force: true }); } };
 }
 
-const writeContext = () => verifySignedContext(issueSignedContext({ patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, scope: 'write-source-document', acl: 'write', issuer: 'openemr-module', authn: 'openemr-session', secret }), secret);
+const writeContext = () => verifySignedContext(issueTestLaunchToken({ patient_uuid: LIVE_PATIENT, clinician_uuid: clinician, scope: 'write-source-document' }), secret, undefined, { launchVerifyKey: parseLaunchVerifyKey(TEST_LAUNCH_VERIFY_KEY) });
 
 test('one scan request carries its correlation id into getCase, token refresh, embed, rerank and every module call', async () => {
   const stack = await buildStack();

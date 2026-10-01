@@ -5,9 +5,14 @@
   "thresholds_passed": true,
   "injected_defect": false,
   "total_cases": 50,
-  "corpus_sha256": "63e8c8ebd61016dac2bad07ed357b0529a7c67eea97f189be132486379fc916a",
-  "baseline_corpus_sha256": "63e8c8ebd61016dac2bad07ed357b0529a7c67eea97f189be132486379fc916a",
+  "corpus_sha256": "6ae6d3e6708d4a27cb27a97f49e39040388465ae6d3ddacdcf4c4e04386ceb2d",
+  "baseline_corpus_sha256": "6ae6d3e6708d4a27cb27a97f49e39040388465ae6d3ddacdcf4c4e04386ceb2d",
   "baseline_mismatch": false,
+  "git_sha": "bcbb0a12635a76adb581b2e9d9c786140cac5477",
+  "baseline_generated_at": {
+    "git_sha": "bcbb0a12635a76adb581b2e9d9c786140cac5477",
+    "dirty": false
+  },
   "judge_config": {
     "version": "w2-assignment-rubrics-v3",
     "per_label_min_rate": 0.95,
@@ -58,6 +63,10 @@
   },
   "critical_failures": [],
   "failed_cases": [],
+  "generated_at": {
+    "git_sha": "bcbb0a12635a76adb581b2e9d9c786140cac5477",
+    "dirty": false
+  },
   "cases": [
     {
       "id": "sv-01-lab-a-typed",
@@ -212,7 +221,7 @@
     {
       "id": "fc-08-retrieval-abnormal-a1c",
       "label": "factually_consistent",
-      "guards_against": "Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one real claim plus one invented, uncited-in-substance claim must have the invented claim dropped and counted, never shipped.",
+      "guards_against": "Guideline retrieval for an abnormal A1C question returns nothing, an irrelevant top chunk, or unranked evidence. S6 (model path): a fake model composer that returns one invented, uncited-in-substance claim and one claim with no citation at all must have both dropped and counted, never shipped (the independent claim judge in this gate fails the case if the uncited claim ships).",
       "passed": true
     },
     {

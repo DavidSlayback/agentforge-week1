@@ -30,12 +30,14 @@ final readonly class IdempotencyKey
     }
 
     /**
-     * The first derived-facts write for a source wins, so a non-deterministic
-     * re-extraction of the same source still adds zero rows.
+     * Content-addressed (v2, W3 H1): the same derived facts for a source add
+     * zero rows, and a re-extraction that produced different facts is stored
+     * as its own derived-facts document instead of being reported as a
+     * duplicate of the first. A reused key with another body is now a 409.
      */
-    public static function forDerivedFacts(int $pid, int $sourceDocumentId): self
+    public static function forDerivedFacts(int $pid, int $sourceDocumentId, string $contentSha256): self
     {
-        return new self(sprintf('derived:v1:%d:%d', $pid, $sourceDocumentId));
+        return new self(sprintf('derived:v2:%d:%d:%s', $pid, $sourceDocumentId, self::sha($contentSha256)));
     }
 
     public static function forLabResults(int $pid, string $sourceSha256): self

@@ -10,6 +10,19 @@ set -eu
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+# The gates run on the working tree, so it must hold exactly HEAD, and HEAD
+# must be what is pushed (.githooks/lib/gated-tree.sh).
+. "$repo_root/.githooks/lib/gated-tree.sh"
+require_gated_tree_matches head
+head_sha=$(git rev-parse HEAD)
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in *[!0]*) ;; *) continue ;; esac
+  if [ "$local_sha" != "$head_sha" ]; then
+    echo "AgentForge pre-push gate: pushing $local_ref ($local_sha), but HEAD is $head_sha. The gates test HEAD's tree; check out what you push, then retry." >&2
+    exit 1
+  fi
+done
+
 if ! command -v node >/dev/null 2>&1; then
   echo "AgentForge pre-push gate requires Node.js 24 on PATH." >&2
   exit 1

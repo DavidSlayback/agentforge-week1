@@ -8,15 +8,22 @@ import type { Config } from '../config.ts';
  */
 export const REFERRER_POLICY = 'strict-origin';
 
-/** Paths whose responses must never be cached (PHI, auth transitions). */
-function isNoStore(path: string, basePath: string): boolean {
+/**
+ * Route templates whose responses must never be cached (PHI, auth transitions).
+ * Keyed on the router's matched template (`req.routeOptions.url`), never the raw
+ * URL: the router decodes the path, so `/dashboard/%62ff/...` reaches a `/bff/`
+ * handler while a raw-URL prefix check misses it (W3 hardening H4). An unmatched
+ * request (404) is not cached either.
+ */
+function isNoStore(routeUrl: string | undefined, basePath: string): boolean {
   return (
-    path.startsWith(`${basePath}/bff/`) ||
-    path === `${basePath}/login` ||
-    path === `${basePath}/callback` ||
-    path === `${basePath}/logout` ||
-    path === `${basePath}/health` ||
-    path === `${basePath}/ready`
+    routeUrl === undefined ||
+    routeUrl.startsWith(`${basePath}/bff/`) ||
+    routeUrl === `${basePath}/login` ||
+    routeUrl === `${basePath}/callback` ||
+    routeUrl === `${basePath}/logout` ||
+    routeUrl === `${basePath}/health` ||
+    routeUrl === `${basePath}/ready`
   );
 }
 
@@ -43,14 +50,18 @@ export function contentSecurityPolicy(config: Config): string {
  * Security headers on every response, request hygiene on `/bff/*`
  * (MIGRATION-REACT.md §2.3): cross-site fetches refused, and any query string
  * refused, because the only input is the validated path parameter.
+ *
+ * Both hooks decide on the route the router matched (`req.routeOptions.url`,
+ * set before `onRequest` runs), so every spelling of a path that reaches a
+ * `/bff/` handler (`%62ff`, `%62%66%66`, `%64ashboard`, dot segments) meets the
+ * same guards. A raw-URL prefix match was bypassable (W3 hardening H4).
  */
 export function registerSecurity(app: FastifyInstance, config: Config): void {
   const csp = contentSecurityPolicy(config);
   const bffPrefix = `${config.basePath}/bff/`;
 
   app.addHook('onRequest', async (req, reply) => {
-    const path = req.url.split('?')[0] ?? '';
-    if (!path.startsWith(bffPrefix)) return;
+    if (req.routeOptions.url?.startsWith(bffPrefix) !== true) return;
     const site = req.headers['sec-fetch-site'];
     if (site !== undefined && site !== 'same-origin') {
       return reply.code(403).send({ error: 'cross-site request refused' });
@@ -62,7 +73,6 @@ export function registerSecurity(app: FastifyInstance, config: Config): void {
   });
 
   app.addHook('onSend', async (req, reply, payload) => {
-    const path = req.url.split('?')[0] ?? '';
     reply.header('content-security-policy', csp);
     // The patient uuid is in the URL, so no Referer ever carries a path: `strict-origin` sends the
     // origin alone. Not `no-referrer`: under it browsers send `Origin: null` on the same-origin sign-out
@@ -70,7 +80,7 @@ export function registerSecurity(app: FastifyInstance, config: Config): void {
     reply.header('referrer-policy', REFERRER_POLICY);
     reply.header('x-content-type-options', 'nosniff');
     reply.header('x-frame-options', 'DENY');
-    if (isNoStore(path, config.basePath)) reply.header('cache-control', 'no-store');
+    if (isNoStore(req.routeOptions.url, config.basePath)) reply.header('cache-control', 'no-store');
     return payload;
   });
 }

@@ -13,13 +13,21 @@ stages:
   - eval
 
 # Same base image and OCR packages as the deployed Dockerfile, so tests and the
-# gate exercise the Tesseract path that production runs.
+# gate exercise the Tesseract path that production runs. AGENTFORGE_REQUIRE_OCR
+# turns a missing OCR tool into a failure: the live-OCR tests
+# (agentforge/test/helpers/ocrTools.js) never skip here. The pre-commit hook
+# runs the same tests through agentforge/scripts/run-ocr-tests.sh. git is
+# extra: test/gate-hooks.test.js checks the hooks' clean-tree rule with it.
 .agentforge-node:
   image: node:24-alpine
+  variables:
+    AGENTFORGE_REQUIRE_OCR: "1"
   before_script:
-    - apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
+    - apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng git
     - npm ci --prefix agentforge
 
+# The hook's clean-tree check (.githooks/lib/gated-tree.sh) has no CI step: a
+# CI checkout is always the committed tree.
 agentforge-tests:
   extends: .agentforge-node
   stage: test

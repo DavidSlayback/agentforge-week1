@@ -123,7 +123,10 @@ export class FakeOpenEmr {
 /** An RS256 key pair standing in for OpenEMR's OAuth key, with a JWKS and an id-token signer. */
 export async function makeIdTokenSigner(): Promise<{
   jwks: { keys: JWK[] };
-  sign: (claims: Record<string, unknown>, opts?: { issuer?: string; audience?: string; expiresInSec?: number }) => Promise<string>;
+  sign: (
+    claims: Record<string, unknown>,
+    opts?: { issuer?: string; audience?: string; expiresInSec?: number; omit?: readonly ('exp' | 'iat' | 'sub')[] },
+  ) => Promise<string>;
 }> {
   const { publicKey, privateKey } = await generateKeyPair('RS256');
   const jwk = await exportJWK(publicKey);
@@ -131,15 +134,17 @@ export async function makeIdTokenSigner(): Promise<{
   jwk.alg = 'RS256';
   return {
     jwks: { keys: [jwk] },
-    sign: (claims, opts = {}) =>
-      new SignJWT(claims)
+    sign: (claims, opts = {}) => {
+      const omit = new Set(opts.omit ?? []);
+      const jwt = new SignJWT(claims)
         .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
         .setIssuer(opts.issuer ?? TEST_ENV.DASHBOARD_OAUTH_ISSUER)
-        .setAudience(opts.audience ?? TEST_ENV.DASHBOARD_OAUTH_CLIENT_ID)
-        .setSubject('synthetic-user-uuid')
-        .setIssuedAt()
-        .setExpirationTime(`${String(opts.expiresInSec ?? 3600)}s`)
-        .sign(privateKey),
+        .setAudience(opts.audience ?? TEST_ENV.DASHBOARD_OAUTH_CLIENT_ID);
+      if (!omit.has('sub')) jwt.setSubject('synthetic-user-uuid');
+      if (!omit.has('iat')) jwt.setIssuedAt();
+      if (!omit.has('exp')) jwt.setExpirationTime(`${String(opts.expiresInSec ?? 3600)}s`);
+      return jwt.sign(privateKey);
+    },
   };
 }
 

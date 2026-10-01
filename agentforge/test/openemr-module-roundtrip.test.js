@@ -79,8 +79,7 @@ test('openemr-module persistence: upload stores the source in OpenEMR, extractio
     assert.equal(openemr.read_path, 'openemr-fhir-service-in-process');
     assert.equal(openemr.read_back.verified, true);
     assert.deepEqual(openemr.unmapped_lab_results, []);
-    assert.equal(openemr.derived_payload_differs, false);
-    assert.equal(openemr.lab_payload_differs, false);
+    assert.equal('derived_payload_differs' in openemr || 'lab_payload_differs' in openemr, false, 'no payload_differs flags: a conflicting body is a 409');
     const afterFirst = fake.counts();
     assert.deepEqual([afterFirst.documents, afterFirst.procedure_orders, afterFirst.procedure_results], [2, 1, 2]);
 
@@ -198,20 +197,33 @@ test('a failed OpenEMR read-back fails the request loudly (502), never a silent 
   }
 });
 
-test('a different payload on an existing key is reported as payload_differs, not as a plain duplicate', async () => {
+test('W3 H1: a re-extraction with other derived facts is stored as a new derived-facts document; conflicting lab rows fail loudly with 409', async () => {
   const fake = await startFakeOpenEMRModule({ hmacSecret: moduleHmacSecret, contextSecret: secret, allowlist: [openemrPatient] });
   try {
     const writeback = createOpenEMRModuleWritebackFromEnv({ ...moduleEnv(fake.url), AGENTFORGE_DEMO_SECRET: secret });
     const context = verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', secret }), secret);
     const { document } = await writeback.persistSourceDocument({ patientRef: 'fixture-patient-001', documentType: 'intake_form', filename: 'intake.scan.txt', content: Buffer.from('SYNTHETIC_SCAN_FORM|layout=intake-a\n'), uploadedBy: 'fixture-physician-001', verifiedContext: context });
+    assert.equal('payload_differs' in document.openemr, false);
     const citation = { source_type: 'document', source_id: document.id, page_or_section: 'page 1', field_or_chunk_id: 'chief_concern', quote_or_value: 'x', bounding_box: [1, 2, 3, 4] };
     const extraction = (value) => ({ contract_version: 'w2-scan-v1', provider: 'test', status: 'complete', facts: [{ field_id: 'chief_concern', value, confidence: 0.9, citation }], lab_results: [], intake_form: null });
     const first = await writeback.persistDerivedEvidence({ patientRef: 'fixture-patient-001', sourceDocument: document, extraction: extraction('Fatigue'), verifiedContext: context });
+    const again = await writeback.persistDerivedEvidence({ patientRef: 'fixture-patient-001', sourceDocument: document, extraction: extraction('Fatigue'), verifiedContext: context });
     const second = await writeback.persistDerivedEvidence({ patientRef: 'fixture-patient-001', sourceDocument: document, extraction: extraction('Dizziness'), verifiedContext: context });
-    assert.equal(first.derived_payload_differs, false);
-    assert.equal(second.duplicate, true);
-    assert.equal(second.derived_document_id, first.derived_document_id);
-    assert.equal(second.derived_payload_differs, true);
+    assert.deepEqual([again.duplicate, again.derived_document_id], [true, first.derived_document_id], 'the same facts are a duplicate');
+    assert.equal(second.duplicate, false);
+    assert.notEqual(second.derived_document_id, first.derived_document_id, 'other facts are their own document, never reported as the first one');
+
+    // Lab rows are keyed by the source: a re-sent source with other values is refused.
+    const lab = await writeback.persistSourceDocument({ patientRef: 'fixture-patient-001', documentType: 'lab_pdf', filename: 'lab.scan.txt', content: Buffer.from(labEnvelope), uploadedBy: 'fixture-physician-001', verifiedContext: context });
+    const labCitation = (field) => ({ source_type: 'document', source_id: lab.document.id, page_or_section: 'page 1', field_or_chunk_id: `lab.hgb.${field}`, quote_or_value: 'x', bounding_box: [1, 2, 3, 4] });
+    const labExtraction = (value) => ({ contract_version: 'w2-scan-v1', provider: 'test', status: 'complete', facts: [{ field_id: 'lab.hgb.value', value, confidence: 0.9, citation: labCitation('value') }], lab_results: [{ test_name: 'Hemoglobin', value, unit: 'g/dL', reference_range: '12.0-16.0', collection_date: '2026-09-20', abnormal_flag: 'normal', citation: labCitation('value') }], intake_form: null });
+    assert.equal((await writeback.persistDerivedEvidence({ patientRef: 'fixture-patient-001', sourceDocument: lab.document, extraction: labExtraction('13.2'), verifiedContext: context })).status, 'persisted');
+    const ordersBefore = fake.counts().procedure_orders;
+    await assert.rejects(
+      writeback.persistDerivedEvidence({ patientRef: 'fixture-patient-001', sourceDocument: lab.document, extraction: labExtraction('9.9'), verifiedContext: context }),
+      (error) => error.name === 'OpenEMRModuleError' && error.code === 'OPENEMR_MODULE_IDEMPOTENCY_CONFLICT' && error.httpStatus === 409,
+    );
+    assert.equal(fake.counts().procedure_orders, ordersBefore, 'no lab rows written for the conflicting body');
     assert.throws(() => createOpenEMRModuleWritebackFromEnv({ ...moduleEnv(fake.url), AGENTFORGE_DEMO_SECRET: secret, AGENTFORGE_MODULE_HMAC_SECRET: secret }), /OPENEMR_MODULE_HMAC_SECRET_REQUIRED/);
     assert.throws(() => createOpenEMRModuleWritebackFromEnv({ ...moduleEnv(fake.url), AGENTFORGE_DEMO_SECRET: secret, AGENTFORGE_MODULE_HMAC_SECRET: '' }), /OPENEMR_MODULE_HMAC_SECRET_REQUIRED/);
   } finally {

@@ -41,5 +41,14 @@
       "issues": []
     }
   ],
-  "issues": []
+  "issues": [],
+  "provenance": {
+    "source": "golden suite run against the deployed W1 service (runner.js --service)",
+    "committed_in": "3a54988a04284f60039378a606f7a51492c04390",
+    "service_git_sha": null,
+    "service_git_sha_note": "not recorded at capture (2026-09-16); the file holds the 7 cases the runner had then",
+    "stale": true,
+    "stale_reason": "evals/lib/runner.js now runs 9 golden cases plus the adversarial suite; regenerate against the deployed service from the deploy step and record its /health git_sha here",
+    "regenerate_command": "node evals/lib/runner.js --service <deployed base URL> > evals/deployed-service-results.json"
+  }
 }

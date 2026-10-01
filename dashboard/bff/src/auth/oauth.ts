@@ -52,16 +52,36 @@ export function pkceChallenge(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
 }
 
-/** `returnTo` must be a path under `/dashboard/`; anything else falls back to the landing page. */
+/** One spelling of a `returnTo` is safe: under the base path, no `//`, `\`, control chars or dot segments. */
+function isSafeDashboardPath(path: string, basePath: string): boolean {
+  if (!path.startsWith(`${basePath}/`) || path.includes('//') || path.includes('\\')) return false;
+  for (let i = 0; i < path.length; i += 1) if (path.charCodeAt(i) < 0x20 || path.charCodeAt(i) === 0x7f) return false;
+  const segments = (path.split(/[?#]/)[0] ?? '').split('/');
+  return !segments.some((s) => s === '.' || s === '..');
+}
+
+/**
+ * `returnTo` must be a path under `/dashboard/`; anything else falls back to the landing page.
+ * The browser resolves dot segments (`/dashboard/../interface/`, also `%2e%2e`), so the raw value
+ * and every percent-decoding of it must pass, and a value that does not decode is refused
+ * (W3 hardening H4). The dashboard's own paths never need percent-encoding.
+ */
 export function sanitizeReturnTo(raw: unknown, basePath: string): string {
   const fallback = `${basePath}/`;
   if (typeof raw !== 'string' || raw.length > 512) return fallback;
-  let hasControlChar = false;
-  for (let i = 0; i < raw.length; i += 1) if (raw.charCodeAt(i) < 0x20) hasControlChar = true;
-  if (!raw.startsWith(`${basePath}/`) || raw.includes('//') || raw.includes('\\') || hasControlChar) {
-    return fallback;
+  let current = raw;
+  for (let round = 0; round < 4; round += 1) {
+    if (!isSafeDashboardPath(current, basePath)) return fallback;
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(current);
+    } catch {
+      return fallback;
+    }
+    if (decoded === current) return raw;
+    current = decoded;
   }
-  return raw;
+  return fallback; // still changing after several decodings: not a dashboard path
 }
 
 export function buildAuthorizeUrl(config: Config, tx: LoginTransaction): string {
@@ -129,7 +149,10 @@ export async function exchangeCode(deps: OAuthDeps, code: string, codeVerifier: 
   }
 }
 
-/** Verify signature (JWKS), `iss`, `aud = client_id`, `exp` and `nonce`. */
+/**
+ * Verify signature (JWKS), `iss`, `aud = client_id`, `exp` and `nonce`. `exp`, `iat` and `sub`
+ * must be present: jose checks `exp` only when the claim exists (W3 hardening H4).
+ */
 export async function verifyIdToken(deps: OAuthDeps, idToken: string, nonce: string): Promise<boolean> {
   const { config } = deps;
   try {
@@ -147,6 +170,7 @@ export async function verifyIdToken(deps: OAuthDeps, idToken: string, nonce: str
       issuer: config.issuer,
       audience: config.clientId,
       algorithms: ['RS256'],
+      requiredClaims: ['exp', 'iat', 'sub'],
       currentDate: new Date(deps.now()),
     });
     const ok = payload['nonce'] === nonce;

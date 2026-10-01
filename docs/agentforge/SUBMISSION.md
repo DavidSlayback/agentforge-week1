@@ -16,8 +16,8 @@ This repository contains a synthetic, read-only, production-shaped AgentForge
 
 `https://dtstest.64.177.10.182.nip.io/agentforge/`
 
-The current deployed candidate is `d8b4ba8`; Qwen is active for synthesis and
-OpenRouter is active for follow-ups. No external publication occurred.
+At that checkpoint the deployed candidate was `d8b4ba8`; Qwen was active for
+synthesis and OpenRouter for follow-ups. No external publication occurred.
 
 ## What the synthetic checkpoint proves
 
@@ -36,8 +36,8 @@ OpenRouter is active for follow-ups. No external publication occurred.
 
 ## Verification commands
 
-Use the current requirements matrix and release-readiness record for
-candidate-specific evidence.
+That checkpoint's candidate-specific evidence is in the requirements matrix
+(now a historical snapshot) and `archive/RELEASE_READINESS.md`.
 
 ```text
 node --test agentforge/test/*.test.js
@@ -48,14 +48,14 @@ node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 10 --r
 node scripts/agentforge-load.mjs --base-url <candidate-url> --concurrency 50 --requests 500 --out .scratch/agentforge-load-50-final.json
 ```
 
-Current local results are 91/91 repository tests plus 4/4 script checks, including the AgentForge,
+Local results at that checkpoint were 91/91 repository tests plus 4/4 script checks, including the AgentForge,
 evaluation, observability, helper, PHP, and provider/load-harness regressions.
 The latest bounded split-lane load sample, measured on candidate `56d1a35`, is
 10/10 successful at concurrency 10 and 46/50 at concurrency 50; the latter
 shows the provider tail-latency boundary. Container sampling peaked at 29.06%
 CPU and 52.01 MiB resident memory. Larger workloads are not claimed as passing.
 
-The current live API and browser reports are tied to candidate `d8b4ba8`; the
+That checkpoint's live API and browser reports are tied to candidate `d8b4ba8`; the
 load sample is explicitly tied to `56d1a35` and was not relabeled as a fresh
 `d8b4ba8` capacity run.
 
@@ -91,7 +91,7 @@ The deployed path below remains a separate candidate readback.
 | Operations and recovery | `docs/agentforge/archive/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/RESILIENCE.md` |
 | Conversational latency/cache contract | `docs/agentforge/archive/CONVERSATIONAL_AGENT_HANDOFF.md`, commit `1259fbb`, deployed `/v1/metrics` |
 | Load and cost boundary | `docs/agentforge/archive/HISTORICAL_QUEUE_SUMMARY.md`, `docs/agentforge/LOAD_TEST.md` |
-| Current deployed scale | No current raw artifact; obtain fresh candidate-specific evidence. |
+| Deployed scale (at that checkpoint) | No raw artifact for `d8b4ba8`. Later load runs: `docs/agentforge/LOAD_TEST.md`. |
 | Final release checklist | `docs/agentforge/FINAL_PACKAGE.md` |
 | Interview defense | `docs/agentforge/FINAL_INTERVIEW_PREP.md` |
 | No-publish communication draft | `docs/agentforge/FINAL_SOCIAL_DRAFT.md` |

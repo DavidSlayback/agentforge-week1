@@ -3,8 +3,11 @@
 This Compose file is suitable for the public synthetic AgentForge checkpoint
 demonstration only. It is not approved for real patient data.
 
-The owner-controlled VM's host, SSH user and key are kept out of the
-repository (see `deploy.sh` for the environment variables it needs). The remote
+The public URL, `https://dtstest.64.177.10.182.nip.io`, is public and appears
+throughout the repository; as a `nip.io` name it contains the VM's IP address.
+What is kept out of the repository is SSH access to the owner-controlled VM:
+the SSH user, the key, and the `.env` secrets (`deploy.sh` reads the first two
+from environment variables). The remote
 deployment root is `/opt/agentforge-week1`; its mode-600 `.env` is stored at
 that root and is not part of the repository. The Compose file is under
 `deploy/vultr/`; when running Compose from that directory, pass the root env
@@ -19,13 +22,25 @@ change W1 deliberately, build and tag a new image and update the `image:` line.
 ## What `deploy.sh` does
 
 1. **Refuses** a dirty tree, or a commit not on `staging/main` unless
-   `AGENTFORGE_DEPLOY_ALLOW_UNMERGED=1`.
-2. **Backs up** the current sources on the VM to
+   `AGENTFORGE_DEPLOY_ALLOW_UNMERGED=1`. It builds the `git archive` locally
+   first, so a failing archive changes nothing on the VM.
+2. **Preflight on the VM:** `secrets/openemr-token.json` must be a file. Both
+   AgentForge services bind-mount it. If it is missing, Docker creates a
+   root-owned directory in its place for the W1 short-syntax mount, and the
+   `agentforge-w2` mount (long syntax, `create_host_path: false`) refuses to
+   start. Missing or a directory stops the deploy before anything changes.
+   When live chart reads are off, a root-only placeholder is enough:
+   `sudo install -m 600 /dev/null /opt/agentforge-week1/secrets/openemr-token.json`.
+3. **Backs up** the current sources on the VM to
    `~/agentforge-week1-backups/<stamp>/`.
-3. **Ships** the committed tree with `git archive`.
-4. **Fixes** the module's permissions.
-5. **Recreates** the proxy if the Caddyfile changed.
-6. **Builds and replaces** the named services. This step is hardened against
+4. **Ships** the committed tree. If the ship fails, the backed-up sources are
+   put back, so a failed ship never leaves an empty build tree.
+5. **Fixes** the module's permissions, recreates the proxy if the Caddyfile
+   changed, and fails if apache cannot read the module. The check finds the
+   `openemr` container through `docker compose exec`, not by container name.
+6. **Builds and replaces** the named services. Before the replace, the
+   runner tags each running image as `<service>:previous` and records the
+   pairs in `/tmp/agentforge-deploy-<stamp>/previous`. This step is hardened against
    the 2026-09-26 incident, in which the SSH session reset during
    `up -d --build` and left the dashboard container removed, with about
    10 minutes of 502:
@@ -47,7 +62,15 @@ change W1 deliberately, build and tag a new image and update the `image:` line.
    - **Keepalives.** Every SSH call uses `ServerAliveInterval=15`,
      `ServerAliveCountMax=8` and `ConnectTimeout=20`.
 7. **Succeeds only when** each deployed service's `/health` reports the
-   deployed SHA on the public URL. This check is unchanged.
+   deployed SHA on the public URL. The frozen W1 `agentforge` service is the
+   exception: it must report the SHA pinned in its `image: agentforge-w1:<sha>`
+   tag (`84f232b`), never the deployed commit.
+8. **Rollback (opt-in).** With `AGENTFORGE_DEPLOY_ROLLBACK=1`, a failed replace
+   or a failed SHA health check retags each `<service>:previous` image and
+   recreates the service with `up -d --no-deps --no-build --force-recreate`.
+   The deploy still exits 1. Without it, the new containers stay live and the
+   failure message prints the manual rollback command. Rollback restores
+   images only: sources, `.env`, the database and volumes are not rolled back.
 
 To follow a build by hand:
 `ssh <host> tail -f /tmp/agentforge-deploy-<stamp>/build.log`.
@@ -57,6 +80,23 @@ Offline tests cover these behaviors with fake `ssh`, `docker` and `curl`:
 and mirrored by the `deploy-script` job in `.gitlab-ci.yml`. They cannot show
 that `setsid`/`nohup` survive a real SSH reset on the VM. The next real deploy
 is the first observation of that.
+
+## Proxy (Caddy)
+
+`Caddyfile` serves the public host with a publicly trusted certificate, plus a
+`:443` catch-all with an internal certificate for access by IP. Plain HTTP on
+`:80`, by IP or any name, is redirected (308) to
+`https://dtstest.64.177.10.182.nip.io`; nothing is served unencrypted. Services
+reach each other by Docker DNS name (`http://openemr`, `agentforge-w2:8788`),
+never through Caddy, so the redirect does not affect them. Response headers:
+`Strict-Transport-Security: max-age=31536000` on the public host only, and
+`X-Frame-Options: SAMEORIGIN` and `Referrer-Policy:
+strict-origin-when-cross-origin` on both HTTPS blocks, each only when the
+upstream did not set it. The AgentForge routes also get
+`X-Content-Type-Options: nosniff`; it is not set site-wide because legacy
+OpenEMR pages were not tested with it. Check after a deploy:
+`curl -s -D - -o /dev/null https://dtstest.64.177.10.182.nip.io/agentforge-w2/health` and
+`curl -sI http://64.177.10.182/` (expect 308).
 
 ## Required secrets
 
@@ -88,7 +128,8 @@ OpenEMR readiness and AgentForge readiness before using the instance.
 AgentForge is a separate service beside OpenEMR. Caddy owns the public 80/443
 entrypoints and routes `/agentforge` to the service while routing the root path
 to OpenEMR. The module launcher reads the selected OpenEMR patient's UUID from
-the authenticated session's `pid` and creates a signed context (280 s). The
+the authenticated session's `pid` and creates an Ed25519-signed context (280 s;
+see "Launcher signing key" below). The
 AgentForge service then uses the allowlisted OpenEMR REST read routes with a
 server-only OAuth access token. The token must be provisioned through the
 approved OpenEMR OAuth client path; missing or invalid authorization keeps live
@@ -161,10 +202,19 @@ over the Docker network; Caddy answers 404 publicly for everything under the
 module directory except the Week 1 launcher `public/index.php`. Every call is
 HMAC-signed with a key derived from `AGENTFORGE_MODULE_HMAC_SECRET` (held only
 by `openemr` and `agentforge-w2`, never by the Week 1 `agentforge` service) and
-carries a context token signed with `AGENTFORGE_DEMO_SECRET`; the module takes
-the acting OpenEMR user from that token and accepts only allowlisted patients,
-whatever the token's issuer. Writes need a write-scoped token. Lab rows are
-stored as preliminary (`prelim`) pending clinician review. The Week 1
+carries a context token: a `synthetic-demo` token signed with
+`AGENTFORGE_DEMO_SECRET`, or the launcher's Ed25519-signed `openemr-module`
+token forwarded unchanged (verified with `AGENTFORGE_LAUNCH_VERIFY_KEY`; an
+`openemr-module` token signed with the demo secret is refused). The module
+takes the acting OpenEMR user from that token and accepts only allowlisted
+patients, whatever the token's issuer. Writes need a write-scoped token. Lab
+rows are stored as preliminary (`prelim`) pending clinician review. A
+medication or allergy written for a `synthetic-demo` token is labeled an
+unauthenticated synthetic-demo action and stays `unconfirmed`; only a
+launcher (`openemr-module`) token records `clinician-confirmed`. Every
+successful module read and write is in the OpenEMR audit log (events
+`agentforge-read` and `agentforge-write`, ids and counts only). The same
+write key with a different body is refused with 409 `idempotency_conflict`. The Week 1
 `agentforge` service is unchanged and stays in synthetic mode.
 
 **Add these to `/opt/agentforge-week1/.env` before running any `docker compose`
@@ -220,8 +270,9 @@ not use it.
   30 s and concurrent calls share one probe, so `/ready` traffic costs at most
   one signed module call per 30 s. Because `/ready` depends on OpenEMR, the
   service has `depends_on: openemr (healthy)` and a 60 s healthcheck start
-  period. The `proxy` waits only for `agentforge-w2` to start, not to be
-  healthy, so a module outage never keeps Caddy down. Langfuse is probed only
+  period. The `proxy` waits only for `agentforge-w2` and the frozen W1
+  `agentforge` to start, not to be healthy, so a module outage or a failing W1
+  model probe never keeps Caddy (and OpenEMR) down. Langfuse is probed only
   if its variables are set; the `agentforge-w2` block does not pass them today.
 - **Corrupt trace file.** If `/data/w2-traces.json` does not parse at startup
   (for example truncated), the service still starts: the file is renamed to
@@ -232,14 +283,44 @@ not use it.
 - **Correlation ids.** Each response carries `x-correlation-id`: the caller's
   value only when it is a UUID or 16-64 lowercase hex characters, else a
   server-minted `af-<uuid>` (a rejected value is not stored or forwarded).
-  The scan trace in `/v1/traces` has the same `correlationId`, and module,
-  OpenEMR REST and model calls send it as `x-correlation-id`.
+  The scan, briefing and follow-up traces in `/v1/traces` have the same
+  `correlationId`, and module, OpenEMR REST and model calls send it as
+  `x-correlation-id`.
 
 No operator step is required: all four settings have defaults, and the
 optional overrides go in `/opt/agentforge-week1/.env`. After the deploy,
 check `/agentforge-w2/ready` (`traceStore` and `openemrModule` ready),
 `/agentforge-w2/v1/metrics` (`traceLimit: 500`), and that the trace count in
 `/agentforge-w2/v1/traces` is not reset by the next deploy.
+
+## W3 hardening: non-root image (lane H2) — one-time operator step
+
+The `agentforge-w2` image (root `Dockerfile`) now runs as the unprivileged
+`node` user (uid 1000) and no longer contains `agentforge/test`. The image
+creates `/data` owned by `node`, so a new `w2tracevolume` works as is. The
+existing volume on the VM holds `w2-traces.json` written by root (mode 600):
+the non-root process cannot read it and exits at startup with `EACCES`
+(observed in a local container smoke, 2026-10-01). Before the first `up` of
+this image, once:
+
+```bash
+docker compose --env-file /opt/agentforge-week1/.env stop agentforge-w2
+docker run --rm -v vultr_w2tracevolume:/data alpine:3 chown -R 1000:1000 /data
+```
+
+Then deploy as usual and check `/agentforge-w2/ready` (`traceStore` ready).
+If `AGENTFORGE_OPENEMR_LIVE_READS=on`, the bind-mounted token cache
+(`secrets/openemr-token.json`, mounted at
+`/run/secrets/agentforge-openemr-token.json`) must also be readable and
+writable by uid 1000 (`chown 1000:1000 secrets/openemr-token.json`); the
+token provider rewrites it on refresh. PDF OCR and page renders write only to
+`/tmp`.
+
+`/agentforge-w2/ready` now also fails when `AGENTFORGE_PROVIDER_MODE=qwen` has
+no `AGENTFORGE_MODEL_ENDPOINT` and key (`model` `reason: not_configured`), so
+those must stay set in `/opt/agentforge-week1/.env`. Refused requests no
+longer create traces; they are counted in `/agentforge-w2/v1/metrics`
+`refusals`.
 
 ## Week 2 live chart reads from an OpenEMR session (E9)
 
@@ -257,7 +338,8 @@ parentheses):
 
 | Variable | Purpose |
 |---|---|
-| `AGENTFORGE_OPENEMR_LIVE_READS` (`off`) | `on` reads OpenEMR for launcher tokens; any value other than `on`/`off` stops startup |
+| `AGENTFORGE_OPENEMR_LIVE_READS` (`off`) | `on` reads OpenEMR for launcher tokens; any value other than `on`/`off` stops startup, and so does `on` without `AGENTFORGE_LAUNCH_VERIFY_KEY` |
+| `AGENTFORGE_LAUNCH_VERIFY_KEY` (empty) | The launcher's Ed25519 public key (below). Empty: every launcher link gets a 503 "OpenEMR launch is not configured" page; the public demo is unchanged. Malformed: startup fails |
 | `AGENTFORGE_OPENEMR_BASE_URL` (`http://openemr`) | REST base, over the Docker network |
 | `AGENTFORGE_OPENEMR_TOKEN_URL`, `AGENTFORGE_OPENEMR_CLIENT_ID`, `AGENTFORGE_OPENEMR_CLIENT_SECRET` (empty) | The server-only read client that owns the refresh token (the same values Week 1's live mode uses) |
 | `AGENTFORGE_OPENEMR_TOKEN_CACHE_PATH` (fixed) | `/run/secrets/agentforge-openemr-token.json`, mounted from `secrets/openemr-token.json` |
@@ -267,6 +349,29 @@ parentheses):
 
 On the `openemr` service, `AGENTFORGE_SERVICE_URL` is where the launcher link
 points. For W2 it must be the public W2 path: `https://<canonical-host>/agentforge-w2`.
+
+### Launcher signing key (W3 H1)
+
+Launcher tokens (`issuer: openemr-module`) are signed with an Ed25519 key
+whose private half only the `openemr` container holds. `agentforge-w2` and
+the module API verify them with the public half. The frozen Week 1 service
+and `agentforge-w2` hold `AGENTFORGE_DEMO_SECRET`, so neither can mint a
+launcher token: every verifier refuses an `openemr-module` token that is
+HMAC-signed. Compose passes `AGENTFORGE_LAUNCH_SIGNING_KEY` and
+`AGENTFORGE_LAUNCH_VERIFY_KEY` to `openemr`, only
+`AGENTFORGE_LAUNCH_VERIFY_KEY` to `agentforge-w2`, and neither to the Week 1
+`agentforge` service. Generate the pair once, on the VM, straight into the
+`.env` (nothing is printed):
+
+```sh
+docker run --rm node:24-alpine node -e "const k=require('crypto').generateKeyPairSync('ed25519').privateKey.export({format:'jwk'});const b=(v)=>Buffer.from(v,'base64url').toString('base64');console.log('AGENTFORGE_LAUNCH_SIGNING_KEY='+b(k.d)+'\nAGENTFORGE_LAUNCH_VERIFY_KEY='+b(k.x))" >> /opt/agentforge-week1/.env
+```
+
+Both values are base64 of 32 bytes (the private seed and the public key);
+`openemr` refuses to launch if the two do not match. Without the signing key
+the launcher answers 503 "AgentForge launch is not configured". Recreate
+`openemr` and `agentforge-w2` after setting or rotating them; rotating ends
+every open launch session.
 
 ### Operator runbook
 
@@ -293,6 +398,9 @@ SHA. Values are never printed.
    ```dotenv
    AGENTFORGE_SERVICE_URL=https://<canonical-host>/agentforge-w2
    AGENTFORGE_OPENEMR_LIVE_READS=on
+   # the launcher keypair ("Launcher signing key" above); live reads refuse to start without the verify key
+   AGENTFORGE_LAUNCH_SIGNING_KEY=<base64 32-byte seed>
+   AGENTFORGE_LAUNCH_VERIFY_KEY=<base64 32-byte public key>
    # the designated synthetic patients: the launcher refuses everyone else
    AGENTFORGE_LIVE_PATIENT_UUIDS=<af-live-01-patient-uuid>
    # append the seeded uuid; keep the existing entries (uploads)
@@ -491,7 +599,7 @@ path is unchanged.
 ## Patient dashboard port (`dashboard`)
 
 The `dashboard` service (`dashboard/Dockerfile`) serves the React SPA and its
-Fastify BFF at `/dashboard/` (Caddy `handle /dashboard/*`, all three site
+Fastify BFF at `/dashboard/` (Caddy `handle /dashboard/*`, both HTTPS site
 blocks). The BFF is a confidential OAuth client of this OpenEMR; tokens and the
 client secret stay in the container. It is not in `proxy.depends_on`, so a
 failing dashboard returns 502 on `/dashboard/*` only.
@@ -514,11 +622,45 @@ DASHBOARD_OAUTH_CLIENT_ID=<client-id>
 DASHBOARD_OAUTH_CLIENT_SECRET=<client-secret>
 # At least 32 random characters
 DASHBOARD_SESSION_SECRET=<long-random-value>
+# OpenEMR's effective PHP timezone, an IANA name (no default; how to read it: below)
+DASHBOARD_OPENEMR_TZ=<iana-zone>
 # Optional (defaults shown or empty)
 DASHBOARD_OPENEMR_INTERNAL_URL=http://openemr
-DASHBOARD_OPENEMR_TZ=America/Chicago
 DASHBOARD_DEMO_PATIENTS=Demo A (data-rich)=<patient-uuid>,Demo B (deceased)=<patient-uuid>
 ```
+
+**`DASHBOARD_OPENEMR_TZ` (required since W3 hardening H4; it had an unchecked
+`America/Chicago` placeholder default).** It must equal the timezone OpenEMR's
+PHP runs in, because the legacy rules the dashboard reproduces run in PHP
+(`filterActiveIssues()` compares `strtotime(enddate) > strtotime('now')`; ages
+use `date()`). OpenEMR picks that zone in `interface/globals.php:509-518`:
+the `gbl_time_zone` global if non-empty, else php.ini `date.timezone`, else
+PHP's default `UTC`; it then sets each MySQL session's `time_zone` to PHP's
+offset, so MySQL's global or system zone does not decide it. Read both inputs
+on the VM:
+
+```sh
+cd /opt/agentforge-week1/deploy/vultr
+# 1. The OpenEMR global (empty output or an empty line = not set)
+docker compose --env-file /opt/agentforge-week1/.env exec -T mysql \
+  sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mariadb -uroot openemr -N -e "SELECT gl_value FROM globals WHERE gl_name = \"gbl_time_zone\""'
+# 2. PHP's own setting (Apache's mod_php loads the same php.ini as the CLI in this image)
+docker compose --env-file /opt/agentforge-week1/.env exec -T openemr \
+  php -r 'echo "date.timezone=", var_export(ini_get("date.timezone"), true), " effective=", date_default_timezone_get(), PHP_EOL;'
+docker compose --env-file /opt/agentforge-week1/.env exec -T openemr php --ini
+# Context only (not the deciding value): MySQL's zones and clocks
+docker compose --env-file /opt/agentforge-week1/.env exec -T mysql \
+  sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mariadb -uroot -N -e "SELECT @@global.time_zone, @@system_time_zone, NOW(), UTC_TIMESTAMP()"'
+```
+
+Rule: if query 1 prints a zone name, use it. Otherwise use the `effective=`
+value from command 2 (the CLI never reads `gbl_time_zone`, so that value is
+php.ini's `date.timezone`, or PHP's default `UTC` when php.ini leaves it
+unset). Locally (2026-10-01) query 1 prints an empty line and command 2 prints
+`date.timezone='UTC' effective=UTC` with `date.timezone` commented out in
+`/etc/php85/php.ini`, so the local value is `UTC`. The BFF refuses to start without a valid IANA name, and Compose
+refuses to interpolate this file (for every service) while the variable is
+missing, so set it before the next `deploy.sh` run.
 
 Ship it with `AGENTFORGE_DEPLOY_SERVICES="dashboard" sh deploy/vultr/deploy.sh`
 (only from a commit on `staging/main`); the health loop then requires

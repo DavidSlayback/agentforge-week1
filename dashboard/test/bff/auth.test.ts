@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IDLE_TIMEOUT_MS, SessionStore } from '../../bff/src/auth/session.ts';
+import { IDLE_TIMEOUT_MS, LOGIN_TX_TTL_MS, MAX_PENDING_TRANSACTIONS, SessionStore } from '../../bff/src/auth/session.ts';
 import { pkceChallenge, sanitizeReturnTo } from '../../bff/src/auth/oauth.ts';
 import { OAUTH_SCOPE } from '../../bff/src/config.ts';
 import { UPSTREAM_ROUTES } from '../../core/upstreamRoutes.ts';
@@ -57,9 +57,62 @@ describe('GET /dashboard/login', () => {
 
   it('only accepts a returnTo under /dashboard/', () => {
     expect(sanitizeReturnTo('/dashboard/patients/x', '/dashboard')).toBe('/dashboard/patients/x');
+    expect(sanitizeReturnTo('/dashboard/', '/dashboard')).toBe('/dashboard/');
     for (const bad of ['https://evil.test/', '//evil.test/dashboard/', '/dashboard//evil', '/other', '/dashboard\\x', undefined, 7]) {
       expect(sanitizeReturnTo(bad, '/dashboard')).toBe('/dashboard/');
     }
+  });
+
+  // W3 hardening H4: `/dashboard/../interface/...` passed the prefix check and the browser resolved
+  // it outside the dashboard. Dot segments are refused in every spelling, as is anything that only
+  // looks like a `/dashboard/` path before decoding.
+  it('refuses a returnTo with dot segments, encoded dots, encoded slashes or backslashes', () => {
+    for (const bad of [
+      '/dashboard/../interface/main/main_screen.php',
+      '/dashboard/..',
+      '/dashboard/./../interface/',
+      '/dashboard/patients/../../interface/',
+      '/dashboard/%2e%2e/interface/',
+      '/dashboard/%2E%2E/interface/',
+      '/dashboard/.%2e/interface/',
+      '/dashboard/%2e/x',
+      '/dashboard/%252e%252e/interface/',
+      '/dashboard/%2f%2fevil.test/',
+      '/dashboard/%5c%5cevil.test/',
+      '/dashboard/%zz',
+      '/dashboard/patients/x/..',
+    ]) {
+      expect(sanitizeReturnTo(bad, '/dashboard'), bad).toBe('/dashboard/');
+    }
+  });
+
+  // W3 hardening H4: /login is unauthenticated, and each call creates a server-side transaction. The
+  // store is capped (oldest evicted) and its expiry sweep is amortized instead of walking every
+  // entry on every request (40k logins took 9.9 s before: quadratic).
+  it('caps pending login transactions (oldest evicted) and sweeps at most once per interval', () => {
+    const store = new SessionStore({ maxPendingTransactions: 3, sweepIntervalMs: 60_000 });
+    const fields = { state: 's', nonce: 'n', codeVerifier: 'v', returnTo: '/dashboard/' };
+    const ids = [0, 1, 2, 3, 4].map(() => store.createTransaction(fields, 1000).id);
+    expect(store.pendingTransactionCount).toBe(3);
+    expect(store.takeTransaction(ids[0], 1000)).toBeNull(); // evicted
+    expect(store.takeTransaction(ids[1], 1000)).toBeNull(); // evicted
+    expect(store.takeTransaction(ids[4], 1000)).not.toBeNull(); // newest kept
+    expect(store.sweepCount).toBe(1); // five creates in one interval: one sweep
+    for (let i = 0; i < 100; i += 1) store.createTransaction(fields, 2000 + i);
+    expect(store.sweepCount).toBe(1);
+    // Past the interval the next create sweeps; past the TTL every older transaction is gone.
+    store.createTransaction(fields, 2000 + LOGIN_TX_TTL_MS + 60_000);
+    expect(store.sweepCount).toBe(2);
+    expect(store.pendingTransactionCount).toBe(1);
+  });
+
+  it('bounds pending logins through the real /login route', async () => {
+    const store = new SessionStore({ maxPendingTransactions: 5 });
+    const app = await buildTestApp({ fake: new FakeOpenEmr(), sessionStore: store });
+    for (let i = 0; i < 12; i += 1) expect((await app.inject({ method: 'GET', url: '/dashboard/login' })).statusCode).toBe(302);
+    expect(store.pendingTransactionCount).toBe(5);
+    expect(MAX_PENDING_TRANSACTIONS).toBeGreaterThan(0);
+    expect(MAX_PENDING_TRANSACTIONS).toBeLessThanOrEqual(10_000);
   });
 });
 
@@ -139,6 +192,24 @@ describe('GET /dashboard/callback', () => {
       const res = await app.inject({ method: 'GET', url: `/dashboard/callback?code=abc&state=${q.get('state') ?? ''}`, cookies: { dashboard_tx: tx } });
       expect(res.headers.location, variant).toBe('/dashboard/?signin=failed');
       expect(cookieValue(res.headers['set-cookie'], 'dashboard_sid'), variant).toBeNull();
+    }
+  });
+
+  // W3 hardening H4: jose checks `exp` only when it is present, so a token without one never expired.
+  it('rejects an id token without exp, iat or sub', async () => {
+    for (const claim of ['exp', 'iat', 'sub'] as const) {
+      const fake = new FakeOpenEmr();
+      const signer = await makeIdTokenSigner();
+      const app = await buildTestApp({ fake });
+      const login = await app.inject({ method: 'GET', url: '/dashboard/login' });
+      const tx = cookieValue(login.headers['set-cookie'], 'dashboard_tx') ?? '';
+      const q = new URL(String(login.headers.location)).searchParams;
+      const idToken = await signer.sign({ nonce: q.get('nonce') }, { omit: [claim] });
+      fake.on('POST', TOKEN_URL, { status: 200, body: { access_token: SYNTHETIC_ACCESS_TOKEN, id_token: idToken, token_type: 'Bearer', expires_in: 3600 } });
+      fake.on('GET', JWKS_URL, { status: 200, body: signer.jwks });
+      const res = await app.inject({ method: 'GET', url: `/dashboard/callback?code=abc&state=${q.get('state') ?? ''}`, cookies: { dashboard_tx: tx } });
+      expect(res.headers.location, claim).toBe('/dashboard/?signin=failed');
+      expect(cookieValue(res.headers['set-cookie'], 'dashboard_sid'), claim).toBeNull();
     }
   });
 

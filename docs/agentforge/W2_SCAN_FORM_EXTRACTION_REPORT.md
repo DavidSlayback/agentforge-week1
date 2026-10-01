@@ -2,7 +2,7 @@
 
 Date: 2026-09-22
 Contract: `w2-scan-v1`
-Providers: `synthetic-ocr-vlm-adapter` baseline plus an opt-in `local-vlm-adapter` seam
+Providers: the tagged-envelope parser (labeled `uploaded-tagged-envelope` since the W3 hardening; it was `synthetic-ocr-vlm-adapter`, although no OCR or VLM runs on that path) plus an opt-in `local-vlm-adapter` seam
 Disposition: deterministic contract evidence plus a sourced public blank-form corpus; local OCR is measured and a larger local VLM is benchmarked but not promoted.
 
 ## External form corpus

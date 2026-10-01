@@ -83,10 +83,11 @@ test('degraded: the real model was rejected and the composer fell back', () => {
   assert.ok(verification.reason_codes.includes('model_rejected:invalid_json'));
 });
 
-test('passed: a dropped unverified claim is recorded as an issue but the verified answer still passes', () => {
+// W3 hardening H3: a dropped claim used to grade `passed`; it now asks for review.
+test('needs_review: a dropped unverified claim is recorded as an issue and the run is not passed', () => {
   const answer = readyAnswer({ unverified_dropped: 2, model_claims_proposed: 4, model_claims_verified: 2 });
   const { evaluation, verification } = computeRuntimeEvaluation({ workflow: readyWorkflow({ answer }) });
-  assert.equal(evaluation.status, 'passed');
+  assert.equal(evaluation.status, 'needs_review');
   assert.ok(evaluation.issues.includes('claims_dropped'));
   assert.equal(verification.claims_dropped, 2);
   assert.equal(verification.status, 'issues_found');

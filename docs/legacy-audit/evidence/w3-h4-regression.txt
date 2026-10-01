@@ -1,0 +1,190 @@
+W3 hardening lane H4 (patient dashboard) deliberate-regression proof (AGENTS.md "done" rule 2; DEV-LOG 2026-10-01 entry)
+Date: 2026-10-01
+Branch: agentforge/w3h-h4. Fixes committed in 050c87ee (parent 9b25806c), which passed the full .githooks/pre-commit.
+Synthetic data only: the uuids below are the seeded synthetic test patients; no names, DOBs or clinical values appear.
+
+A. Hook refusal (item 1, the MAJOR encoded-path bypass). The fix was replaced by the old raw-URL prefix match:
+  dashboard/bff/src/http/security.ts onRequest:
+  -    if (req.routeOptions.url?.startsWith(bffPrefix) !== true) return;
+  +    const path = req.url.split('?')[0] ?? '';
+  +    if (!path.startsWith(bffPrefix)) return; // REGRESSION: raw-URL prefix match
+Command: git add -A && git commit -m 'test(dashboard): deliberate regression (must be refused by the hook)'
+AgentForge gate: module PHP lint and tests...
+AgentForge gate: unit suites...
+AgentForge gate: deploy.sh offline tests...
+Dashboard gate: typecheck, lint, unit/contract/component tests, build...
+   × /bff request hygiene > applies the /bff guards to every encoding of the path the router decodes (%62ff, %2F, double encoding, case, dots) 84ms
+     → cross-site /dashboard/%62ff/patients/a2d4d063-d949-4f5a-9001-01c1d919afc6/header: expected 200 not to be 200 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed | 35 passed (36)
+      Tests  1 failed | 354 passed (355)
+hook exit 1
+HEAD before 9b25806c1ac4928f3d23aca8eb66d0a0dd604768 after 9b25806c1ac4928f3d23aca8eb66d0a0dd604768
+Reverted (file restored from the saved good copy); the real commit 050c87ee then passed the hook.
+
+B. One break per fix after the fix landed (scratch script: replace one anchor, run the named test file,
+restore the file byte-for-byte; git diff --stat identical before and after).
+== 1 encoded /bff path
+Break: bff/src/http/security.ts
+  - if (req.routeOptions.url?.startsWith(bffPrefix) !== true) return;
+  + if ((req.url.split('?')[0] ?? '').startsWith(bffPrefix) !== true) return;
+Run: npx vitest run test/bff/security.test.ts
+Result: Tests  1 failed | 14 passed (15)
+   × /bff request hygiene > applies the /bff guards to every encoding of the path the router decodes (%62ff, %2F, double encoding, case, dots) 51ms
+     → cross-site /dashboard/%62ff/patients/a2d4d063-d949-4f5a-9001-01c1d919afc6/header: expected 200 not to be 200 // Object.is equality
+Restored: bff/src/http/security.ts byte-for-byte.
+
+== 2 timezone placeholder default
+Break: bff/src/config.ts
+  -     .string()\n    .min(1)\n    .refine((tz) => {
+  +     .string()\n    .default('America/Chicago')\n    .refine((tz) => {
+Run: npx vitest run test/bff/health.test.ts
+Result: Tests  1 failed | 8 passed (9)
+   × config > requires DASHBOARD_OPENEMR_TZ (no placeholder default) and refuses a bare offset 5ms
+     → expected [Function] to throw an error
+Restored: bff/src/config.ts byte-for-byte.
+
+== 4a pending-login cap
+Break: bff/src/auth/session.ts
+  - if (this.#transactions.size < this.#maxPendingTransactions) break;
+  + break;
+Run: npx vitest run test/bff/auth.test.ts
+Result: Tests  2 failed | 15 passed (17)
+   × GET /dashboard/login > caps pending login transactions (oldest evicted) and sweeps at most once per interval 5ms
+     → expected 5 to be 3 // Object.is equality
+   × GET /dashboard/login > bounds pending logins through the real /login route 9ms
+     → expected 12 to be 5 // Object.is equality
+Restored: bff/src/auth/session.ts byte-for-byte.
+
+== 4b amortized sweep
+Break: bff/src/auth/session.ts
+  - now - last < this.#sweepIntervalMs) return;
+  + now - last < 0) return;
+Run: npx vitest run test/bff/auth.test.ts
+Result: Tests  1 failed | 16 passed (17)
+   × GET /dashboard/login > caps pending login transactions (oldest evicted) and sweeps at most once per interval 5ms
+     → expected 5 to be 1 // Object.is equality
+Restored: bff/src/auth/session.ts byte-for-byte.
+
+== 5 returnTo dot segments
+Break: bff/src/auth/oauth.ts
+  - return !segments.some((s) => s === '.' || s === '..');
+  + return segments.length > 0;
+Run: npx vitest run test/bff/auth.test.ts
+Result: Tests  1 failed | 16 passed (17)
+   × GET /dashboard/login > refuses a returnTo with dot segments, encoded dots, encoded slashes or backslashes 4ms
+     → /dashboard/../interface/main/main_screen.php: expected '/dashboard/../interface/main/main_scr…' to be '/dashboard/' // Object.is equality
+Restored: bff/src/auth/oauth.ts byte-for-byte.
+
+== 6 id_token required claims
+Break: bff/src/auth/oauth.ts
+  -       requiredClaims: ['exp', 'iat', 'sub'],\n
+  + (line removed)
+Run: npx vitest run test/bff/auth.test.ts
+Result: Tests  1 failed | 16 passed (17)
+   × GET /dashboard/callback > rejects an id token without exp, iat or sub 32ms
+     → exp: expected '/dashboard/' to be '/dashboard/?signin=failed' // Object.is equality
+Restored: bff/src/auth/oauth.ts byte-for-byte.
+
+== 7 vitals deadline
+Break: bff/src/cards/vitals.ts
+  - deps.upstream.get({ ...request, signal: deadline })
+  + deps.upstream.get(request)
+Run: npx vitest run test/contract/vitals.test.ts
+Result: Tests  1 failed | 13 passed (14)
+   × Vitals use case against shaped fixtures (contract) > an overall deadline ends a slow walk with VITALS_DEADLINE, aborting the in-flight call 5012ms
+     → expected 5003 to be less than 2000
+Restored: bff/src/cards/vitals.ts byte-for-byte.
+
+== 8 body cap (Content-Length pre-check)
+Break: bff/src/upstream/client.ts
+  - if (Number.isFinite(declared) && declared > maxBytes) {
+  + if (false) {
+Run: npx vitest run test/bff/upstreamClient.test.ts
+Result: Tests  1 failed | 5 passed (6)
+   × upstream client body cap > refuses a declared Content-Length over the cap without reading the body 4ms
+     → expected 18 to be less than or equal to 1
+Restored: bff/src/upstream/client.ts byte-for-byte.
+
+== 9 per-card error boundary
+Break: web/src/components/Card.tsx
+  - <CardRows render={() => renderRows(state.rows)} />
+  + {renderRows(state.rows)}
+Run: npx vitest run test/web/ErrorBoundary.test.tsx
+Result: Tests  1 failed | 2 passed (3)
+   × per-card render error boundary > a card whose body throws shows its own error state; its neighbour still renders 19ms
+Restored: web/src/components/Card.tsx byte-for-byte.
+
+C. Red before green (TDD: the new tests run against the unfixed code).
+Item 2 (timezone placeholder):
+   × config > requires DASHBOARD_OPENEMR_TZ (no placeholder default) and refuses a bare offset 5ms
+     → expected [Function] to throw an error
+   × config > the deploy compose file requires DASHBOARD_OPENEMR_TZ and carries no placeholder zone 1ms
+     → expected '      DASHBOARD_OPENEMR_TZ: ${DASHBOA…' to match /\$\{DASHBOARD_OPENEMR_TZ:\?[^}]+\}/
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 7 passed (9)
+Items 4, 5, 6 (login store, returnTo, id_token claims):
+   × GET /dashboard/login > refuses a returnTo with dot segments, encoded dots, encoded slashes or backslashes 5ms
+     → /dashboard/../interface/main/main_screen.php: expected '/dashboard/../interface/main/main_scr…' to be '/dashboard/' // Object.is equality
+   × GET /dashboard/login > caps pending login transactions (oldest evicted) and sweeps at most once per interval 1ms
+     → expected undefined to be 3 // Object.is equality
+   × GET /dashboard/login > bounds pending logins through the real /login route 10ms
+     → expected undefined to be 5 // Object.is equality
+   × GET /dashboard/callback > rejects an id token without exp, iat or sub 24ms
+     → exp: expected '/dashboard/' to be '/dashboard/?signin=failed' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  4 failed | 13 passed (17)
+Items 7, 8 (Vitals deadline, body cap). Against the old client the endless-body test ran 34 s and ended as
+"network" when the string grew past V8's limit: the unbounded res.text() the finding describes.
+   × Vitals use case against shaped fixtures (contract) > an overall deadline ends a slow walk with VITALS_DEADLINE, aborting the in-flight call 5023ms
+     → expected { kind: 'error', …(3) } to deeply equal { kind: 'error', …(3) }
+   × Vitals use case against shaped fixtures (contract) > the deadline also covers many fast-but-slow calls (each under the per-call timeout) 983ms
+     → expected { kind: 'empty', …(1) } to match object { kind: 'error', …(1) }
+   ✓ Vitals use case against shaped fixtures (contract) > 200 validationErrors, a vitals row without its unit key or with a non-numeric measure, 403 and 401 map to their states 12ms
+   × upstream client body cap > stops reading an oversized body and reports it as too large (UPSTREAM_BODY_TOO_LARGE) 33904ms
+     → expected { kind: 'network' } to deeply equal { kind: 'too-large' }
+   × upstream client body cap > refuses a declared Content-Length over the cap without reading the body 35689ms
+     → expected { kind: 'network' } to deeply equal { kind: 'too-large' }
+   × upstream client body cap > the production cap is a few MiB 7ms
+     → actual value must be number or bigint, received "undefined"
+   × upstream client body cap > an already-aborted caller signal is a timeout, with no fetch 3ms
+     → expected { kind: 'response', status: 200, …(2) } to deeply equal { kind: 'timeout' }
+   × upstream client body cap > a caller signal aborts an in-flight call before the per-call timeout 5006ms
+     → expected 5005 to be less than 2000
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  7 failed | 13 passed (20)
+     Errors  1 error
+Item 9 (no error boundary: the render throw escapes to the test, i.e. a blank page in the browser):
+   × per-card render error boundary > a card whose body throws shows its own error state; its neighbour still renders 17ms
+   × per-card render error boundary > a malformed Vitals row (no fields) is the card error, not a blank page 7ms
+     → Cannot read properties of undefined (reading 'map')
+   × per-card render error boundary > recovers when the card gets a new state (another patient, a reload) 2ms
+     → Cannot read properties of undefined (reading 'map')
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed (3)
+Item 10 (@fastify/static reinstalled at 8.3.0 with npm install --no-save, then npm ci to restore):
+   × static file serving > runs a patched @fastify/static (>= 10.1.5) 10ms
+     → 8.3.0: expected 8003000 to be greater than or equal to 10001005
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 14 passed (15)
+
+D. /login transaction store, 40,000 creates at one instant (node --expose-gc, scratch bench on SessionStore):
+Before (sweep over every entry per create, no cap):
+10000 ms for last 10k: 689
+20000 ms for last 10k: 1783
+30000 ms for last 10k: 2864
+40000 ms for last 10k: 4522
+total ms: 9862 heap MB after 40k: 16.7 pending: n/a
+After (cap 5000, oldest evicted; sweep at most once per 60 s):
+10000 ms for last 10k: 77
+20000 ms for last 10k: 102
+30000 ms for last 10k: 93
+40000 ms for last 10k: 102
+total ms: 377 heap MB after 40k: 2.6 pending: 5000
+
+E. npm audit --omit=dev (dashboard/): before, 1 high (@fastify/static <=10.1.1: GHSA-pr96-94w5-mx2h,
+GHSA-x428-ghpx-8j92, GHSA-8pvw-jcv7-9cmj, GHSA-83w8-p2f5-377r); after (10.1.5): found 0 vulnerabilities.
+Full npm audit (dev included) still reports 2 moderate in vitest/@vitest/mocker (GHSA-82fw-gwwq-j7x9), dev-only, not upgraded here.
+
+F. Gate on 050c87ee: npm run check --prefix dashboard -> typecheck 0, lint 0, 355 tests in 36 files passed
+(core 107, contract 83, bff 81, web 81, lint 3), bundle-report: JS 72.5 kB gzip (budget 150.0 kB), CSS 1.3 kB gzip.

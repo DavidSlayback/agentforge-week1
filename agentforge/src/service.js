@@ -17,6 +17,8 @@ import { applyCriticVerdicts, criticAppliedSummary, criticNotRunSummary, DEFAULT
 import { computeRuntimeEvaluation } from './runtimeEvaluation.js';
 import { labResultsForModule } from './openemrModuleWriteback.js';
 import { buildLabTrends } from './labTrend.js';
+import { conditionsNotInChart, markCurrentFacts } from './evidenceApplicability.js';
+import { errorCodeOf } from './clientResponse.js';
 
 /** Coordinates the public AgentForge facade while delegating briefing lifecycle policy. */
 export class AgentForgeService {
@@ -58,9 +60,10 @@ export class AgentForgeService {
     this.scanProvider = scanProvider;
     this.scanPreparations = new Map();
     // Backs the supervisor's `extraction_cached` decision: one extraction
-    // handoff cached per content-hash + OCR mode, shared across calls to this
-    // service instance (supervisor.js keeps its own default when a caller
-    // does not pass one, so this is additive/opt-in).
+    // handoff cached per patient + document id + type + content hash + OCR
+    // mode (supervisor.js#extractionCacheKey), shared across calls to this
+    // service instance. Never content alone: a hit would carry another
+    // upload's document id into this patient's citations.
     this.extractionCache = new Map();
     // F6 review fix: which OCR mode's preparation actually produced the
     // typed facts a document's workflow shipped (the low-confidence retry
@@ -278,12 +281,12 @@ export class AgentForgeService {
         targetPatient = await demographicsSource?.getPatientDemographics?.(source.source_document.patient_ref, { correlationId: correlationId || '' }) ?? null;
       } catch (error) {
         // Identity then reads `unverified`, never a match; the reason is kept.
-        chartRead.identity_error = error.code || 'demographics_read_failed';
+        chartRead.identity_error = errorCodeOf(error, 'demographics_read_failed');
       }
       // W1-SF4: a question naming another patient gets no answer. The
       // document's own extraction still runs and is stored; only the answer
       // is refused, and the question is not sent to retrieval either.
-      const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref, chartReader, { correlationId });
+      const answerRefused = await this.questionNamesOtherPatient(query, source.source_document.patient_ref, chartReader, { correlationId, onDemographicsError: (code) => { chartRead.name_check_error = code; } });
       const answerQuery = answerRefused ? '' : query;
       let answerParts = null;
       const composeAnswer = async ({ extraction, evidence }) => {
@@ -292,14 +295,16 @@ export class AgentForgeService {
         try {
           // A chart read failure leaves the answer without chart facts, and
           // says so in `chart_source` and the trace; it is never silent.
-          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref, null, { verifiedContext, adapter: chartReader, correlationId }).catch((error) => ({ status: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'failed', reason: error.code || error.message || 'chart_read_failed', patient_facts: [], coverage: [] }));
+          const chart = await this.retrievePatientChartFacts(source.source_document.patient_ref, null, { verifiedContext, adapter: chartReader, correlationId }).catch((error) => ({ status: error.message === 'PATIENT_NOT_FOUND' ? 'patient_not_found' : 'failed', reason: errorCodeOf(error, 'chart_read_failed'), patient_facts: [], coverage: [] }));
           chartRead.status = chart.status === 'ready' ? (chart.patient_facts.length ? 'read' : 'empty') : chart.status;
           chartRead.reason = chart.status === 'ready' ? null : chart.reason || null;
           if (chart.failed_patient_groups?.length) chartRead.failed_groups = chart.failed_patient_groups;
           if (chart.unconfirmed_patient_groups?.length) chartRead.unconfirmed_groups = chart.unconfirmed_patient_groups;
           for (const group of chart.coverage || []) trace?.recordRetrievalAttempt({ adapter: chartReadOrigin(chartReader), group: group.group, status: group.status, attempts: group.attempts, errorCode: group.error_class });
           if (!chart.coverage?.length) trace?.recordRetrievalAttempt({ adapter: chartReadOrigin(chartReader), group: 'chart', status: chartRead.status === 'failed' ? 'failed' : chartRead.status, attempts: 1, errorCode: chartRead.reason });
-          const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, medicationList: extraction?.medication_list || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [] };
+          // `extractionFacts` lets the composer see a lab test that was
+          // printed but only partly read (present, not "not documented").
+          const inputs = { labResults: extraction?.lab_results || [], intakeForm: extraction?.intake_form || null, medicationList: extraction?.medication_list || null, guidelineEvidence: evidence?.guideline_evidence || [], patientFacts: chart.patient_facts || [], extractionFacts: extraction?.facts || [] };
           answerParts = partitionAnswerInputs(inputs);
           const withheldReview = [
             ...(chart.withheld_patient_fields || []).map((item) => ({ kind: 'patient_record', field: item.field, reason: `${item.reason}_withheld` })),
@@ -335,6 +340,7 @@ export class AgentForgeService {
       };
       const workflow = await runActiveSupervisor({
         sourceDocumentId: source.source_document.id,
+        patientRef: source.source_document.patient_ref,
         documentType: source.source_document.document_type,
         layoutId: layoutMatch?.[1] || (pdf ? `pdf-ocr-${source.source_document.document_type}` : 'unknown'),
         pageCount: Number(pageCountMatch?.[1] || prepared.pageCount || 1),
@@ -457,7 +463,8 @@ export class AgentForgeService {
     if (authorization.status !== 'authorized') return { status: 'blocked', reason: authorization.reason };
     // W1-SF4: a question naming another patient is refused before any chart
     // read, so neither patient's data is disclosed.
-    if (await this.questionNamesOtherPatient(request.message, authorization.patient_uuid, resolveChartAdapter(this.chartAdapter, verifiedContext), { correlationId })) return { status: 'blocked', disposition: 'blocked', reason: 'out_of_scope_patient' };
+    let nameCheckError = null;
+    if (await this.questionNamesOtherPatient(request.message, authorization.patient_uuid, resolveChartAdapter(this.chartAdapter, verifiedContext), { correlationId, onDemographicsError: (code) => { nameCheckError = code; } })) return { status: 'blocked', disposition: 'blocked', reason: 'out_of_scope_patient' };
     const chart = await this.retrievePatientChartFacts(authorization.patient_uuid, request.case_id, { verifiedContext, correlationId });
     if (chart.status !== 'ready') return { status: 'blocked', reason: chart.reason };
     const patientFacts = chart.patient_facts;
@@ -475,20 +482,35 @@ export class AgentForgeService {
       // provider error string) that must not reach an API response or trace.
       guideline = { status: 'qualified', provider: guidelineRetriever.name || 'unknown', evidence: [], issues: ['guideline_retrieval_failed'] };
     }
-    return { status: 'ready', synthetic_only: chart.chart_source !== 'openemr_live', patient_facts: patientFacts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups, withheld_patient_fields: withheldFields, chart_source: chart.chart_source }, qualification: { required: Boolean(failedGroups.length || withheldFields.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...withheldFields.map((item) => `${item.reason}:${item.field}`), ...guideline.issues] } };
+    // F-e5d47ab7ea: say which value of a repeated field is current.
+    const currency = markCurrentFacts(chart.patient_facts);
+    // F-990345a00f: a question naming a condition the chart does not document
+    // gets its guideline evidence qualified, never presented as applicable.
+    const absentConditions = conditionsNotInChart(request.message, chart.patient_facts);
+    const applicabilityReasons = [...absentConditions.map((condition) => `condition_not_in_chart:${condition}`), ...currency.unresolved.map((field) => `field_history_unresolved:${field}`), ...(nameCheckError ? [`patient_name_check_unavailable:${nameCheckError}`] : [])];
+    return { status: 'ready', synthetic_only: chart.chart_source !== 'openemr_live', patient_facts: currency.facts, guideline_evidence: guideline.evidence, retrieval: { guideline_provider: guideline.provider || guidelineRetriever.name || 'bm25-sparse-only', guideline_status: guideline.status, guideline_issues: guideline.issues, guideline_usage: guideline.usage || null, failed_patient_groups: failedGroups, withheld_patient_fields: withheldFields, chart_source: chart.chart_source }, qualification: { required: Boolean(failedGroups.length || withheldFields.length || applicabilityReasons.length || guideline.status !== 'complete'), reasons: [...failedGroups.map((group) => `patient_${group}_unavailable`), ...withheldFields.map((item) => `${item.reason}:${item.field}`), ...applicabilityReasons, ...guideline.issues] } };
   }
 
   /**
    * True when `message` names a patient other than `patientRef` (W1-SF4; see
    * patientMentions.js). Uses the chart adapter's patient list when it has
    * one; live OpenEMR REST has none, so only identifier shapes are checked.
+   * W3 hardening (H2): a failed demographics read no longer throws (it made
+   * every scan with a question a 500). The check runs without the current
+   * patient's name, and `onDemographicsError('demographics_read_failed')` lets
+   * the caller label the result degraded.
    */
-  async questionNamesOtherPatient(message, patientRef, chart = this.chartAdapter, { correlationId = null } = {}) {
+  async questionNamesOtherPatient(message, patientRef, chart = this.chartAdapter, { correlationId = null, onDemographicsError = null } = {}) {
     if (!String(message ?? '').trim()) return false;
     const knownPatients = typeof chart?.listPatientIdentifiers === 'function' ? chart.listPatientIdentifiers() : [];
     // The request's chart (E9 router) unless demographics were injected.
     const demographicsSource = this.patientDemographics === this.chartAdapter ? chart : this.patientDemographics;
-    const demographics = await demographicsSource?.getPatientDemographics?.(patientRef, { correlationId: correlationId || '' }) ?? null;
+    let demographics = null;
+    try {
+      demographics = await demographicsSource?.getPatientDemographics?.(patientRef, { correlationId: correlationId || '' }) ?? null;
+    } catch {
+      onDemographicsError?.('demographics_read_failed');
+    }
     return mentionsOtherPatient({ message, currentPatient: { patient_ref: patientRef, display_name: demographics?.name }, knownPatients });
   }
 

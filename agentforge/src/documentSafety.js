@@ -50,14 +50,63 @@ export function detectDocumentType(text) {
 
 const nameTokens = (value) => String(value || '').toLowerCase().replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter((token) => /[a-z]/.test(token)).sort().join(' ');
 
-/** Normalize `YYYY-MM-DD`, `YYYY/MM/DD` or `MM/DD/YYYY` to ISO `YYYY-MM-DD`; `null` when unparseable. */
-export function normalizeDob(value) {
+/**
+ * Day/month order printed on a layout's dates. NHS (UK) intake layouts print
+ * DD/MM/YYYY; the synthetic PDF-OCR layouts and the two US state-lab forms
+ * print MM/DD/YYYY. Any other layout declares nothing, so a slash date on it
+ * is read only when just one order gives a real date.
+ */
+const LAYOUT_DATE_ORDER = Object.freeze({
+  'external-intake-broom-road': 'DMY',
+  'external-intake-erskine': 'DMY',
+  'external-lab-hawaii': 'MDY',
+  'external-lab-maine': 'MDY',
+  'pdf-ocr-lab_pdf': 'MDY',
+  'pdf-ocr-intake_form': 'MDY',
+  'pdf-ocr-medication_list': 'MDY',
+});
+
+/** `'DMY'`, `'MDY'` or `null` (undeclared) for a layout id. */
+export function dateOrderForLayout(layoutId) {
+  return LAYOUT_DATE_ORDER[layoutId] || null;
+}
+
+const pad = (value) => String(value).padStart(2, '0');
+
+/** ISO `YYYY-MM-DD` when year/month/day name a real calendar date, else `null`. */
+function isoDate(year, month, day) {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d) || m < 1 || m > 12 || d < 1) return null;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null;
+  return `${String(y).padStart(4, '0')}-${pad(m)}-${pad(d)}`;
+}
+
+/**
+ * Normalize a printed date of birth to ISO `YYYY-MM-DD`; `null` when it is
+ * unparseable, not a real date, or ambiguous.
+ *
+ * Year-first dates (`YYYY-MM-DD`, `YYYY/MM/DD`) are read as year, month, day.
+ * A year-last date (`NN/NN/YYYY`) is read in `dateOrder` (`'DMY'` or
+ * `'MDY'`, from `dateOrderForLayout`). With no declared order it is read only
+ * when exactly one order gives a real date: `03/04/1980` is ambiguous and
+ * returns `null` (undetermined, never a match), `25/04/1980` is not.
+ */
+export function normalizeDob(value, dateOrder = null) {
   const text = String(value || '').trim();
   let match = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-  if (match) return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+  if (match) return isoDate(match[1], match[2], match[3]);
   match = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-  if (match) return `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
-  return null;
+  if (!match) return null;
+  const [, first, second, year] = match;
+  const monthFirst = isoDate(year, first, second);
+  const dayFirst = isoDate(year, second, first);
+  if (dateOrder === 'MDY') return monthFirst;
+  if (dateOrder === 'DMY') return dayFirst;
+  if (monthFirst && dayFirst) return monthFirst === dayFirst ? monthFirst : null;
+  return monthFirst || dayFirst;
 }
 
 // The label must not follow a word on the same line: "Hemoglobin test name:
@@ -91,21 +140,25 @@ export function readHeaderIdentity(text) {
  *   observed: Name/DOB read from the document.
  *   targetPatient: `{name, dob}` from a `PatientDemographicsSource`, or `null`
  *     when the chart cannot supply them.
+ *   options.dateOrder: the document layout's day/month order
+ *     (`dateOrderForLayout`); `null` reads only unambiguous dates.
  *
  * Returns:
  *   `{status: 'match'|'mismatch'|'unverified', mismatched_fields}`. Any observed
  *   field that contradicts the chart is a mismatch. Nothing observed, an
  *   unreadable DOB, a missing name or DOB, or a missing chart record is
- *   `unverified`, never a match.
+ *   `unverified`, never a match. So is an ambiguous or impossible printed date.
  */
-export function compareIdentity({ name: observedName = null, dob: observedDob = null } = {}, targetPatient) {
+export function compareIdentity({ name: observedName = null, dob: observedDob = null } = {}, targetPatient, { dateOrder = null } = {}) {
   if (!observedName && !observedDob) return { status: 'unverified', mismatched_fields: [] };
   if (!targetPatient) return { status: 'unverified', mismatched_fields: [] };
   const mismatched = [];
   let unverified = false;
   if (observedName && nameTokens(observedName) !== nameTokens(targetPatient.name)) mismatched.push('name');
   if (observedDob) {
-    const formDob = normalizeDob(observedDob);
+    // The form's date is read in its layout's day/month order; the chart's
+    // date of birth is ISO, so it is read with no assumed order.
+    const formDob = normalizeDob(observedDob, dateOrder);
     const chartDob = normalizeDob(targetPatient.dob);
     if (!formDob || !chartDob) unverified = true;
     else if (formDob !== chartDob) mismatched.push('dob');
@@ -115,15 +168,15 @@ export function compareIdentity({ name: observedName = null, dob: observedDob = 
 }
 
 /** Compare a typed `IntakeForm`'s observed demographics with the target patient (see `compareIdentity`). */
-export function checkPatientIdentity(intakeForm, targetPatient) {
+export function checkPatientIdentity(intakeForm, targetPatient, options = {}) {
   const observed = (field) => (field?.status === 'observed' ? field.value : null);
-  return compareIdentity({ name: observed(intakeForm?.demographics?.name), dob: observed(intakeForm?.demographics?.dob) }, targetPatient);
+  return compareIdentity({ name: observed(intakeForm?.demographics?.name), dob: observed(intakeForm?.demographics?.dob) }, targetPatient, options);
 }
 
 /** Compare the identity printed on a typed `MedicationList` with the target patient (see `compareIdentity`). */
-export function checkMedicationListIdentity(medicationList, targetPatient) {
+export function checkMedicationListIdentity(medicationList, targetPatient, options = {}) {
   const observed = (field) => (field?.status === 'observed' ? field.value : null);
-  return compareIdentity({ name: observed(medicationList?.patient?.name), dob: observed(medicationList?.patient?.dob) }, targetPatient);
+  return compareIdentity({ name: observed(medicationList?.patient?.name), dob: observed(medicationList?.patient?.dob) }, targetPatient, options);
 }
 
 /**
@@ -133,26 +186,33 @@ export function checkMedicationListIdentity(medicationList, targetPatient) {
  *   `{checks, blocking, qualifying}`: `blocking` reasons stop the workflow
  *   (BLOCKED), `qualifying` reasons cap it at QUALIFIED. Reason codes:
  *   `patient_mismatch`, `no_fields_extracted` (blocking) and
- *   `doc_type_mismatch`, `patient_identity_unverified`, `extraction_incomplete`
- *   (qualifying; the last covers missing, conflicting, unreadable or untyped
- *   fields, i.e. any extraction status other than `complete`).
+ *   `doc_type_mismatch`, `doc_type_undetermined`, `patient_identity_unverified`,
+ *   `extraction_incomplete` (qualifying; `doc_type_undetermined` means the
+ *   text did not confirm the declared type, and the last covers missing,
+ *   conflicting, unreadable or untyped fields, i.e. any extraction status
+ *   other than `complete`). `layoutId` sets the day/month order a printed
+ *   date of birth is read in (`dateOrderForLayout`).
  */
-export function assessDocumentSafety({ documentType, documentText, extraction, targetPatient = null }) {
+export function assessDocumentSafety({ documentType, documentText, extraction, targetPatient = null, layoutId = null }) {
   const factCount = extraction?.facts?.length || 0;
   const typeDetection = detectDocumentType(documentText);
   const typeStatus = typeDetection.detected === 'undetermined' ? 'undetermined' : typeDetection.detected === documentType ? 'consistent' : 'mismatch';
   // Intake forms and medication lists are checked on their typed identity
   // fields, lab reports on the patient header printed on the page.
+  const dateOptions = { dateOrder: dateOrderForLayout(layoutId) };
   const identity = documentType === 'intake_form'
-    ? { ...checkPatientIdentity(extraction?.intake_form, targetPatient), source: 'intake_form_demographics' }
+    ? { ...checkPatientIdentity(extraction?.intake_form, targetPatient, dateOptions), source: 'intake_form_demographics' }
     : documentType === 'medication_list'
-      ? { ...checkMedicationListIdentity(extraction?.medication_list, targetPatient), source: 'medication_list_patient' }
-      : { ...compareIdentity(readHeaderIdentity(documentText), targetPatient), source: 'lab_report_header' };
+      ? { ...checkMedicationListIdentity(extraction?.medication_list, targetPatient, dateOptions), source: 'medication_list_patient' }
+      : { ...compareIdentity(readHeaderIdentity(documentText), targetPatient, dateOptions), source: 'lab_report_header' };
   const blocking = [];
   const qualifying = [];
   if (identity.status === 'mismatch') blocking.push('patient_mismatch');
   if (!factCount) blocking.push('no_fields_extracted');
   if (typeStatus === 'mismatch') qualifying.push('doc_type_mismatch');
+  // The text did not confirm the declared type either way: not a mismatch,
+  // but not a confirmation either, so the result is never READY on it.
+  if (typeStatus === 'undetermined') qualifying.push('doc_type_undetermined');
   if (identity.status === 'unverified') qualifying.push('patient_identity_unverified');
   if (factCount && extraction?.status !== 'complete') qualifying.push('extraction_incomplete');
   return {

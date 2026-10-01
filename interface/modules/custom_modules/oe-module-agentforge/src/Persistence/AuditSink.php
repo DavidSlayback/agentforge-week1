@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Records that a write happened. Never receives values, names or content.
+ * Records that a write or read happened. Never receives values, names or content.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -19,4 +19,10 @@ use OpenEMR\Modules\AgentForge\Domain\Actor;
 interface AuditSink
 {
     public function recordWrite(string $operation, Actor $actor, int $pid, ?int $documentId, int $rowCount): void;
+
+    /**
+     * One successful read of chart data the module returned (document bytes,
+     * lab Observations): the operation, ids and count only.
+     */
+    public function recordRead(string $operation, Actor $actor, int $pid, ?int $documentId, int $rowCount): void;
 }

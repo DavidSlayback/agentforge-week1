@@ -10,6 +10,15 @@
 #     status checks (a dropped session) do not abort the deploy;
 #   - a build that never started, and a health endpoint that does not report the
 #     SHA, both fail the deploy.
+# And the 2026-10-01 hardening:
+#   - a missing token file, or a directory in its place, stops the deploy before
+#     anything on the VM changes;
+#   - a failed ship restores the backed-up sources;
+#   - the running image is tagged <service>:previous before the replace, and
+#     AGENTFORGE_DEPLOY_ROLLBACK=1 restores it after a failed replace or health
+#     loop (and only then);
+#   - the openemr container is found through compose, not a hard-coded name;
+#   - the frozen W1 service is checked against its pinned image SHA.
 # What this cannot show: that setsid/nohup really survive an SSH reset on the
 # VM. That rests on their documented semantics.
 #
@@ -48,6 +57,10 @@ done
 shift # host
 cmd=$*
 case $cmd in
+  *"sudo tar -x"*)
+    # The connection drops mid-ship: nothing is extracted.
+    if [ "${FAKE_SSH_FAIL_SHIP:-}" = 1 ]; then cat >/dev/null; exit 255; fi
+    ;;
   *"nohup sh build.sh"*)
     if [ "${FAKE_SSH_SKIP_LAUNCH:-}" = 1 ]; then exit 255; fi
     sh -c "$cmd"
@@ -82,13 +95,22 @@ case " $* " in
     sleep "${FAKE_BUILD_SECONDS:-1}"
     exit "${FAKE_BUILD_EXIT:-0}"
     ;;
+  *" compose "*" ps -q "*) echo fakecid ;;
+  *" inspect "*"Config.Image"*) echo "vultr-$FAKE_SERVICE" ;;
+  *" inspect "*) echo sha256:fakeold ;;
+  *" up -d --no-deps "*"--no-build"*) ;;
+  *" up -d --no-deps "*) exit "${FAKE_UP_EXIT:-0}" ;;
 esac
 exit 0
 FAKE
 
 cat > "$work/bin/curl" <<'FAKE'
 #!/bin/sh
-printf '{"status":"ok","service":"fake","git_sha":"%s"}\n' "$FAKE_HEALTH_SHA"
+# The frozen W1 route reports its own pinned SHA.
+case " $* " in
+  *"/agentforge/health"*) printf '{"status":"ok","git_sha":"%s"}\n' "$FAKE_W1_HEALTH_SHA" ;;
+  *) printf '{"status":"ok","service":"fake","git_sha":"%s"}\n' "$FAKE_HEALTH_SHA" ;;
+esac
 FAKE
 chmod +x "$work/bin/"*
 
@@ -103,6 +125,8 @@ for f in Dockerfile agentforge/f dashboard/f observability/f evals/f docs/agentf
 done
 # The checkout may be CRLF (core.autocrlf on Windows); the script under test is LF.
 tr -d '\r' < "$deploy_src" > "$repo/deploy/vultr/deploy.sh"
+printf 'services:\n  agentforge:\n    image: agentforge-w1:84f232b\n' > "$repo/deploy/vultr/docker-compose.yml"
+w1_full=84f232b4c8117a2b047d53a9fad46d08d23b2512
 git init -q "$repo"
 g() { git -C "$repo" --git-dir="$repo/.git" --work-tree="$repo" -c core.autocrlf=false -c core.hooksPath="$work/nohooks" -c commit.gpgsign=false -c user.name=test -c user.email=test@example.invalid "$@"; }
 g add -A
@@ -117,6 +141,9 @@ if [ "$(cd "$repo" && git rev-list --count HEAD)" != 1 ] || [ "$(cd "$repo" && g
   exit 1
 fi
 : > "$work/key"
+# The VM-side token file the preflight requires.
+mkdir -p "$work/vm/root/secrets"
+echo '{}' > "$work/vm/root/secrets/openemr-token.json"
 
 # ---- Runner -----------------------------------------------------------------
 # run_case NAME [VAR=value ...]: fresh logs and remote tmp; sets $out and $rc.
@@ -128,7 +155,7 @@ run_case() {
   rc=0
   out=$(
     cd "$repo" && env PATH="$work/bin:$PATH" HOME="$work/home" FAKE_LOG_DIR="$logs" \
-      FAKE_HEALTH_SHA="$sha" \
+      FAKE_HEALTH_SHA="$sha" FAKE_W1_HEALTH_SHA="$w1_full" FAKE_SERVICE=dashboard \
       AGENTFORGE_DEPLOY_HOST=deploy@vm.invalid AGENTFORGE_DEPLOY_KEY="$work/key" \
       AGENTFORGE_PUBLIC_URL=https://vm.invalid AGENTFORGE_DEPLOY_SERVICES=dashboard \
       AGENTFORGE_DEPLOY_ROOT="$work/vm/root" AGENTFORGE_DEPLOY_REMOTE_TMP="$work/vmtmp-$name" \
@@ -165,6 +192,18 @@ if ls "$work/vmtmp-happy"/agentforge-deploy-*/build.log >/dev/null 2>&1 &&
 else
   fail "no build.log/exit marker under the remote tmp dir"
 fi
+t=$(line_of "$logs/docker.log" "tag sha256:fakeold dashboard:previous")
+if [ -n "$t" ] && [ -n "$u" ] && [ "$t" -lt "$u" ] && grep -q "^dashboard vultr-dashboard$" "$work/vmtmp-happy"/agentforge-deploy-*/previous &&
+  ! grep -q -- "--force-recreate dashboard" "$logs/docker.log"; then
+  pass "the running image is tagged dashboard:previous before the replace, and nothing is rolled back"
+else
+  fail "previous-image tag (tag line '$t', up line '$u'): $(cat "$logs/docker.log")"
+fi
+if grep -q "compose --env-file .* exec -T -u apache openemr test -r" "$logs/docker.log" && ! grep -rq "vultr-openemr-1" "$logs"; then
+  pass "the apache read check finds openemr through compose (no hard-coded container name)"
+else
+  fail "module read check: $(cat "$logs/docker.log")"
+fi
 
 # 2. The session drops right after the build starts, then 3 status checks fail.
 run_case dropped FAKE_SSH_DROP_LAUNCH=1 FAKE_SSH_FAIL_POLLS=3
@@ -195,8 +234,9 @@ fi
 
 # 5. The health endpoint reports another SHA: the deploy fails (unchanged success criterion).
 run_case wrongsha FAKE_HEALTH_SHA=0000000000000000000000000000000000000000
-if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "FAILED: /dashboard/health does not report $sha"; then
-  pass "a health endpoint that does not report the SHA fails the deploy"
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "FAILED: /dashboard/health does not report $sha" &&
+  printf '%s\n' "$out" | grep -q "rerun with AGENTFORGE_DEPLOY_ROLLBACK=1" && ! grep -q -- "--force-recreate" "$logs/docker.log"; then
+  pass "a health endpoint that does not report the SHA fails the deploy (no rollback unless opted in)"
 else
   fail "wrong SHA (rc=$rc): $out"
 fi
@@ -218,6 +258,75 @@ if [ -n "$cmd" ] && sh -c "$cmd" && [ ! -e "$bk/root/docs/agentforge" ] && [ ! -
   pass "the backup moves agentforge/ and docs/agentforge/ to distinct paths (no basename collision)"
 else
   fail "backup replay: docs/agentforge left in place or collided ($cmd)"
+fi
+
+# 7. Opt-in rollback after a failed health loop: the previous image is retagged and recreated.
+run_case rollback FAKE_HEALTH_SHA=0000000000000000000000000000000000000000 AGENTFORGE_DEPLOY_ROLLBACK=1
+u=$(line_of "$logs/docker.log" "up -d --no-deps dashboard")
+rt=$(line_of "$logs/docker.log" "tag dashboard:previous vultr-dashboard")
+rb=$(line_of "$logs/docker.log" "up -d --no-deps --no-build --force-recreate dashboard")
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "ROLLED BACK" &&
+  [ -n "$u" ] && [ -n "$rt" ] && [ -n "$rb" ] && [ "$u" -lt "$rt" ] && [ "$rt" -lt "$rb" ]; then
+  pass "AGENTFORGE_DEPLOY_ROLLBACK=1 restores the previous image after a failed health loop, and the deploy still fails"
+else
+  fail "rollback after health failure (rc=$rc; up '$u', retag '$rt', recreate '$rb'): $out / $(cat "$logs/docker.log")"
+fi
+
+# 8. Opt-in rollback after a failed replace (the build succeeded).
+run_case upfail FAKE_UP_EXIT=1 AGENTFORGE_DEPLOY_ROLLBACK=1
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "remote build/replace ended with 'exit 1'" &&
+  printf '%s\n' "$out" | grep -q "ROLLED BACK" && grep -q -- "--no-build --force-recreate dashboard" "$logs/docker.log"; then
+  pass "AGENTFORGE_DEPLOY_ROLLBACK=1 restores the previous image after a failed replace"
+else
+  fail "rollback after failed replace (rc=$rc): $out / $(cat "$logs/docker.log")"
+fi
+
+# 9. A failed ship moves the backed-up sources back, and no image is built.
+echo before > "$work/vm/root/agentforge/marker-before-ship"
+run_case shipfail FAKE_SSH_FAIL_SHIP=1
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "the previous sources were restored" &&
+  [ -f "$work/vm/root/agentforge/marker-before-ship" ] && [ -f "$work/vm/root/docs/agentforge/f" ] &&
+  [ -f "$work/vm/root/Dockerfile" ] && ! grep -q " build " "$logs/docker.log"; then
+  pass "a failed ship restores the previous sources and builds nothing"
+else
+  fail "failed ship (rc=$rc): $out / $(ls -R "$work/vm/root" | head -20)"
+fi
+rm -f "$work/vm/root/agentforge/marker-before-ship"
+
+# 10. Preflight: a missing token file stops the deploy before the VM changes.
+mv "$work/vm/root/secrets/openemr-token.json" "$work/token.saved"
+run_case notoken
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "openemr-token.json is missing" &&
+  ! grep -q "agentforge-week1-backups" "$logs/ssh.log" && [ ! -s "$logs/docker.log" ]; then
+  pass "a missing token file fails the preflight before any backup, ship or build"
+else
+  fail "missing token preflight (rc=$rc): $out"
+fi
+
+# 11. Preflight: a directory where the token file belongs (what Docker leaves behind).
+mkdir "$work/vm/root/secrets/openemr-token.json"
+run_case tokendir
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "openemr-token.json on the VM is a directory" &&
+  ! grep -q "agentforge-week1-backups" "$logs/ssh.log"; then
+  pass "a directory in place of the token file fails the preflight"
+else
+  fail "token directory preflight (rc=$rc): $out"
+fi
+rmdir "$work/vm/root/secrets/openemr-token.json"
+mv "$work/token.saved" "$work/vm/root/secrets/openemr-token.json"
+
+# 12. The frozen W1 service is checked against its pinned image SHA, not HEAD.
+run_case w1 AGENTFORGE_DEPLOY_SERVICES=agentforge FAKE_SERVICE=agentforge
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q "OK: /agentforge reports the frozen W1 image 84f232b"; then
+  pass "deploying the frozen W1 service expects its pinned SHA 84f232b"
+else
+  fail "W1 pinned SHA (rc=$rc): $out"
+fi
+run_case w1wrong AGENTFORGE_DEPLOY_SERVICES=agentforge FAKE_SERVICE=agentforge FAKE_W1_HEALTH_SHA="$sha"
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "FAILED: /agentforge/health does not report 84f232b"; then
+  pass "a W1 route that does not report its pinned SHA fails the deploy"
+else
+  fail "W1 wrong SHA (rc=$rc): $out"
 fi
 
 if [ "$failures" -ne 0 ]; then

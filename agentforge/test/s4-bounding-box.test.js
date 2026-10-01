@@ -2,24 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createRecordedOcrReplay, extractPdfScanFixture, renderedPageFilename } from '../src/pdfScanAdapter.js';
 import { extractScanForm } from '../src/scanFormAdapter.js';
 import { parseOrIssues, PageSize, ScanExtractionMetadata } from '../src/schemas.js';
 import { citationBoxId, renderScanSourcePreview } from '../src/ui.js';
 import { startTestServer, DEMO_KEY_REQUEST } from './helpers/testServer.js';
+import { liveOcrSkip } from './helpers/ocrTools.js';
 
 const fixture = new URL('./fixtures/golden/ocr/lab-a.json', import.meta.url);
 const recording = JSON.parse(fs.readFileSync(fixture, 'utf8'));
 const twoPageRecording = JSON.parse(fs.readFileSync(new URL('./fixtures/synthetic/two-page-ocr.json', import.meta.url), 'utf8'));
 const pdfPath = new URL(`../../${recording.pdf}`, import.meta.url);
-const hasPoppler = (() => {
-  return ['pdfinfo', 'pdftoppm'].every((tool) => {
-    const probe = spawnSync(tool, ['-v'], { stdio: 'ignore' });
-    return !probe.error && probe.status !== null;
-  });
-})();
-const popplerSkip = hasPoppler ? false : 'Skipped page-render assertions: pdfinfo and/or pdftoppm are not on PATH.';
+const popplerSkip = liveOcrSkip('page rendering, cached scope checks, invalid pages, and render failures', ['pdfinfo', 'pdftoppm']);
 const pathWithoutPoppler = process.env.PATH.split(path.delimiter).filter((directory) =>
   !['pdfinfo', 'pdftoppm'].some((tool) => ['', '.exe'].some((extension) => fs.existsSync(path.join(directory, `${tool}${extension}`)))),
 ).join(path.delimiter);
@@ -174,7 +168,9 @@ test('page rendering, cached scope checks, invalid pages, and render failures', 
   const image = await fetch(`${base}${imagePath(pdfDocument.id, 1, read)}`);
   assert.equal(image.status, 200);
   assert.match(image.headers.get('content-type'), /image\/png/);
-  assert.equal(image.headers.get('cache-control'), 'private, max-age=300');
+  // E9 security review (05a613f3): page images are no-store and no-referrer like every other response.
+  assert.equal(image.headers.get('cache-control'), 'no-store');
+  assert.equal(image.headers.get('referrer-policy'), 'no-referrer');
   assert.ok((await image.arrayBuffer()).byteLength > 8);
 
   const crossPatient = await fetch(`${base}${imagePath(pdfDocument.id, 1, other)}`);

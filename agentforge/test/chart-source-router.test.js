@@ -5,14 +5,17 @@ import { FixtureAdapter } from '../src/fixtureAdapter.js';
 import { OpenEMRRestAdapter } from '../src/openemrAdapter.js';
 import { AgentForgeService, defaultFixturePath } from '../src/service.js';
 import { DeterministicProvider } from '../src/modelProvider.js';
-import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
+import { issueSignedContext, parseLaunchVerifyKey, verifySignedContext } from '../src/accessContext.js';
+import { LAUNCH_VECTORS, TEST_LAUNCH_VERIFY_KEY, issueTestLaunchToken } from './helpers/launchKeys.js';
 import { renderAgentForgePage } from '../src/ui.js';
 import { fakeOpenEMRRestFetch, LIVE_PATIENT, OTHER_PATIENT } from './helpers/fakeOpenemrRest.js';
 
 const secret = 'synthetic-router-secret';
 const CLINICIAN_UUID = '6f1e2d3c-4b5a-4968-8776-655443322110';
 
-const moduleContext = (patient = LIVE_PATIENT, scope = 'read-briefing') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: CLINICIAN_UUID, scope, acl: scope === 'read-briefing' ? 'read' : 'write', issuer: 'openemr-module', authn: 'openemr-session', secret }), secret);
+const launchVerifyKey = parseLaunchVerifyKey(TEST_LAUNCH_VERIFY_KEY);
+// Launcher tokens are Ed25519-signed (W3 H1); the test key stands in for the openemr container's.
+const moduleContext = (patient = LIVE_PATIENT, scope = 'read-briefing') => verifySignedContext(issueTestLaunchToken({ patient_uuid: patient, clinician_uuid: CLINICIAN_UUID, scope }), secret, undefined, { launchVerifyKey });
 const syntheticContext = (patient = 'fixture-patient-001') => verifySignedContext(issueSignedContext({ patient_uuid: patient, clinician_uuid: 'fixture-physician-001', issuer: 'synthetic-demo', authn: 'synthetic', secret }), secret);
 
 function makeRouter({ liveReads = true, requests = [], variant = {} } = {}) {
@@ -72,7 +75,8 @@ test('router: spoofed and tampered claims are refused; only the HMAC-verified co
   const spoofed = router.authorize({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', chart_source: 'openemr_live', issuer: 'openemr-module', authn: 'openemr-session' }, syntheticContext());
   assert.equal(spoofed.chart_source, 'synthetic_fixture');
   // Mixed or unknown claims select nothing.
-  const mixed = verifySignedContext(issueSignedContext({ patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID, issuer: 'openemr-module', authn: 'synthetic', secret }), secret);
+  const mixed = verifySignedContext(issueTestLaunchToken({ patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID, authn: 'synthetic' }), secret, undefined, { launchVerifyKey });
+  assert.ok(mixed);
   assert.equal(router.authorize(request, mixed).reason, 'chart_source_issuer_unsupported');
 });
 
@@ -89,7 +93,7 @@ test('scan: a token without a chart-read scope never picks or reads the live cha
   const requests = [];
   const { router } = makeRouter({ requests });
   const service = makeService(router);
-  const actionContext = verifySignedContext(issueSignedContext({ patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID, scope: 'write-clinical-action', acl: 'write', issuer: 'openemr-module', authn: 'openemr-session', secret }), secret);
+  const actionContext = verifySignedContext(issueTestLaunchToken({ patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID, scope: 'write-clinical-action' }), secret, undefined, { launchVerifyKey });
   const result = await service.runActiveSupervisorForDocument('openemr-doc-1', { patient_uuid: LIVE_PATIENT, clinician_uuid: CLINICIAN_UUID }, { verifiedContext: actionContext });
   assert.deepEqual(result, { status: 'blocked', reason: 'chart_read_scope_invalid' });
   const otherPatient = await service.runActiveSupervisorForDocument('openemr-doc-1', { patient_uuid: OTHER_PATIENT, clinician_uuid: CLINICIAN_UUID }, { verifiedContext: moduleContext() });
@@ -171,13 +175,14 @@ test('launch label: the page says which chart source the verified launch selects
   assert.match(demoPage, /writeToken: ""/);
 });
 
-test('launch vector: a token minted by the PHP launcher verifies in Node with openemr-session claims', () => {
-  // Same vector as oe-module-agentforge/tests/run.php (LaunchTokenMinter).
-  const token = 'eyJwYXRpZW50X3V1aWQiOiJhMmMzN2Y3Zi0xMDc2LTQxNzItYjE3YS1iZWU4YmI4ZDJkYTYiLCJjbGluaWNpYW5fdXVpZCI6IjZmMWUyZDNjLTRiNWEtNDk2OC04Nzc2LTY1NTQ0MzMyMjExMCIsInNjb3BlIjoid3JpdGUtc291cmNlLWRvY3VtZW50IiwiaXNzdWVyIjoib3BlbmVtci1tb2R1bGUiLCJhdXRobiI6Im9wZW5lbXItc2Vzc2lvbiIsInJvbGUiOiJjbGluaWNpYW4iLCJhY2wiOiJ3cml0ZSIsImV4cGlyZXNfYXQiOjE3OTAwMDAyODB9.yr7Os9mQ3I_ACdI8E3N6LV0l44pTFn4yZvKamK4d6bc';
-  const context = verifySignedContext(token, 'launch-vector-secret', () => 1790000000);
+test('launch vector: a token minted by the PHP launcher verifies in Node with openemr-session claims, only with the launch verify key', () => {
+  // Same vector as oe-module-agentforge/tests/run.php (LaunchTokenMinter, Ed25519).
+  const at = () => LAUNCH_VECTORS.now;
+  const context = verifySignedContext(LAUNCH_VECTORS.write_token, secret, at, { launchVerifyKey });
   assert.ok(context);
   assert.deepEqual([context.issuer, context.authn, context.scope, context.acl, context.patient_uuid], ['openemr-module', 'openemr-session', 'write-source-document', 'write', 'a2c37f7f-1076-4172-b17a-bee8bb8d2da6']);
-  assert.equal(verifySignedContext(token, 'another-secret', () => 1790000000), null);
+  assert.equal(verifySignedContext(LAUNCH_VECTORS.write_token, secret, at), null, 'no verify key');
+  assert.equal(verifySignedContext(LAUNCH_VECTORS.hmac_forged_write_token, 'synthetic-vector-secret-not-deployed', at, { launchVerifyKey }), null, 'HMAC-signed launcher claims');
 });
 
 

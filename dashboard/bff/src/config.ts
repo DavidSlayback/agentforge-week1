@@ -70,17 +70,21 @@ const envSchema = z.object({
   DASHBOARD_OAUTH_CLIENT_ID: z.string().min(8),
   DASHBOARD_OAUTH_CLIENT_SECRET: z.string().min(16),
   DASHBOARD_SESSION_SECRET: z.string().min(32),
+  // Required, no default (W3 hardening H4): it must equal OpenEMR's effective PHP timezone
+  // (`gbl_time_zone` if set, else php.ini `date.timezone`, else UTC; see README "Configuration").
+  // A named zone only: PHP's settings are zone names, and a bare offset would ignore DST.
   DASHBOARD_OPENEMR_TZ: z
     .string()
-    .default('America/Chicago')
+    .min(1)
     .refine((tz) => {
+      if (/^[+-]/.test(tz)) return false;
       try {
         new Intl.DateTimeFormat('en-CA', { timeZone: tz });
         return true;
       } catch {
         return false;
       }
-    }, 'must be an IANA time zone'),
+    }, 'must be an IANA time zone name'),
   DASHBOARD_DEMO_PATIENTS: z.string().default(''),
   DASHBOARD_UPSTREAM_TIMEOUT_MS: z.coerce.number().int().min(100).max(60000).default(5000),
   DASHBOARD_STATIC_DIR: z.string().optional(),

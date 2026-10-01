@@ -53,6 +53,7 @@ final readonly class ClinicalListItemInput
             throw ApiError::invalid([...$issues, 'items_must_be_1_to_20']);
         }
         $items = [];
+        $seen = [];
         foreach ($rows as $index => $row) {
             $kind = is_array($row) && is_string($row['kind'] ?? null) ? ListItemKind::tryFrom($row['kind']) : null;
             $title = is_array($row) && is_string($row['title'] ?? null) ? trim($row['title']) : '';
@@ -67,6 +68,12 @@ final readonly class ClinicalListItemInput
                 $issues[] = "items[$index].field_id_invalid";
             }
             if ($kind !== null) {
+                // One item per kind and title: both would share an idempotency key (IdempotencyKey::forListItem).
+                $identity = $kind->value . '|' . strtolower($title);
+                if (isset($seen[$identity])) {
+                    $issues[] = "items[$index].duplicate_title";
+                }
+                $seen[$identity] = true;
                 $items[] = ['kind' => $kind, 'title' => $title, 'field_id' => $fieldId];
             }
         }

@@ -4,6 +4,15 @@ import { randomBytes } from 'node:crypto';
 export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 /** Login transaction lifetime (`dashboard_tx`). */
 export const LOGIN_TX_TTL_MS = 10 * 60 * 1000;
+/**
+ * Pending login transactions kept at once. `/login` is unauthenticated, so this
+ * bounds what anyone can make the BFF hold (about 0.4 kB each, so about 2 MB at
+ * the cap). Past it the oldest pending transaction is evicted; that sign-in
+ * fails with the generic "Sign-in failed" and can simply be retried.
+ */
+export const MAX_PENDING_TRANSACTIONS = 5000;
+/** The expiry sweep runs at most once per interval, so a request never walks every entry. */
+export const SWEEP_INTERVAL_MS = 60 * 1000;
 
 /**
  * A signed-in BFF session. Tokens never leave this process: the browser holds
@@ -30,6 +39,11 @@ export interface LoginTransaction {
   readonly expiresAt: number;
 }
 
+export interface SessionStoreOptions {
+  readonly maxPendingTransactions?: number;
+  readonly sweepIntervalMs?: number;
+}
+
 export function randomId(bytes = 32): string {
   return randomBytes(bytes).toString('base64url');
 }
@@ -37,13 +51,27 @@ export function randomId(bytes = 32): string {
 /**
  * In-memory session and login-transaction store. A restart signs everyone out
  * (accepted tradeoff, MIGRATION-REACT.md §2.3 / R-5).
+ *
+ * Bounded (W3 hardening H4): pending transactions are capped, oldest evicted
+ * first (a `Map` iterates in insertion order), and expired entries are swept at
+ * most once per `sweepIntervalMs`. Lookups still check expiry themselves, so a
+ * late sweep never lets an expired session or transaction through.
  */
 export class SessionStore {
   readonly #sessions = new Map<string, Session>();
   readonly #transactions = new Map<string, LoginTransaction>();
+  readonly #maxPendingTransactions: number;
+  readonly #sweepIntervalMs: number;
+  #lastSweepAt: number | null = null;
+  #sweepCount = 0;
+
+  constructor(options: SessionStoreOptions = {}) {
+    this.#maxPendingTransactions = options.maxPendingTransactions ?? MAX_PENDING_TRANSACTIONS;
+    this.#sweepIntervalMs = options.sweepIntervalMs ?? SWEEP_INTERVAL_MS;
+  }
 
   createSession(tokens: { accessToken: string; idToken: string; expiresInSec: number }, now: number): Session {
-    this.#sweep(now);
+    this.#maybeSweep(now);
     const session: Session = {
       id: randomId(),
       accessToken: tokens.accessToken,
@@ -77,7 +105,11 @@ export class SessionStore {
   }
 
   createTransaction(fields: Omit<LoginTransaction, 'id' | 'expiresAt'>, now: number): LoginTransaction {
-    this.#sweep(now);
+    this.#maybeSweep(now);
+    for (const oldest of this.#transactions.keys()) {
+      if (this.#transactions.size < this.#maxPendingTransactions) break;
+      this.#transactions.delete(oldest);
+    }
     const tx: LoginTransaction = { ...fields, id: randomId(), expiresAt: now + LOGIN_TX_TTL_MS };
     this.#transactions.set(tx.id, tx);
     return tx;
@@ -96,7 +128,21 @@ export class SessionStore {
     return this.#sessions.size;
   }
 
-  #sweep(now: number): void {
+  get pendingTransactionCount(): number {
+    return this.#transactions.size;
+  }
+
+  /** How many full expiry sweeps have run (the amortization is asserted on this). */
+  get sweepCount(): number {
+    return this.#sweepCount;
+  }
+
+  #maybeSweep(now: number): void {
+    // A clock that moved backwards also sweeps, rather than waiting out the gap.
+    const last = this.#lastSweepAt;
+    if (last !== null && now >= last && now - last < this.#sweepIntervalMs) return;
+    this.#lastSweepAt = now;
+    this.#sweepCount += 1;
     for (const [id, s] of this.#sessions) {
       if (now >= s.expiresAt || now - s.lastSeenAt >= IDLE_TIMEOUT_MS) this.#sessions.delete(id);
     }

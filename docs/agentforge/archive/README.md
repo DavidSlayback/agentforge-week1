@@ -12,6 +12,7 @@ These documents were superseded by `../PLAN.md` (the only active plan file per `
 | `HISTORICAL_QUEUE_SUMMARY.md` | Queued task summary | `../PLAN.md` |
 | `W2_ASSIGNMENT_REBASELINE.md` | W2 assignment rebaseline | `../PLAN.md` |
 | `W2_STAGE0_CONTRACT_PACKET.md` | W2 stage 0 contracts | `../PLAN.md` + `/schemas/` |
+| `PLANNING.md` | Week 1 planning notes (2026-09-16); its "Stage 5 implementation active" status is historical | `../PLAN.md`; architecture in `../../../ARCHITECTURE.md` |
 
 ## Superseded Status and Handoff Documents
 
@@ -22,7 +23,8 @@ These documents were superseded by `../PLAN.md` (the only active plan file per `
 | `RELEASE_READINESS.md` | Release status tracking | `../PLAN.md` |
 | `CLEANUP_INVENTORY.md` | Cleanup task inventory | `../PLAN.md` |
 | `HUMAN_DECISION_OPTIONS.md` | Decision options for humans | `../PLAN.md` |
-| `WAYFINDER_MAP.md` | Agent navigation map | `../PLAN.md` |
+| `WAYFINDER_MAP.md` | Claim-consistency map (2026-09-19); its relative links predate the move to this folder | `../PLAN.md` |
+| `wayfinder/tickets/` | The map's decision tickets 01-06. Tickets 03-06 still say open: they were superseded, not resolved | `../PLAN.md` |
 | `AUTONOMY_CHECKPOINT.md` | Autonomy progress checkpoint | `../PLAN.md` |
 | `ASSIGNMENT_DELTAS_REVIEW_2026-09-22.md` | Assignment deltas review | `../PLAN.md` |
 

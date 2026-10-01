@@ -11,11 +11,20 @@
  *   GET  lab-observations     FHIR Observations from the in-process service: one
  *                             source document's, or with no source_document_id
  *                             the patient's module-written lab history
- *   POST clinical-list-items  clinician-confirmed intake meds/allergies
+ *   POST clinical-list-items  confirmed intake meds/allergies; recorded as
+ *                             clinician-confirmed only for an openemr-module
+ *                             (OpenEMR session) token (ListItemProvenance)
  *
- * Request signatures use AGENTFORGE_MODULE_HMAC_SECRET; context tokens use
- * AGENTFORGE_DEMO_SECRET. The two must differ, so the Week 1 service (which
- * only holds the demo secret) cannot sign module requests.
+ * Request signatures use AGENTFORGE_MODULE_HMAC_SECRET; synthetic-demo context
+ * tokens use AGENTFORGE_DEMO_SECRET. The two must differ, so the Week 1
+ * service (which only holds the demo secret) cannot sign module requests.
+ * Launcher (openemr-module) context tokens are Ed25519-signed and verified
+ * with AGENTFORGE_LAUNCH_VERIFY_KEY (W3 H1); without that key every launcher
+ * token is refused, and the synthetic-demo path is unchanged.
+ *
+ * Every successful read and write is recorded in the OpenEMR audit log
+ * (codes and ids only). A reused idempotency key with a different body is
+ * 409 idempotency_conflict, never a silent duplicate.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org
@@ -39,10 +48,12 @@ use OpenEMR\Modules\AgentForge\Http\AccessPolicy;
 use OpenEMR\Modules\AgentForge\Http\ApiError;
 use OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier;
 use OpenEMR\Modules\AgentForge\Http\HmacVerifier;
+use OpenEMR\Modules\AgentForge\Http\LaunchVerifyKey;
 use OpenEMR\Modules\AgentForge\Http\RequestAuthenticator;
 use OpenEMR\Modules\AgentForge\Http\RoutePolicy;
 use OpenEMR\Modules\AgentForge\Http\SignedRequest;
 use OpenEMR\Modules\AgentForge\Persistence\ActorResolver;
+use OpenEMR\Modules\AgentForge\Persistence\AuditSink;
 use OpenEMR\Modules\AgentForge\Persistence\CategoryResolver;
 use OpenEMR\Modules\AgentForge\Persistence\IdempotentWriter;
 use OpenEMR\Modules\AgentForge\Persistence\LedgerEntry;
@@ -64,6 +75,7 @@ final readonly class AgentForgeApi
         private IdempotentWriter $writer,
         private ChartGateway $chart,
         private AclChecker $acl,
+        private AuditSink $audit,
     ) {
     }
 
@@ -74,18 +86,26 @@ final readonly class AgentForgeApi
         if ($hmacSecret === '' || $contextSecret === '' || hash_equals($hmacSecret, $contextSecret)) {
             throw new ApiError(503, 'module_not_configured');
         }
+        $launchKeyBase64 = self::env('AGENTFORGE_LAUNCH_VERIFY_KEY');
+        try {
+            $launchKey = $launchKeyBase64 === '' ? null : LaunchVerifyKey::fromBase64($launchKeyBase64);
+        } catch (\Throwable $error) {
+            throw new ApiError(503, 'module_not_configured', ['launch_verify_key_invalid'], $error);
+        }
         if (!SqlWriteLedger::isInstalled()) {
             throw new ApiError(503, 'ledger_not_installed');
         }
         $ledger = new SqlWriteLedger();
+        $audit = new OpenEmrAuditSink();
         return new self(
             new RequestAuthenticator(new HmacVerifier($hmacSecret), new SqlNonceStore()),
-            new ContextTokenVerifier($contextSecret),
+            new ContextTokenVerifier($contextSecret, $launchKey),
             new AccessPolicy(AccessPolicy::parseAllowlist(self::env('AGENTFORGE_DEMO_WRITE_PATIENT_UUIDS'))),
             $ledger,
-            new IdempotentWriter($ledger, new OpenEmrAuditSink()),
+            new IdempotentWriter($ledger, $audit),
             new OpenEmrChartGateway(new PatientResolver(), new ActorResolver(self::env('AGENTFORGE_DEMO_ACTOR_USERNAME')), new CategoryResolver()),
             new OpenEmrAclChecker(),
+            $audit,
         );
     }
 
@@ -112,9 +132,9 @@ final readonly class AgentForgeApi
         $this->requireAcl($policy, $actor);
 
         return match ($request->route) {
-            'documents' => $request->method === 'POST' ? $this->storeDocument($request, $pid, $actor) : $this->readDocument($request, $pid),
+            'documents' => $request->method === 'POST' ? $this->storeDocument($request, $pid, $actor) : $this->readDocument($request, $pid, $actor),
             'lab-results' => $this->storeLabResults($request, $pid, $actor),
-            'lab-observations' => $this->readLabObservations($request, $patient, $pid),
+            'lab-observations' => $this->readLabObservations($request, $patient, $pid, $actor),
             'clinical-list-items' => $this->storeClinicalListItems($request, $pid, $actor),
             default => throw new ApiError(404, 'route_not_found'),
         };
@@ -146,7 +166,7 @@ final readonly class AgentForgeApi
             $this->ownedDocument($pid, $input->sourceDocumentId, array_map(static fn(DocumentType $type): string => $type->ledgerOperation(), DocumentType::sourceTypes()), 'source_document_not_found');
         }
         $key = $input->documentType === DocumentType::DerivedFacts && $input->sourceDocumentId !== null
-            ? IdempotencyKey::forDerivedFacts($pid, $input->sourceDocumentId)
+            ? IdempotencyKey::forDerivedFacts($pid, $input->sourceDocumentId, $input->contentSha256)
             : IdempotencyKey::forDocument($pid, $input->documentType, $input->contentSha256);
         $categoryId = $this->chart->categoryIdFor($input->documentType);
         $chart = $this->chart;
@@ -165,14 +185,16 @@ final readonly class AgentForgeApi
     /**
      * @return array{int, array<string, mixed>}
      */
-    private function readDocument(SignedRequest $request, int $pid): array
+    private function readDocument(SignedRequest $request, int $pid, Actor $actor): array
     {
         $documentId = $request->queryInt('document_id');
         if ($documentId === null) {
             throw ApiError::invalid(['document_id_invalid']);
         }
         $row = $this->ownedDocument($pid, $documentId, array_map(static fn(DocumentType $type): string => $type->ledgerOperation(), DocumentType::cases()), 'document_not_found');
-        return [200, $this->chart->readDocument($pid, $documentId, $row)];
+        $document = $this->chart->readDocument($pid, $documentId, $row);
+        $this->audit->recordRead($row->operation, $actor, $pid, $documentId, 1);
+        return [200, $document];
     }
 
     /**
@@ -201,10 +223,12 @@ final readonly class AgentForgeApi
     /**
      * @return array{int, array<string, mixed>}
      */
-    private function readLabObservations(SignedRequest $request, PatientUuid $patient, int $pid): array
+    private function readLabObservations(SignedRequest $request, PatientUuid $patient, int $pid, Actor $actor): array
     {
         if (!array_key_exists('source_document_id', $request->query)) {
-            return $this->readLabObservationHistory($patient, $pid);
+            [$status, $bundle] = $this->readLabObservationHistory($patient, $pid);
+            $this->audit->recordRead('lab-history', $actor, $pid, null, self::entryCount($bundle));
+            return [$status, $bundle];
         }
         $sourceId = $request->queryInt('source_document_id');
         if ($sourceId === null) {
@@ -214,7 +238,17 @@ final readonly class AgentForgeApi
         if ($labRow === null || $labRow->pid !== $pid || $labRow->documentId !== $sourceId) {
             throw new ApiError(404, 'document_not_found', ['lab_results_not_found']);
         }
-        return [200, $this->chart->readLabObservations($patient, $labRow)];
+        $bundle = $this->chart->readLabObservations($patient, $labRow);
+        $this->audit->recordRead('lab', $actor, $pid, $sourceId, self::entryCount($bundle));
+        return [200, $bundle];
+    }
+
+    /**
+     * @param array<string, mixed> $bundle
+     */
+    private static function entryCount(array $bundle): int
+    {
+        return is_array($bundle['entry'] ?? null) ? count($bundle['entry']) : 0;
     }
 
     /**
@@ -273,20 +307,32 @@ final readonly class AgentForgeApi
             throw ApiError::invalid($disallowed);
         }
         $chart = $this->chart;
+        $keyed = [];
+        foreach ($input->items as $item) {
+            $keyed[] = [
+                $item,
+                IdempotencyKey::forListItem($pid, $item['kind'], $input->sourceDocumentId, $item['title']),
+                hash('sha256', $item['kind']->value . '|' . strtolower(trim($item['title'])) . '|' . $item['field_id']),
+            ];
+        }
+        // Refuse a conflicting item before any item of the request is written.
+        foreach ($keyed as [, $key, $payloadSha256]) {
+            $this->writer->assertNoConflict($key, $payloadSha256);
+        }
         $items = [];
         $created = false;
-        foreach ($input->items as $item) {
+        foreach ($keyed as [$item, $key, $payloadSha256]) {
             $result = $this->writer->execute(
-                IdempotencyKey::forListItem($pid, $item['kind'], $input->sourceDocumentId, $item['title']),
+                $key,
                 'list:' . $item['kind']->value,
                 $pid,
                 null,
-                hash('sha256', $item['kind']->value . '|' . strtolower(trim($item['title'])) . '|' . $item['field_id']),
+                $payloadSha256,
                 $actor,
                 static fn() => $chart->storeListItem($pid, $item['kind'], $item['title'], $input->sourceDocumentId, $input->confirmationEventId, $actor),
             );
             $created = $created || $result->created;
-            $items[] = ['field_id' => $item['field_id'], 'duplicate' => !$result->created, 'payload_differs' => $result->payloadDiffers] + $result->response;
+            $items[] = ['field_id' => $item['field_id'], 'duplicate' => !$result->created] + $result->response;
         }
         return [$created ? 201 : 200, ['status' => $created ? 'created' : 'duplicate', 'items' => $items]];
     }

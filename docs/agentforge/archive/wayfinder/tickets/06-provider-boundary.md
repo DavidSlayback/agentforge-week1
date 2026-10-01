@@ -1,4 +1,6 @@
 # Provider, data-processing, and retention boundary
+> **Archived (2026-10-01).** A 2026-09-19 Wayfinder decision ticket, kept as history. It was superseded by [`PLAN.md`](../../../PLAN.md), not resolved here; the status below is as of that date.
+
 **Status:** synthetic lane resolved; broader provider policy open
 **Type:** grilling decision
 

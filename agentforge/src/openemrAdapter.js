@@ -234,14 +234,22 @@ export class OpenEMRRefreshTokenProvider {
     return this.state.access_token;
   }
 
+  /**
+   * Read the token cache file once. W3 hardening (H2): a failed read (missing,
+   * unreadable or not JSON) is not memoized. The rejected promise used to be
+   * kept forever, so a token cache fixed on disk was ignored until restart;
+   * now the next call reads the file again.
+   */
   async loadCache() {
     if (this.state || this.loadPromise || !this.cachePath) return this.loadPromise;
-    this.loadPromise = fs.readFile(this.cachePath, 'utf8')
+    const loading = fs.readFile(this.cachePath, 'utf8')
       .then((raw) => { this.state = JSON.parse(raw); })
       .catch((error) => {
+        if (this.loadPromise === loading) this.loadPromise = null;
         if (error.code !== 'ENOENT') throw error;
       });
-    return this.loadPromise;
+    this.loadPromise = loading;
+    return loading;
   }
 
   async refresh({ correlationId = '' } = {}) {

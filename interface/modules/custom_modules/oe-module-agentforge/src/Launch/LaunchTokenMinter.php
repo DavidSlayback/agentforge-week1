@@ -4,9 +4,12 @@
  * Mints the context tokens the "Prepare for visit" launcher (public/index.php)
  * hands to the AgentForge W2 service from a logged-in OpenEMR session, in the
  * format ContextTokenVerifier and agentforge/src/accessContext.js verify:
- * base64url(JSON) "." base64url(HMAC-SHA256 with AGENTFORGE_DEMO_SECRET).
+ * base64url(JSON) "." base64url(Ed25519 signature with AGENTFORGE_LAUNCH_SIGNING_KEY).
  * Every token says issuer openemr-module and authn openemr-session; the W2
  * service reads the real OpenEMR chart only for tokens with those claims.
+ * Only the openemr container holds the signing key (W3 H1); the verifiers
+ * hold its public key, and refuse any openemr-module token signed with the
+ * shared AGENTFORGE_DEMO_SECRET.
  *
  * Pure: the caller does the session, ACL and allowlist lookups and passes the
  * results in, so the grant rules are testable without OpenEMR.
@@ -23,7 +26,6 @@ declare(strict_types=1);
 namespace OpenEMR\Modules\AgentForge\Launch;
 
 use OpenEMR\Modules\AgentForge\Domain\ContextClaims;
-use OpenEMR\Modules\AgentForge\Http\ContextTokenVerifier;
 use OpenEMR\Modules\AgentForge\Http\HmacVerifier;
 
 final readonly class LaunchTokenMinter
@@ -32,11 +34,8 @@ final readonly class LaunchTokenMinter
     public const TTL_SECONDS = 280;
     private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
 
-    public function __construct(private string $secret)
+    public function __construct(private LaunchSigningKey $signingKey)
     {
-        if ($secret === '') {
-            throw new \InvalidArgumentException('AgentForge context secret is not configured');
-        }
     }
 
     /**
@@ -99,7 +98,7 @@ final readonly class LaunchTokenMinter
             'expires_at' => $now + self::TTL_SECONDS,
         ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         $encoded = HmacVerifier::base64UrlEncode($payload);
-        return $encoded . '.' . ContextTokenVerifier::sign($encoded, $this->secret);
+        return $encoded . '.' . HmacVerifier::base64UrlEncode($this->signingKey->sign($encoded));
     }
 
     /**

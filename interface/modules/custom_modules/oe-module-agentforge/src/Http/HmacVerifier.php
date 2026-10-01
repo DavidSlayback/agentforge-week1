@@ -3,9 +3,11 @@
 /**
  * Request-signature primitives for the AgentForge write endpoint.
  *
- * Request signatures use a key derived from AGENTFORGE_DEMO_SECRET, so a
- * request signature can never be confused with a launcher context-token
- * signature (which uses the raw secret). Pure: no OpenEMR dependencies.
+ * Request signatures use a key derived (HMAC over KEY_LABEL) from
+ * AGENTFORGE_MODULE_HMAC_SECRET, which only openemr and agentforge-w2 hold and
+ * which must differ from AGENTFORGE_DEMO_SECRET (AgentForgeApi::fromEnvironment).
+ * Context tokens are verified separately (ContextTokenVerifier). Pure: no
+ * OpenEMR dependencies.
  *
  * @package   OpenEMR
  * @link      https://www.open-emr.org

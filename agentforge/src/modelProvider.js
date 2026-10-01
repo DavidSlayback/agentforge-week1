@@ -142,11 +142,33 @@ export class OpenAIResponsesProvider {
   }
 }
 
+/** Add one primary call's usage to a running total. An unknown cost (`null`)
+ * makes the total unknown: a partial sum would under-report the bill. */
+function addUsage(total, result) {
+  const cost = result?.estimatedCostUsd;
+  return {
+    attempts: total.attempts + 1,
+    inputTokens: total.inputTokens + (result?.inputTokens || 0),
+    outputTokens: total.outputTokens + (result?.outputTokens || 0),
+    estimatedCostUsd: total.estimatedCostUsd === null || cost === null || cost === undefined ? null : Number((total.estimatedCostUsd + Number(cost)).toFixed(8)),
+  };
+}
+
 /**
  * Tries the primary once plus `maxRetries` additional times, with no delay or
  * backoff. It records failures when tracing is supplied, validates output,
  * then uses deterministic fallback; fallback marks the primary unhealthy.
  * Deterministic-only configuration remains ready.
+ *
+ * Billing: a primary attempt whose output was returned but rejected by
+ * `validate` (`MODEL_OUTPUT_REJECTED`) was still billed. Its tokens and cost
+ * are kept: a successful result reports the sum over every returned attempt
+ * (`billed_attempts`), and a fallback result carries the rejected attempts as
+ * `primary_usage` (`{provider_name, model_name, attempts, inputTokens,
+ * outputTokens, estimatedCostUsd}`), next to the fallback's own numbers. An
+ * abort after billed attempts throws with the same `primary_usage` attached.
+ * A call that threw before returning (timeout, HTTP error) reports no usage
+ * and is not counted.
  */
 export class ResilientProvider {
   constructor({ primary, fallback = new DeterministicProvider(), maxRetries = MAX_RETRIES }) { this.primary = primary; this.fallback = fallback; this.maxRetries = maxRetries; this.name = primary.name; this.model = primary.model; this.primaryHealthy = null; }
@@ -158,23 +180,28 @@ export class ResilientProvider {
   async checkReachable() { return Boolean(await this.checkReady()) && (typeof this.primary.checkReachable !== 'function' || await this.primary.checkReachable()); }
   async generate(args, { trace, validate, signal } = {}) {
     let lastError = null;
+    let billed = { attempts: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
+    const primaryUsage = () => (billed.attempts ? { provider_name: this.primary.name, model_name: this.primary.model, ...billed } : null);
+    const withUsage = (error) => { const usage = primaryUsage(); if (usage && error && typeof error === 'object') error.primary_usage = usage; return error; };
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       try {
         const result = await this.primary.generate({ ...args, signal });
+        billed = addUsage(billed, result);
         if (validate && validate(result).status !== 'passed') throw new Error('MODEL_OUTPUT_REJECTED');
         this.primaryHealthy = true;
-        return { ...result, provider_status: 'primary', provider_fallback: false, provider_name: this.primary.name, model_name: this.primary.model };
+        return { ...result, inputTokens: billed.inputTokens, outputTokens: billed.outputTokens, estimatedCostUsd: billed.estimatedCostUsd, billed_attempts: billed.attempts, provider_status: 'primary', provider_fallback: false, provider_name: this.primary.name, model_name: this.primary.model };
       } catch (error) {
-        if (signal?.aborted) throw error;
+        if (signal?.aborted) throw withUsage(error);
         lastError = error;
         trace?.recordRetry({ stage: 'model', attempt: attempt + 1, errorCode: error.message || 'MODEL_ERROR' });
       }
     }
-    if (signal?.aborted) throw new Error('MODEL_ABORTED');
+    if (signal?.aborted) throw withUsage(new Error('MODEL_ABORTED'));
     const result = await this.fallback.generate({ ...args, signal });
-    if (validate && validate(result).status !== 'passed') throw new Error('MODEL_FALLBACK_OUTPUT_REJECTED');
+    if (validate && validate(result).status !== 'passed') throw withUsage(new Error('MODEL_FALLBACK_OUTPUT_REJECTED'));
     this.primaryHealthy = false;
-    return { ...result, provider_status: 'fallback', provider_fallback: true, provider_name: this.fallback.name, model_name: this.fallback.model, provider_error_code: lastError?.message || 'MODEL_UNAVAILABLE' };
+    const usage = primaryUsage();
+    return { ...result, provider_status: 'fallback', provider_fallback: true, provider_name: this.fallback.name, model_name: this.fallback.model, provider_error_code: lastError?.message || 'MODEL_UNAVAILABLE', ...(usage ? { primary_usage: usage } : {}) };
   }
 }
 

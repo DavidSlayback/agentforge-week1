@@ -183,7 +183,7 @@ test('active supervisor: a retry with lower confidence than the original is disc
   const reextractWithAlternateOcr = async () => ({ content: envelope(hgbFields(0.3)), ocrMode: 'psm4' });
   const result = await runActiveSupervisor({ sourceDocumentId: 'doc-retry-worse-confidence', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(hgbFields(0.6)), query: LAB_QUERY, reextractWithAlternateOcr });
   assert.equal(result.typed_outputs.extraction.lab_results[0].confidence, 0.6);
-  assert.equal(result.ocr_mode, 'psm6');
+  assert.equal(result.ocr_mode, 'psm3');
 });
 
 test('active supervisor: a retry that comes back contract-invalid (blocked) never replaces the original valid extraction', async () => {
@@ -194,7 +194,7 @@ test('active supervisor: a retry that comes back contract-invalid (blocked) neve
   const result = await runActiveSupervisor({ sourceDocumentId: 'doc-retry-blocked-candidate', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(hgbFields(0.5)), query: LAB_QUERY, reextractWithAlternateOcr });
   assert.notEqual(result.final_state, 'BLOCKED');
   assert.equal(result.typed_outputs.extraction.lab_results[0].confidence, 0.5);
-  assert.equal(result.ocr_mode, 'psm6');
+  assert.equal(result.ocr_mode, 'psm3');
 });
 
 test('active supervisor: a retry with higher confidence is adopted and the reported ocr_mode reflects the extraction actually used', async () => {
@@ -204,13 +204,34 @@ test('active supervisor: a retry with higher confidence is adopted and the repor
   assert.equal(result.ocr_mode, 'psm4');
 });
 
-// F11 review fix: content-addressed cache (not document-id-addressed), bounded, and truthfully traced.
-test('active supervisor: extractionCache is content-addressed, so a different sourceDocumentId with identical content still hits the cache', async () => {
+// F11 review fix: the content stays part of the key, so the same document id
+// with changed content never reuses a stale extraction. W3 hardening (H2): the
+// key is also scoped to the patient, document id and document type, so the same
+// bytes uploaded for another patient never return the first upload's ids.
+test('active supervisor: identical content under another document id or patient is extracted again and cites its own document', async () => {
   const extractionCache = new Map();
   const content = envelope(hgbFields(0.95));
-  await runActiveSupervisor({ sourceDocumentId: 'doc-content-a', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
-  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-content-b', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
-  assert.deepEqual(result.decisions[0], { next: 'EXTRACT', reason: 'extraction_cached' });
+  const first = await runActiveSupervisor({ sourceDocumentId: 'doc-content-a', patientRef: 'fixture-patient-001', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
+  const second = await runActiveSupervisor({ sourceDocumentId: 'doc-content-b', patientRef: 'fixture-patient-002', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
+  assert.deepEqual(second.decisions[0], { next: 'EXTRACT', reason: 'extraction_needed' });
+  const extraction = second.typed_outputs.extraction;
+  assert.ok(extraction.facts.length > 0);
+  assert.ok(extraction.facts.every((fact) => fact.citation.source_id === 'doc-content-b'), 'every fact cites the second document');
+  assert.ok(!JSON.stringify(second.typed_outputs).includes('doc-content-a'), 'nothing from the first upload leaks into the second result');
+  assert.ok(first.typed_outputs.extraction.facts.every((fact) => fact.citation.source_id === 'doc-content-a'));
+  // Same document id, another patient: still a separate entry.
+  const otherPatient = await runActiveSupervisor({ sourceDocumentId: 'doc-content-a', patientRef: 'fixture-patient-003', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
+  assert.deepEqual(otherPatient.decisions[0], { next: 'EXTRACT', reason: 'extraction_needed' });
+});
+
+test('active supervisor: the same document id with changed content is extracted again (F11: content stays in the key)', async () => {
+  const extractionCache = new Map();
+  const changed = hgbFields(0.95).map((field) => [...field]);
+  changed[1][2] = '9.9';
+  await runActiveSupervisor({ sourceDocumentId: 'doc-content-c', patientRef: 'fixture-patient-001', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(hgbFields(0.95)), query: LAB_QUERY, extractionCache });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-content-c', patientRef: 'fixture-patient-001', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content: envelope(changed), query: LAB_QUERY, extractionCache });
+  assert.deepEqual(result.decisions[0], { next: 'EXTRACT', reason: 'extraction_needed' });
+  assert.equal(result.typed_outputs.extraction.facts.find((fact) => fact.field_id === 'lab.hgb.value').value, '9.9');
 });
 
 test('active supervisor: a cache hit still records extraction confidence on the trace (setExtraction is called)', async () => {
@@ -219,7 +240,8 @@ test('active supervisor: a cache hit still records extraction confidence on the 
   await runActiveSupervisor({ sourceDocumentId: 'doc-setext-a', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache });
   const setExtractionCalls = [];
   const observer = { startStage() {}, finishStage() {}, recordRetrievalAttempt() {}, setExtraction: (value) => setExtractionCalls.push(value) };
-  await runActiveSupervisor({ sourceDocumentId: 'doc-setext-b', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache, observer });
+  const result = await runActiveSupervisor({ sourceDocumentId: 'doc-setext-a', documentType: 'lab_pdf', layoutId: 'pdf-ocr-lab_pdf', content, query: LAB_QUERY, extractionCache, observer });
+  assert.deepEqual(result.decisions[0], { next: 'EXTRACT', reason: 'extraction_cached' });
   assert.equal(setExtractionCalls.length, 1);
   assert.equal(setExtractionCalls[0].confidence.mean, 0.95);
 });

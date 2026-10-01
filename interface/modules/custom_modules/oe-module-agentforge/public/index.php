@@ -2,8 +2,9 @@
 
 /**
  * "Prepare for visit" launcher: hands the logged-in OpenEMR session's patient
- * context to the AgentForge W2 service as short-lived signed tokens (issuer
- * openemr-module, authn openemr-session). The service reads the real chart
+ * context to the AgentForge W2 service as short-lived Ed25519-signed tokens
+ * (issuer openemr-module, authn openemr-session; AGENTFORGE_LAUNCH_SIGNING_KEY,
+ * held only by this container). The service reads the real chart
  * for these tokens only when AGENTFORGE_OPENEMR_LIVE_READS=on, and it
  * exchanges them once, on the first page load, for a launch session, so a
  * replayed link is refused (agentforge/src/launchSession.js); see
@@ -22,11 +23,13 @@ require_once dirname(__FILE__, 5) . '/globals.php';
 require_once dirname(__DIR__) . '/src/autoload.php';
 
 use OpenEMR\Common\Acl\AclMain;
+use OpenEMR\Common\Logging\SystemLogger;
 use OpenEMR\Common\Session\SessionWrapperFactory;
 use OpenEMR\Common\Uuid\UuidRegistry;
 use OpenEMR\Modules\AgentForge\Http\AccessPolicy;
 use OpenEMR\Modules\AgentForge\Launch\LaunchGrant;
 use OpenEMR\Modules\AgentForge\Launch\LaunchScope;
+use OpenEMR\Modules\AgentForge\Launch\LaunchSigningKey;
 use OpenEMR\Modules\AgentForge\Launch\LaunchTokenMinter;
 
 $session = SessionWrapperFactory::getInstance()->getWrapper();
@@ -36,14 +39,29 @@ $usernameValue = $session->get('authUser');
 $pid = is_scalar($pidValue) ? (string) $pidValue : '';
 $userId = is_scalar($userIdValue) ? (string) $userIdValue : '';
 $username = is_string($usernameValue) ? $usernameValue : '';
-$secret = (string) (getenv('AGENTFORGE_DEMO_SECRET') ?: '');
 // Production: the public W2 path, e.g. https://<host>/agentforge-w2 (the
 // browser follows this link, so it must be reachable from the browser).
 $serviceUrl = (string) (getenv('AGENTFORGE_SERVICE_URL') ?: 'http://127.0.0.1:8787');
 
-if ($pid === '' || $userId === '' || $username === '' || $secret === '') {
+if ($pid === '' || $userId === '' || $username === '') {
     http_response_code(403);
-    echo '<p>' . xlt('AgentForge requires an authenticated patient context and server configuration.') . '</p>';
+    echo '<p>' . xlt('AgentForge requires an authenticated patient context.') . '</p>';
+    exit;
+}
+
+// W3 H1: launcher tokens are Ed25519-signed with a key only this container
+// holds (AGENTFORGE_LAUNCH_SIGNING_KEY), never with the shared demo secret.
+// Missing or invalid: the launcher refuses, labeled; nothing else changes.
+$envString = static function (string $name): string {
+    $value = getenv($name);
+    return is_string($value) ? trim($value) : '';
+};
+try {
+    $signingKey = LaunchSigningKey::fromBase64Seed($envString('AGENTFORGE_LAUNCH_SIGNING_KEY'), $envString('AGENTFORGE_LAUNCH_VERIFY_KEY'));
+} catch (\Throwable $error) {
+    (new SystemLogger())->error('AgentForge launcher signing key is not configured', ['exception' => $error]);
+    http_response_code(503);
+    echo '<p>' . xlt('AgentForge launch is not configured on this OpenEMR server (launcher signing key missing or invalid).') . '</p>';
     exit;
 }
 
@@ -79,7 +97,7 @@ if ($grant === LaunchGrant::NotDesignated) {
     exit;
 }
 
-$minter = new LaunchTokenMinter($secret);
+$minter = new LaunchTokenMinter($signingKey);
 $now = time();
 $readToken = $minter->mint($patientRef, $clinicianRef, LaunchScope::ReadBriefing, $now);
 $writeToken = $grant === LaunchGrant::ReadAndUpload ? $minter->mint($patientRef, $clinicianRef, LaunchScope::WriteSourceDocument, $now) : null;

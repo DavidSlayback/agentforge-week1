@@ -13,11 +13,13 @@ function php(args, input = '', env = {}) {
   return execFileSync(installedPhp, args, { cwd: root, input, encoding: 'utf8', env: { ...process.env, ...env } }).trim();
 }
 
+// W3 H1: HMAC tokens are synthetic-demo only; launcher (openemr-module) tokens
+// are Ed25519 and pinned by agentforge/test/w3-launch-trust.test.js.
 test('PHP and Node signed-context implementations agree on synthetic tokens', () => {
   if (!fs.existsSync(installedPhp)) return;
   const secret = 'synthetic-parity-secret';
   const now = 1_800_000_000;
-  const nodeToken = issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', issuer: 'openemr-module', authn: 'openemr-session', secret, now: () => now });
+  const nodeToken = issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', issuer: 'synthetic-demo', authn: 'synthetic', secret, now: () => now });
   const phpChecksNode = php(['-r', String.raw`
 $parts = explode('.', getenv('TOKEN'));
 $encoded = $parts[0] ?? '';
@@ -25,7 +27,7 @@ $provided = $parts[1] ?? '';
 $expected = rtrim(strtr(base64_encode(hash_hmac('sha256', $encoded, getenv('SECRET'), true)), '+/', '-_'), '=');
 $padding = strlen($encoded) % 4;
 $payload = json_decode(base64_decode(strtr($encoded . ($padding ? str_repeat('=', 4 - $padding) : ''), '-_', '+/')), true);
-if (!hash_equals($expected, $provided) || ($payload['patient_uuid'] ?? '') !== 'fixture-patient-001' || ($payload['issuer'] ?? '') !== 'openemr-module') exit(1);
+if (!hash_equals($expected, $provided) || ($payload['patient_uuid'] ?? '') !== 'fixture-patient-001' || ($payload['issuer'] ?? '') !== 'synthetic-demo') exit(1);
 echo 'ok';
 `], '', { TOKEN: nodeToken, SECRET: secret });
   assert.equal(phpChecksNode, 'ok');
@@ -33,7 +35,7 @@ echo 'ok';
   const phpToken = php(['-r', String.raw`
 $payload = json_encode([
   'patient_uuid' => 'fixture-patient-002', 'clinician_uuid' => 'fixture-physician-001',
-  'scope' => 'read-briefing', 'issuer' => 'openemr-module', 'authn' => 'openemr-session',
+  'scope' => 'read-briefing', 'issuer' => 'synthetic-demo', 'authn' => 'synthetic',
   'role' => 'clinician', 'acl' => 'read', 'expires_at' => (int)getenv('NOW') + 300,
 ], JSON_UNESCAPED_SLASHES);
 $encoded = rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
@@ -44,8 +46,8 @@ echo $encoded . '.' . $signature;
     patient_uuid: 'fixture-patient-002',
     clinician_uuid: 'fixture-physician-001',
     scope: 'read-briefing',
-    issuer: 'openemr-module',
-    authn: 'openemr-session',
+    issuer: 'synthetic-demo',
+    authn: 'synthetic',
     role: 'clinician',
     acl: 'read',
     expires_at: now + 300,

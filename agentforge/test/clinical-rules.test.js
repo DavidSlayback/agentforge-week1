@@ -326,9 +326,13 @@ test('composeGroundedAnswer ships the flags, moves the contradicted A1C to needs
   assert.doesNotMatch(JSON.stringify(verification), /6\.8|6\.9|Amoxicillin|Penicillin/);
 });
 
-test('a low-confidence critical potassium is not flagged: it is already in needs review, and no rule speaks for it', async () => {
+// W3 hardening H3: a low-confidence reading is still never a patient fact,
+// but a rule that would fire on it is no longer silenced -- its flag ships
+// marked needs_verification (it used to vanish).
+test('a low-confidence critical potassium stays in needs review and its flag ships marked needs_verification', async () => {
   const answer = await composeGroundedAnswer({ labResults: [{ ...potassium('6.8'), confidence: 0.6 }] });
-  assert.deepEqual(answer.safety_flags, []);
+  assert.deepEqual(answer.safety_flags.map((flag) => [flag.code, flag.verification_status, flag.verification_reason]), [['critical_value', 'needs_verification', 'low_confidence']]);
+  assert.deepEqual(answer.patient_facts, []);
   assert.deepEqual(answer.needs_review, [{ kind: 'lab_result', field: 'lab.k.value', reason: 'low_confidence' }]);
 });
 

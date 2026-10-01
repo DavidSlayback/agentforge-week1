@@ -49,6 +49,15 @@ function citationFor(sourceDocumentId, layoutId, field) {
 }
 
 /**
+ * Label for an extraction parsed straight from a tagged-field envelope (an
+ * uploaded `.scan.txt` file or a synthetic fixture). No OCR or vision model
+ * ran: the values, confidences and boxes are the ones the envelope declares.
+ * The PDF lane replaces this with the OCR engine or model that produced its
+ * envelope (`service.js`).
+ */
+export const TAGGED_ENVELOPE_PROVIDER = 'uploaded-tagged-envelope';
+
+/**
  * Provider-neutral local scan-form extraction seam.
  *
  * This adapter validates a normalized tagged-field envelope. The PDF lane
@@ -68,14 +77,26 @@ export function extractScanForm({ sourceDocumentId, documentType, layoutId, page
   const conflicts = [];
   const uncertainFields = [];
   const byField = new Map();
+  // A field printed with two different values stays conflicted however many
+  // more copies follow: "11.2, 13.9, 11.2" is a conflict, not a vote, so a
+  // later copy never re-admits the field as a fact.
+  const conflictByField = new Map();
   for (const field of parsed.fields) {
     if (!field.field_id || !field.value || !Number.isInteger(field.page) || !field.bounding_box || !Number.isFinite(field.confidence)) {
       issues.push(issue('invalid_field_row', field.field_id || 'unknown'));
       continue;
     }
+    const conflicted = conflictByField.get(field.field_id);
+    if (conflicted) {
+      if (!conflicted.values.includes(field.value)) conflicted.values.push(field.value);
+      conflicted.citations.push(citationFor(sourceDocumentId, parsed.header.layout, field));
+      continue;
+    }
     const previous = byField.get(field.field_id);
     if (previous && previous.value !== field.value) {
-      conflicts.push({ field_id: field.field_id, values: [previous.value, field.value], citations: [previous.citation, citationFor(sourceDocumentId, parsed.header.layout, field)] });
+      const conflict = { field_id: field.field_id, values: [previous.value, field.value], citations: [previous.citation, citationFor(sourceDocumentId, parsed.header.layout, field)] };
+      conflicts.push(conflict);
+      conflictByField.set(field.field_id, conflict);
       byField.delete(field.field_id);
       continue;
     }
@@ -122,11 +143,11 @@ export function extractScanForm({ sourceDocumentId, documentType, layoutId, page
   // already signal a degraded extraction through the untyped-fact checks.
   if (status === 'complete' && typedIssues.length) status = 'qualified';
   const pageMetadata = parsed.pageSizes.length ? { page_sizes: parsed.pageSizes } : {};
-  const result = { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status, facts, missing_fields: missingFields, uncertain_fields: uncertainFields, conflicts, issues: [...new Set(issues)], ...pageMetadata, lab_results: labResults, intake_form: intakeForm, medication_list: medicationList, typed_issues: [...new Set(typedIssues)], metrics: { pages: pageCount, candidate_fields: parsed.fields.length, accepted_fields: facts.length, duration_ms: Number((performance.now() - started).toFixed(3)) }, synthetic_only: true };
+  const result = { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: TAGGED_ENVELOPE_PROVIDER, status, facts, missing_fields: missingFields, uncertain_fields: uncertainFields, conflicts, issues: [...new Set(issues)], ...pageMetadata, lab_results: labResults, intake_form: intakeForm, medication_list: medicationList, typed_issues: [...new Set(typedIssues)], metrics: { pages: pageCount, candidate_fields: parsed.fields.length, accepted_fields: facts.length, duration_ms: Number((performance.now() - started).toFixed(3)) }, synthetic_only: true };
   const validation = validateScanExtraction(result, { sourceDocumentId, documentType, layoutId });
   return validation.valid ? result : blockedResult([...result.issues, ...validation.issues]);
 }
 
 function blockedResult(issues) {
-  return { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: 'synthetic-ocr-vlm-adapter', status: EXTRACTION_STATUSES[3], facts: [], missing_fields: [], uncertain_fields: [], conflicts: [], issues: [...new Set(issues)], lab_results: [], intake_form: null, medication_list: null, typed_issues: [], metrics: { pages: 0, candidate_fields: 0, accepted_fields: 0, duration_ms: 0 }, synthetic_only: true };
+  return { contract_version: SCAN_FORM_CONTRACT_VERSION, provider: TAGGED_ENVELOPE_PROVIDER, status: EXTRACTION_STATUSES[3], facts: [], missing_fields: [], uncertain_fields: [], conflicts: [], issues: [...new Set(issues)], lab_results: [], intake_form: null, medication_list: null, typed_issues: [], metrics: { pages: 0, candidate_fields: 0, accepted_fields: 0, duration_ms: 0 }, synthetic_only: true };
 }

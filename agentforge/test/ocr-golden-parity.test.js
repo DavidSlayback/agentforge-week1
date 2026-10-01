@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createRecordedOcrReplay, extractPdfScanFixture, tesseractOcrEngine } from '../src/pdfScanAdapter.js';
 import { AgentForgeService } from '../src/service.js';
+import { liveOcrSkip } from './helpers/ocrTools.js';
 
 const golden = new URL('./fixtures/golden/', import.meta.url);
 const repoRoot = new URL('../../', import.meta.url);
@@ -13,13 +13,6 @@ const manifest = JSON.parse(fs.readFileSync(new URL('manifest.json', golden), 'u
 const extensionManifest = JSON.parse(fs.readFileSync(new URL('extension-manifest.json', golden), 'utf8'));
 const pdfDocuments = [...manifest.documents, ...extensionManifest.documents].filter((doc) => doc.pdf);
 const recordingFor = (doc) => JSON.parse(fs.readFileSync(new URL(`ocr/${doc.id}.json`, golden), 'utf8'));
-
-function ocrToolsOnPath() {
-  return ['pdftoppm', 'tesseract', 'pdfinfo'].every((tool) => {
-    const probe = spawnSync(tool, ['-v'], { stdio: 'ignore' });
-    return !probe.error && probe.status !== null;
-  });
-}
 
 test('every golden PDF has an OCR recording made from exactly these bytes', () => {
   for (const doc of pdfDocuments) {
@@ -30,17 +23,33 @@ test('every golden PDF has an OCR recording made from exactly these bytes', () =
   }
 });
 
-const skipParity = ocrToolsOnPath() ? false : 'pdftoppm/tesseract/pdfinfo are not on PATH; live OCR parity runs only where they are installed (the Docker image built from the repo Dockerfile)';
+const skipParity = liveOcrSkip('live Tesseract OCR matches the committed recordings', ['pdftoppm', 'tesseract', 'pdfinfo']);
+
+/**
+ * The OCR options the deployed scan path passes by default, captured from
+ * `extractPdfScanFixture` itself, so parity is checked at the mode production
+ * runs (H5: S6 switched the default to psm 6 while the recordings were psm 3,
+ * and a parity check that called the engine with its own defaults missed it).
+ */
+async function productionOcrOptions() {
+  let captured = null;
+  const spy = { name: 'spy', recognize: async (content, options) => { captured = { psm: options.psm }; return tesseractOcrEngine.recognize(content, options); } };
+  const labA = pdfDocuments.find((doc) => doc.id === 'lab-a');
+  await extractPdfScanFixture({ content: fs.readFileSync(new URL(labA.pdf, repoRoot)), documentType: 'lab_pdf', ocrEngine: spy });
+  assert.ok(captured && Number.isInteger(captured.psm), 'the scan path must pass an explicit page-segmentation mode');
+  return captured;
+}
 
 test('live Tesseract OCR matches the committed recordings line for line', { skip: skipParity }, async () => {
+  const options = await productionOcrOptions();
   for (const doc of pdfDocuments) {
     const recording = recordingFor(doc);
     const content = fs.readFileSync(new URL(doc.pdf, repoRoot));
     if (recording.error) {
-      await assert.rejects(tesseractOcrEngine.recognize(content), (error) => String(error.message).startsWith(recording.error), doc.id);
+      await assert.rejects(tesseractOcrEngine.recognize(content, options), (error) => String(error.message).startsWith(recording.error), doc.id);
       continue;
     }
-    const live = await tesseractOcrEngine.recognize(content);
+    const live = await tesseractOcrEngine.recognize(content, options);
     assert.equal(live.pageCount, recording.page_count, doc.id);
     assert.equal(live.pages.length, recording.pages.length, doc.id);
     live.pages.forEach((page, index) => {

@@ -3,6 +3,14 @@
 **Status:** evidence-bounded planning model for the synthetic, read-only
 platform. This is not a production capacity or provider quote.
 
+**Scope:** Week 1 only, the read-only briefing (one short synthesis call per
+briefing, no OCR, no document pipeline), with infrastructure ranges from the
+2026-09 Vultr readback. It is superseded for Week 2 by the root
+[`W2_COST_LATENCY.md`](../../W2_COST_LATENCY.md), which prices the scan path
+(OCR, retrieval, answer model, critic) from measured traces. That document is
+current; its ~$85K/month at 100,000 clinicians is not comparable with the
+$1.2K–$3.5K infrastructure-only range below.
+
 ## Observed historical candidate
 
 - Deployment evidence: one historical Vultr Cloud Compute instance in Chicago running the pinned

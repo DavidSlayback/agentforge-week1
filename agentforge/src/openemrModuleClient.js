@@ -84,7 +84,10 @@ export class OpenEMRModuleError extends Error {
 
 // Module statuses that describe the caller's request pass through; auth,
 // replay and server failures are this service's fault and surface as 502.
+// A 409 passes through only as idempotency_conflict (the same write key with a
+// different body, refused by the module); a 409 nonce_replayed stays a 502.
 const PASS_THROUGH_STATUSES = new Set([400, 403, 404, 413, 503]);
+const passThrough = (status, moduleCode) => PASS_THROUGH_STATUSES.has(status) || (status === 409 && moduleCode === 'IDEMPOTENCY_CONFLICT');
 
 export class OpenEMRModuleClient {
   constructor({ baseUrl, secret, site = 'default', timeoutMs = 15000, fetchImpl = globalThis.fetch, now = () => Math.floor(Date.now() / 1000), nonce = () => crypto.randomBytes(16).toString('hex'), correlationId = () => `af-${crypto.randomUUID()}` }) {
@@ -111,22 +114,30 @@ export class OpenEMRModuleClient {
     const correlationId = requestCorrelationId || this.correlationId();
     const url = new URL(this.baseUrl);
     for (const [key, value] of Object.entries(fullQuery)) url.searchParams.set(key, value);
+    // W3 hardening (H2): one deadline covers the headers and the body. The
+    // timer used to be cleared once headers arrived, so a module that sent
+    // headers and then stalled the body hung the request.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let response;
+    let payload;
     try {
-      response = await this.fetchImpl(url.toString(), { method, headers: { ...headers, accept: 'application/json', 'x-correlation-id': correlationId, ...(bodyText ? { 'content-type': 'application/json' } : {}) }, ...(bodyText ? { body: bodyText } : {}), signal: controller.signal });
-    } catch (error) {
-      throw new OpenEMRModuleError(error?.name === 'AbortError' ? 'OPENEMR_MODULE_TIMEOUT' : 'OPENEMR_MODULE_UNREACHABLE', { httpStatus: error?.name === 'AbortError' ? 504 : 502, correlationId });
+      try {
+        response = await this.fetchImpl(url.toString(), { method, headers: { ...headers, accept: 'application/json', 'x-correlation-id': correlationId, ...(bodyText ? { 'content-type': 'application/json' } : {}) }, ...(bodyText ? { body: bodyText } : {}), signal: controller.signal });
+      } catch (error) {
+        throw new OpenEMRModuleError(error?.name === 'AbortError' ? 'OPENEMR_MODULE_TIMEOUT' : 'OPENEMR_MODULE_UNREACHABLE', { httpStatus: error?.name === 'AbortError' ? 504 : 502, correlationId });
+      }
+      try { payload = await response.json(); } catch (error) {
+        if (error?.name === 'AbortError' || controller.signal.aborted) throw new OpenEMRModuleError('OPENEMR_MODULE_TIMEOUT', { status: response.status, httpStatus: 504, correlationId });
+        throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID', { status: response.status, correlationId });
+      }
     } finally {
       clearTimeout(timer);
     }
-    let payload;
-    try { payload = await response.json(); } catch { throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID', { status: response.status, correlationId }); }
     if (!response.ok) {
       const moduleCode = typeof payload?.error === 'string' && /^[a-z_]{1,40}$/.test(payload.error) ? payload.error.toUpperCase() : `HTTP_${response.status}`;
       const issues = Array.isArray(payload?.issues) ? payload.issues.filter((issue) => typeof issue === 'string' && /^[A-Za-z0-9_.[\]]{1,80}$/.test(issue)) : [];
-      throw new OpenEMRModuleError(`OPENEMR_MODULE_${moduleCode}`, { status: response.status, httpStatus: PASS_THROUGH_STATUSES.has(response.status) ? response.status : 502, issues, correlationId });
+      throw new OpenEMRModuleError(`OPENEMR_MODULE_${moduleCode}`, { status: response.status, httpStatus: passThrough(response.status, moduleCode) ? response.status : 502, issues, correlationId });
     }
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new OpenEMRModuleError('OPENEMR_MODULE_RESPONSE_INVALID', { status: response.status, correlationId });
     return payload;

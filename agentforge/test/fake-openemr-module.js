@@ -1,7 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { canonicalString, sha256Hex, verifyCanonicalSignature } from '../src/openemrModuleClient.js';
-import { verifySignedContext } from '../src/accessContext.js';
+import { parseLaunchVerifyKey, verifySignedContext } from '../src/accessContext.js';
 
 /**
  * TEST-ONLY fake of the oe-module-agentforge HTTP contract (public/api.php).
@@ -10,7 +10,9 @@ import { verifySignedContext } from '../src/accessContext.js';
  * allowlist and idempotency rules, and counts the rows it "writes" so tests
  * can assert that a re-upload adds zero rows.
  */
-export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowlist = [] }) {
+export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, launchVerifyKey = null, allowlist = [] }) {
+  // Like the module: launcher tokens verify only with the launcher public key (Ed25519, W3 H1).
+  const launchKey = parseLaunchVerifyKey(launchVerifyKey);
   const settings = { corruptObservationValues: false, historyUnitOverride: null, historySubjectOverride: null };
   const nonces = new Set();
   const ledger = new Map();
@@ -25,10 +27,15 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
 
   const reply = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
   const idempotent = (key, payload, write) => {
-    if (ledger.has(key)) { const stored = ledger.get(key); return [200, { status: 'duplicate', payload_differs: stored.payload !== payload, ...stored.response }]; }
+    if (ledger.has(key)) {
+      const stored = ledger.get(key);
+      // Like IdempotentWriter: the same key with another body is a 409, never a duplicate.
+      if (stored.payload !== payload) return [409, { error: 'idempotency_conflict', issues: ['payload_differs'] }];
+      return [200, { status: 'duplicate', ...stored.response }];
+    }
     const response = { ...write(), idempotency_key: key };
     ledger.set(key, { payload, response });
-    return [201, { status: 'created', payload_differs: false, ...response }];
+    return [201, { status: 'created', ...response }];
   };
 
   const server = http.createServer(async (req, res) => {
@@ -54,7 +61,7 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
     if (nonces.has(header('x-agentforge-nonce'))) return reply(res, 409, { error: 'nonce_replayed' });
     nonces.add(header('x-agentforge-nonce'));
     if (query.route === 'health') return reply(res, 200, { status: 'ok', persistence_boundary: 'openemr-module' });
-    const claims = verifySignedContext(contextToken, contextSecret);
+    const claims = verifySignedContext(contextToken, contextSecret, undefined, { launchVerifyKey: launchKey });
     const patientUuid = req.method === 'POST' ? body.patient_uuid : query.patient_uuid;
     if (!claims) return reply(res, 401, { error: 'context_invalid' });
     if (claims.patient_uuid !== patientUuid) return reply(res, 403, { error: 'patient_scope_mismatch' });
@@ -66,7 +73,7 @@ export async function startFakeOpenEMRModule({ hmacSecret, contextSecret, allowl
       const content = Buffer.from(body.content_base64, 'base64');
       if (sha256Hex(content) !== body.content_sha256) return reply(res, 400, { error: 'invalid_request', issues: ['content_sha256_mismatch'] });
       if (body.mime_type === 'application/pdf' && content.subarray(0, 5).toString() !== '%PDF-') return reply(res, 400, { error: 'invalid_request', issues: ['content_not_pdf'] });
-      const key = body.document_type === 'derived_facts' ? `derived:v1:${patientUuid}:${body.source_document_id}` : `doc:v1:${patientUuid}:${body.document_type}:${body.content_sha256}`;
+      const key = body.document_type === 'derived_facts' ? `derived:v2:${patientUuid}:${body.source_document_id}:${body.content_sha256}` : `doc:v1:${patientUuid}:${body.document_type}:${body.content_sha256}`;
       const [status, response] = idempotent(key, body.content_sha256, () => {
         const id = nextDocumentId++;
         counts.documents += 1;

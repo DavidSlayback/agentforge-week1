@@ -59,6 +59,7 @@ export type Mapped<T> =
 type Condition =
   | { readonly c: 'timeout' }
   | { readonly c: 'network' }
+  | { readonly c: 'too-large' }
   | { readonly c: 'unauthorized' }
   | { readonly c: 'forbidden' }
   | { readonly c: 'bad-status' }
@@ -98,6 +99,7 @@ function isEmptyRestEnvelope(body: unknown): boolean {
 function classify(outcome: UpstreamOutcome, shape: ResponseShape, notFoundEmptyBodyIsEmpty: boolean, notFoundEmptyEnvelopeIsEmpty: boolean): Condition {
   if (outcome.kind === 'timeout') return { c: 'timeout' };
   if (outcome.kind === 'network') return { c: 'network' };
+  if (outcome.kind === 'too-large') return { c: 'too-large' };
   if (outcome.status === 401) return { c: 'unauthorized' };
   if (outcome.status === 403) return { c: 'forbidden' };
   if (outcome.status === 404 && outcome.bodyEmpty && notFoundEmptyBodyIsEmpty) return { c: 'empty-success' };
@@ -149,6 +151,8 @@ export function mapUpstream<T>(outcome: UpstreamOutcome, options: MapOptions<T>)
       return fail('UPSTREAM_TIMEOUT');
     case 'network':
       return fail('UPSTREAM_UNAVAILABLE');
+    case 'too-large':
+      return fail('UPSTREAM_BODY_TOO_LARGE');
     case 'unauthorized':
       return { kind: 'failure', failure: { kind: 'reauth' } };
     case 'forbidden':

@@ -128,19 +128,19 @@ Status is as of `9d4d6b5` (live) from a requirements audit on 2026-09-24 that ob
 | W2-S1 | p3 | README separates W1 and W2; branch, env vars and services are unambiguous | S | README has URLs, SHA endpoint, W1 vs W2 table, full env table | Done: root README has URLs, `/health` SHA, W1 vs W2 table, env table | S12 |
 | W2-S2 | p6 | `./W2_ARCHITECTURE.md` covering ingestion, graph, RAG, gate, risks, tradeoffs | S | At root; every claim matches the code at the freeze SHA | Done: root `W2_ARCHITECTURE.md`, reconciled with the code on `dc898c6` and later | S12 |
 | W2-S3 | p6 | Cost and latency report: dev spend, projection, p50/p95, bottlenecks | S | Numbers from real traces and a price table | Done except owner numbers: `W2_COST_LATENCY.md` (14 live traces, official Qwen/Gemini prices, 100/1K/10K/100K projection, per-stage p50/p95, bottlenecks). Qwen and Vultr dev spend await the owner's console readback. | S9, S12 |
-| W2-S4 | p6 | Demo video, 3–5 min | S | Recorded from the freeze SHA | Open | S11 (H5) |
+| W2-S4 | p6 | Demo video, 3–5 min | S | Recorded from the freeze SHA | Done: recorded on `ee036f38` | S11 (H5) |
 | W1-SF1 | W1 p7 | Verification: every claim is source-attributed | SF | Verifier rejects any sentence with an unanchored clinical value; the fabricated-warfarin probe fails | Verifier done (S7, per-claim; used by S6) | S7 |
-| W1-SF2 | W1 p7 | Domain constraint enforcement | SF | At least 3 rules (e.g. potassium critical range, A1C ≥ 6.5 flag, allergy↔med class conflict) with tests | Deployed and tested; one rule observed live. Merged in `99eaf8f8` and in the freeze `d5a0df7e`; the A1C diabetes-range flag was observed on the public URL on `99eaf8f8` (`evidence/F-lanes-live.md`), the potassium and allergy rules were not. `clinicalRules.js`: critical potassium, the A1C diabetes range with `flag_contradicts_range`, and allergy vs medication class. Also "not documented" answers (`notDocumented.js`, W1 debt item 20). Unit tests, extension cases `xc-*`, regression proof `evidence/F-CLIN-regression.txt` | F-CLIN |
+| W1-SF2 | W1 p7 | Domain constraint enforcement | SF | At least 3 rules (e.g. potassium critical range, A1C ≥ 6.5 flag, allergy↔med class conflict) with tests | Deployed and tested; one rule observed live. Merged in `99eaf8f8` and in the first freeze `d5a0df7e` (now tag `w2-final-rc1`); the A1C diabetes-range flag was observed on the public URL on `99eaf8f8` (`evidence/F-lanes-live.md`), the potassium and allergy rules were not. `clinicalRules.js`: critical potassium, the A1C diabetes range with `flag_contradicts_range`, and allergy vs medication class. Also "not documented" answers (`notDocumented.js`, W1 debt item 20). Unit tests, extension cases `xc-*`, regression proof `evidence/F-CLIN-regression.txt` | F-CLIN |
 | W1-SF3 | W1 p8 | Evals must not be circular | SF | `grep -rn expected agentforge/src` returns nothing for eval-oracle reads; stale and missing-author detection comes from the data | Resolved on W2 by E8 (`fd6c959b`): trust comes from record data (`recordTrust.js`); `agentforge/test/no-eval-oracle.test.js` forbids answer-key reads in every module the server loads. W1 route unchanged (D8) | E8 |
 | W1-SF4 | W1 p2 | Authorization enforced | SF | Cross-patient question → explicit out-of-scope refusal; module ACL uses the username; `/v1/traces` needs auth | Partly (E8, `fd6c959b`): a question naming another patient is refused `out_of_scope_patient` on the briefing follow-up, scan answer and follow-up evidence (ids and full names on fixtures, id patterns only on live OpenEMR; `x8-scope-other-patient-question`). The module ACL fix (F18) and ops-endpoint auth were not built (D8) | E8 |
 | W1-C1 | W1 p8 | `/ready` checks OpenEMR, LLM and observability | C | Each check is a live network probe; killing OpenEMR makes it 503 | Out of scope (D8) | — |
 | W1-C2 | W1 p8 | Correlation ID on every log, tool call and LLM call | C | Test asserts the ID on getCase, token refresh, retriever, Cohere, OpenEMR writes and error log | Out of scope (D8) | — |
 | W1-C3 | W1 p8 | Dashboard + 3 alerts with sane thresholds | C | Per-route p95 thresholds from measured baselines; not permanently firing | Partly (E8): the W2 p95 alert is 30000 ms, the KEY_METRICS target; live `/v1/alerts` on `fd6c959b` observed 21228 ms, not triggered. One global threshold, not per route | E8 |
 | W1-S1 | W1 p6,9 | Root `./AUDIT.md`, `./ARCHITECTURE.md`, `./USERS.md`/`USER.md` | S | Real versions at root; `START_HERE.md` accurate or deleted | Done: root `AUDIT.md`, `ARCHITECTURE.md`, `USERS.md`, `USER.md` (MR !99, `250a881c`); `START_HERE.md` is an index | E6 |
-| W1-S2 | W1 p9 | Postman/Bruno collection | S | Bruno collection with a deployed-URL env covering W1 and W2 endpoints; runs green with `bru run` | Done (F-API): deployed run on the freeze `d5a0df7e`, 27/27 requests, 64/64 assertions (`evidence/bruno-deployed-d5a0df7e.md`). `agentforge/api/bruno`, 27 requests over W1 and W2 with status and key-field assertions and token → upload → scan chaining; `collection.ps1` removed. 27/27 requests, 64/64 assertions, 18/18 tests against a local server from `4c630f5b` (`evidence/bruno/4c630f5b-local.json`); a deliberately wrong assertion fails the run | F-API |
-| W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | Done (F-API): run on the freeze `d5a0df7e`, 400/400 requests, 0 errors; 10 users p50 46 ms / p95 2.34 s / p99 9.58 s, 50 users p50 82 ms / p95 3.52 s / p99 11.75 s; `agentforge-w2` peaked at 32 % CPU and 58 MiB (`LOAD_TEST.md` "Freeze run", `evidence/load/d5a0df7e-*`). `agentforge/scripts/load-test.mjs` (≥ 200 requests per level, capped scans, per-route p50/p95/p99, raw JSON named by the target's SHA, `docker stats` attach step); percentile math tested; local dry run on `7a625da0`. Expected model cost under $0.02 per run (`LOAD_TEST.md`) | F-API |
+| W1-S2 | W1 p9 | Postman/Bruno collection | S | Bruno collection with a deployed-URL env covering W1 and W2 endpoints; runs green with `bru run` | Done (F-API): deployed run on the first freeze `d5a0df7e` (now tag `w2-final-rc1`), 27/27 requests, 64/64 assertions (`evidence/bruno-deployed-d5a0df7e.md`). `agentforge/api/bruno`, 27 requests over W1 and W2 with status and key-field assertions and token → upload → scan chaining; `collection.ps1` removed. 27/27 requests, 64/64 assertions, 18/18 tests against a local server from `4c630f5b` (`evidence/bruno/4c630f5b-local.json`); a deliberately wrong assertion fails the run | F-API |
+| W1-S3 | W1 p9 | Load 10/50 users, p50/p95/p99, error rate, CPU/mem | S | Raw JSON committed from a run against the freeze SHA | Done (F-API): run on the first freeze `d5a0df7e` (now tag `w2-final-rc1`), 400/400 requests, 0 errors; 10 users p50 46 ms / p95 2.34 s / p99 9.58 s, 50 users p50 82 ms / p95 3.52 s / p99 11.75 s; `agentforge-w2` peaked at 32 % CPU and 58 MiB (`LOAD_TEST.md` "Freeze run", `evidence/load/d5a0df7e-*`). `agentforge/scripts/load-test.mjs` (≥ 200 requests per level, capped scans, per-route p50/p95/p99, raw JSON named by the target's SHA, `docker stats` attach step); percentile math tested; local dry run on `7a625da0`. Expected model cost under $0.02 per run (`LOAD_TEST.md`) | F-API |
 | W1-S4 | W1 p9 | Cost analysis includes LLM spend | S | Dev spend from provider dashboards + per-query tokens × price table | Out of scope (D8) | — |
-| X-1 | W2 p5 | Click-to-source UI with a simple document preview | C (D12) | Built (S4); observed on the public URL: a citation's link highlights its box on the page image | Observed live on `521af47` (`evidence/E1-click-to-source-live.md`); gated by extension cases `x1-*` (E0). Re-checked on the freeze `d5a0df7e`: 12 links, 12 boxes (`evidence/LEDGER.md` X-1) | S4, E1 |
+| X-1 | W2 p5 | Click-to-source UI with a simple document preview | C (D12) | Built (S4); observed on the public URL: a citation's link highlights its box on the page image | Observed live on `521af47` (`evidence/E1-click-to-source-live.md`); gated by extension cases `x1-*` (E0). Re-checked on the first freeze `d5a0df7e` (now tag `w2-final-rc1`): 12 links, 12 boxes (`evidence/LEDGER.md` X-1) | S4, E1 |
 | X-2 | W2 p5 | Critic agent that rejects uncited claims or unsafe action suggestions | C (D12) | An LLM critic node in the supervisor graph can only veto claims; its decision and reason are traced; the gate fails when it is removed or ignored | **Wired, tested, observed live** on `e56eab86` with `openai/gpt-4.1-nano` (benchmark and trace: `evidence/E2-critic-live.md`); 9 `x2-*` extension cases; merged MR !97. Re-checked on `d5a0df7e` (`LEDGER.md` X-2) | E2 |
 | X-3 | W2 p5 | Third document type (referral fax or medication list) | C (D12) | `medication_list` end to end: upload, OpenEMR storage, strict schema, cited extraction, fail-loud checks, gate cases | **Wired, tested, observed live** on `d952660b` (MR !101): "Medication list · Layout A" READY with 19 cited fields, critic reviewed; OpenEMR ledger shows `doc:medication_list` and `doc:derived_facts` for pid 1 (`evidence/E4-E5-E8-live.md`); 15 `x3-*` cases (`evidence/E4-medlist-regression.txt`). Confirmed medications are not yet written from the UI (A3). Re-checked on `d5a0df7e` (`LEDGER.md` X-3, X-3-MISLABEL) | E4 |
 | X-4 | W2 p5 | Lab trend chart widget from extracted Observation data | C (D12) | Chart of one test over ≥ 2 collection dates, read back from OpenEMR (not from the upload response) | **Wired, tested, observed live** on `e0f9eb35` (MR !102): "Lab trends", read from OpenEMR's FHIR Observation service, charted A1C and hemoglobin over three dates with points linked to their sources (`evidence/E4-E5-E8-live.md`); 5 `x4-*` cases (`evidence/E5-lab-trend-regression.txt`). Re-checked on `d5a0df7e` (`LEDGER.md` X-4) | E5 |
@@ -325,7 +325,7 @@ Add a unit test that every citation link's `href` equals an existing box id
   UI; nothing is auto-written. Evidence: `docs/agentforge/evidence/E4-medlist-regression.txt`.
   Still needed for "done": merge, deploy, and a live `medication_list` upload
   (E7 acceptance). **Update:** merged (!101) and observed live on
-  `d952660b` (`evidence/E4-E5-E8-live.md`); re-checked on the freeze `d5a0df7e`
+  `d952660b` (`evidence/E4-E5-E8-live.md`); re-checked on the first freeze `d5a0df7e` (now tag `w2-final-rc1`)
   (`evidence/LEDGER.md` X-3).
 
 **E5 — Lab trend chart (X-4). 3 h, after E4 merges (both touch `ui.js`).**
@@ -353,7 +353,8 @@ wiring that would handle it." The data stays synthetic; the code path is the
 real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
 - **Status (2026-09-26, E9 lane, before deploy; superseded: observed live on
   `b942391f`, see the completion record):** implemented and tested.
-  The chart adapter is chosen per request from the HMAC-verified claims only
+  The chart adapter is chosen per request from the verified token claims only
+  (since W3 H1, launcher tokens are Ed25519-signed and demo tokens HMAC-signed)
   (`chartSourceRouter.js`): launcher tokens (`openemr-module` /
   `openemr-session`) read `OpenEMRRestAdapter` when
   `AGENTFORGE_OPENEMR_LIVE_READS=on`, else they are refused with
@@ -394,7 +395,7 @@ real one. Circuit breaker: Sat 19:00 CT, else ship behind the off flag.
   `grader`'s tokens, so the empties are specific to AgentForge's `admin`
   grant (F-LIVE item 4).
 - **F-LIVE (2026-09-26, branch `agentforge/f-live`):** merged
-  (`e8718318`), tested and deployed on the freeze `d5a0df7e`; not observed in
+  (`e8718318`), tested and deployed on the first freeze `d5a0df7e` (now tag `w2-final-rc1`); not observed in
   an OpenEMR-launched session (`evidence/F-lanes-live.md`). The client's grant
   types were changed to `authorization_code|refresh_token` (owner approval),
   but the helper was not run: it needs a clinician at the consent screen, so
@@ -581,8 +582,10 @@ with the gate green, and adds its own golden cases to S1's gate in the same MR.
     agentforge`;
   - rules: MR events and `main`.
   Delete `.github/workflows/agentforge-w2-gate.yml` (it does not run on GitLab).
-- `/health` returns `{status, git_sha}`: the `GIT_SHA` build arg is passed in
-  `deploy/vultr` compose and the Dockerfile.
+- `/health` returns `{status, git_sha}`. As built, the SHA comes from the
+  `git archive` `export-subst` stamp in `agentforge/BUILD_SHA` and
+  `dashboard/BUILD_SHA` (`deploy.sh`); there is no `GIT_SHA` build arg, and
+  `AGENTFORGE_GIT_SHA` is only a fallback.
 - Verify: MR pipeline green. A scratch MR with `--inject-defect` goes red.
   `curl .../health` shows the SHA (after the first deploy).
 
@@ -920,6 +923,47 @@ Status (2026-09-29): **merged (MR !127 → `40cfbdff`) and deployed.** The owner
 - Residual: W1 (`/agentforge`) still mints anonymously for its own frozen service, which is out of scope (owner). `/v1/traces`, `/v1/metrics` and `/v1/alerts` stay unauthenticated (D4, D8).
 - Red-team repo follow-up (not edited here): its `executor/token.py` must send `X-AgentForge-Demo-Key` and handle 429 with `Retry-After`.
 
+## W3 red-team remediation, round 2 (2026-10-01, branch `agentforge/w3-remediation`)
+
+Findings F-990345a00f, F-e5d47ab7ea, F-ca9486ff1b and F-30da6790d1 from the red-team platform against `da7451d1`, fixed in `8ef9761e` with no key gate (owner constraint). F-6ee92046fb verified present; F-831d4df407 and F-24b44c5180 stay risk-accepted with their compensating controls re-verified. What changed, the commit, the disposition per finding, the deferred items and the proposals for the two critical mints are in `REMEDIATION_W3.md`. Status: pushed, MR !131 open, **not yet merged or deployed** (`/health` still `da7451d1`); the deploy and live-check steps are in `REMEDIATION_W3.md`.
+
+## W3 hardening (2026-10-01, branch `agentforge/w3-hardening`)
+
+Source: the 2026-10-01 repository review (six parallel reviewers, top claims re-verified by hand) of `5873640b` and the newer `main` and `w3-remediation` commits. Owner, 2026-10-01: "Do all of the above. We are not updating the week 2 branch. We are making the best week 3 branch we can." The branch is cut from `w3-remediation` (`926805ce`), which is what `/agentforge-w2/health` reports. `w2-final` (`bfbb1eb2`) is not touched. Standing owner constraints apply: no key gate on the anonymous mints (open mode stays), and synthetic data only.
+
+| Lane | Outcome (each fix ships with a test that fails when the fix is reverted) |
+| --- | --- |
+| H1 module trust | Launcher tokens (`issuer: openemr-module`) are signed with a key that only the OpenEMR container holds, and verified with a public key everywhere else. No container that holds `AGENTFORGE_DEMO_SECRET` (frozen W1, W2) can mint an `openemr-module` token. Anonymous synthetic-demo list writes are no longer recorded as `clinician-confirmed`. Reads are audited, a reused idempotency key with a different body is refused, and the HMAC docblock is corrected. |
+| H2 service security | The extraction cache is scoped so one patient's document id or citations never reach another patient's answer. Follow-up records no trace before authorization and never uses a raw path segment as a correlation id. Uncoded errors do not reach clients. `/ready` fails when no LLM is configured. The pending page-render queue and question length are bounded. The module-client timeout covers the response body. A rejected token cache recovers. The image runs as non-root without test sources. |
+| H3 pipeline correctness | A workflow with zero patient facts or a suppressed safety flag is never READY. A partly read critical value is "present but unreadable", never "not documented". Billed model attempts are counted when the deterministic fallback answers. An A, B, A value keeps its conflict. Runtime evaluation fails runs with dropped or vetoed claims. The `.scan.txt` path is not labeled as OCR or VLM. Date of birth follows the layout's day/month order. Document text is framed as untrusted in the answer prompt. |
+| H4 dashboard | The `/bff` guards match the router's decoded path (`%62ff` regression test). `@fastify/static` is upgraded past the advisory. `returnTo` rejects dot segments. The id_token requires `exp`, `iat` and `sub`. `/login` creation is bounded. An error boundary isolates each card. Vitals has an overall deadline, upstream bodies are capped, and the OpenEMR timezone is required config, not a placeholder. |
+| H5 gate integrity | The hook fails rather than skips the live-OCR tests: it runs them in Docker when tesseract and poppler are missing. A gate case emits an uncited claim and must be caught. The gate's claim re-check is independent of `verifyClaims`. The 50-case hash covers the check functions. The baseline names its SHA. The committed `evals/*.json` files are regenerated. `oracles.js` uses `every`. The `no_phi_in_logs` cases cover a real-trace redaction regression. |
+| H6 docs and deploy | `README` and `PLAN` SHAs match reality. `PLANNING.md`, `REQUIREMENTS_MATRIX.md` and the open wayfinder tickets are archived or bannered. The `docs/agentforge/W2_ARCHITECTURE.md` stub and the 99-word `ARCHITECTURE.md` summary are fixed. Caddy adds HSTS and an HTTP→HTTPS redirect. The proxy no longer waits on frozen W1. The token bind mount is checked. `deploy.sh` can roll back. |
+| H7 freeze | Merge to GitLab `main`, deploy from `main`, prove `/health` and `/dashboard/health` report the same SHA, and re-run live acceptance on that SHA. |
+
+Lanes H1–H6 run in parallel worktrees (`.claude/worktrees/w3h-*`). Each lane reports to the supervisor, and only the supervisor edits this section. Integration order: H2, H1, H3, H4, H6, then H5 last (it re-baselines the gates on the integrated code).
+
+**Status (2026-10-01): H1–H6 implemented, tested and integrated on `agentforge/w3-hardening`; H7 (merge to `main`, deploy, live proof) pending.** By the `AGENTS.md` bar every item is "wired, tested, not observed live" until H7. Each lane reverted each fix and showed its named test fail (lane evidence: `evidence/H5-gate-integrity-regression.txt`, `docs/legacy-audit/evidence/w3-h4-regression.txt`, and the lane commits). Integrated-tree hook run (H5 merge `fbf32e63`): agentforge 766 pass / 0 fail / 3 skipped (the 3 run in the hook's Docker OCR step, 20/20), evals 21/21, module PHP, deploy.sh, dashboard check, 50-case gate and extension suite all pass.
+
+- **H1** (`65fded2e`): Ed25519 launcher keys (`AGENTFORGE_LAUNCH_SIGNING_KEY` openemr only, `AGENTFORGE_LAUNCH_VERIFY_KEY` openemr + W2). Each issuer accepts exactly one signing scheme on both sides. Synthetic-demo list writes are labeled `unconfirmed`. Reads are audited. A reused idempotency key with a different body gets 409; derived-facts keys include the content hash. Deferred: launcher tokens in the URL query (exchanged once for an HttpOnly cookie, `no-referrer`); recorded in `W2_ARCHITECTURE.md`.
+- **H2** (`63cf402e`): extraction cache key includes patient, document id, type and layout. Refusals record no trace and are counted in `/v1/metrics` `refusals`. `/ready` 503 when a real provider has no endpoint or key; the probe is coalesced. Uncoded errors → `internal_error`. Page-render queue capped, questions capped at 2000 chars. Module timeout covers the body. Value-shape redaction for code keys. Non-root image without `agentforge/test`.
+- **H3** (`749f8826`): QUALIFIED for `answer_has_no_patient_facts`, `critic_vetoed_all_claims`, `safety_flag_needs_verification`. Low-confidence or unit-unread rule hits ship as `needs_verification` flags. Partly read labs are never "not documented". Billed attempts are costed. Conflicts are sticky. Dropped or vetoed claims grade `needs_review`. Honest `uploaded-tagged-envelope` label. DOB order by layout. Untrusted-data framing.
+- **H4** (`050c87ee`, `4300c5c5`): `/bff` guards match the router's route (`%62ff` and 12 other encodings tested). `@fastify/static` 10.1.5 (audit 0 high). `returnTo` dot segments refused. id_token needs `exp`/`iat`/`sub`. Login store capped (5000) with amortized sweep. Card error boundaries. Vitals 10 s deadline. 2 MiB upstream cap. `DASHBOARD_OPENEMR_TZ` is required config (rule: `gbl_time_zone`, else php `date.timezone`, else UTC).
+- **H5** (`ab23a90d`, `5a85ccfe`, `3a03c5c3`): live-OCR tests run in Docker from the hook and are required in CI. **Found: deployed OCR used `--psm 6` since S6 while every golden recording is psm 3; 8 golden cases fail at psm 6. The default is back to psm 3** (Tesseract's real default). There is an import-free gate claim judge, a structural low-confidence check, and real-trace no-PHI scans (lab keys added to the redactor). The case-set hash covers check sources, and baselines name their SHA. `evals/*.json` regenerated except `deployed-service-results.json` (marked stale). Oracle uses `every`. Hooks refuse unstaged gated files.
+- **H6** (`56343f52`, `2dcd162f`): README/LOAD_TEST/REQUIREMENTS_MATRIX/REMEDIATION_W3 SHA truth. `PLANNING.md` and `wayfinder/` archived. `ARCHITECTURE.md` summary rewritten (512 words). Caddy `:80` → 308, HSTS and headers. Proxy no longer waits on W1 health. Token-file preflight with `create_host_path: false`. `deploy.sh` restores on failed ship and has opt-in image rollback (`AGENTFORGE_DEPLOY_ROLLBACK=1`).
+- Integration notes: the extension baseline was regenerated because H1 changed `extensionCases/liveChart.js` (hash only, every rate unchanged). The plan commit `9b25806c` was made with `--no-verify` (docs only; every later commit ran the full hook).
+
+**H7 prerequisites on the VM** (the agent's SSH to the VM was refused by the permission layer, so the owner runs these):
+
+1. Add the launcher keypair to `.env` (one-liner in `deploy/vultr/README.md`, "Launcher signing key").
+2. Set `DASHBOARD_OPENEMR_TZ` from the two commands in `dashboard/README.md`. Compose refuses to start any service without it.
+3. `chown -R 1000:1000` the `w2tracevolume`.
+4. Make `secrets/openemr-token.json` a file readable and writable by uid 1000.
+5. Deploy `agentforge-w2 dashboard` with `AGENTFORGE_DEPLOY_RECREATE_OPENEMR=1`.
+6. Re-run live acceptance and regenerate `evals/deployed-service-results.json` against the deployed SHA.
+
+Re-check the four sample PDFs on the live site, since OCR is back to psm 3.
+
 ## Final freeze (2026-09-27 ~12:15 UTC): `w2-final` = `bfbb1eb2`
 
 - **E9c** (MR !123), at the owner's request, so that nothing on the live path is labeled unconfirmed: problems and allergies are read through fallback routes when the scoped route is empty (§3f). **Adapter read on production** (`AF-LIVE-01`, service identity): identity, encounters 2, problems 1 (hypertension), medications 6, allergies 1 (penicillin), all `success`; notes `not_requested` (by design, labeled).
@@ -938,12 +982,12 @@ Status (2026-09-29): **merged (MR !127 → `40cfbdff`) and deployed.** The owner
 
 ## Freeze record (E7, 2026-09-27 ~02:10 UTC)
 
-- **Freeze SHA `d5a0df7e`** (tag `w2-final`). `/agentforge-w2/health` and `/dashboard/health` both report it; W1 `/agentforge` stays at `84f232b`.
+- **Freeze SHA `d5a0df7e`** (tagged `w2-final` at the time; now `w2-final-rc1`, and `w2-final` = `bfbb1eb2`). `/agentforge-w2/health` and `/dashboard/health` both report it; W1 `/agentforge` stays at `84f232b`.
 - **Live acceptance: 26/26 PASS** (`docs/agentforge/evidence/LEDGER.md`). The rows cover the core W2 requirements, X-1…X-4, the E8 labels, scope and badge, the p95 alert, and the dashboard SHA.
 - **Bruno, deployed:** 27/27 requests, 64/64 assertions (`evidence/bruno-deployed-d5a0df7e.md`).
 - **Load test:** 400/400 ok, 0 errors; p95 2.34 s (10 users) and 3.52 s (50 users) (`LOAD_TEST.md`, `evidence/load/`).
 - **Commits after the freeze** are evidence and docs only, and name the freeze SHA.
-- **Owner items still open:** the demo video, the social post, and the submission link to `main`.
+- **Owner items still open:** the social post and the submission link to `main` (the demo video was recorded on `ee036f38`).
 
 ## Acceptance evidence ledger
 
@@ -976,9 +1020,9 @@ on the freeze SHA.
 
 ## Completion record
 
-**Current (freeze, 2026-09-27 ~02:10 UTC).** Tag `w2-final` = `d5a0df7e`.
+**Historical (first freeze, 2026-09-27 ~02:10 UTC; superseded by the final freeze `bfbb1eb2` and the W3 sections above).** Tag `w2-final` was `d5a0df7e` (now `w2-final-rc1`).
 `/agentforge-w2/health` and `/dashboard/health` both report
-`d5a0df7e58b4550f1612b2c268a4b7f06767a0cc`; `main` is ahead only by
+`d5a0df7e58b4550f1612b2c268a4b7f06767a0cc`; `main` was then ahead only by
 evidence and docs commits. `/agentforge` is the frozen W1 snapshot `84f232b`
 (D8, D13). Live acceptance on `d5a0df7e`: 26/26 PASS (`evidence/LEDGER.md`).
 Status uses the `AGENTS.md` bar; every "observed live" names its SHA. Rows
@@ -1006,9 +1050,9 @@ recorded values (`KEY_METRICS.md`).
 | F-CLIN clinical rules and "not documented" answers | `99eaf8f8` | Merged, deployed (in `d5a0df7e`) and tested: unit tests, 13 `xc-*` extension cases (the suite now has 53), hook green. The independent review's two blockers are fixed: allergy filtering, and flags going through `verifyClaims` and the critic. Its should-fix items are also done. The 50-case golden gate is unchanged. Observed live on `99eaf8f8`: the A1C diabetes-range flag only; potassium, allergy and "not documented" were not observed (`evidence/F-lanes-live.md`) | `evidence/F-CLIN-regression.txt`, `W2_ARCHITECTURE.md` §3d |
 | F-LIVE live-chart fixes | `e8718318` | Merged, deployed (in `d5a0df7e`) and tested; not observed in an OpenEMR-launched session. The re-authorization helper was not run (it needs a clinician at the consent screen), so problems and allergies stay `unverified_empty` on the live path | `evidence/F-LIVE-regression.txt`, `evidence/F-lanes-live.md` |
 | F-API collection, adversarial evals, load test | `931fa355` | Done: Bruno deployed 27/27 requests, 64/64 assertions on `d5a0df7e`; load test on `d5a0df7e` 400/400, 0 errors. The W1 adversarial cases run against a local server only | `evidence/bruno-deployed-d5a0df7e.md`, `LOAD_TEST.md`, `evidence/W1-evals-adversarial-regression.txt` |
-| E7 freeze and proof | tag `w2-final` | Done: W2 and the dashboard deployed from `d5a0df7e`, live acceptance 26/26 (`LEDGER.md`). The dashboard build is health-checked only; its last signed-in check of every section was on `a800e97` | `evidence/LEDGER.md`, "Freeze record" above |
+| E7 freeze and proof | tag `w2-final` | Done: W2 and the dashboard deployed from `d5a0df7e` (`w2-final-rc1`), then re-frozen and deployed as `bfbb1eb2` (`w2-final`), live acceptance 26/26 on `bfbb1eb2` (`LEDGER.md`). The dashboard build is health-checked only; its last signed-in check of every section was on `a800e97` | `evidence/LEDGER.md`, "Freeze record" above |
 | UX polish (demo) | branch `agentforge/ux-polish`, not merged | Implemented and unit-tested, presentation only: scan result header and collapsed technical details, readable fact and needs-review lines (`uiFormat.js`), sample cards, ordinal lab-trend chart, per-operation latency on `/observability`, W2 gate and extension suite first on `/evals`. API shapes, claim text and gate hashes unchanged. Not deployed; screenshots are local (OCR replay, synthetic mode). The A1C range text ("under 5.7") is not in OpenEMR's FHIR read-back, so the trend table says "see source document" | `test/ui-format.test.js`, hook |
-| Owner items | — | Dev spend recorded (`W2_COST_LATENCY.md` §5: Vultr ≈ $7 of $30, Qwen an estimate). Still open: demo video, social post, submission link | — |
+| Owner items | — | Dev spend recorded (`W2_COST_LATENCY.md` §5: Vultr ≈ $7 of $30, Qwen an estimate). Still open: social post, submission link (demo video recorded on `ee036f38`) | — |
 
 A read-only check of the production OpenEMR ledger (2026-09-26) found every
 AgentForge write is for pid 1, and no cross-patient lab rows.
@@ -1027,7 +1071,7 @@ merge.
 | S7 | Done (verifier only, D8) | `claim-binding.test.js` probes; `verifyClaims` awaits S6 as first caller |
 | S8 | Done, live | `w2-openemr-smoke.mjs` 48/48 public + 8/8 module attack checks; DB shows 4 docs, 2 `prelim` results, 5 ledger rows after double uploads |
 | R0–R5 refactor | **Done, live on `67b0844`** (MR !74). Full matrix on the merged tree: R0 passes, 29/29 regression rows fail the gate. Live: OpenEMR smoke 48/48, module attack checks 8/8, a legacy `LAB|` upload returns 400, `/v1/supervisor` returns 404. Workers: Sonnet (R2, R3), Haiku (R1, R4a, R4b, R5). Codex Luna headless `exec` could not run shell commands under the Windows sandbox. | Originally planned in | GitLab issue #4 (`davidslayback/agentforge-week1-staging`): pin W1 image, delete dead spikes, retire the legacy text path (it can't persist in deployed module mode and is not refused loudly; verified live), async scan supervisor with injected retriever, accumulating trace usage, archive superseded docs |
-| S4 | Deployed; overlay not yet screenshot-verified live | Page PNG route, server-side overlay and `page_sizes` in the scan envelope (`slice/s4`, Codex). The public overlay screenshot is an S11 item. |
+| S4 | Deployed; overlay observed live on `521af47` (`evidence/E1-click-to-source-live.md`) | Page PNG route, server-side overlay and `page_sizes` in the scan envelope (`slice/s4`, Codex). The public overlay screenshot is an S11 item. |
 | S5 | Done, live | BM25 + `gemini-embedding-2` dense (precomputed 42 × 768 corpus vectors) + reciprocal-rank fusion + top-12 listwise rerank by `qwen3.8-flash` (D10). Live scans report hybrid retrieval, not degraded, and cite CDC "A1C Ranges". The gate replays real recorded embed/rerank fixtures, guarded by `COMPLETE.json`. |
 | S6 | Done, live | `decideNext` loop + `composeGroundedAnswer`. The model cites short labels (F1/G1) that the server resolves before `verifyClaims` (`5ec7aa5`), and the prompt states the verifier's binding rules (`131d5a3`). Live on `131d5a3`, 12 runs over 4 golden PDFs: model grounding 121/121, fallback 0/12, p50 11.1 s, p95 22.1 s (`measure-live-metrics.mjs`). Before the prompt fix (`a91452b`): 60% grounding; a diagnostic showed no invented values, only rule mismatches. Trust probes 10/10. |
 | S5 reranker seam | Done, live | `Reranker` interface (`reranker.js`): Qwen default, Gemini and Cohere adapters; `no_rerank` degraded mode; fixtures keyed by provider + model. Real fixtures recorded inside the W2 container (`c186a15`). Qwen price confirmed from the official Model Studio page and priced in traces since `dcaa180` ($0.0004–0.0006 per scan live). |

@@ -371,6 +371,10 @@ export const ThresholdSource = z.object({
  * A flag that passed `verifyClaims` but that the critic vetoed still ships,
  * marked `critic_status: 'questioned'` with the critic's `critic_reason`
  * code: a veto of a verified safety warning must not hide it (critic.js).
+ * A flag a rule raised on a reading the answer could not state as verified
+ * (a low-confidence read, or a value whose unit was not read) also ships,
+ * marked `verification_status: 'needs_verification'` with its
+ * `verification_reason`; the workflow is then QUALIFIED, never READY.
  */
 export const SafetyFlag = z.object({
   code: z.enum(['critical_value', 'diabetes_range', 'drug_allergy_conflict']),
@@ -381,6 +385,8 @@ export const SafetyFlag = z.object({
   threshold_source: ThresholdSource,
   critic_status: z.enum(['questioned']).optional(),
   critic_reason: z.enum(CRITIC_REASON_CODES).optional(),
+  verification_status: z.enum(['needs_verification']).optional(),
+  verification_reason: z.enum(['low_confidence', 'unit_not_read']).optional(),
 }).strict();
 
 /**

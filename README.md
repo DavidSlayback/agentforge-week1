@@ -143,7 +143,7 @@ the full gate rubric.
 | | Route / service | What it does | Status |
 |---|---|---|---|
 | **Week 1** | `/agentforge`, service `agentforge` | Patient-scoped chart-preparation briefing and follow-up. Reads the chart from synthetic fixtures (`AGENTFORGE_OPENEMR_MODE=synthetic`), not from OpenEMR. | Week 1 as submitted is tag `week1-final` (`e4c0721`). This route runs the pinned image `agentforge-w1:84f232b`, never rebuilt. It keeps its known debt, including the `.some` verifier and $0 cost; see [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §4, "Week 1 debt". Superseded by Week 2. |
-| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public demo (evaluator access code, no OpenEMR login), chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture". An OpenEMR-launched session (E9) reads the real chart for the designated synthetic patient `AF-LIVE-01` (observed on `b942391f`); problems and allergies are read there through fallback routes that work with the current service grant (`W2_ARCHITECTURE.md` §3f, E9c). | This submission, frozen at tag `w2-final` (`bfbb1eb2`). `/health` reports the deployed SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
+| **Week 2** | `/agentforge-w2`, service `agentforge-w2` | The briefing and follow-up on the W2 code, with the Week 1 trust fixes (per-sentence verifier, no answer-key reads, other-patient questions refused). Plus: document upload (lab PDF, intake form, medication list) with OCR extraction and 5-key citations; OpenEMR persistence of the document, derived facts and lab rows through `oe-module-agentforge`; a supervisor with extraction, evidence-retrieval and critic workers; hybrid guideline retrieval with rerank; a structurally verified grounded answer; a lab trend chart read back from OpenEMR; click-to-source on the page image; the 50-case eval gate and the extension suite. On the public demo (no access code in the deployed `open` mode, no OpenEMR login), chart facts come from synthetic fixtures and are labeled "Synthetic chart fixture". An OpenEMR-launched session (E9) reads the real chart for the designated synthetic patient `AF-LIVE-01` (observed on `b942391f`); problems and allergies are read there through fallback routes that work with the current service grant (`W2_ARCHITECTURE.md` §3f, E9c). | The W2 submission is tag `w2-final` (`bfbb1eb2`), frozen since 2026-09-27. The route itself has since been redeployed with post-submission W3 builds, so it does not necessarily run `bfbb1eb2`: `/agentforge-w2/health` reports the SHA it runs, and `docs/agentforge/PLAN.md` names the freeze and evidence for that SHA. `AGENTFORGE_PERSISTENCE_MODE=openemr-module` in its compose block. |
 
 Both services run on the same VM as OpenEMR, from the same repository (W1 as
 a pinned image). Caddy routes `/agentforge-w2` and `/agentforge` to their separate containers,
@@ -155,13 +155,33 @@ supervisor plus two workers, hybrid RAG plus rerank, the 50-case gate, a
 PR-blocking gate with an observable demo), then all five extensions (PLAN
 D12): the critic agent, click-to-source, the `medication_list` type, the lab
 trend chart and contextual retrieval (query expansion, which applies only to
-the BM25 fallback). Every item is built and deployed.
+the BM25 fallback). Every item is built and is in the deployed code.
 [`W2_ARCHITECTURE.md`](W2_ARCHITECTURE.md) §2, "Scope", gives each item's
-state with the SHA it was observed on and its evidence. The release freeze
-is tag `w2-final` (`bfbb1eb2`), deployed to `/agentforge-w2` and `/dashboard`
-on 2026-09-27 at about 12:15 UTC; `main` is ahead only by evidence and docs
-commits. Live acceptance passed 26/26 on it, as did Bruno (27/27) and the load
-test (400/400). Earlier freezes: `d5a0df7e` (`w2-final-rc1`) and `ee036f38`
+state with the SHA it was observed on and its evidence.
+
+**What depends on the VM's `.env`.** Several features need values that exist
+only in the server-only `.env` on the VM. The compose defaults are empty or off,
+so a deploy with the defaults alone runs without them, and says so:
+
+| Feature | Needs (VM `.env`) | Without it |
+|---|---|---|
+| Answer model, Qwen rerank, briefing synthesis | `AGENTFORGE_MODEL_ENDPOINT`, `AGENTFORGE_MODEL_API_KEY` (and `AGENTFORGE_W2_MODEL`) | deterministic fallback answers; with no reranker, retrieval is BM25 only, labeled `degraded: sparse_only` |
+| Critic agent | `AGENTFORGE_CRITIC_MODEL`, `AGENTFORGE_OPENROUTER_API_KEY` | every answer says `critic_status: disabled` |
+| Dense (hybrid) retrieval | `GEMINI_API_KEY` | BM25 only, labeled `degraded: sparse_only` |
+| OpenEMR-launched live chart reads (E9) | `AGENTFORGE_OPENEMR_LIVE_READS=on`, `AGENTFORGE_LIVE_PATIENT_UUIDS`, the OAuth client and `secrets/openemr-token.json` | launcher sessions refused with `openemr_live_reads_disabled` |
+
+The "observed live" claims in `W2_ARCHITECTURE.md` §2 were made with these
+set on the VM; this repository cannot show the `.env` itself.
+
+**Which SHA is which.** The Week 2 submission is tag `w2-final` (`bfbb1eb2`),
+deployed to `/agentforge-w2` and `/dashboard` on 2026-09-27 at about 12:15 UTC.
+It is frozen: post-submission work does not move the tag. Live acceptance passed 26/26 on
+it, as did Bruno (27/27) and the load test (400/400). Since then, `main` has
+gained the W3 red-team fixes and the W3 hardening (code, not only docs), and
+`/agentforge-w2` has been redeployed with W3 builds. The SHA running now is
+whatever `/agentforge-w2/health` and `/dashboard/health` report, and
+[`docs/agentforge/PLAN.md`](docs/agentforge/PLAN.md) records the evidence for
+it. Earlier W2 freezes: `d5a0df7e` (`w2-final-rc1`) and `ee036f38`
 (`w2-final-rc2`, UI polish, and a critic-questioned safety flag kept visible,
 where the demo video was recorded). `bfbb1eb2` adds only the live-path
 fallback reads for problems and allergies (E9c); the video uses the public demo
@@ -259,6 +279,7 @@ narrative behind each group.
 | `AGENTFORGE_DEMO_ACCESS_KEY` | In `key` mode, the evaluator key that the context mints require in `X-AgentForge-Demo-Key` (W3). If unset, mints return 503 and `/ready` fails | none | Yes in `key` mode | Yes |
 | `AGENTFORGE_MINT_RATE_LIMIT` / `AGENTFORGE_MINT_RATE_WINDOW_SECONDS` | Mints per client address per window, shared by all three mints; over the limit gets 429 + `Retry-After` | `15` / `60` | No | No |
 | `AGENTFORGE_TRUST_PROXY` | Key the rate limit on the rightmost `X-Forwarded-For` entry. Set only behind a proxy that overwrites it (Caddy) | `false` | No (`true` for `agentforge-w2`) | No |
+| `AGENTFORGE_DEMO_ALLOWED_ORIGINS` | Comma-separated origins allowed on the anonymous mints. A present `Origin` outside the list gets 403; an absent one is allowed. Cross-origin browser defense only, not a control against scripted clients. Empty = off | empty (compose: the public origin) | No | No |
 | `AGENTFORGE_MAX_REQUEST_BODY_BYTES` | Upload size cap | 8 MiB | No | No |
 | `AGENTFORGE_FIXTURES` | Path to the synthetic fixture patient set | built-in path | No | No |
 | `AGENTFORGE_PREPARATION_CACHE_TTL_MS` / `AGENTFORGE_FRESH_RETRIEVAL_DEADLINE_MS` / `AGENTFORGE_MAX_PREWARM_JOBS` / `AGENTFORGE_PREWARM_DEADLINE_MS` / `AGENTFORGE_RECORD_DELAY_MS` | Briefing cache and prewarm tuning (Week 1 lane, shared) | see `server.js` | No | No |
@@ -267,7 +288,7 @@ narrative behind each group.
 | `AGENTFORGE_TRACE_PATH` / `AGENTFORGE_TRACE_RETENTION_MS` | Redacted trace file location/retention. The `agentforge-w2` compose service writes `/data/w2-traces.json` on the `w2tracevolume` named volume and keeps 7 days (`AGENTFORGE_W2_TRACE_RETENTION_MS`), so traces survive a redeploy | `/tmp/agentforge/traces.json` / 24h | No | No |
 | `AGENTFORGE_TRACE_LIMIT` | Most traces the store keeps (oldest dropped first); `/v1/traces` and `/observability` show all retained traces, so this is their cap. Must be a positive integer or the process exits. `agentforge-w2` reads it from `AGENTFORGE_W2_TRACE_LIMIT` | `500` | No | No |
 | `AGENTFORGE_EVAL_REPORT_PATH` | Overrides which committed eval report `/evals` serves | committed default | No | No |
-| `AGENTFORGE_GIT_SHA` | Overrides the SHA `/health` reports | derived at build | No (Yes for `/health` proof) | No |
+| `AGENTFORGE_GIT_SHA` | Fallback for the SHA `/health` reports, used only when `agentforge/BUILD_SHA` is unstamped. `deploy.sh` ships with `git archive`, whose `export-subst` writes the commit into `BUILD_SHA`, so the deployed `/health` proof never reads this variable and compose does not set it (`agentforge/src/buildInfo.js`) | `unversioned` | No | No |
 
 **Document persistence (`AGENTFORGE_PERSISTENCE_MODE=openemr-module`)**
 
@@ -288,7 +309,9 @@ narrative behind each group.
 |---|---|---|---|---|
 | `AGENTFORGE_OPENEMR_MODE` | `synthetic` (default) or `live` | `synthetic` | No | No |
 | `AGENTFORGE_LIVE_PATIENT_UUIDS` | The designated synthetic patients (on `openemr` and `agentforge-w2`): the launcher mints live tokens only for them, and external egress from a live read needs one of them plus `AGENTFORGE_LIVE_EXTERNAL_PROVIDER_APPROVED` | empty (nobody) | Yes for live reads | No |
-| `AGENTFORGE_OPENEMR_LIVE_READS` | `on` or `off`. Synthetic mode only: `on` reads the real chart for OpenEMR-launcher tokens (issuer `openemr-module`, authn `openemr-session`); `off` refuses them with `openemr_live_reads_disabled`, never a fixture fallback. Any other value stops startup | `off` | No | No |
+| `AGENTFORGE_OPENEMR_LIVE_READS` | `on` or `off`. Synthetic mode only: `on` reads the real chart for OpenEMR-launcher tokens (issuer `openemr-module`, authn `openemr-session`); `off` refuses them with `openemr_live_reads_disabled`, never a fixture fallback. Any other value, or `on` without `AGENTFORGE_LAUNCH_VERIFY_KEY`, stops startup | `off` | No | No |
+| `AGENTFORGE_LAUNCH_SIGNING_KEY` | `openemr` container only: base64 32-byte Ed25519 seed the launcher signs `openemr-module` tokens with. No other service gets it, so a holder of `AGENTFORGE_DEMO_SECRET` cannot mint a launcher token (generation: `deploy/vultr/README.md`, "Launcher signing key") | none (launcher answers 503) | Yes for the launcher | Yes |
+| `AGENTFORGE_LAUNCH_VERIFY_KEY` | `openemr` and `agentforge-w2`: base64 32-byte Ed25519 public key that verifies launcher tokens. Empty: every launcher token is refused (labeled 503 page); an `openemr-module` token signed with the demo secret is always refused | none | Yes for live reads | No |
 | `AGENTFORGE_OPENEMR_BASE_URL` | OpenEMR base URL | none | Yes for live mode | No |
 | `AGENTFORGE_OPENEMR_ACCESS_TOKEN` | Static access token (test/manual use) | none | No | Yes |
 | `AGENTFORGE_OPENEMR_TOKEN_URL` / `AGENTFORGE_OPENEMR_CLIENT_ID` / `AGENTFORGE_OPENEMR_CLIENT_SECRET` | OAuth refresh-token flow for a server-only read token | none | Yes for live mode | Client secret: yes |
@@ -299,8 +322,8 @@ narrative behind each group.
 
 | Name | Purpose | Default | Required? | Secret? |
 |---|---|---|---|---|
-| `AGENTFORGE_PROVIDER_MODE` | `qwen` (default) or `openrouter` | `qwen` | No | No |
-| `AGENTFORGE_MODEL_PROTOCOL` / `AGENTFORGE_MODEL_ENDPOINT` / `AGENTFORGE_MODEL` / `AGENTFORGE_MODEL_API_KEY` | Answer-composer and briefing-synthesis model wire | none configured by default | Yes for a real model (else deterministic-only) | API key: yes |
+| `AGENTFORGE_PROVIDER_MODE` | `qwen` (default), `openrouter`, or `deterministic` (tests and local development only: no model, `/ready` reports `model` `mode: deterministic`). `qwen` or `openrouter` with no endpoint and key is not ready: `/ready` 503, `model` `reason: not_configured` (W3 H2) | `qwen` | No | No |
+| `AGENTFORGE_MODEL_PROTOCOL` / `AGENTFORGE_MODEL_ENDPOINT` / `AGENTFORGE_MODEL` / `AGENTFORGE_MODEL_API_KEY` | Answer-composer and briefing-synthesis model wire | none configured by default | Yes in `qwen` mode (unset, the service answers deterministically and `/ready` is 503) | API key: yes |
 | `AGENTFORGE_MODEL_TIMEOUT_MS` / `AGENTFORGE_MODEL_ENABLE_THINKING` | Per-call timeout; disables Qwen extended reasoning | provider default / `false` on `agentforge-w2` | No | No |
 | `AGENTFORGE_MODEL_SITE_URL` / `AGENTFORGE_MODEL_SITE_NAME` | Attribution headers some providers require | none / `AgentForge` | No | No |
 | `AGENTFORGE_OPENROUTER_ENDPOINT` / `AGENTFORGE_OPENROUTER_MODEL` / `AGENTFORGE_OPENROUTER_API_KEY` / `AGENTFORGE_OPENROUTER_TIMEOUT_MS` | OpenRouter provider lane (alternative to Qwen) | none | Only if `AGENTFORGE_PROVIDER_MODE=openrouter` | API key: yes |
@@ -341,7 +364,8 @@ write), the guideline corpus, the OpenEMR module's signed `health` route when
 `AGENTFORGE_PERSISTENCE_MODE=openemr-module` (`openemrModule`, reason = the
 module error code), and Langfuse when it is configured. The write, module and
 Langfuse probes are cached for 30 s, and concurrent `/ready` calls share one
-in-flight probe. A trace file that does not parse at startup is renamed to
+in-flight probe. The model reachability probe (a real model call) is cached
+and coalesced the same way. A trace file that does not parse at startup is renamed to
 `<name>.corrupt-<ms>.json`, the store starts empty, one
 `agentforge_trace_store_recovered` line is logged, and `traceStore` reports
 `TRACE_STORE_CORRUPT` until the next trace is written.
@@ -349,11 +373,25 @@ in-flight probe. A trace file that does not parse at startup is renamed to
 Every response carries an `x-correlation-id` header. A caller's value is used
 only when it is a UUID or 16-64 lowercase hex characters; anything else is
 dropped (not logged, stored or forwarded) and the server mints `af-<uuid>`.
-The id names the scan trace, is sent on every outbound call the request makes
-(OpenEMR REST reads and token refresh, guideline embed and rerank, OpenEMR
-module), and appears in the server's error logs.
+The id names the scan, briefing and follow-up traces, is sent on every
+outbound call the request makes (OpenEMR REST reads and token refresh,
+guideline embed and rerank, OpenEMR module, the briefing model), and appears in
+the server's error logs. A URL path segment (a conversation id) is never used
+as a trace id.
 
-**Test-only** (never set in a deployed environment): `AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE`, `AGENTFORGE_TEST_INVALID_ANSWER`, `AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION`, `AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE` — force specific failure paths in tests.
+Refused requests (401, 403 and 429 answers, and briefings or follow-ups that
+fail authorization or conversation scope) record no trace. They are counted by
+reason code in `/v1/metrics` `refusals` (`total`, `byReason`; since process
+start, not persisted), so a flood of them neither fills the public trace store
+nor changes `requests`, `errorRate` or the latency percentiles behind the
+alerts. Error responses carry a code only; an error without one is answered
+`internal_error` and logged server-side with its name and stack frames, never
+its message. Questions (`message`) are capped at 2000 characters
+(`message_too_long`), and at most `AGENTFORGE_MAX_WAITING_PAGE_RENDERS`
+(default 8) page-image requests wait behind the two running renders; the next
+gets 503 `page_render_busy` with `Retry-After`.
+
+**Test-only** (never set in a deployed environment): `AGENTFORGE_TEST_CLINICAL_ACTION_FAILURE`, `AGENTFORGE_TEST_INVALID_ANSWER`, `AGENTFORGE_TEST_INVALID_SCAN_EXTRACTION`, `AGENTFORGE_TEST_SOURCE_DOCUMENT_FAILURE` (`true` for a coded failure, `uncoded` for a free-text one) — force specific failure paths in tests.
 
 ### Contributing
 

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { canonicalString, deriveWriteKey, OpenEMRModuleClient, OpenEMRModuleError, signRequest, verifyCanonicalSignature } from '../src/openemrModuleClient.js';
-import { issueSignedContext, verifySignedContext } from '../src/accessContext.js';
+import { issueSignedContext, parseLaunchVerifyKey, verifySignedContext } from '../src/accessContext.js';
+import { TEST_LAUNCH_VERIFY_KEY, issueTestLaunchToken } from './helpers/launchKeys.js';
 import { abnormalForOpenEMR, labResultsForModule, OpenEMRModuleWriteback, parsePatientMap, verifyObservationReadBack } from '../src/openemrModuleWriteback.js';
 
 // Shared with interface/modules/custom_modules/oe-module-agentforge/tests/run.php.
@@ -61,7 +62,7 @@ test('module client signs requests, adds a correlation id, and never puts bodies
 });
 
 test('module client maps auth, replay, timeout and scope failures to typed errors', async () => {
-  const cases = [[401, 'signature_invalid', 502], [409, 'nonce_replayed', 502], [403, 'demo_patient_not_allowed', 403], [404, 'document_not_found', 404], [503, 'ledger_not_installed', 503], [500, 'write_failed', 502]];
+  const cases = [[401, 'signature_invalid', 502], [409, 'nonce_replayed', 502], [409, 'idempotency_conflict', 409], [403, 'demo_patient_not_allowed', 403], [404, 'document_not_found', 404], [503, 'ledger_not_installed', 503], [500, 'write_failed', 502]];
   for (const [status, code, httpStatus] of cases) {
     const client = new OpenEMRModuleClient({ baseUrl: 'http://openemr/api.php', secret: 's', fetchImpl: async () => jsonResponse(status, { error: code }) });
     const error = await client.health().catch((caught) => caught);
@@ -117,8 +118,8 @@ test('module writeback maps only allowlisted demo patients and forwards launcher
   assert.equal(mintedClaims.patient_uuid, openemrUuid);
   const other = verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-002', clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', secret }), secret);
   assert.throws(() => writeback.moduleContext(other, 'fixture-patient-002', 'write-source-document'), (error) => error.code === 'OPENEMR_DEMO_PATIENT_NOT_ALLOWED' && error.httpStatus === 403);
-  const launcherToken = issueSignedContext({ patient_uuid: openemrUuid, clinician_uuid: 'a2c37ca7-696f-41cd-be17-ce0e5ae0a9a3', scope: 'write-source-document', acl: 'write', issuer: 'openemr-module', authn: 'openemr-session', secret });
-  const launcher = verifySignedContext(launcherToken, secret);
+  const launcherToken = issueTestLaunchToken({ patient_uuid: openemrUuid, clinician_uuid: 'a2c37ca7-696f-41cd-be17-ce0e5ae0a9a3', scope: 'write-source-document' });
+  const launcher = verifySignedContext(launcherToken, secret, undefined, { launchVerifyKey: parseLaunchVerifyKey(TEST_LAUNCH_VERIFY_KEY) });
   assert.equal(writeback.moduleContext(launcher, openemrUuid, 'write-source-document').contextToken, launcherToken);
   assert.throws(() => new OpenEMRModuleWriteback({ client: {}, secret, patientMap: parsePatientMap(`fixture-patient-001=${openemrUuid}`), demoPatientAllowlist: new Set() }), /OPENEMR_DEMO_PATIENT_MAP_NOT_ALLOWLISTED/);
   assert.throws(() => parsePatientMap('fixture-patient-001=not-a-uuid'), /OPENEMR_DEMO_PATIENT_MAP_INVALID/);
@@ -129,7 +130,7 @@ test('N1: a context is forwarded only for its own patient, and a minted token ne
   const patientA = 'a2c37f7f-1076-4172-b17a-bee8bb8d2da6';
   const patientB = '11111111-2222-4333-8444-555555555555';
   const writeback = new OpenEMRModuleWriteback({ client: {}, secret, patientMap: parsePatientMap(`fixture-patient-001=${patientA},fixture-patient-002=${patientB}`), demoPatientAllowlist: new Set([patientA, patientB]) });
-  const launcherForA = verifySignedContext(issueSignedContext({ patient_uuid: patientA, clinician_uuid: 'a2c37ca7-696f-41cd-be17-ce0e5ae0a9a3', scope: 'write-source-document', acl: 'write', issuer: 'openemr-module', authn: 'openemr-session', secret }), secret);
+  const launcherForA = verifySignedContext(issueTestLaunchToken({ patient_uuid: patientA, clinician_uuid: 'a2c37ca7-696f-41cd-be17-ce0e5ae0a9a3', scope: 'write-source-document' }), secret, undefined, { launchVerifyKey: parseLaunchVerifyKey(TEST_LAUNCH_VERIFY_KEY) });
   assert.throws(() => writeback.moduleContext(launcherForA, patientB, 'write-source-document'), (error) => error.code === 'OPENEMR_CONTEXT_PATIENT_MISMATCH' && error.httpStatus === 403);
   const demoForOne = verifySignedContext(issueSignedContext({ patient_uuid: 'fixture-patient-001', clinician_uuid: 'fixture-physician-001', scope: 'write-source-document', acl: 'write', secret }), secret);
   assert.throws(() => writeback.moduleContext(demoForOne, 'fixture-patient-002', 'write-source-document'), (error) => error.code === 'OPENEMR_CONTEXT_PATIENT_MISMATCH');
